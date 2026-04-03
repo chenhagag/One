@@ -6,6 +6,7 @@ import { analyzeAnswer } from "./openai";
 import { runStage1 } from "./matchStage1";
 import { runStage2, runMatchmaking } from "./matchStage2";
 import { runAnalysisAgent, buildAnalysisInput, saveAnalysisToDb } from "./agents/analysis";
+import { generateOpeningMessage, processUserMessage, computeCoverage, type ConversationState } from "./agents/conversation";
 
 dotenv.config();
 
@@ -129,6 +130,138 @@ app.post("/analyze", async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════
+// MULTI-TURN CONVERSATION — Orchestrated chat flow
+// ════════════════════════════════════════════════════════════════
+
+// In-memory conversation state (per user).
+const conversationStates = new Map<number, ConversationState>();
+
+function parseUserId(raw: any): number | null {
+  const id = typeof raw === "string" ? parseInt(raw, 10) : Number(raw);
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
+
+// POST /conversation/start — Begin or resume a conversation
+app.post("/conversation/start", async (req, res) => {
+  const userId = parseUserId(req.body.user_id);
+  if (!userId) return res.status(400).json({ error: "Valid user_id required" });
+
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  // Check for existing paused conversation
+  const existing = conversationStates.get(userId);
+  if (existing && existing.phase === "paused") {
+    // Resume — restore the phase that was active before pausing
+    existing.phase = (existing as any)._phase_before_pause || "chatting";
+    delete (existing as any)._phase_before_pause;
+    conversationStates.set(userId, existing);
+    const cov = computeCoverage(db, userId);
+    console.log(`[conversation] Resumed for user ${userId} at turn ${existing.turn_count}, phase=${existing.phase}`);
+    return res.json({
+      assistant_message: existing.turns[existing.turns.length - 1]?.content || "Welcome back! Where were we?",
+      phase: existing.phase,
+      coverage_pct: cov.coverage_pct,
+      turn_count: existing.turn_count,
+      resumed: true,
+      turns: existing.turns,
+    });
+  }
+
+  try {
+    const { message, state } = await generateOpeningMessage(db, userId);
+    conversationStates.set(userId, state);
+    console.log(`[conversation] Started for user ${userId}`);
+    return res.json({
+      assistant_message: message,
+      phase: "chatting",
+      coverage_pct: 0,
+      turn_count: 0,
+      resumed: false,
+      turns: state.turns,
+    });
+  } catch (err: any) {
+    console.error(`[conversation] Start error for user ${userId}:`, err);
+    return res.status(500).json({ error: "Failed to start conversation: " + err.message });
+  }
+});
+
+// POST /conversation/message — Send a user message and get assistant response
+app.post("/conversation/message", async (req, res) => {
+  const userId = parseUserId(req.body.user_id);
+  const message = req.body.message;
+  if (!userId || !message) return res.status(400).json({ error: "user_id and message required" });
+
+  let state = conversationStates.get(userId);
+  if (!state) {
+    state = {
+      user_id: userId, turns: [], turn_count: 0,
+      last_analysis: null, last_analysis_at_turn: 0, phase: "chatting",
+    };
+  }
+
+  if (state.phase === "confirmed") {
+    return res.status(400).json({ error: "Conversation already confirmed. Navigate to results." });
+  }
+  if (state.phase === "paused") {
+    return res.status(400).json({ error: "Conversation is paused. Call /conversation/start to resume." });
+  }
+
+  try {
+    const { result, state: newState } = await processUserMessage(db, state, message);
+    conversationStates.set(userId, newState);
+    console.log(`[conversation] User ${userId} turn ${result.turn_count}: phase=${result.phase}, coverage=${result.coverage_pct}%`);
+    return res.json(result);
+  } catch (err: any) {
+    console.error(`[conversation] Message error for user ${userId}:`, err);
+    return res.status(500).json({ error: "Conversation failed: " + err.message });
+  }
+});
+
+// POST /conversation/pause — Save state and pause the conversation
+app.post("/conversation/pause", (req, res) => {
+  const userId = parseUserId(req.body.user_id);
+  if (!userId) return res.status(400).json({ error: "Valid user_id required" });
+
+  const state = conversationStates.get(userId);
+  if (!state) return res.status(404).json({ error: "No active conversation" });
+
+  if (state.phase === "confirmed") {
+    return res.status(400).json({ error: "Conversation already confirmed" });
+  }
+
+  // Remember what phase we were in so resume can restore it
+  (state as any)._phase_before_pause = state.phase;
+  state.phase = "paused";
+  conversationStates.set(userId, state);
+
+  const cov = computeCoverage(db, userId);
+  console.log(`[conversation] Paused for user ${userId} at turn ${state.turn_count}`);
+  return res.json({
+    phase: "paused",
+    turn_count: state.turn_count,
+    coverage_pct: cov.coverage_pct,
+  });
+});
+
+// GET /conversation/state/:id — Current conversation state
+app.get("/conversation/state/:id", (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const state = conversationStates.get(userId);
+  if (!state) return res.status(404).json({ error: "No active conversation" });
+
+  const cov = computeCoverage(db, userId);
+  return res.json({
+    user_id: state.user_id,
+    turn_count: state.turn_count,
+    phase: state.phase,
+    last_analysis_at_turn: state.last_analysis_at_turn,
+    coverage_pct: cov.coverage_pct,
+    turns: state.turns,
+  });
+});
+
+// ════════════════════════════════════════════════════════════════
 // PROFILE ANALYSIS — Trait extraction from conversation
 // ════════════════════════════════════════════════════════════════
 
@@ -136,16 +269,24 @@ app.post("/analyze", async (req, res) => {
 // Stores the answer, builds cumulative transcript, runs analysis agent, saves traits.
 // Incremental: each call adds to the user's profile, null values don't overwrite existing data.
 app.post("/analyze-profile", async (req, res) => {
-  const { user_id, answer } = req.body;
+  const { user_id: rawUserId, answer } = req.body;
 
-  if (!user_id || !answer) {
+  if (!rawUserId || !answer) {
     return res.status(400).json({ error: "user_id and answer are required" });
+  }
+
+  // Ensure user_id is always an integer — req.body may pass string or number
+  const user_id = typeof rawUserId === "string" ? parseInt(rawUserId, 10) : Number(rawUserId);
+  if (!Number.isFinite(user_id) || user_id <= 0) {
+    return res.status(400).json({ error: `Invalid user_id: ${rawUserId} (type: ${typeof rawUserId})` });
   }
 
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(user_id) as any;
   if (!user) {
     return res.status(404).json({ error: "User not found" });
   }
+
+  console.log(`[analyze-profile] Start: user_id=${user_id} (original: ${typeof rawUserId} ${rawUserId})`);
 
   try {
     // 1. Store the raw answer
@@ -167,6 +308,8 @@ app.post("/analyze-profile", async (req, res) => {
     console.log(`[analyze-profile] User ${user_id}: ${allAnswers.length} answers, ${input.internal_trait_definitions.length} internal + ${input.external_trait_definitions.length} external trait defs`);
 
     const output = await runAnalysisAgent(input);
+
+    console.log(`[analyze-profile] Agent returned ${output.internal_traits.length} internal, ${output.external_traits.length} external traits for user ${user_id}`);
 
     // 4. Save traits to DB (COALESCE preserves existing non-null values)
     const saved = saveAnalysisToDb(db, user_id, output);
@@ -234,13 +377,15 @@ app.get("/users/:id/profile-status", (req, res) => {
 
 // GET /admin/users — All users with registration data
 app.get("/admin/users", (_req, res) => {
+  // Use a subquery to get only the LATEST profile per user (avoids duplicate rows)
   const users = db.prepare(`
     SELECT u.*,
-      p.raw_answer,
-      p.analysis_json,
-      p.created_at as profile_created_at
+      lp.raw_answer,
+      lp.analysis_json,
+      lp.created_at as profile_created_at
     FROM users u
-    LEFT JOIN profiles p ON p.user_id = u.id
+    LEFT JOIN profiles lp ON lp.user_id = u.id
+      AND lp.id = (SELECT MAX(p2.id) FROM profiles p2 WHERE p2.user_id = u.id)
     ORDER BY u.created_at DESC
   `).all();
 
@@ -515,6 +660,94 @@ app.post("/admin/reset-matches", (_req, res) => {
     console.error(err);
     return res.status(500).json({ error: err.message });
   }
+});
+
+// POST /admin/users/:id/reanalyze — Re-run the analysis agent for a user
+// Rebuilds the cumulative transcript from ALL saved answers (profiles.raw_answer),
+// runs the CURRENT analysis agent (latest prompts, reloaded each call),
+// and saves/overwrites results in user_traits + user_look_traits.
+//
+// Differs from normal /analyze-profile:
+//   - Does NOT add a new profile row (no new answer)
+//   - Uses ALL existing answers to build transcript
+//   - Designed for testing prompt/logic improvements on existing data
+app.post("/admin/users/:id/reanalyze", async (req, res) => {
+  const user_id = parseInt(req.params.id, 10);
+  if (!Number.isFinite(user_id) || user_id <= 0) {
+    return res.status(400).json({ error: `Invalid user_id: ${req.params.id}` });
+  }
+
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(user_id) as any;
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const allAnswers = db.prepare(
+    "SELECT raw_answer, created_at FROM profiles WHERE user_id = ? ORDER BY created_at ASC"
+  ).all(user_id) as { raw_answer: string; created_at: string }[];
+
+  if (allAnswers.length === 0) {
+    return res.status(400).json({ error: "No profile answers found for this user" });
+  }
+
+  const transcript = allAnswers
+    .map((a, i) => `[Round ${i + 1}]\nUser: ${a.raw_answer}`)
+    .join("\n\n");
+
+  try {
+    const input = buildAnalysisInput(db, transcript);
+    console.log(`[reanalyze] User ${user_id}: ${allAnswers.length} answers, running analysis agent...`);
+
+    const output = await runAnalysisAgent(input);
+    const saved = saveAnalysisToDb(db, user_id, output);
+
+    // Update latest profile with new analysis JSON
+    db.prepare(`
+      UPDATE profiles SET analysis_json = ?
+      WHERE user_id = ? AND id = (SELECT MAX(id) FROM profiles WHERE user_id = ?)
+    `).run(JSON.stringify(output), user_id, user_id);
+
+    console.log(`[reanalyze] User ${user_id}: saved ${saved.internal_saved} internal, ${saved.external_saved} external traits`);
+    return res.json({ saved, analysis: output });
+  } catch (err: any) {
+    console.error(`[reanalyze] Error for user ${user_id}:`, err);
+    return res.status(500).json({ error: "Re-analysis failed: " + err.message });
+  }
+});
+
+// POST /admin/users/:id/reset-analysis — Delete all derived analysis data for a user
+//
+// Deletes:
+//   - All rows from user_traits for this user
+//   - All rows from user_look_traits for this user
+//   - Sets profiles.analysis_json to '{}' for all profile rows (clears cached analysis)
+//
+// Does NOT delete:
+//   - The user record itself
+//   - Profile rows (profiles.raw_answer is preserved — conversation history stays)
+//   - Any match data
+//
+// This gives a clean slate for re-analysis testing.
+app.post("/admin/users/:id/reset-analysis", (req, res) => {
+  const user_id = parseInt(req.params.id, 10);
+  if (!Number.isFinite(user_id) || user_id <= 0) {
+    return res.status(400).json({ error: `Invalid user_id: ${req.params.id}` });
+  }
+
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(user_id) as any;
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const result = db.transaction(() => {
+    const deletedTraits = db.prepare("DELETE FROM user_traits WHERE user_id = ?").run(user_id);
+    const deletedLookTraits = db.prepare("DELETE FROM user_look_traits WHERE user_id = ?").run(user_id);
+    const clearedProfiles = db.prepare("UPDATE profiles SET analysis_json = '{}' WHERE user_id = ?").run(user_id);
+    return {
+      deleted_traits: deletedTraits.changes,
+      deleted_look_traits: deletedLookTraits.changes,
+      cleared_profiles: clearedProfiles.changes,
+    };
+  })();
+
+  console.log(`[reset-analysis] User ${user_id}: deleted ${result.deleted_traits} traits, ${result.deleted_look_traits} look traits, cleared ${result.cleared_profiles} profiles`);
+  return res.json(result);
 });
 
 // GET /admin/users/:id/matches — Actual matches for a specific user (from matches table)

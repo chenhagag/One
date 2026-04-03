@@ -64,6 +64,20 @@ export function saveAnalysisToDb(
   userId: number,
   output: AnalysisAgentOutput
 ): { internal_saved: number; external_saved: number } {
+  // Ensure userId is always an integer (req.body may pass a string)
+  const uid = typeof userId === "string" ? parseInt(userId, 10) : userId;
+  if (!Number.isFinite(uid) || uid <= 0) {
+    console.error(`[saveAnalysisToDb] Invalid userId: ${userId} (type: ${typeof userId})`);
+    return { internal_saved: 0, external_saved: 0 };
+  }
+
+  console.log(`[saveAnalysisToDb] userId=${uid} (type: ${typeof userId}→int), internal_traits=${output.internal_traits.length}, external_traits=${output.external_traits.length}`);
+
+  if (output.internal_traits.length === 0 && output.external_traits.length === 0) {
+    console.warn(`[saveAnalysisToDb] Agent returned 0 traits for user ${uid} — nothing to save`);
+    return { internal_saved: 0, external_saved: 0 };
+  }
+
   const upsertInternal = db.prepare(`
     INSERT INTO user_traits (user_id, trait_definition_id, score, confidence, weight_for_match, weight_confidence, source)
     VALUES (?, ?, ?, ?, ?, ?, 'ai')
@@ -76,12 +90,15 @@ export function saveAnalysisToDb(
       updated_at = datetime('now')
   `);
 
+  // personal_value and desired_value use direct assignment (not COALESCE) so that
+  // the post-processing guard can clear mirrored personal_value by setting it to null.
+  // weight fields still use COALESCE since null means "no new signal" not "clear it".
   const upsertExternal = db.prepare(`
     INSERT INTO user_look_traits (user_id, look_trait_definition_id, personal_value, personal_value_confidence, desired_value, desired_value_confidence, weight_for_match, weight_confidence, source)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ai')
     ON CONFLICT(user_id, look_trait_definition_id) DO UPDATE SET
-      personal_value = COALESCE(excluded.personal_value, user_look_traits.personal_value),
-      personal_value_confidence = COALESCE(excluded.personal_value_confidence, user_look_traits.personal_value_confidence),
+      personal_value = excluded.personal_value,
+      personal_value_confidence = excluded.personal_value_confidence,
       desired_value = COALESCE(excluded.desired_value, user_look_traits.desired_value),
       desired_value_confidence = COALESCE(excluded.desired_value_confidence, user_look_traits.desired_value_confidence),
       weight_for_match = COALESCE(excluded.weight_for_match, user_look_traits.weight_for_match),
@@ -95,20 +112,21 @@ export function saveAnalysisToDb(
 
   db.transaction(() => {
     for (const t of output.internal_traits) {
-      upsertInternal.run(
-        userId,
+      const result = upsertInternal.run(
+        uid,
         t.trait_id,
         t.score,
         t.confidence,
         t.weight_for_match ?? null,
         t.weight_confidence ?? null
       );
-      internal_saved++;
+      if (result.changes > 0) internal_saved++;
+      else console.warn(`[saveAnalysisToDb] internal trait ${t.trait_id} (${t.internal_name}): 0 changes for user ${uid}`);
     }
 
     for (const t of output.external_traits) {
-      upsertExternal.run(
-        userId,
+      const result = upsertExternal.run(
+        uid,
         t.trait_id,
         t.personal_value ?? null,
         t.personal_value_confidence ?? null,
@@ -117,9 +135,19 @@ export function saveAnalysisToDb(
         t.weight_for_match ?? null,
         t.weight_confidence ?? null
       );
-      external_saved++;
+      if (result.changes > 0) external_saved++;
+      else console.warn(`[saveAnalysisToDb] external trait ${t.trait_id} (${t.internal_name}): 0 changes for user ${uid}`);
     }
   })();
+
+  // Verify rows actually exist in DB after commit
+  const actualInternal = (db.prepare("SELECT COUNT(*) as c FROM user_traits WHERE user_id = ?").get(uid) as any).c;
+  const actualExternal = (db.prepare("SELECT COUNT(*) as c FROM user_look_traits WHERE user_id = ?").get(uid) as any).c;
+  console.log(`[saveAnalysisToDb] User ${uid}: wrote ${internal_saved} internal + ${external_saved} external. DB verify: ${actualInternal} internal rows, ${actualExternal} external rows`);
+
+  if (actualInternal === 0 && internal_saved > 0) {
+    console.error(`[saveAnalysisToDb] BUG: claimed ${internal_saved} internal saves but DB has 0 rows for user ${uid}!`);
+  }
 
   return { internal_saved, external_saved };
 }

@@ -13,41 +13,33 @@
 ## Existing Profile (if any)
 {{existing_profile}}
 
-## Instructions
+## Your Task
 
-Analyze the conversation transcript above and extract as many trait assessments as possible.
+Analyze the transcript and extract trait assessments. Maximize coverage — a weak assessment beats a missing trait.
 
-IMPORTANT: Be thorough. Even weak or indirect signals should be captured with low confidence.
-- "I go out a lot" → party_orientation: high score, moderate confidence
-- "I'm at the gym 3 times a week" → energy_level: high score, good confidence
-- She seems articulate → cognitive_profile: moderate-high score, low confidence
-- She's secular → religiosity: low score, good confidence
-- No mention of politics → omit (no signal at all)
+### Step 1: Internal traits
 
-Go through EVERY trait in the list and ask: "Is there ANY signal in the conversation for this?"
-If yes (even weak), include it. If truly zero signal, omit it and list in missing_traits.
+For EVERY internal trait definition, check for any signal (direct, indirect, or contextual):
+- Lifestyle → energy_level, party_orientation, hippie_style, tel_aviv_style, mainstream_style
+- Personality cues → neuroticism, emotional_stability, warmth, seriousness, openness
+- Writing style → cognitive_profile
+- Cultural signals → style traits, value_rigidity, religiosity
+- Partner preferences → weight_for_match on relevant traits
 
-For each internal trait you assess, output:
-- trait_id: the ID from the trait definitions
-- internal_name: the internal_name from the trait definitions
-- score: 0-100
-- confidence: 0.0-1.0
-- weight_for_match: null OR 0-10. Use null when there is no signal about partner preference (this is the default for most traits). Use a number ONLY when the user expressed clear preference. Use 0 ONLY if the user explicitly said this trait doesn't matter in a partner.
-- weight_confidence: null if weight_for_match is null. Otherwise 0.0-1.0.
+Output per trait: trait_id, internal_name, score (0-100), confidence (0.0-1.0), weight_for_match (null or 0-10), weight_confidence (null or 0.0-1.0).
 
-For each external trait you assess, output:
-- trait_id: the ID from the trait definitions
-- internal_name: the internal_name from the trait definitions
-- personal_value: the user's own value (use values from possible_values when available)
-- personal_value_confidence: 0.0-1.0
-- desired_value: what the user wants in a partner (first-class field — infer when possible)
-- desired_value_confidence: 0.0-1.0
-- weight_for_match: null by default. Use a number only if the user expressed how important this trait is. Use 0 only if they explicitly said it doesn't matter.
-- weight_confidence: null if weight_for_match is null. Otherwise 0.0-1.0.
+### Step 2: External traits
 
-Also provide:
-- missing_traits: internal_names of traits with truly zero signal
-- recommended_probes: 3-5 conversation topics to fill the biggest gaps
-- profiling_completeness: { internal_assessed, internal_total (use {{internal_total}}), external_assessed, external_total (use {{external_total}}), coverage_pct, ready_for_matching (true if coverage > 60%), notes }
+For each external trait, assess personal_value and desired_value INDEPENDENTLY:
+- personal_value: only from self-description ("I am...", "I have...", "I look...")
+- desired_value: from any partner preference or attraction signal
+
+Use trait_id and internal_name from the definitions. Use the closest possible_value when mapping natural language (e.g. "sturdy" → "muscular" for body_type).
+
+### Step 3: Missing traits and completeness
+
+- missing_traits: only traits with truly zero signal
+- recommended_probes: 3-5 topics to fill the biggest gaps
+- profiling_completeness: { internal_assessed, internal_total ({{internal_total}}), external_assessed, external_total ({{external_total}}), coverage_pct, ready_for_matching (true if >60%), notes }
 
 Return ONLY valid JSON. No explanation, no markdown fences.

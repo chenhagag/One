@@ -199,6 +199,8 @@ function UserDetail({ userId, onBack }: { userId: number; onBack: () => void }) 
   const [viewingUserId, setViewingUserId] = useState<number | null>(null);
   const [ratingInProgress, setRatingInProgress] = useState<number | null>(null);
   const [cancelInProgress, setCancelInProgress] = useState<number | null>(null);
+  const [reanalyzing, setReanalyzing] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   function loadMatches() {
     fetch(`/api/admin/users/${userId}/matches`)
@@ -242,7 +244,7 @@ function UserDetail({ userId, onBack }: { userId: number; onBack: () => void }) 
     }
   }
 
-  useEffect(() => {
+  function loadUserData() {
     fetch(`/api/admin/users/${userId}/full`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -251,6 +253,47 @@ function UserDetail({ userId, onBack }: { userId: number; onBack: () => void }) 
       .then(setData)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
+  }
+
+  async function handleReanalyze() {
+    if (!confirm("Re-analyze this user? This will overwrite current trait scores with fresh results from the latest prompts.")) return;
+    setReanalyzing(true);
+    try {
+      const r = await fetch(`/api/admin/users/${userId}/reanalyze`, { method: "POST" });
+      const json = await r.json();
+      if (!r.ok) { alert(json.error || "Re-analysis failed"); return; }
+      alert(`Re-analysis complete: ${json.saved.internal_saved} internal + ${json.saved.external_saved} external traits saved`);
+      loadUserData();
+    } catch { alert("Network error"); }
+    finally { setReanalyzing(false); }
+  }
+
+  async function handleResetAnalysis() {
+    if (!confirm(
+      "Reset all analysis data for this user?\n\n" +
+      "This will DELETE:\n" +
+      "  - All personality trait scores (user_traits)\n" +
+      "  - All look trait scores (user_look_traits)\n" +
+      "  - Cached analysis JSON in profiles\n\n" +
+      "This will KEEP:\n" +
+      "  - The user record\n" +
+      "  - All conversation answers (raw_answer)\n" +
+      "  - Match history\n\n" +
+      "You can re-analyze afterwards to regenerate traits."
+    )) return;
+    setResetting(true);
+    try {
+      const r = await fetch(`/api/admin/users/${userId}/reset-analysis`, { method: "POST" });
+      const json = await r.json();
+      if (!r.ok) { alert(json.error || "Reset failed"); return; }
+      alert(`Reset complete: ${json.deleted_traits} traits + ${json.deleted_look_traits} look traits deleted, ${json.cleared_profiles} profiles cleared`);
+      loadUserData();
+    } catch { alert("Network error"); }
+    finally { setResetting(false); }
+  }
+
+  useEffect(() => {
+    loadUserData();
     loadMatches();
   }, [userId]);
 
@@ -321,12 +364,8 @@ function UserDetail({ userId, onBack }: { userId: number; onBack: () => void }) 
               <p style={{ fontSize: 12, lineHeight: 1.6, color: "#444", background: "#f8f9fa", padding: 10, borderRadius: 6, margin: "0 0 12px" }}>
                 "{profile.raw_answer}"
               </p>
-              <SectionHeading title="AI Analysis" />
-              <dl style={dlStyle}>
-                {Object.entries(profile.analysis).map(([k, v]) => (
-                  <DlRow key={k} label={k.replace(/_/g, " ")} value={String(v)} />
-                ))}
-              </dl>
+              <SectionHeading title="AI Analysis Summary" />
+              <AnalysisSummary analysis={profile.analysis} />
             </>
           )}
         </div>
@@ -339,6 +378,30 @@ function UserDetail({ userId, onBack }: { userId: number; onBack: () => void }) 
           <p style={{ fontSize: 11, color: "#888", margin: "0 0 8px" }}>
             Effective = system_weight × user_weight × weight_confidence
           </p>
+          {/* Analysis toolbar */}
+          {profile && (
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
+              <button
+                style={{ padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#1a73e8", color: "#fff", border: "none", borderRadius: 4 }}
+                onClick={handleReanalyze}
+                disabled={reanalyzing || resetting}
+              >
+                {reanalyzing ? "Re-analyzing..." : "Re-analyze"}
+              </button>
+              <button
+                style={{ padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#dc3545", color: "#fff", border: "none", borderRadius: 4 }}
+                onClick={handleResetAnalysis}
+                disabled={resetting || reanalyzing}
+              >
+                {resetting ? "Resetting..." : "Reset analysis"}
+              </button>
+              {traits.length === 0 && lookTraits.length === 0 && (
+                <span style={{ fontSize: 12, color: "#856404", background: "#fff3cd", padding: "4px 10px", borderRadius: 4 }}>
+                  No trait data — click Re-analyze to generate
+                </span>
+              )}
+            </div>
+          )}
           {visibleTraits.length > 0 ? (
             <table style={{ ...s.table, marginBottom: 24 }}>
               <thead>
@@ -557,6 +620,119 @@ function DlRow({ label, value }: { label: string; value: string }) {
 }
 
 const dlStyle: React.CSSProperties = { margin: "0 0 12px", lineHeight: 1.6 };
+
+function traitStatus(confidence: number | null | undefined): { label: string; color: string } {
+  if (confidence == null) return { label: "missing", color: "#dc3545" };
+  if (confidence < 0.4) return { label: "weak", color: "#ffc107" };
+  return { label: "filled", color: "#28a745" };
+}
+
+function AnalysisSummary({ analysis }: { analysis: any }) {
+  if (!analysis || typeof analysis !== "object") return <p style={{ fontSize: 12, color: "#888" }}>No analysis data.</p>;
+
+  // Old-format analysis (flat fields like intelligence_score) — render as simple key/value
+  if (!analysis.internal_traits && !analysis.external_traits) {
+    return (
+      <dl style={dlStyle}>
+        {Object.entries(analysis).map(([k, v]) => (
+          <DlRow key={k} label={k.replace(/_/g, " ")} value={typeof v === "object" ? JSON.stringify(v) : String(v ?? "-")} />
+        ))}
+      </dl>
+    );
+  }
+
+  // New-format analysis — render structured sections
+  const { internal_traits = [], external_traits = [], missing_traits = [], profiling_completeness } = analysis;
+  const tinyBadge = (text: string, bg: string): React.CSSProperties => ({
+    display: "inline-block", padding: "1px 6px", borderRadius: 3, fontSize: 10, fontWeight: 600, background: bg, color: "#fff", marginLeft: 4
+  });
+
+  return (
+    <div style={{ fontSize: 12 }}>
+      {/* Profiling Completeness */}
+      {profiling_completeness && (
+        <div style={{ background: "#f0f4ff", borderRadius: 6, padding: "8px 12px", marginBottom: 12 }}>
+          <strong>Coverage:</strong> {profiling_completeness.coverage_pct}%
+          {" | "}<strong>Internal:</strong> {profiling_completeness.internal_assessed}/{profiling_completeness.internal_total}
+          {" | "}<strong>External:</strong> {profiling_completeness.external_assessed}/{profiling_completeness.external_total}
+          {" | "}<strong>Ready:</strong> {profiling_completeness.ready_for_matching ? "Yes" : "No"}
+          {profiling_completeness.notes && <div style={{ color: "#666", marginTop: 4 }}>{profiling_completeness.notes}</div>}
+        </div>
+      )}
+
+      {/* Internal traits summary */}
+      {internal_traits.length > 0 && (
+        <>
+          <strong>Assessed Internal Traits ({internal_traits.length}):</strong>
+          <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 4, marginBottom: 10 }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left", fontSize: 10, color: "#888", padding: "2px 6px" }}>Trait</th>
+                <th style={{ textAlign: "left", fontSize: 10, color: "#888", padding: "2px 6px" }}>Score</th>
+                <th style={{ textAlign: "left", fontSize: 10, color: "#888", padding: "2px 6px" }}>Conf.</th>
+                <th style={{ textAlign: "left", fontSize: 10, color: "#888", padding: "2px 6px" }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {internal_traits.map((t: any, i: number) => {
+                const st = traitStatus(t.confidence);
+                return (
+                  <tr key={i}>
+                    <td style={{ padding: "2px 6px" }}>{t.internal_name}</td>
+                    <td style={{ padding: "2px 6px" }}>{t.score}</td>
+                    <td style={{ padding: "2px 6px" }}>{t.confidence?.toFixed(2) ?? "-"}</td>
+                    <td style={{ padding: "2px 6px" }}><span style={tinyBadge(st.label, st.color)}>{st.label}</span></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {/* External traits summary */}
+      {external_traits.length > 0 && (
+        <>
+          <strong>Assessed External Traits ({external_traits.length}):</strong>
+          <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 4, marginBottom: 10 }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left", fontSize: 10, color: "#888", padding: "2px 6px" }}>Trait</th>
+                <th style={{ textAlign: "left", fontSize: 10, color: "#888", padding: "2px 6px" }}>Personal</th>
+                <th style={{ textAlign: "left", fontSize: 10, color: "#888", padding: "2px 6px" }}>P.Conf</th>
+                <th style={{ textAlign: "left", fontSize: 10, color: "#888", padding: "2px 6px" }}>Desired</th>
+                <th style={{ textAlign: "left", fontSize: 10, color: "#888", padding: "2px 6px" }}>D.Conf</th>
+              </tr>
+            </thead>
+            <tbody>
+              {external_traits.map((t: any, i: number) => (
+                <tr key={i}>
+                  <td style={{ padding: "2px 6px" }}>{t.internal_name}</td>
+                  <td style={{ padding: "2px 6px" }}>{t.personal_value ?? <span style={{ color: "#aaa" }}>-</span>}</td>
+                  <td style={{ padding: "2px 6px" }}>{t.personal_value_confidence?.toFixed(2) ?? <span style={{ color: "#aaa" }}>-</span>}</td>
+                  <td style={{ padding: "2px 6px" }}>{t.desired_value ?? <span style={{ color: "#aaa" }}>-</span>}</td>
+                  <td style={{ padding: "2px 6px" }}>{t.desired_value_confidence?.toFixed(2) ?? <span style={{ color: "#aaa" }}>-</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {/* Missing traits */}
+      {missing_traits.length > 0 && (
+        <div style={{ marginBottom: 8 }}>
+          <strong>Missing Traits ({missing_traits.length}):</strong>
+          <div style={{ color: "#888", marginTop: 2, lineHeight: 1.8 }}>
+            {missing_traits.map((name: string, i: number) => (
+              <span key={i} style={{ display: "inline-block", padding: "1px 8px", margin: "2px 3px", borderRadius: 3, background: "#f8d7da", fontSize: 11 }}>{name}</span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function scoreColor(score: number): string {
   if (score >= 70) return "#d4edda";

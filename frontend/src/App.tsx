@@ -108,7 +108,7 @@ export default function App() {
         />
       )}
 
-      {/* Step 2: Registration complete → navigate to chat */}
+      {/* Step 2: Registration complete / paused → navigate to chat */}
       {view === "ready_for_chat" && user && (
         <div style={styles.readyContainer}>
           <h2 style={styles.readyHeading}>!{user.first_name} ,נרשמת בהצלחה</h2>
@@ -119,18 +119,21 @@ export default function App() {
             style={styles.startChatBtn}
             onClick={() => setView("chat")}
           >
-            התחל שיחה
+            {analysis ? "המשך שיחה" : "התחל שיחה"}
           </button>
         </div>
       )}
 
-      {/* Step 3: AI Chat (existing) */}
+      {/* Step 3: AI Chat */}
       {view === "chat" && user && (
         <Chat
           user={{ id: user.id, name: user.first_name, email: user.email }}
           onSuccess={(a) => {
             setAnalysis(a);
             setView("result");
+          }}
+          onPause={() => {
+            setView("ready_for_chat");
           }}
         />
       )}
