@@ -1,0 +1,1039 @@
+import { useEffect, useState } from "react";
+
+/**
+ * Admin View — Multi-table data explorer
+ *
+ * Tabs:
+ * - Overview (stats)
+ * - Users (with expandable trait details)
+ * - Trait Definitions
+ * - Look Trait Definitions
+ * - Enum Options
+ * - Config (editable)
+ * - Matches
+ */
+
+type Tab = "overview" | "users" | "traits" | "look_traits" | "enums" | "config" | "matches" | "candidates";
+
+const s: Record<string, React.CSSProperties> = {
+  heading: { marginTop: 0, marginBottom: 8, fontSize: 22 },
+  sub: { color: "#666", marginBottom: 20, marginTop: 0 },
+  backBtn: {
+    background: "none", border: "none", cursor: "pointer",
+    color: "#555", fontSize: 14, padding: 0, marginBottom: 20, textDecoration: "underline",
+  },
+  tabs: { display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 24 },
+  tab: {
+    padding: "8px 14px", fontSize: 13, border: "1px solid #ddd",
+    borderRadius: 6, background: "#fff", cursor: "pointer", fontWeight: 500,
+  },
+  tabActive: {
+    padding: "8px 14px", fontSize: 13, border: "1px solid #1a1a1a",
+    borderRadius: 6, background: "#1a1a1a", color: "#fff", cursor: "pointer", fontWeight: 600,
+  },
+  table: { width: "100%", borderCollapse: "collapse" as const, fontSize: 12, marginTop: 12 },
+  th: {
+    textAlign: "left" as const, padding: "8px 8px", borderBottom: "2px solid #e5e5e5",
+    fontWeight: 600, fontSize: 11, color: "#555", textTransform: "uppercase" as const, letterSpacing: "0.04em",
+    whiteSpace: "nowrap" as const,
+  },
+  td: { padding: "8px 8px", borderBottom: "1px solid #f0f0f0", verticalAlign: "top" as const, maxWidth: 200, overflow: "hidden" as const, textOverflow: "ellipsis" as const },
+  badge: { background: "#f0f0f0", borderRadius: 4, padding: "2px 6px", fontSize: 11, fontFamily: "monospace" },
+  none: { color: "#aaa", fontSize: 12 },
+  loading: { color: "#888", padding: "20px 0" },
+  statCard: { background: "#fafafa", borderRadius: 8, padding: "16px", display: "inline-block", margin: "4px", minWidth: 140, textAlign: "center" as const },
+  statNum: { fontSize: 28, fontWeight: 700, color: "#1a1a1a", margin: 0 },
+  statLabel: { fontSize: 12, color: "#888", marginTop: 4 },
+  expandBtn: { background: "none", border: "none", cursor: "pointer", color: "#1a7af8", fontSize: 12, padding: "2px 4px", textDecoration: "underline" },
+  configInput: { padding: "4px 8px", border: "1px solid #ddd", borderRadius: 4, fontSize: 12, width: 120 },
+  configSave: { padding: "4px 10px", border: "none", borderRadius: 4, background: "#1a1a1a", color: "#fff", fontSize: 11, cursor: "pointer", marginLeft: 4 },
+  scrollWrap: { overflowX: "auto" as const },
+};
+
+export default function AdminView({ onBack }: { onBack: () => void }) {
+  const [tab, setTab] = useState<Tab>("overview");
+
+  return (
+    <div>
+      <button style={s.backBtn} onClick={onBack}>← Back</button>
+      <h2 style={s.heading}>Admin Panel</h2>
+
+      <div style={s.tabs}>
+        {([
+          ["overview", "Overview"],
+          ["users", "Users"],
+          ["traits", "Trait Defs"],
+          ["look_traits", "Look Trait Defs"],
+          ["enums", "Enum Options"],
+          ["config", "Config"],
+          ["matches", "Matches"],
+          ["candidates", "Candidate Matches"],
+        ] as [Tab, string][]).map(([key, label]) => (
+          <button
+            key={key}
+            style={tab === key ? s.tabActive : s.tab}
+            onClick={() => setTab(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "overview" && <OverviewTab />}
+      {tab === "users" && <UsersTab />}
+      {tab === "traits" && <TraitDefsTab />}
+      {tab === "look_traits" && <LookTraitDefsTab />}
+      {tab === "enums" && <EnumsTab />}
+      {tab === "config" && <ConfigTab />}
+      {tab === "matches" && <MatchesTab />}
+      {tab === "candidates" && <CandidateMatchesTab />}
+    </div>
+  );
+}
+
+// ── Overview Tab ─────────────────────────────────────────────────
+
+function OverviewTab() {
+  const [stats, setStats] = useState<Record<string, number> | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/stats").then((r) => r.json()).then(setStats).catch(() => {});
+  }, []);
+
+  if (!stats) return <p style={s.loading}>Loading...</p>;
+
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+      {Object.entries(stats).map(([key, val]) => (
+        <div key={key} style={s.statCard}>
+          <p style={s.statNum}>{val}</p>
+          <p style={s.statLabel}>{key.replace(/_/g, " ")}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Users Tab ────────────────────────────────────────────────────
+
+function UsersTab() {
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/users")
+      .then((r) => r.json())
+      .then(setUsers)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <p style={s.loading}>Loading...</p>;
+
+  if (selectedUserId !== null) {
+    return <UserDetail userId={selectedUserId} onBack={() => setSelectedUserId(null)} />;
+  }
+
+  return (
+    <div style={s.scrollWrap}>
+      <p style={s.sub}>{users.length} users — click a row to view full profile</p>
+      <table style={s.table}>
+        <thead>
+          <tr>
+            <th style={s.th}>ID</th>
+            <th style={s.th}>Name</th>
+            <th style={s.th}>Email</th>
+            <th style={s.th}>Age</th>
+            <th style={s.th}>Gender</th>
+            <th style={s.th}>City</th>
+            <th style={s.th}>Height</th>
+            <th style={s.th}>Status</th>
+            <th style={s.th}>Looking For</th>
+            <th style={s.th}>Matchable</th>
+          </tr>
+        </thead>
+        <tbody>
+          {users.map((u) => (
+            <tr
+              key={u.id}
+              onClick={() => setSelectedUserId(u.id)}
+              style={{ cursor: "pointer" }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#f0f4ff")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "")}
+            >
+              <td style={s.td}>{u.id}</td>
+              <td style={s.td}><strong>{u.first_name}</strong></td>
+              <td style={s.td}>{u.email}</td>
+              <td style={s.td}>{u.age || "-"}</td>
+              <td style={s.td}><span style={s.badge}>{u.gender || "-"}</span></td>
+              <td style={s.td}>{u.city || "-"}</td>
+              <td style={s.td}>{u.height || "-"}</td>
+              <td style={s.td}><span style={s.badge}>{u.user_status || "-"}</span></td>
+              <td style={s.td}><span style={s.badge}>{u.looking_for_gender || "-"}</span></td>
+              <td style={s.td}>{u.is_matchable ? "Yes" : "No"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── User Detail View ────────────────────────────────────────────
+
+function UserDetail({ userId, onBack }: { userId: number; onBack: () => void }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [candidates, setCandidates] = useState<any[]>([]);
+  const [viewingUserId, setViewingUserId] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/admin/users/${userId}/full`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(setData)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+    fetch(`/api/admin/users/${userId}/candidate-matches`)
+      .then((r) => r.json())
+      .then(setCandidates)
+      .catch(() => {});
+  }, [userId]);
+
+  // Navigate to another user's profile from match candidates
+  if (viewingUserId !== null) {
+    return <UserDetail userId={viewingUserId} onBack={() => setViewingUserId(null)} />;
+  }
+
+  if (loading) return <p style={s.loading}>Loading user details...</p>;
+  if (error) return <p style={{ color: "red" }}>Error loading user: {error}</p>;
+  if (!data) return null;
+
+  const { user, profile, traits, lookTraits } = data;
+
+  // Split traits into visible (normal/special/filter) and internal-use
+  const visibleTraits = traits.filter((t: any) => t.calc_type !== "internal_use");
+  const internalTraits = traits.filter((t: any) => t.calc_type === "internal_use");
+
+  return (
+    <div>
+      <button style={s.backBtn} onClick={onBack}>← Back to Users</button>
+
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 4 }}>
+        <h3 style={{ margin: 0, fontSize: 20 }}>{user.first_name}</h3>
+        <span style={{ ...s.badge, fontSize: 12 }}>#{user.id}</span>
+        <span style={{ ...s.badge, fontSize: 12 }}>{user.gender}</span>
+        <span style={{ ...s.badge, fontSize: 12 }}>age {user.age}</span>
+        <span style={{ ...s.badge, fontSize: 12 }}>{user.city}</span>
+        {!user.is_real_user && <span style={{ ...s.badge, background: "#e8daef", fontSize: 11 }}>seed user</span>}
+      </div>
+      <p style={{ ...s.sub, marginBottom: 24 }}>
+        Status: <strong>{user.user_status}</strong> | Matchable: <strong>{user.is_matchable ? "Yes" : "No"}</strong> |
+        Pickiness: <strong>{user.pickiness_score ?? "-"}</strong> | Attraction signal: <strong>{user.initial_attraction_signal ?? "-"}</strong> |
+        Matches: <strong>{user.total_matches ?? 0}</strong> | Good matches: <strong>{user.good_matches ?? 0}</strong>
+      </p>
+
+      {/* Two-column layout */}
+      <div style={{ display: "flex", gap: 32, flexWrap: "wrap" }}>
+
+        {/* Left column: Registration + Preferences + Chat */}
+        <div style={{ minWidth: 280, maxWidth: 360 }}>
+
+          {/* Registration Data */}
+          <SectionHeading title="Registration Data" />
+          <dl style={dlStyle}>
+            <DlRow label="Email" value={user.email} />
+            <DlRow label="Height" value={user.height ? `${user.height} cm` : "-"} />
+            <DlRow label="Looking for" value={user.looking_for_gender || "-"} />
+            <DlRow label="Style" value={Array.isArray(user.self_style) ? user.self_style.join(", ") : user.self_style || "-"} />
+          </dl>
+
+          {/* Preferences */}
+          <SectionHeading title="Preferences" />
+          <dl style={dlStyle}>
+            <DlRow label="Age range" value={`${user.desired_age_min ?? "?"} – ${user.desired_age_max ?? "?"}`} />
+            <DlRow label="Age flexibility" value={user.age_flexibility} />
+            <DlRow label="Height range" value={`${user.desired_height_min ?? "?"} – ${user.desired_height_max ?? "?"} cm`} />
+            <DlRow label="Height flexibility" value={user.height_flexibility} />
+            <DlRow label="Location range" value={user.desired_location_range} />
+          </dl>
+
+          {/* Chat / AI Analysis */}
+          {profile && (
+            <>
+              <SectionHeading title="Chat Answer" />
+              <p style={{ fontSize: 12, lineHeight: 1.6, color: "#444", background: "#f8f9fa", padding: 10, borderRadius: 6, margin: "0 0 12px" }}>
+                "{profile.raw_answer}"
+              </p>
+              <SectionHeading title="AI Analysis" />
+              <dl style={dlStyle}>
+                {Object.entries(profile.analysis).map(([k, v]) => (
+                  <DlRow key={k} label={k.replace(/_/g, " ")} value={String(v)} />
+                ))}
+              </dl>
+            </>
+          )}
+        </div>
+
+        {/* Right column: Traits + Look Traits */}
+        <div style={{ flex: 1, minWidth: 400 }}>
+
+          {/* Personality Traits */}
+          <SectionHeading title={`Personality Traits (${visibleTraits.length})`} />
+          <p style={{ fontSize: 11, color: "#888", margin: "0 0 8px" }}>
+            Effective = system_weight × user_weight × weight_confidence
+          </p>
+          {visibleTraits.length > 0 ? (
+            <table style={{ ...s.table, marginBottom: 24 }}>
+              <thead>
+                <tr>
+                  <th style={s.th}>Trait</th>
+                  <th style={s.th}>Score</th>
+                  <th style={{ ...s.th, width: 100 }}>Bar</th>
+                  <th style={s.th}>Conf.</th>
+                  <th style={s.th}>Sys W</th>
+                  <th style={s.th}>User W</th>
+                  <th style={s.th}>W Conf.</th>
+                  <th style={s.th}>Effective</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleTraits.map((t: any, i: number) => (
+                  <tr key={i}>
+                    <td style={s.td}>
+                      {t.display_name_en || t.internal_name}
+                      <span style={{ color: "#aaa", fontSize: 10, marginLeft: 4 }}>{t.display_name_he}</span>
+                    </td>
+                    <td style={s.td}>
+                      <span style={{ ...s.badge, background: scoreColor(t.score) }}>{t.score}</span>
+                    </td>
+                    <td style={s.td}>
+                      <div style={{ background: "#eee", borderRadius: 3, height: 8, width: 80 }}>
+                        <div style={{ background: barColor(t.score), borderRadius: 3, height: 8, width: `${t.score}%` }} />
+                      </div>
+                    </td>
+                    <td style={s.td}>{t.confidence?.toFixed(2)}</td>
+                    <td style={s.td}>{t.default_weight}</td>
+                    <td style={s.td}>{t.weight_for_match}</td>
+                    <td style={s.td}>{t.weight_confidence?.toFixed(2) ?? "-"}</td>
+                    <td style={s.td}><strong>{t.effective_weight}</strong></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p style={s.none}>No personality traits found.</p>
+          )}
+
+          {/* Internal-use Traits */}
+          {internalTraits.length > 0 && (
+            <>
+              <SectionHeading title={`Internal Traits (${internalTraits.length})`} />
+              <table style={{ ...s.table, marginBottom: 24 }}>
+                <thead>
+                  <tr>
+                    <th style={s.th}>Trait</th>
+                    <th style={s.th}>Score</th>
+                    <th style={s.th}>Conf.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {internalTraits.map((t: any, i: number) => (
+                    <tr key={i}>
+                      <td style={s.td}>
+                        {t.display_name_en || t.internal_name}
+                        <span style={{ color: "#aaa", fontSize: 10, marginLeft: 4 }}>{t.sensitivity}</span>
+                      </td>
+                      <td style={s.td}>
+                        <span style={{ ...s.badge, background: scoreColor(t.score) }}>{t.score}</span>
+                      </td>
+                      <td style={s.td}>{t.confidence?.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+
+          {/* Look Traits */}
+          <SectionHeading title={`Look Traits (${lookTraits.length})`} />
+          <p style={{ fontSize: 11, color: "#888", margin: "0 0 8px" }}>
+            Effective = weight × weight_confidence × value_confidence
+          </p>
+          {lookTraits.length > 0 ? (
+            <table style={{ ...s.table, marginBottom: 24 }}>
+              <thead>
+                <tr>
+                  <th style={s.th}>Trait</th>
+                  <th style={s.th}>Personal</th>
+                  <th style={s.th}>P. Conf.</th>
+                  <th style={s.th}>Desired</th>
+                  <th style={s.th}>D. Conf.</th>
+                  <th style={s.th}>Weight</th>
+                  <th style={s.th}>W. Conf.</th>
+                  <th style={s.th}>Effective</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lookTraits.map((lt: any, i: number) => (
+                  <tr key={i}>
+                    <td style={s.td}>
+                      {lt.display_name_en || lt.internal_name}
+                      <span style={{ color: "#aaa", fontSize: 10, marginLeft: 4 }}>{lt.display_name_he}</span>
+                    </td>
+                    <td style={s.td}><span style={s.badge}>{lt.personal_value || "-"}</span></td>
+                    <td style={s.td}>{lt.personal_value_confidence?.toFixed(2) ?? "-"}</td>
+                    <td style={s.td}><span style={lt.desired_value ? { ...s.badge, background: "#d6eaff" } : s.none}>{lt.desired_value || "-"}</span></td>
+                    <td style={s.td}>{lt.desired_value_confidence?.toFixed(2) ?? "-"}</td>
+                    <td style={s.td}>{lt.weight_for_match}</td>
+                    <td style={s.td}>{lt.weight_confidence?.toFixed(2) ?? "-"}</td>
+                    <td style={s.td}><strong>{lt.effective_weight}</strong></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p style={s.none}>No look traits found.</p>
+          )}
+        </div>
+      </div>
+
+      {/* Match Candidates */}
+      <SectionHeading title={`Match Candidates (${candidates.length})`} />
+      {candidates.length > 0 ? (
+        <table style={{ ...s.table, marginBottom: 24 }}>
+          <thead>
+            <tr>
+              <th style={s.th}>Other User</th>
+              <th style={s.th}>Score</th>
+              <th style={s.th}>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {candidates.map((cm: any) => (
+              <tr key={cm.id}>
+                <td style={s.td}>
+                  <button style={s.expandBtn} onClick={() => setViewingUserId(cm.other_id)}>
+                    {cm.other_name}
+                  </button> ({cm.other_age}, {cm.other_city})
+                </td>
+                <td style={s.td}>{cm.final_score != null ? <strong>{cm.final_score}</strong> : "-"}</td>
+                <td style={s.td}><span style={s.badge}>{cm.status}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p style={s.none}>No match candidates.</p>
+      )}
+    </div>
+  );
+}
+
+// ── Shared small components ─────────────────────────────────────
+
+function SectionHeading({ title }: { title: string }) {
+  return <h4 style={{ fontSize: 14, margin: "16px 0 8px", borderBottom: "1px solid #e5e5e5", paddingBottom: 4 }}>{title}</h4>;
+}
+
+function DlRow({ label, value }: { label: string; value: string }) {
+  return (
+    <>
+      <dt style={{ fontWeight: 600, fontSize: 11, color: "#666", textTransform: "uppercase" }}>{label}</dt>
+      <dd style={{ margin: "0 0 8px", fontSize: 13 }}>{value}</dd>
+    </>
+  );
+}
+
+const dlStyle: React.CSSProperties = { margin: "0 0 12px", lineHeight: 1.6 };
+
+function scoreColor(score: number): string {
+  if (score >= 70) return "#d4edda";
+  if (score >= 40) return "#fff3cd";
+  return "#f8d7da";
+}
+
+function barColor(score: number): string {
+  if (score >= 70) return "#28a745";
+  if (score >= 40) return "#ffc107";
+  return "#dc3545";
+}
+
+// ── Trait Definitions Tab ────────────────────────────────────────
+
+function TraitDefsTab() {
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<Record<number, any>>({});
+  const [saved, setSaved] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/trait-definitions")
+      .then((r) => r.json())
+      .then(setData)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  function startEdit(t: any) {
+    setEditing((prev) => ({ ...prev, [t.id]: { weight: t.weight, is_filter: t.is_filter || "no", filter_type: t.filter_type || "", min_value: t.min_value ?? "", max_value: t.max_value ?? "" } }));
+  }
+
+  function updateField(id: number, field: string, value: string) {
+    setEditing((prev) => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
+  }
+
+  async function saveRow(id: number) {
+    const e = editing[id];
+    await fetch(`/api/admin/trait-definitions/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        weight: Number(e.weight),
+        is_filter: e.is_filter,
+        filter_type: e.filter_type || null,
+        min_value: e.min_value !== "" ? Number(e.min_value) : null,
+        max_value: e.max_value !== "" ? Number(e.max_value) : null,
+      }),
+    });
+    setData((prev) => prev.map((t) => t.id === id ? { ...t, weight: Number(e.weight), is_filter: e.is_filter, filter_type: e.filter_type || null, min_value: e.min_value !== "" ? Number(e.min_value) : null, max_value: e.max_value !== "" ? Number(e.max_value) : null } : t));
+    setEditing((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    setSaved(id);
+    setTimeout(() => setSaved(null), 1500);
+  }
+
+  if (loading) return <p style={s.loading}>Loading...</p>;
+
+  return (
+    <div style={s.scrollWrap}>
+      <p style={s.sub}>{data.length} trait definitions</p>
+      <table style={s.table}>
+        <thead>
+          <tr>
+            <th style={s.th}>#</th>
+            <th style={s.th}>Internal Name</th>
+            <th style={s.th}>English</th>
+            <th style={s.th}>Weight</th>
+            <th style={s.th}>Is Filter</th>
+            <th style={s.th}>Filter Type</th>
+            <th style={s.th}>Min</th>
+            <th style={s.th}>Max</th>
+            <th style={s.th}>Calc Type</th>
+            <th style={s.th}>Active</th>
+            <th style={s.th}>Edit</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((t) => {
+            const e = editing[t.id];
+            return (
+              <tr key={t.id}>
+                <td style={s.td}>{t.sort_order}</td>
+                <td style={s.td}><code style={s.badge}>{t.internal_name}</code></td>
+                <td style={s.td}>{t.display_name_en || t.display_name_he}</td>
+                <td style={s.td}>
+                  {e ? <input style={s.configInput} value={e.weight} onChange={(ev) => updateField(t.id, "weight", ev.target.value)} /> : <strong>{t.weight}</strong>}
+                </td>
+                <td style={s.td}>
+                  {e ? (
+                    <select style={s.configInput} value={e.is_filter} onChange={(ev) => updateField(t.id, "is_filter", ev.target.value)}>
+                      <option value="no">no</option>
+                      <option value="yes">yes</option>
+                      <option value="user_defined">user_defined</option>
+                    </select>
+                  ) : <span style={s.badge}>{t.is_filter || "no"}</span>}
+                </td>
+                <td style={s.td}>
+                  {e ? (
+                    <select style={s.configInput} value={e.filter_type} onChange={(ev) => updateField(t.id, "filter_type", ev.target.value)}>
+                      <option value="">—</option>
+                      <option value="range">range</option>
+                      <option value="fixed">fixed</option>
+                    </select>
+                  ) : <span style={s.badge}>{t.filter_type || "-"}</span>}
+                </td>
+                <td style={s.td}>
+                  {e ? <input style={{ ...s.configInput, width: 60 }} value={e.min_value} onChange={(ev) => updateField(t.id, "min_value", ev.target.value)} /> : (t.min_value ?? "-")}
+                </td>
+                <td style={s.td}>
+                  {e ? <input style={{ ...s.configInput, width: 60 }} value={e.max_value} onChange={(ev) => updateField(t.id, "max_value", ev.target.value)} /> : (t.max_value ?? "-")}
+                </td>
+                <td style={s.td}><span style={s.badge}>{t.calc_type}</span></td>
+                <td style={s.td}>{t.is_active ? "Yes" : "No"}</td>
+                <td style={s.td}>
+                  {e ? (
+                    <>
+                      <button style={s.configSave} onClick={() => saveRow(t.id)}>Save</button>
+                      <button style={{ ...s.configSave, background: "#888", marginLeft: 2 }} onClick={() => setEditing((prev) => { const n = { ...prev }; delete n[t.id]; return n; })}>X</button>
+                    </>
+                  ) : saved === t.id ? (
+                    <span style={{ color: "green", fontSize: 12 }}>Saved</span>
+                  ) : (
+                    <button style={s.expandBtn} onClick={() => startEdit(t)}>Edit</button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Look Trait Definitions Tab ───────────────────────────────────
+
+function LookTraitDefsTab() {
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<Record<number, any>>({});
+  const [saved, setSaved] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/look-trait-definitions")
+      .then((r) => r.json())
+      .then(setData)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  function startEdit(t: any) {
+    setEditing((prev) => ({ ...prev, [t.id]: { weight: t.weight, is_filter: t.is_filter || "no", filter_type: t.filter_type || "", min_value: t.min_value ?? "", max_value: t.max_value ?? "" } }));
+  }
+
+  function updateField(id: number, field: string, value: string) {
+    setEditing((prev) => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
+  }
+
+  async function saveRow(id: number) {
+    const e = editing[id];
+    await fetch(`/api/admin/look-trait-definitions/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        weight: Number(e.weight),
+        is_filter: e.is_filter,
+        filter_type: e.filter_type || null,
+        min_value: e.min_value !== "" ? Number(e.min_value) : null,
+        max_value: e.max_value !== "" ? Number(e.max_value) : null,
+      }),
+    });
+    setData((prev) => prev.map((t) => t.id === id ? { ...t, weight: Number(e.weight), is_filter: e.is_filter, filter_type: e.filter_type || null, min_value: e.min_value !== "" ? Number(e.min_value) : null, max_value: e.max_value !== "" ? Number(e.max_value) : null } : t));
+    setEditing((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    setSaved(id);
+    setTimeout(() => setSaved(null), 1500);
+  }
+
+  if (loading) return <p style={s.loading}>Loading...</p>;
+
+  return (
+    <div style={s.scrollWrap}>
+      <p style={s.sub}>{data.length} look trait definitions</p>
+      <table style={s.table}>
+        <thead>
+          <tr>
+            <th style={s.th}>#</th>
+            <th style={s.th}>Internal Name</th>
+            <th style={s.th}>English</th>
+            <th style={s.th}>Source</th>
+            <th style={s.th}>Weight</th>
+            <th style={s.th}>Is Filter</th>
+            <th style={s.th}>Filter Type</th>
+            <th style={s.th}>Min</th>
+            <th style={s.th}>Max</th>
+            <th style={s.th}>Values</th>
+            <th style={s.th}>Edit</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((t) => {
+            const e = editing[t.id];
+            return (
+              <tr key={t.id}>
+                <td style={s.td}>{t.sort_order}</td>
+                <td style={s.td}><code style={s.badge}>{t.internal_name}</code></td>
+                <td style={s.td}>{t.display_name_en || t.display_name_he}</td>
+                <td style={s.td}><span style={s.badge}>{t.source}</span></td>
+                <td style={s.td}>
+                  {e ? <input style={s.configInput} value={e.weight} onChange={(ev) => updateField(t.id, "weight", ev.target.value)} /> : <strong>{t.weight}</strong>}
+                </td>
+                <td style={s.td}>
+                  {e ? (
+                    <select style={s.configInput} value={e.is_filter} onChange={(ev) => updateField(t.id, "is_filter", ev.target.value)}>
+                      <option value="no">no</option>
+                      <option value="yes">yes</option>
+                      <option value="user_defined">user_defined</option>
+                    </select>
+                  ) : <span style={s.badge}>{t.is_filter || "no"}</span>}
+                </td>
+                <td style={s.td}>
+                  {e ? (
+                    <select style={s.configInput} value={e.filter_type} onChange={(ev) => updateField(t.id, "filter_type", ev.target.value)}>
+                      <option value="">—</option>
+                      <option value="range">range</option>
+                      <option value="fixed">fixed</option>
+                    </select>
+                  ) : <span style={s.badge}>{t.filter_type || "-"}</span>}
+                </td>
+                <td style={s.td}>
+                  {e ? <input style={{ ...s.configInput, width: 60 }} value={e.min_value} onChange={(ev) => updateField(t.id, "min_value", ev.target.value)} /> : (t.min_value ?? "-")}
+                </td>
+                <td style={s.td}>
+                  {e ? <input style={{ ...s.configInput, width: 60 }} value={e.max_value} onChange={(ev) => updateField(t.id, "max_value", ev.target.value)} /> : (t.max_value ?? "-")}
+                </td>
+                <td style={s.td}>{t.possible_values ? JSON.parse(t.possible_values).join(", ") : "-"}</td>
+                <td style={s.td}>
+                  {e ? (
+                    <>
+                      <button style={s.configSave} onClick={() => saveRow(t.id)}>Save</button>
+                      <button style={{ ...s.configSave, background: "#888", marginLeft: 2 }} onClick={() => setEditing((prev) => { const n = { ...prev }; delete n[t.id]; return n; })}>X</button>
+                    </>
+                  ) : saved === t.id ? (
+                    <span style={{ color: "green", fontSize: 12 }}>Saved</span>
+                  ) : (
+                    <button style={s.expandBtn} onClick={() => startEdit(t)}>Edit</button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Enum Options Tab ─────────────────────────────────────────────
+
+function EnumsTab() {
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/admin/enum-options")
+      .then((r) => r.json())
+      .then(setData)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <p style={s.loading}>Loading...</p>;
+
+  // Group by category
+  const grouped: Record<string, any[]> = {};
+  for (const item of data) {
+    if (!grouped[item.category]) grouped[item.category] = [];
+    grouped[item.category].push(item);
+  }
+
+  return (
+    <div>
+      <p style={s.sub}>{data.length} options across {Object.keys(grouped).length} categories</p>
+      {Object.entries(grouped).map(([cat, items]) => (
+        <div key={cat} style={{ marginBottom: 20 }}>
+          <h4 style={{ fontSize: 14, margin: "0 0 8px" }}>
+            <code style={s.badge}>{cat}</code> ({items.length})
+          </h4>
+          <table style={s.table}>
+            <thead>
+              <tr>
+                <th style={s.th}>Value</th>
+                <th style={s.th}>Hebrew</th>
+                <th style={s.th}>English</th>
+                <th style={s.th}>Order</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item: any) => (
+                <tr key={item.id}>
+                  <td style={s.td}><code style={s.badge}>{item.value}</code></td>
+                  <td style={s.td}>{item.label_he}</td>
+                  <td style={s.td}>{item.label_en || "-"}</td>
+                  <td style={s.td}>{item.sort_order}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Config Tab (editable) ────────────────────────────────────────
+
+function ConfigTab() {
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<Record<string, string>>({});
+  const [saved, setSaved] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/config")
+      .then((r) => r.json())
+      .then(setData)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function saveConfig(key: string) {
+    const value = editing[key];
+    if (value === undefined) return;
+
+    await fetch(`/api/admin/config/${encodeURIComponent(key)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value }),
+    });
+
+    // Update local state
+    setData((prev) => prev.map((c) => (c.key === key ? { ...c, value } : c)));
+    setEditing((prev) => { const n = { ...prev }; delete n[key]; return n; });
+    setSaved(key);
+    setTimeout(() => setSaved(null), 1500);
+  }
+
+  if (loading) return <p style={s.loading}>Loading...</p>;
+
+  // Group by category
+  const grouped: Record<string, any[]> = {};
+  for (const item of data) {
+    if (!grouped[item.category]) grouped[item.category] = [];
+    grouped[item.category].push(item);
+  }
+
+  return (
+    <div>
+      <p style={s.sub}>{data.length} config keys</p>
+      {Object.entries(grouped).map(([cat, items]) => (
+        <div key={cat} style={{ marginBottom: 24 }}>
+          <h4 style={{ fontSize: 14, margin: "0 0 8px" }}>
+            <code style={s.badge}>{cat}</code>
+          </h4>
+          <table style={s.table}>
+            <thead>
+              <tr>
+                <th style={s.th}>Key</th>
+                <th style={s.th}>Value</th>
+                <th style={s.th}>Description</th>
+                <th style={s.th}>Edit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((c: any) => (
+                <tr key={c.key}>
+                  <td style={s.td}><code style={s.badge}>{c.key}</code></td>
+                  <td style={s.td}>
+                    <input
+                      style={s.configInput}
+                      value={editing[c.key] !== undefined ? editing[c.key] : c.value}
+                      onChange={(e) => setEditing((prev) => ({ ...prev, [c.key]: e.target.value }))}
+                    />
+                  </td>
+                  <td style={s.td}>{c.description || "-"}</td>
+                  <td style={s.td}>
+                    {editing[c.key] !== undefined && editing[c.key] !== c.value ? (
+                      <button style={s.configSave} onClick={() => saveConfig(c.key)}>Save</button>
+                    ) : saved === c.key ? (
+                      <span style={{ color: "green", fontSize: 12 }}>Saved</span>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Matches Tab ──────────────────────────────────────────────────
+
+function MatchesTab() {
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/admin/matches")
+      .then((r) => r.json())
+      .then(setData)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <p style={s.loading}>Loading...</p>;
+
+  if (data.length === 0) {
+    return (
+      <div style={{ textAlign: "center", padding: 40 }}>
+        <p style={{ color: "#888", fontSize: 14 }}>No matches yet.</p>
+        <p style={{ color: "#aaa", fontSize: 12 }}>Matches will appear here once the matching algorithm runs.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={s.scrollWrap}>
+      <p style={s.sub}>{data.length} matches</p>
+      <table style={s.table}>
+        <thead>
+          <tr>
+            <th style={s.th}>ID</th>
+            <th style={s.th}>User 1</th>
+            <th style={s.th}>User 2</th>
+            <th style={s.th}>Score</th>
+            <th style={s.th}>Status</th>
+            <th style={s.th}>Priority</th>
+            <th style={s.th}>Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((m: any) => (
+            <tr key={m.id}>
+              <td style={s.td}>{m.id}</td>
+              <td style={s.td}>{m.user1_name} (#{m.user1_id})</td>
+              <td style={s.td}>{m.user2_name} (#{m.user2_id})</td>
+              <td style={s.td}><strong>{m.match_score || "-"}</strong></td>
+              <td style={s.td}><span style={s.badge}>{m.status}</span></td>
+              <td style={s.td}>{m.match_priority || "-"}</td>
+              <td style={s.td}>{m.created_at}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Candidate Matches Tab ───────────────────────────────────────
+
+function CandidateMatchesTab() {
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [running, setRunning] = useState<string | null>(null);
+  const [result, setResult] = useState<any>(null);
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+
+  function load() {
+    setLoading(true);
+    fetch("/api/admin/candidate-matches")
+      .then((r) => r.json())
+      .then(setData)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function runMatching() {
+    setRunning("matching");
+    setResult(null);
+    try {
+      const r = await fetch("/api/admin/run-matching", { method: "POST" });
+      const json = await r.json();
+      setResult(json);
+      load();
+    } catch (e: any) {
+      setResult({ error: e.message });
+    } finally {
+      setRunning(null);
+    }
+  }
+
+  async function resetMatches() {
+    setRunning("reset");
+    setResult(null);
+    try {
+      const r = await fetch("/api/admin/reset-matches", { method: "POST" });
+      const json = await r.json();
+      setResult({ reset: true, ...json });
+      load();
+    } catch (e: any) {
+      setResult({ error: e.message });
+    } finally {
+      setRunning(null);
+    }
+  }
+
+  if (selectedUserId !== null) {
+    return <UserDetail userId={selectedUserId} onBack={() => setSelectedUserId(null)} />;
+  }
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+        <button
+          onClick={runMatching}
+          disabled={running !== null}
+          style={{ padding: "8px 16px", fontSize: 14, background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 6, cursor: running ? "wait" : "pointer", fontWeight: 600 }}
+        >
+          {running === "matching" ? "Running..." : "הרץ אלגוריתם התאמה"}
+        </button>
+        <button
+          onClick={resetMatches}
+          disabled={running !== null}
+          style={{ padding: "8px 16px", fontSize: 14, background: "#dc3545", color: "#fff", border: "none", borderRadius: 6, cursor: running ? "wait" : "pointer", fontWeight: 600 }}
+        >
+          {running === "reset" ? "Clearing..." : "איפוס התאמות"}
+        </button>
+        {result && !result.error && result.stage1 && (
+          <span style={{ fontSize: 13, color: "#28a745" }}>
+            {result.stage1.users} eligible, {result.stage1.pairs} filtered, {result.stage2.scored} scored
+          </span>
+        )}
+        {result && !result.error && result.reset && (
+          <span style={{ fontSize: 13, color: "#888" }}>
+            {result.deleted} matches cleared
+          </span>
+        )}
+        {result?.error && (
+          <span style={{ fontSize: 13, color: "red" }}>Error: {result.error}</span>
+        )}
+      </div>
+
+      {loading ? (
+        <p style={s.loading}>Loading...</p>
+      ) : data.length === 0 ? (
+        <p style={s.none}>No candidate matches yet. Run Stage 1 to generate them.</p>
+      ) : (
+        <div style={s.scrollWrap}>
+          <p style={s.sub}>{data.length} candidate pairs</p>
+          <table style={s.table}>
+            <thead>
+              <tr>
+                <th style={s.th}>ID</th>
+                <th style={s.th}>User</th>
+                <th style={s.th}>Candidate</th>
+                <th style={s.th}>Status</th>
+                <th style={s.th}>Internal</th>
+                <th style={s.th}>External</th>
+                <th style={s.th}>Final</th>
+                <th style={s.th}>Evaluated</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.map((cm: any) => (
+                <tr key={cm.id}>
+                  <td style={s.td}>{cm.id}</td>
+                  <td style={s.td}><button style={s.expandBtn} onClick={() => setSelectedUserId(cm.user_id)}>{cm.user1_name}</button> ({cm.user1_age}, {cm.user1_city})</td>
+                  <td style={s.td}><button style={s.expandBtn} onClick={() => setSelectedUserId(cm.candidate_user_id)}>{cm.user2_name}</button> ({cm.user2_age}, {cm.user2_city})</td>
+                  <td style={s.td}><span style={s.badge}>{cm.status}</span></td>
+                  <td style={s.td}>{cm.internal_score != null ? <strong>{cm.internal_score}</strong> : "-"}</td>
+                  <td style={s.td}>{cm.external_score != null ? cm.external_score : "-"}</td>
+                  <td style={s.td}>{cm.final_score != null ? <strong style={{ color: cm.final_score >= 70 ? "#28a745" : cm.final_score >= 50 ? "#856404" : "#dc3545" }}>{cm.final_score}</strong> : "-"}</td>
+                  <td style={s.td}>{cm.last_evaluated_at}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
