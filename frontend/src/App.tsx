@@ -82,7 +82,7 @@ export default function App() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
 
   return (
-    <div style={styles.app}>
+    <div style={view === "admin" ? { ...styles.app, maxWidth: "100%" } : styles.app}>
       <div style={styles.header}>
         <h1
           style={{ ...styles.title, cursor: "pointer" }}

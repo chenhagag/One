@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import db from "./db";
 import { analyzeAnswer } from "./openai";
 import { runStage1 } from "./matchStage1";
-import { runStage2 } from "./matchStage2";
+import { runStage2, runMatchmaking } from "./matchStage2";
 
 dotenv.config();
 
@@ -140,11 +140,20 @@ app.get("/admin/users", (_req, res) => {
     ORDER BY u.created_at DESC
   `).all();
 
-  const result = (users as any[]).map((u) => ({
-    ...u,
-    self_style: u.self_style ? JSON.parse(u.self_style) : null,
-    analysis: u.analysis_json ? JSON.parse(u.analysis_json) : null,
-  }));
+  const now = Date.now();
+  const result = (users as any[]).map((u) => {
+    let waiting_days = 0;
+    if (u.waiting_since) {
+      const ms = now - new Date(u.waiting_since + "Z").getTime();
+      waiting_days = Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
+    }
+    return {
+      ...u,
+      self_style: u.self_style ? JSON.parse(u.self_style) : null,
+      analysis: u.analysis_json ? JSON.parse(u.analysis_json) : null,
+      waiting_days,
+    };
+  });
 
   return res.json(result);
 });
@@ -155,6 +164,14 @@ app.get("/admin/users/:id/full", (req, res) => {
   if (!user) return res.status(404).json({ error: "User not found" });
 
   user.self_style = user.self_style ? JSON.parse(user.self_style) : null;
+
+  // Compute waiting_days
+  if (user.waiting_since) {
+    const ms = Date.now() - new Date(user.waiting_since + "Z").getTime();
+    user.waiting_days = Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
+  } else {
+    user.waiting_days = 0;
+  }
 
   const profile = db.prepare(`
     SELECT raw_answer, analysis_json, created_at FROM profiles
@@ -337,7 +354,8 @@ app.get("/admin/stats", (_req, res) => {
   return res.json(stats);
 });
 
-// POST /admin/run-matching — Run full matching: stage 1 (filter) then stage 2 (score)
+// POST /admin/run-matching — Matching algorithm: filter + score + promote to rating flow
+// Does NOT select pre_match or freeze matches.
 app.post("/admin/run-matching", (_req, res) => {
   try {
     const stage1 = runStage1(db);
@@ -349,42 +367,283 @@ app.post("/admin/run-matching", (_req, res) => {
   }
 });
 
-// POST /admin/reset-matches — Clear all candidate matches
-app.post("/admin/reset-matches", (_req, res) => {
+// POST /admin/run-matchmaking — Matchmaking selection: prioritize + select + freeze
+// Works on existing approved_by_both matches only. Does NOT regenerate candidates.
+app.post("/admin/run-matchmaking", (_req, res) => {
   try {
-    const deleted = db.prepare("DELETE FROM candidate_matches").run().changes;
-    db.prepare("UPDATE users SET total_matches = 0, good_matches = 0").run();
-    return res.json({ deleted });
+    const result = runMatchmaking(db);
+    return res.json(result);
   } catch (err: any) {
     console.error(err);
     return res.status(500).json({ error: err.message });
   }
 });
 
+// POST /admin/approve-all-ratings — Testing shortcut: bulk-approve all pending ratings
+app.post("/admin/approve-all-ratings", (_req, res) => {
+  try {
+    const result = db.prepare(`
+      UPDATE matches SET status = 'approved_by_both', updated_at = datetime('now')
+      WHERE status IN ('waiting_first_rating', 'waiting_second_rating')
+    `).run();
+    return res.json({ approved: result.changes });
+  } catch (err: any) {
+    console.error(err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /admin/reset-matches — Full reset of all matching data
+app.post("/admin/reset-matches", (_req, res) => {
+  try {
+    const deletedCandidates = db.prepare("DELETE FROM candidate_matches").run().changes;
+    const deletedMatches = db.prepare("DELETE FROM matches").run().changes;
+    db.prepare(`
+      UPDATE users SET
+        user_status = 'waiting_match',
+        waiting_since = COALESCE(waiting_since, created_at),
+        total_matches = 0,
+        good_matches = 0,
+        system_match_priority = 0
+    `).run();
+    return res.json({ deleted_candidates: deletedCandidates, deleted_matches: deletedMatches });
+  } catch (err: any) {
+    console.error(err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /admin/users/:id/matches — Actual matches for a specific user (from matches table)
+app.get("/admin/users/:id/matches", (req, res) => {
+  const rows = db.prepare(`
+    SELECT m.id, m.match_score, m.status, m.user1_id, m.user2_id,
+      m.user1_rating, m.user2_rating,
+      u.id as other_id, u.first_name as other_name,
+      u1.pickiness_score as user1_pickiness,
+      u2.pickiness_score as user2_pickiness
+    FROM matches m
+    JOIN users u ON u.id = CASE WHEN m.user1_id = ? THEN m.user2_id ELSE m.user1_id END
+    JOIN users u1 ON u1.id = m.user1_id
+    JOIN users u2 ON u2.id = m.user2_id
+    WHERE m.user1_id = ? OR m.user2_id = ?
+    ORDER BY m.final_match_priority DESC
+  `).all(req.params.id, req.params.id, req.params.id);
+  return res.json(rows);
+});
+
 // GET /admin/users/:id/candidate-matches — Matches for a specific user
 app.get("/admin/users/:id/candidate-matches", (req, res) => {
   const rows = db.prepare(`
-    SELECT cm.*, u.id as other_id, u.first_name as other_name, u.age as other_age, u.city as other_city
+    SELECT cm.*, u.id as other_id, u.first_name as other_name, u.age as other_age, u.city as other_city,
+      m.status as match_status, m.pair_priority, m.final_match_priority
     FROM candidate_matches cm
     JOIN users u ON u.id = CASE WHEN cm.user_id = ? THEN cm.candidate_user_id ELSE cm.user_id END
+    LEFT JOIN matches m ON (m.user1_id = cm.user_id AND m.user2_id = cm.candidate_user_id)
+                        OR (m.user1_id = cm.candidate_user_id AND m.user2_id = cm.user_id)
     WHERE cm.user_id = ? OR cm.candidate_user_id = ?
     ORDER BY cm.final_score DESC
   `).all(req.params.id, req.params.id, req.params.id);
   return res.json(rows);
 });
 
-// GET /admin/candidate-matches — View candidate match array
+// ════════════════════════════════════════════════════════════════
+// MATCH RATING — User rates a match
+// ════════════════════════════════════════════════════════════════
+
+// POST /matches/:id/rate — Submit a rating for one side of a match
+// Body: { user_id, rating: "miss" | "possible" | "bullseye" }
+//
+// First rater = the user with the HIGHER pickiness_score.
+// If equal or both null, user1 goes first.
+//
+// Transition rules:
+//   waiting_first_rating  + miss                → rejected_by_users
+//   waiting_first_rating  + possible/bullseye   → waiting_second_rating
+//   waiting_second_rating + miss                → rejected_by_users
+//   waiting_second_rating + possible/bullseye   → approved_by_both
+
+const VALID_RATINGS = new Set(["miss", "possible", "bullseye"]);
+
+app.post("/matches/:id/rate", (req, res) => {
+  const { user_id, rating } = req.body;
+
+  if (!user_id || !rating) {
+    return res.status(400).json({ error: "user_id and rating are required" });
+  }
+  if (!VALID_RATINGS.has(rating)) {
+    return res.status(400).json({ error: "rating must be miss, possible, or bullseye" });
+  }
+
+  const match = db.prepare("SELECT * FROM matches WHERE id = ?").get(req.params.id) as any;
+  if (!match) return res.status(404).json({ error: "Match not found" });
+
+  if (match.user1_id !== user_id && match.user2_id !== user_id) {
+    return res.status(403).json({ error: "User is not part of this match" });
+  }
+
+  if (match.status !== "waiting_first_rating" && match.status !== "waiting_second_rating") {
+    return res.status(400).json({ error: `Cannot rate a match in status '${match.status}'` });
+  }
+
+  // Determine first and second rater based on pickiness_score.
+  // Higher pickiness = rates first. Tie or nulls → user1 goes first.
+  const u1 = db.prepare("SELECT id, pickiness_score FROM users WHERE id = ?").get(match.user1_id) as any;
+  const u2 = db.prepare("SELECT id, pickiness_score FROM users WHERE id = ?").get(match.user2_id) as any;
+  const p1 = u1.pickiness_score ?? 0;
+  const p2 = u2.pickiness_score ?? 0;
+  const firstRaterId = p2 > p1 ? match.user2_id : match.user1_id;
+  const secondRaterId = firstRaterId === match.user1_id ? match.user2_id : match.user1_id;
+
+  // Column to store this rating (user1_rating or user2_rating)
+  const ratingCol = user_id === match.user1_id ? "user1_rating" : "user2_rating";
+
+  if (match.status === "waiting_first_rating") {
+    if (user_id !== firstRaterId) {
+      return res.status(400).json({ error: "Waiting for the other user to rate first (higher pickiness)" });
+    }
+
+    const newStatus = rating === "miss" ? "rejected_by_users" : "waiting_second_rating";
+    db.prepare(`
+      UPDATE matches SET status = ?, ${ratingCol} = ?, updated_at = datetime('now') WHERE id = ?
+    `).run(newStatus, rating, match.id);
+
+    return res.json({ match_id: match.id, new_status: newStatus, rated_by: user_id });
+  }
+
+  // waiting_second_rating
+  if (user_id !== secondRaterId) {
+    return res.status(400).json({ error: "Waiting for the other user to rate" });
+  }
+
+  const newStatus = rating === "miss" ? "rejected_by_users" : "approved_by_both";
+  db.prepare(`
+    UPDATE matches SET status = ?, ${ratingCol} = ?, updated_at = datetime('now') WHERE id = ?
+  `).run(newStatus, rating, match.id);
+
+  return res.json({ match_id: match.id, new_status: newStatus, rated_by: user_id });
+});
+
+// GET /admin/candidate-matches — View candidate match array with priority data
 app.get("/admin/candidate-matches", (_req, res) => {
   const rows = db.prepare(`
     SELECT cm.*,
       u1.first_name as user1_name, u1.age as user1_age, u1.city as user1_city,
-      u2.first_name as user2_name, u2.age as user2_age, u2.city as user2_city
+      u1.system_match_priority as user1_priority,
+      u2.first_name as user2_name, u2.age as user2_age, u2.city as user2_city,
+      u2.system_match_priority as user2_priority,
+      m.status as match_status,
+      m.pair_priority,
+      m.final_match_priority
     FROM candidate_matches cm
     JOIN users u1 ON u1.id = cm.user_id
     JOIN users u2 ON u2.id = cm.candidate_user_id
-    ORDER BY cm.created_at DESC
+    LEFT JOIN matches m ON (m.user1_id = cm.user_id AND m.user2_id = cm.candidate_user_id)
+                        OR (m.user1_id = cm.candidate_user_id AND m.user2_id = cm.user_id)
+    ORDER BY cm.final_score DESC
   `).all();
   return res.json(rows);
+});
+
+// ════════════════════════════════════════════════════════════════
+// MATCH LIFECYCLE — Send / Cancel final matches
+// ════════════════════════════════════════════════════════════════
+
+// POST /admin/matches/:id/send — Mark a match as sent/revealed to both users
+// This is the ONLY action that stops the waiting counter.
+app.post("/admin/matches/:id/send", (req, res) => {
+  const match = db.prepare("SELECT * FROM matches WHERE id = ?").get(req.params.id) as any;
+  if (!match) return res.status(404).json({ error: "Match not found" });
+
+  if (match.status === "in_match") {
+    return res.status(400).json({ error: "Match is already active" });
+  }
+
+  db.transaction(() => {
+    // Transition match to in_match
+    db.prepare(`
+      UPDATE matches SET status = 'in_match', updated_at = datetime('now') WHERE id = ?
+    `).run(match.id);
+
+    // Both users: stop waiting (waiting_since = NULL), set user_status = in_match
+    db.prepare(`
+      UPDATE users SET waiting_since = NULL, user_status = 'in_match', updated_at = datetime('now')
+      WHERE id IN (?, ?)
+    `).run(match.user1_id, match.user2_id);
+  })();
+
+  return res.json({ success: true, match_id: match.id, status: "in_match" });
+});
+
+// POST /admin/matches/:id/cancel — Cancel a match in pre_match or in_match
+//
+// On cancellation:
+//   1. Match status → cancelled
+//   2. Both users → waiting_match, waiting_since = now
+//   3. Frozen matches involving either user are restored to their previous_status
+//      (the status they had before being frozen by this match's selection run)
+
+app.post("/admin/matches/:id/cancel", (req, res) => {
+  const match = db.prepare("SELECT * FROM matches WHERE id = ?").get(req.params.id) as any;
+  if (!match) return res.status(404).json({ error: "Match not found" });
+
+  if (match.status !== "pre_match" && match.status !== "in_match") {
+    return res.status(400).json({ error: `Can only cancel matches in pre_match or in_match, current status is '${match.status}'` });
+  }
+
+  let unfrozen = 0;
+
+  db.transaction(() => {
+    // 1. Cancel the match
+    db.prepare(`
+      UPDATE matches SET status = 'cancelled', updated_at = datetime('now') WHERE id = ?
+    `).run(match.id);
+
+    // 2. Restore both users to waiting state
+    db.prepare(`
+      UPDATE users SET user_status = 'waiting_match', waiting_since = datetime('now'), updated_at = datetime('now')
+      WHERE id IN (?, ?)
+    `).run(match.user1_id, match.user2_id);
+
+    // 3. Unfreeze competing matches for both users.
+    //    Restore frozen matches where either cancelled user is involved
+    //    and previous_status was saved.
+    const frozenMatches = db.prepare(`
+      SELECT id, previous_status FROM matches
+      WHERE status = 'frozen'
+        AND previous_status IS NOT NULL
+        AND (user1_id IN (?, ?) OR user2_id IN (?, ?))
+    `).all(match.user1_id, match.user2_id, match.user1_id, match.user2_id) as { id: number; previous_status: string }[];
+
+    const restoreStmt = db.prepare(`
+      UPDATE matches SET status = ?, previous_status = NULL, updated_at = datetime('now') WHERE id = ?
+    `);
+
+    for (const fm of frozenMatches) {
+      restoreStmt.run(fm.previous_status, fm.id);
+      unfrozen++;
+    }
+  })();
+
+  return res.json({ success: true, match_id: match.id, status: "cancelled", unfrozen });
+});
+
+// GET /admin/users/:id/waiting — Get waiting days for a specific user
+app.get("/admin/users/:id/waiting", (req, res) => {
+  const user = db.prepare("SELECT waiting_since, user_status FROM users WHERE id = ?").get(req.params.id) as any;
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  let waiting_days = 0;
+  if (user.waiting_since) {
+    const ms = Date.now() - new Date(user.waiting_since + "Z").getTime();
+    waiting_days = Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
+  }
+
+  return res.json({
+    waiting_since: user.waiting_since,
+    waiting_days,
+    is_waiting: user.waiting_since !== null,
+    user_status: user.user_status,
+  });
 });
 
 // Keep old GET /users for backward compatibility

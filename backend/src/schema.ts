@@ -132,6 +132,10 @@ export function createSchema(db: Database.Database) {
       initial_attraction_signal REAL,            -- Approval rate from others
       valid_person INTEGER DEFAULT 1,            -- Toxic/troll flag (AI-determined)
 
+      -- Match waiting tracking
+      waiting_since TEXT DEFAULT (datetime('now')),  -- NULL = not waiting (has active match)
+      system_match_priority REAL DEFAULT 0,          -- Computed priority score (0-100)
+
       -- Timestamps
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
@@ -196,11 +200,13 @@ export function createSchema(db: Database.Database) {
       match_score REAL,                      -- Overall match score
       user1_rating TEXT,                     -- User 1's response
       user2_rating TEXT,                     -- User 2's response
-      status TEXT DEFAULT 'pending',         -- pending | waiting_first_rating | waiting_second_rating | approved | rejected | in_match | cancelled | frozen | expired
+      status TEXT DEFAULT 'waiting_first_rating', -- waiting_first_rating | waiting_second_rating | approved_by_both | pre_match | in_match | cancelled | rejected_by_users | frozen
+      previous_status TEXT,                  -- Saved before freeze, used to restore
       system_priority_user1 REAL,
       system_priority_user2 REAL,
       pair_priority REAL,
-      match_priority REAL,                   -- Final priority = f(pair_priority, match_score)
+      match_priority REAL,                   -- Legacy / unused — kept for backward compat
+      final_match_priority REAL,             -- Final selection priority = f(pair_priority, match_score)
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
@@ -296,6 +302,10 @@ export function createSchema(db: Database.Database) {
     ["candidate_matches", "final_score",    "ALTER TABLE candidate_matches ADD COLUMN final_score REAL"],
     ["users", "total_matches", "ALTER TABLE users ADD COLUMN total_matches INTEGER DEFAULT 0"],
     ["users", "good_matches",  "ALTER TABLE users ADD COLUMN good_matches INTEGER DEFAULT 0"],
+    ["users", "waiting_since", "ALTER TABLE users ADD COLUMN waiting_since TEXT"],
+    ["users", "system_match_priority", "ALTER TABLE users ADD COLUMN system_match_priority REAL DEFAULT 0"],
+    ["matches", "previous_status", "ALTER TABLE matches ADD COLUMN previous_status TEXT"],
+    ["matches", "final_match_priority", "ALTER TABLE matches ADD COLUMN final_match_priority REAL"],
   ];
 
   for (const [table, column, sql] of migrations) {
@@ -303,6 +313,27 @@ export function createSchema(db: Database.Database) {
       db.exec(sql);
     }
   }
+
+  // ── Backfill waiting_since for existing users ──────────────────
+  db.prepare(`
+    UPDATE users SET waiting_since = created_at
+    WHERE waiting_since IS NULL AND user_status = 'waiting_match'
+  `).run();
+
+  // ── Migrate match status: approved → approved_by_both ─────────
+  db.prepare(`
+    UPDATE matches SET status = 'approved_by_both' WHERE status = 'approved'
+  `).run();
+
+  // ── Ensure new match_status enum values exist ─────────────────
+  const insertEnum = db.prepare(`
+    INSERT OR IGNORE INTO enum_options (category, value, label_he, label_en, sort_order)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  insertEnum.run("match_status", "approved_by_both", "אושר ע״י שניהם", "Approved by both", 4);
+  insertEnum.run("match_status", "pre_match", "טרום שידוך", "Pre-match", 5);
+  insertEnum.run("match_status", "frozen", "מוקפא", "Frozen", 9);
+  insertEnum.run("match_status", "rejected_by_users", "נדחה ע״י משתמשים", "Rejected by users", 10);
 
   // ── Seed geography tables (idempotent via INSERT OR IGNORE) ────
 

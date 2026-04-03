@@ -66,8 +66,8 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
           ["look_traits", "Look Trait Defs"],
           ["enums", "Enum Options"],
           ["config", "Config"],
-          ["matches", "Matches"],
           ["candidates", "Candidate Matches"],
+          ["matches", "Matched"],
         ] as [Tab, string][]).map(([key, label]) => (
           <button
             key={key}
@@ -137,7 +137,12 @@ function UsersTab() {
 
   return (
     <div style={s.scrollWrap}>
-      <p style={s.sub}>{users.length} users — click a row to view full profile</p>
+      <p style={s.sub}>
+        {users.length} users — click a row to view full profile
+        <span style={{ marginLeft: 16, fontWeight: 600 }}>
+          Users currently in match: {users.filter((u: any) => u.user_status === "in_match").length} / {users.length}
+        </span>
+      </p>
       <table style={s.table}>
         <thead>
           <tr>
@@ -151,6 +156,8 @@ function UsersTab() {
             <th style={s.th}>Status</th>
             <th style={s.th}>Looking For</th>
             <th style={s.th}>Matchable</th>
+            <th style={s.th}>Wait Days</th>
+            <th style={s.th}>Sys Priority</th>
           </tr>
         </thead>
         <tbody>
@@ -172,6 +179,8 @@ function UsersTab() {
               <td style={s.td}><span style={s.badge}>{u.user_status || "-"}</span></td>
               <td style={s.td}><span style={s.badge}>{u.looking_for_gender || "-"}</span></td>
               <td style={s.td}>{u.is_matchable ? "Yes" : "No"}</td>
+              <td style={s.td}>{u.waiting_days ?? 0}</td>
+              <td style={s.td}>{u.system_match_priority != null ? <strong>{u.system_match_priority}</strong> : "-"}</td>
             </tr>
           ))}
         </tbody>
@@ -186,8 +195,52 @@ function UserDetail({ userId, onBack }: { userId: number; onBack: () => void }) 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [candidates, setCandidates] = useState<any[]>([]);
+  const [matches, setMatches] = useState<any[]>([]);
   const [viewingUserId, setViewingUserId] = useState<number | null>(null);
+  const [ratingInProgress, setRatingInProgress] = useState<number | null>(null);
+  const [cancelInProgress, setCancelInProgress] = useState<number | null>(null);
+
+  function loadMatches() {
+    fetch(`/api/admin/users/${userId}/matches`)
+      .then((r) => r.json())
+      .then(setMatches)
+      .catch(() => {});
+  }
+
+  async function submitRating(matchId: number, rating: string) {
+    setRatingInProgress(matchId);
+    try {
+      const r = await fetch(`/api/matches/${matchId}/rate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId, rating }),
+      });
+      const json = await r.json();
+      if (!r.ok) {
+        alert(json.error || "Rating failed");
+      }
+      loadMatches();
+    } catch {
+      alert("Network error");
+    } finally {
+      setRatingInProgress(null);
+    }
+  }
+
+  async function cancelMatch(matchId: number) {
+    if (!confirm("Cancel this match?")) return;
+    setCancelInProgress(matchId);
+    try {
+      const r = await fetch(`/api/admin/matches/${matchId}/cancel`, { method: "POST" });
+      const json = await r.json();
+      if (!r.ok) alert(json.error || "Cancel failed");
+      loadMatches();
+    } catch {
+      alert("Network error");
+    } finally {
+      setCancelInProgress(null);
+    }
+  }
 
   useEffect(() => {
     fetch(`/api/admin/users/${userId}/full`)
@@ -198,10 +251,7 @@ function UserDetail({ userId, onBack }: { userId: number; onBack: () => void }) 
       .then(setData)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-    fetch(`/api/admin/users/${userId}/candidate-matches`)
-      .then((r) => r.json())
-      .then(setCandidates)
-      .catch(() => {});
+    loadMatches();
   }, [userId]);
 
   // Navigate to another user's profile from match candidates
@@ -235,7 +285,8 @@ function UserDetail({ userId, onBack }: { userId: number; onBack: () => void }) 
       <p style={{ ...s.sub, marginBottom: 24 }}>
         Status: <strong>{user.user_status}</strong> | Matchable: <strong>{user.is_matchable ? "Yes" : "No"}</strong> |
         Pickiness: <strong>{user.pickiness_score ?? "-"}</strong> | Attraction signal: <strong>{user.initial_attraction_signal ?? "-"}</strong> |
-        Matches: <strong>{user.total_matches ?? 0}</strong> | Good matches: <strong>{user.good_matches ?? 0}</strong>
+        Matches: <strong>{user.total_matches ?? 0}</strong> | Good matches: <strong>{user.good_matches ?? 0}</strong> |
+        Waiting days: <strong>{user.waiting_days ?? 0}</strong> | System priority: <strong>{user.system_match_priority ?? "-"}</strong>
       </p>
 
       {/* Two-column layout */}
@@ -403,33 +454,88 @@ function UserDetail({ userId, onBack }: { userId: number; onBack: () => void }) 
         </div>
       </div>
 
-      {/* Match Candidates */}
-      <SectionHeading title={`Match Candidates (${candidates.length})`} />
-      {candidates.length > 0 ? (
+      {/* Matches */}
+      <SectionHeading title={`Matches (${matches.length})`} />
+      {matches.length > 0 ? (
         <table style={{ ...s.table, marginBottom: 24 }}>
           <thead>
             <tr>
               <th style={s.th}>Other User</th>
+              <th style={s.th}>Match Status</th>
               <th style={s.th}>Score</th>
-              <th style={s.th}>Status</th>
+              <th style={s.th}>Rate</th>
             </tr>
           </thead>
           <tbody>
-            {candidates.map((cm: any) => (
-              <tr key={cm.id}>
-                <td style={s.td}>
-                  <button style={s.expandBtn} onClick={() => setViewingUserId(cm.other_id)}>
-                    {cm.other_name}
-                  </button> ({cm.other_age}, {cm.other_city})
-                </td>
-                <td style={s.td}>{cm.final_score != null ? <strong>{cm.final_score}</strong> : "-"}</td>
-                <td style={s.td}><span style={s.badge}>{cm.status}</span></td>
-              </tr>
-            ))}
+            {matches.map((m: any) => {
+              const msStyle = m.status === "pre_match" ? { ...s.badge, background: "#d4edda", color: "#155724" }
+                : m.status === "in_match" ? { ...s.badge, background: "#cce5ff", color: "#004085" }
+                : m.status === "frozen" ? { ...s.badge, background: "#e2e3e5", color: "#383d41" }
+                : m.status === "cancelled" ? { ...s.badge, background: "#f8d7da", color: "#721c24" }
+                : m.status === "rejected_by_users" ? { ...s.badge, background: "#f8d7da", color: "#721c24" }
+                : m.status === "approved_by_both" ? { ...s.badge, background: "#d4edda", color: "#155724" }
+                : s.badge;
+
+              // Determine if this user should rate now
+              const p1 = m.user1_pickiness ?? 0;
+              const p2 = m.user2_pickiness ?? 0;
+              const firstRaterId = p2 > p1 ? m.user2_id : m.user1_id;
+              const secondRaterId = firstRaterId === m.user1_id ? m.user2_id : m.user1_id;
+
+              const canRate =
+                (m.status === "waiting_first_rating" && userId === firstRaterId) ||
+                (m.status === "waiting_second_rating" && userId === secondRaterId);
+
+              const isRating = ratingInProgress === m.id;
+
+              return (
+                <tr key={m.id}>
+                  <td style={s.td}>
+                    <button style={s.expandBtn} onClick={() => setViewingUserId(m.other_id)}>
+                      {m.other_name}
+                    </button>
+                  </td>
+                  <td style={s.td}><span style={msStyle}>{m.status}</span></td>
+                  <td style={s.td}>{m.match_score != null ? <strong>{m.match_score}</strong> : "-"}</td>
+                  <td style={s.td}>
+                    {canRate ? (
+                      <span style={{ display: "inline-flex", gap: 4 }}>
+                        {(["bullseye", "possible", "miss"] as const).map((r) => (
+                          <button
+                            key={r}
+                            disabled={isRating}
+                            onClick={() => submitRating(m.id, r)}
+                            style={{
+                              padding: "3px 8px", fontSize: 11, border: "none", borderRadius: 4, cursor: isRating ? "wait" : "pointer", fontWeight: 600,
+                              background: r === "bullseye" ? "#28a745" : r === "possible" ? "#ffc107" : "#dc3545",
+                              color: r === "possible" ? "#333" : "#fff",
+                            }}
+                          >
+                            {r}
+                          </button>
+                        ))}
+                      </span>
+                    ) : (m.status === "pre_match" || m.status === "in_match") ? (
+                      <button
+                        disabled={cancelInProgress === m.id}
+                        onClick={() => cancelMatch(m.id)}
+                        style={{ padding: "3px 8px", fontSize: 11, border: "none", borderRadius: 4, cursor: cancelInProgress === m.id ? "wait" : "pointer", fontWeight: 600, background: "#dc3545", color: "#fff" }}
+                      >
+                        {cancelInProgress === m.id ? "..." : "Cancel Match"}
+                      </button>
+                    ) : (
+                      <span style={{ color: "#aaa", fontSize: 11 }}>
+                        {m.status === "waiting_first_rating" || m.status === "waiting_second_rating" ? "waiting for other side" : "—"}
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       ) : (
-        <p style={s.none}>No match candidates.</p>
+        <p style={s.none}>No matches.</p>
       )}
     </div>
   );
@@ -856,31 +962,44 @@ function ConfigTab() {
 // ── Matches Tab ──────────────────────────────────────────────────
 
 function MatchesTab() {
-  const [data, setData] = useState<any[]>([]);
+  const [allData, setAllData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  function load() {
+    setLoading(true);
     fetch("/api/admin/matches")
       .then((r) => r.json())
-      .then(setData)
+      .then(setAllData)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(() => { load(); }, []);
+
+  // Show only active matches: pre_match and in_match
+  const data = allData.filter((m: any) => m.status === "pre_match" || m.status === "in_match");
+
+  const statusColor = (status: string) => {
+    if (status === "pre_match") return { ...s.badge, background: "#d4edda", color: "#155724" };
+    if (status === "in_match") return { ...s.badge, background: "#cce5ff", color: "#004085" };
+    if (status === "rejected_by_users" || status === "cancelled") return { ...s.badge, background: "#f8d7da", color: "#721c24" };
+    return s.badge;
+  };
 
   if (loading) return <p style={s.loading}>Loading...</p>;
 
   if (data.length === 0) {
     return (
       <div style={{ textAlign: "center", padding: 40 }}>
-        <p style={{ color: "#888", fontSize: 14 }}>No matches yet.</p>
-        <p style={{ color: "#aaa", fontSize: 12 }}>Matches will appear here once the matching algorithm runs.</p>
+        <p style={{ color: "#888", fontSize: 14 }}>No active matches yet.</p>
+        <p style={{ color: "#aaa", fontSize: 12 }}>Run the matchmaking algorithm from the Candidate Matches tab to generate matches.</p>
       </div>
     );
   }
 
   return (
     <div style={s.scrollWrap}>
-      <p style={s.sub}>{data.length} matches</p>
+      <p style={s.sub}>{data.length} active matches</p>
       <table style={s.table}>
         <thead>
           <tr>
@@ -889,7 +1008,8 @@ function MatchesTab() {
             <th style={s.th}>User 2</th>
             <th style={s.th}>Score</th>
             <th style={s.th}>Status</th>
-            <th style={s.th}>Priority</th>
+            <th style={s.th}>Pair Priority</th>
+            <th style={s.th}>Final Priority</th>
             <th style={s.th}>Created</th>
           </tr>
         </thead>
@@ -899,9 +1019,10 @@ function MatchesTab() {
               <td style={s.td}>{m.id}</td>
               <td style={s.td}>{m.user1_name} (#{m.user1_id})</td>
               <td style={s.td}>{m.user2_name} (#{m.user2_id})</td>
-              <td style={s.td}><strong>{m.match_score || "-"}</strong></td>
-              <td style={s.td}><span style={s.badge}>{m.status}</span></td>
-              <td style={s.td}>{m.match_priority || "-"}</td>
+              <td style={s.td}><strong>{m.match_score ?? "-"}</strong></td>
+              <td style={s.td}><span style={statusColor(m.status)}>{m.status}</span></td>
+              <td style={s.td}>{m.pair_priority != null ? m.pair_priority : "-"}</td>
+              <td style={s.td}>{m.final_match_priority != null ? <strong>{m.final_match_priority}</strong> : "-"}</td>
               <td style={s.td}>{m.created_at}</td>
             </tr>
           ))}
@@ -931,11 +1052,30 @@ function CandidateMatchesTab() {
 
   useEffect(() => { load(); }, []);
 
-  async function runMatching() {
-    setRunning("matching");
+  // Run Algorithm = filter + score + promote to rating flow.
+  // Does NOT select pre_match or freeze.
+  async function runAlgorithm() {
+    setRunning("algorithm");
     setResult(null);
     try {
       const r = await fetch("/api/admin/run-matching", { method: "POST" });
+      const json = await r.json();
+      setResult(json);
+      load();
+    } catch (e: any) {
+      setResult({ error: e.message });
+    } finally {
+      setRunning(null);
+    }
+  }
+
+  // Run Matchmaking = prioritize + select + freeze on existing approved matches.
+  // Does NOT regenerate candidates or re-score.
+  async function runMatchmaking() {
+    setRunning("matchmaking");
+    setResult(null);
+    try {
+      const r = await fetch("/api/admin/run-matchmaking", { method: "POST" });
       const json = await r.json();
       setResult(json);
       load();
@@ -961,6 +1101,30 @@ function CandidateMatchesTab() {
     }
   }
 
+  async function approveAllRatings() {
+    setRunning("approve");
+    setResult(null);
+    try {
+      const r = await fetch("/api/admin/approve-all-ratings", { method: "POST" });
+      const json = await r.json();
+      setResult({ approve_action: true, ...json });
+      load();
+    } catch (e: any) {
+      setResult({ error: e.message });
+    } finally {
+      setRunning(null);
+    }
+  }
+
+  const matchStatusColor = (status: string | null) => {
+    if (status === "pre_match") return { ...s.badge, background: "#d4edda", color: "#155724" };
+    if (status === "in_match") return { ...s.badge, background: "#cce5ff", color: "#004085" };
+    if (status === "frozen") return { ...s.badge, background: "#e2e3e5", color: "#383d41" };
+    if (status === "approved_by_both") return { ...s.badge, background: "#fff3cd", color: "#856404" };
+    if (status === "rejected_by_users" || status === "cancelled") return { ...s.badge, background: "#f8d7da", color: "#721c24" };
+    return s.badge;
+  };
+
   if (selectedUserId !== null) {
     return <UserDetail userId={selectedUserId} onBack={() => setSelectedUserId(null)} />;
   }
@@ -969,27 +1133,52 @@ function CandidateMatchesTab() {
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
         <button
-          onClick={runMatching}
+          onClick={runAlgorithm}
           disabled={running !== null}
           style={{ padding: "8px 16px", fontSize: 14, background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 6, cursor: running ? "wait" : "pointer", fontWeight: 600 }}
         >
-          {running === "matching" ? "Running..." : "הרץ אלגוריתם התאמה"}
+          {running === "algorithm" ? "Running..." : "Run Algorithm"}
+        </button>
+        <button
+          onClick={runMatchmaking}
+          disabled={running !== null}
+          style={{ padding: "8px 16px", fontSize: 14, background: "#28a745", color: "#fff", border: "none", borderRadius: 6, cursor: running ? "wait" : "pointer", fontWeight: 600 }}
+        >
+          {running === "matchmaking" ? "Running..." : "Run Matchmaking"}
+        </button>
+        <button
+          onClick={approveAllRatings}
+          disabled={running !== null}
+          style={{ padding: "8px 16px", fontSize: 14, background: "#6f42c1", color: "#fff", border: "none", borderRadius: 6, cursor: running ? "wait" : "pointer", fontWeight: 600 }}
+        >
+          {running === "approve" ? "Approving..." : "Approve All Ratings"}
         </button>
         <button
           onClick={resetMatches}
           disabled={running !== null}
           style={{ padding: "8px 16px", fontSize: 14, background: "#dc3545", color: "#fff", border: "none", borderRadius: 6, cursor: running ? "wait" : "pointer", fontWeight: 600 }}
         >
-          {running === "reset" ? "Clearing..." : "איפוס התאמות"}
+          {running === "reset" ? "Clearing..." : "Reset All"}
         </button>
         {result && !result.error && result.stage1 && (
           <span style={{ fontSize: 13, color: "#28a745" }}>
-            {result.stage1.users} eligible, {result.stage1.pairs} filtered, {result.stage2.scored} scored
+            {result.stage1.users} eligible, {result.stage1.pairs} filtered, {result.stage2.scored} scored,{" "}
+            {result.stage2.promoted_to_matches ?? 0} new matches
+          </span>
+        )}
+        {result && !result.error && result.selection && (
+          <span style={{ fontSize: 13, color: "#28a745" }}>
+            {result.selection.promoted} promoted to pre-match, {result.selection.frozen} frozen
+          </span>
+        )}
+        {result && !result.error && result.approve_action && (
+          <span style={{ fontSize: 13, color: "#6f42c1" }}>
+            {result.approved ?? 0} matches approved
           </span>
         )}
         {result && !result.error && result.reset && (
           <span style={{ fontSize: 13, color: "#888" }}>
-            {result.deleted} matches cleared
+            {result.deleted_candidates ?? 0} candidates + {result.deleted_matches ?? 0} matches cleared
           </span>
         )}
         {result?.error && (
@@ -1000,34 +1189,34 @@ function CandidateMatchesTab() {
       {loading ? (
         <p style={s.loading}>Loading...</p>
       ) : data.length === 0 ? (
-        <p style={s.none}>No candidate matches yet. Run Stage 1 to generate them.</p>
+        <p style={s.none}>No candidate matches yet. Run the algorithm to generate them.</p>
       ) : (
         <div style={s.scrollWrap}>
           <p style={s.sub}>{data.length} candidate pairs</p>
           <table style={s.table}>
             <thead>
               <tr>
-                <th style={s.th}>ID</th>
                 <th style={s.th}>User</th>
                 <th style={s.th}>Candidate</th>
+                <th style={s.th}>Score</th>
                 <th style={s.th}>Status</th>
+                <th style={s.th}>Shared Priority</th>
+                <th style={s.th}>Match Priority</th>
                 <th style={s.th}>Internal</th>
                 <th style={s.th}>External</th>
-                <th style={s.th}>Final</th>
-                <th style={s.th}>Evaluated</th>
               </tr>
             </thead>
             <tbody>
               {data.map((cm: any) => (
                 <tr key={cm.id}>
-                  <td style={s.td}>{cm.id}</td>
                   <td style={s.td}><button style={s.expandBtn} onClick={() => setSelectedUserId(cm.user_id)}>{cm.user1_name}</button> ({cm.user1_age}, {cm.user1_city})</td>
                   <td style={s.td}><button style={s.expandBtn} onClick={() => setSelectedUserId(cm.candidate_user_id)}>{cm.user2_name}</button> ({cm.user2_age}, {cm.user2_city})</td>
-                  <td style={s.td}><span style={s.badge}>{cm.status}</span></td>
-                  <td style={s.td}>{cm.internal_score != null ? <strong>{cm.internal_score}</strong> : "-"}</td>
-                  <td style={s.td}>{cm.external_score != null ? cm.external_score : "-"}</td>
                   <td style={s.td}>{cm.final_score != null ? <strong style={{ color: cm.final_score >= 70 ? "#28a745" : cm.final_score >= 50 ? "#856404" : "#dc3545" }}>{cm.final_score}</strong> : "-"}</td>
-                  <td style={s.td}>{cm.last_evaluated_at}</td>
+                  <td style={s.td}>{cm.match_status ? <span style={matchStatusColor(cm.match_status)}>{cm.match_status}</span> : <span style={s.badge}>{cm.status}</span>}</td>
+                  <td style={s.td}>{cm.pair_priority != null ? cm.pair_priority : "-"}</td>
+                  <td style={s.td}>{cm.final_match_priority != null ? <strong>{cm.final_match_priority}</strong> : "-"}</td>
+                  <td style={s.td}>{cm.internal_score ?? "-"}</td>
+                  <td style={s.td}>{cm.external_score ?? "-"}</td>
                 </tr>
               ))}
             </tbody>

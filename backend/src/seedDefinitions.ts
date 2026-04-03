@@ -127,10 +127,13 @@ export function seedDefinitions(db: Database.Database) {
     ["match_status", "pending", "ממתין", "Pending", 1],
     ["match_status", "waiting_first_rating", "ממתין לדירוג ראשון", "Waiting for first rating", 2],
     ["match_status", "waiting_second_rating", "ממתין לדירוג שני", "Waiting for second rating", 3],
-    ["match_status", "approved", "אושר", "Approved", 4],
-    ["match_status", "rejected", "נדחה", "Rejected", 5],
-    ["match_status", "in_match", "בשידוך", "In match", 6],
-    ["match_status", "cancelled", "בוטל", "Cancelled", 7],
+    ["match_status", "approved_by_both", "אושר ע״י שניהם", "Approved by both", 4],
+    ["match_status", "pre_match", "טרום שידוך", "Pre-match", 5],
+    ["match_status", "rejected", "נדחה", "Rejected", 6],
+    ["match_status", "in_match", "בשידוך", "In match", 7],
+    ["match_status", "cancelled", "בוטל", "Cancelled", 8],
+    ["match_status", "frozen", "מוקפא", "Frozen", 9],
+    ["match_status", "rejected_by_users", "נדחה ע״י משתמשים", "Rejected by users", 10],
 
     // Subscription
     ["subscription", "free", "חינמי", "Free", 1],
