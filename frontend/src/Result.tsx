@@ -1,113 +1,102 @@
-import { ChatUser, Analysis } from "./App";
+import { ChatUser, AnalysisResult } from "./App";
 
 const s: Record<string, React.CSSProperties> = {
   heading: { marginTop: 0, marginBottom: 8, fontSize: 22 },
-  sub: { color: "#666", marginBottom: 32, marginTop: 0 },
-  card: {
-    border: "1px solid #e5e5e5",
-    borderRadius: 12,
-    padding: "20px 24px",
-    marginBottom: 12,
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  cardLabel: { fontSize: 14, color: "#555", margin: 0 },
-  cardValue: { fontWeight: 600, fontSize: 16, margin: 0 },
-  bar: {
-    height: 8,
-    borderRadius: 4,
-    background: "#e5e5e5",
-    marginTop: 8,
-    width: 180,
-  },
-  fill: (score: number): React.CSSProperties => ({
-    height: "100%",
-    borderRadius: 4,
-    background: score >= 7 ? "#27ae60" : score >= 4 ? "#f39c12" : "#e74c3c",
-    width: `${score * 10}%`,
-  }),
-  badge: (val: string): React.CSSProperties => ({
-    background:
-      val === "serious" || val === "extroverted"
-        ? "#dff0d8"
-        : val === "casual" || val === "introverted"
-        ? "#f9e8e8"
-        : "#e8f0f9",
-    color:
-      val === "serious" || val === "extroverted"
-        ? "#2d6a2d"
-        : val === "casual" || val === "introverted"
-        ? "#8b2020"
-        : "#1a3a6b",
-    padding: "4px 12px",
-    borderRadius: 20,
-    fontSize: 14,
-    fontWeight: 500,
-  }),
-  btn: {
-    marginTop: 28,
-    width: "100%",
-    padding: "12px",
-    fontSize: 15,
-    fontWeight: 600,
-    background: "none",
-    color: "#1a1a1a",
-    border: "1px solid #ddd",
-    borderRadius: 8,
-    cursor: "pointer",
-  },
+  sub: { color: "#666", marginBottom: 24, marginTop: 0 },
+  section: { marginBottom: 24 },
+  sectionTitle: { fontSize: 14, fontWeight: 600, color: "#555", marginBottom: 8 },
+  traitRow: { display: "flex", alignItems: "center", gap: 8, marginBottom: 6 },
+  traitName: { fontSize: 13, color: "#333", width: 180, flexShrink: 0 },
+  bar: { flex: 1, height: 8, borderRadius: 4, background: "#e5e5e5" },
+  score: { fontSize: 12, color: "#888", width: 32, textAlign: "right" as const },
+  conf: { fontSize: 11, color: "#aaa", width: 40 },
+  badge: { background: "#f0f0f0", borderRadius: 4, padding: "2px 6px", fontSize: 11, fontFamily: "monospace" },
+  partnerBadge: { background: "#d6eaff", borderRadius: 4, padding: "2px 6px", fontSize: 11, fontFamily: "monospace" },
+  completeness: { background: "#fafafa", borderRadius: 8, padding: 16, marginBottom: 20 },
+  btn: { marginTop: 20, width: "100%", padding: "12px", fontSize: 15, fontWeight: 600, background: "none", color: "#1a1a1a", border: "1px solid #ddd", borderRadius: 8, cursor: "pointer" },
 };
+
+function barColor(score: number): string {
+  if (score >= 70) return "#27ae60";
+  if (score >= 40) return "#f39c12";
+  return "#e74c3c";
+}
 
 export default function Result({
   user,
-  analysis,
+  analysis: result,
   onReset,
 }: {
   user: ChatUser;
-  analysis: Analysis;
+  analysis: AnalysisResult;
   onReset: () => void;
 }) {
+  const { analysis, saved } = result;
+  const c = analysis.profiling_completeness;
+
   return (
     <div>
-      <h2 style={s.heading}>Your profile, {user.name}</h2>
-      <p style={s.sub}>Here's what your answer revealed.</p>
+      <h2 style={s.heading}>Profile analysis, {user.name}</h2>
+      <p style={s.sub}>
+        Saved {saved.internal_saved} personality + {saved.external_saved} appearance traits
+      </p>
 
-      <div style={s.card}>
-        <div>
-          <p style={s.cardLabel}>Intelligence</p>
-          <div style={s.bar}>
-            <div style={s.fill(analysis.intelligence_score)} />
-          </div>
+      {/* Completeness */}
+      <div style={s.completeness}>
+        <strong>Coverage: {c.coverage_pct}%</strong>
+        {" "}({c.internal_assessed}/{c.internal_total} internal, {c.external_assessed}/{c.external_total} external)
+        {c.ready_for_matching ? (
+          <span style={{ color: "#27ae60", marginLeft: 8 }}>Ready for matching</span>
+        ) : (
+          <span style={{ color: "#e67e22", marginLeft: 8 }}>More conversation needed</span>
+        )}
+      </div>
+
+      {/* Internal Traits */}
+      {analysis.internal_traits.length > 0 && (
+        <div style={s.section}>
+          <p style={s.sectionTitle}>Personality Traits ({analysis.internal_traits.length})</p>
+          {analysis.internal_traits.map((t) => (
+            <div key={t.internal_name} style={s.traitRow}>
+              <span style={s.traitName}>{t.internal_name.replace(/_/g, " ")}</span>
+              <div style={s.bar}>
+                <div style={{ height: "100%", borderRadius: 4, background: barColor(t.score), width: `${t.score}%` }} />
+              </div>
+              <span style={s.score}>{t.score}</span>
+              <span style={s.conf}>({(t.confidence * 100).toFixed(0)}%)</span>
+              {t.weight_for_match != null && (
+                <span style={s.partnerBadge}>partner: {t.weight_for_match}</span>
+              )}
+            </div>
+          ))}
         </div>
-        <p style={s.cardValue}>{analysis.intelligence_score} / 10</p>
-      </div>
+      )}
 
-      <div style={s.card}>
-        <div>
-          <p style={s.cardLabel}>Emotional depth</p>
-          <div style={s.bar}>
-            <div style={s.fill(analysis.emotional_depth_score)} />
-          </div>
+      {/* External Traits */}
+      {analysis.external_traits.length > 0 && (
+        <div style={s.section}>
+          <p style={s.sectionTitle}>Appearance ({analysis.external_traits.length})</p>
+          {analysis.external_traits.map((t) => (
+            <div key={t.internal_name} style={{ marginBottom: 4, fontSize: 13 }}>
+              <span style={{ color: "#333", marginRight: 8 }}>{t.internal_name.replace(/_/g, " ")}:</span>
+              {t.personal_value && <span style={s.badge}>self: {t.personal_value}</span>}
+              {t.desired_value && <span style={{ ...s.partnerBadge, marginLeft: 4 }}>wants: {t.desired_value}</span>}
+            </div>
+          ))}
         </div>
-        <p style={s.cardValue}>{analysis.emotional_depth_score} / 10</p>
-      </div>
+      )}
 
-      <div style={s.card}>
-        <p style={s.cardLabel}>Social style</p>
-        <span style={s.badge(analysis.social_style)}>{analysis.social_style}</span>
-      </div>
+      {/* Recommended probes */}
+      {analysis.recommended_probes.length > 0 && (
+        <div style={s.section}>
+          <p style={s.sectionTitle}>Suggested next topics</p>
+          <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: "#666" }}>
+            {analysis.recommended_probes.map((p, i) => <li key={i}>{p}</li>)}
+          </ul>
+        </div>
+      )}
 
-      <div style={s.card}>
-        <p style={s.cardLabel}>Relationship goal</p>
-        <span style={s.badge(analysis.relationship_goal)}>
-          {analysis.relationship_goal}
-        </span>
-      </div>
-
-      <button style={s.btn} onClick={onReset}>
-        Start over
-      </button>
+      <button style={s.btn} onClick={onReset}>Start over</button>
     </div>
   );
 }

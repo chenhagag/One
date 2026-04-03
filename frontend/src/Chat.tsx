@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChatUser, Analysis } from "./App";
+import { ChatUser, AnalysisResult } from "./App";
 
 const QUESTION = "What are you looking for in a partner?";
 
@@ -49,7 +49,7 @@ export default function Chat({
   onSuccess,
 }: {
   user: ChatUser;
-  onSuccess: (a: Analysis) => void;
+  onSuccess: (a: AnalysisResult) => void;
 }) {
   const [answer, setAnswer] = useState("");
   const [loading, setLoading] = useState(false);
@@ -65,7 +65,7 @@ export default function Chat({
     setLoading(true);
 
     try {
-      const res = await fetch("/api/analyze", {
+      const res = await fetch("/api/analyze-profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: user.id, answer }),
@@ -78,7 +78,7 @@ export default function Chat({
         return;
       }
 
-      onSuccess(data.analysis);
+      onSuccess(data);
     } catch {
       setError("Could not reach the server");
     } finally {

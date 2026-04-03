@@ -26,12 +26,15 @@ export interface ChatUser {
   email: string;
 }
 
-// Legacy analysis type (from existing AI chat)
-export interface Analysis {
-  intelligence_score: number;
-  emotional_depth_score: number;
-  social_style: "introverted" | "balanced" | "extroverted";
-  relationship_goal: "casual" | "serious" | "unsure";
+// Analysis result from the new trait-based analysis agent
+export interface AnalysisResult {
+  saved: { internal_saved: number; external_saved: number };
+  analysis: {
+    internal_traits: { internal_name: string; score: number; confidence: number; weight_for_match?: number | null }[];
+    external_traits: { internal_name: string; personal_value?: string | null; desired_value?: string | null }[];
+    profiling_completeness: { internal_assessed: number; internal_total: number; external_assessed: number; external_total: number; coverage_pct: number; ready_for_matching: boolean };
+    recommended_probes: string[];
+  };
 }
 
 const styles: Record<string, React.CSSProperties> = {
@@ -79,7 +82,7 @@ const styles: Record<string, React.CSSProperties> = {
 export default function App() {
   const [view, setView] = useState<View>("register");
   const [user, setUser] = useState<User | null>(null);
-  const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
 
   return (
     <div style={view === "admin" ? { ...styles.app, maxWidth: "100%" } : styles.app}>

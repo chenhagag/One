@@ -5,6 +5,7 @@ import db from "./db";
 import { analyzeAnswer } from "./openai";
 import { runStage1 } from "./matchStage1";
 import { runStage2, runMatchmaking } from "./matchStage2";
+import { runAnalysisAgent, buildAnalysisInput, saveAnalysisToDb } from "./agents/analysis";
 
 dotenv.config();
 
@@ -96,7 +97,10 @@ app.post("/users", (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════
-// AI CHAT (existing functionality)
+// LEGACY AI CHAT — kept for backward compatibility only.
+// The frontend now uses POST /analyze-profile instead.
+// This endpoint uses the old 4-field analysis (openai.ts analyzeAnswer).
+// It does NOT update user_traits or user_look_traits.
 // ════════════════════════════════════════════════════════════════
 
 app.post("/analyze", async (req, res) => {
@@ -122,6 +126,106 @@ app.post("/analyze", async (req, res) => {
     console.error(err);
     return res.status(500).json({ error: "Analysis failed: " + err.message });
   }
+});
+
+// ════════════════════════════════════════════════════════════════
+// PROFILE ANALYSIS — Trait extraction from conversation
+// ════════════════════════════════════════════════════════════════
+
+// POST /analyze-profile — Submit a conversation answer and run trait analysis
+// Stores the answer, builds cumulative transcript, runs analysis agent, saves traits.
+// Incremental: each call adds to the user's profile, null values don't overwrite existing data.
+app.post("/analyze-profile", async (req, res) => {
+  const { user_id, answer } = req.body;
+
+  if (!user_id || !answer) {
+    return res.status(400).json({ error: "user_id and answer are required" });
+  }
+
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(user_id) as any;
+  if (!user) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  try {
+    // 1. Store the raw answer
+    db.prepare(
+      "INSERT INTO profiles (user_id, raw_answer, analysis_json) VALUES (?, ?, '{}')"
+    ).run(user_id, answer);
+
+    // 2. Build cumulative transcript from all answers
+    const allAnswers = db.prepare(
+      "SELECT raw_answer, created_at FROM profiles WHERE user_id = ? ORDER BY created_at ASC"
+    ).all(user_id) as { raw_answer: string; created_at: string }[];
+
+    const transcript = allAnswers
+      .map((a, i) => `[Round ${i + 1}]\nUser: ${a.raw_answer}`)
+      .join("\n\n");
+
+    // 3. Run analysis agent
+    const input = buildAnalysisInput(db, transcript);
+    console.log(`[analyze-profile] User ${user_id}: ${allAnswers.length} answers, ${input.internal_trait_definitions.length} internal + ${input.external_trait_definitions.length} external trait defs`);
+
+    const output = await runAnalysisAgent(input);
+
+    // 4. Save traits to DB (COALESCE preserves existing non-null values)
+    const saved = saveAnalysisToDb(db, user_id, output);
+    console.log(`[analyze-profile] User ${user_id}: saved ${saved.internal_saved} internal, ${saved.external_saved} external traits`);
+    console.log(`[analyze-profile] User ${user_id}: coverage ${output.profiling_completeness.coverage_pct}%, ready: ${output.profiling_completeness.ready_for_matching}`);
+
+    // 5. Update the latest profile record with analysis JSON
+    db.prepare(`
+      UPDATE profiles SET analysis_json = ?
+      WHERE user_id = ? AND id = (SELECT MAX(id) FROM profiles WHERE user_id = ?)
+    `).run(JSON.stringify(output), user_id, user_id);
+
+    return res.status(200).json({
+      saved,
+      analysis: output,
+    });
+  } catch (err: any) {
+    console.error(`[analyze-profile] Error for user ${user_id}:`, err);
+    return res.status(500).json({ error: "Analysis failed: " + err.message });
+  }
+});
+
+// GET /users/:id/profile-status — Get current trait coverage and readiness
+app.get("/users/:id/profile-status", (req, res) => {
+  const userId = parseInt(req.params.id);
+
+  const internalCount = (db.prepare(`
+    SELECT COUNT(*) as c FROM user_traits WHERE user_id = ? AND score IS NOT NULL
+  `).get(userId) as any).c;
+
+  const internalTotal = (db.prepare(`
+    SELECT COUNT(*) as c FROM trait_definitions WHERE is_active = 1
+  `).get() as any).c;
+
+  const externalCount = (db.prepare(`
+    SELECT COUNT(*) as c FROM user_look_traits WHERE user_id = ? AND personal_value IS NOT NULL
+  `).get(userId) as any).c;
+
+  const externalTotal = (db.prepare(`
+    SELECT COUNT(*) as c FROM look_trait_definitions WHERE is_active = 1
+  `).get() as any).c;
+
+  const total = internalTotal + externalTotal;
+  const assessed = internalCount + externalCount;
+  const coverage_pct = total > 0 ? Math.round((assessed / total) * 100) : 0;
+
+  const answerCount = (db.prepare(
+    "SELECT COUNT(*) as c FROM profiles WHERE user_id = ?"
+  ).get(userId) as any).c;
+
+  return res.json({
+    internal_assessed: internalCount,
+    internal_total: internalTotal,
+    external_assessed: externalCount,
+    external_total: externalTotal,
+    coverage_pct,
+    ready_for_matching: coverage_pct >= 60,
+    total_answers: answerCount,
+  });
 });
 
 // ════════════════════════════════════════════════════════════════

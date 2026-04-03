@@ -335,6 +335,32 @@ export function createSchema(db: Database.Database) {
   insertEnum.run("match_status", "frozen", "מוקפא", "Frozen", 9);
   insertEnum.run("match_status", "rejected_by_users", "נדחה ע״י משתמשים", "Rejected by users", 10);
 
+  // ── Align initial_attraction_signal weight to 90 (per Excel spec) ──
+  db.prepare(`
+    UPDATE look_trait_definitions SET weight = 90
+    WHERE internal_name = 'initial_attraction_signal' AND weight = 0
+  `).run();
+
+  // ── Deprecate style_type (removed from MVP) ────────────────────
+  db.prepare(`
+    UPDATE trait_definitions SET is_active = 0, weight = 0,
+      ai_description = 'DEPRECATED — removed from MVP. Use style sub-traits instead.'
+    WHERE internal_name = 'style_type'
+  `).run();
+
+  // ── Ensure style sub-traits exist (for existing DBs) ───────────
+  const insertTrait = db.prepare(`
+    INSERT OR IGNORE INTO trait_definitions
+    (internal_name, display_name_he, display_name_en, ai_description, required_confidence, weight, sensitivity, calc_type, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  insertTrait.run("hipsterishness", "היפסטריות", "Hipsterishness", "Hipster style and culture affinity", 0.2, 4, "sensitive", "normal", 36);
+  insertTrait.run("tel_aviv_style", "סגנון תל אביבי", "Tel Aviv Style", "Tel Aviv urban culture and lifestyle", 0.2, 3, "normal", "normal", 37);
+  insertTrait.run("mainstream_style", "עממיות", "Mainstream Style", "Mainstream/populist style and taste", 0.4, 6, "sensitive", "normal", 38);
+  insertTrait.run("nerdiness", "חנוניות", "Nerdiness", "Nerd culture affinity and intellectual style", 0.3, 4, "sensitive", "normal", 39);
+  insertTrait.run("hippie_style", "היפיות", "Hippie Style", "Hippie/free-spirit lifestyle and values", 0.2, 3, "normal", "normal", 40);
+  insertTrait.run("soviet_style", "סגנון סובייטי", "Soviet Style", "Soviet/Russian cultural style markers", 0.2, 3, "sensitive", "normal", 41);
+
   // ── Seed geography tables (idempotent via INSERT OR IGNORE) ────
 
   const insertCity = db.prepare("INSERT OR IGNORE INTO cities (city_name, region) VALUES (?, ?)");

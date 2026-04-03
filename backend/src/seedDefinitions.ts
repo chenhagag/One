@@ -38,7 +38,7 @@ export function seedDefinitions(db: Database.Database) {
     ["vibe", "סחיות", "Vibe", "How chill and easygoing the user is", 0.6, 7, "normal", "normal", null, "Up to 20 below/above", null, 2],
     ["emotional_stability", "יציבות רגשית", "Emotional Stability", "General emotional stability and regulation", 0.7, 8, "normal", "normal", null, "Up to 15 below/above", null, 3],
     ["neuroticism", "נוירוטיות", "Neuroticism", "Tendency toward anxiety, drama, overthinking", 0.7, 8, "normal", "normal", null, null, null, 4],
-    ["style_type", "סגנון כללי", "Style Type", "General style type: eres, hippy, nerd, sporty, etc.", 0.7, 8, "normal", "special", null, "Per type compatibility table", "Filters incompatible types", 5],
+    ["style_type", "סגנון כללי", "Style Type", "DEPRECATED — removed from MVP. Use style sub-traits instead.", 0.7, 0, "normal", "special", null, null, "Legacy — not used in MVP", 5],
     ["family_orientation", "משפחתיות", "Family Orientation", "Importance of family and family life", 0.6, 6, "safe_output", "normal", null, "Up to 20 below/above", null, 6],
     ["party_orientation", "נהנתנות בליינית", "Party Orientation", "Love of going out, parties, nightlife", 0.6, 6, "normal", "normal", null, "Up to 20 below/above", null, 7],
     ["luxury_orientation", "נהנתנות יוקרתית", "Luxury Orientation", "Love of luxury, comfort, high-end lifestyle", 0.5, 5, "normal", "normal", null, null, null, 8],
@@ -69,11 +69,18 @@ export function seedDefinitions(db: Database.Database) {
     ["trollness", "האם טרול?", "Trollness", "Detection of trolling behavior", 0.4, 0, "sensitive", "internal_use", null, null, null, 33],
     ["sexual_identity", "זהויות מיניות שונות", "Sexual Identity", "Trans/non-binary identity", 0.4, 0, "sensitive", "filter", null, null, "Only match same identity or 'doesn't matter'", 34],
     ["deal_breakers", "דיל ברייקרס אפשריים", "Deal Breakers", "Potential deal breakers (e.g. lives with parents)", 0.1, 0, "sensitive", "internal_use", null, null, null, 35],
+    // Style sub-traits (from Excel — individual style dimensions scored by AI)
+    ["hipsterishness", "היפסטריות", "Hipsterishness", "Hipster style and culture affinity", 0.2, 4, "sensitive", "normal", null, null, null, 36],
+    ["tel_aviv_style", "סגנון תל אביבי", "Tel Aviv Style", "Tel Aviv urban culture and lifestyle", 0.2, 3, "normal", "normal", null, null, null, 37],
+    ["mainstream_style", "עממיות", "Mainstream Style", "Mainstream/populist style and taste", 0.4, 6, "sensitive", "normal", null, null, null, 38],
+    ["nerdiness", "חנוניות", "Nerdiness", "Nerd culture affinity and intellectual style", 0.3, 4, "sensitive", "normal", null, null, null, 39],
+    ["hippie_style", "היפיות", "Hippie Style", "Hippie/free-spirit lifestyle and values", 0.2, 3, "normal", "normal", null, null, null, 40],
+    ["soviet_style", "סגנון סובייטי", "Soviet Style", "Soviet/Russian cultural style markers", 0.2, 3, "sensitive", "normal", null, null, null, 41],
   ];
 
   // ── LOOK TRAIT DEFINITIONS (from "מאפיינים חיצוניים - כללי") ────
   const lookTraits = [
-    ["initial_attraction_signal", "שיעור אישור", "Attraction Signal", "system", 0, "sensitive", null, null, "Calculated from user ratings", 1],
+    ["initial_attraction_signal", "שיעור אישור", "Attraction Signal", "system", 90, "sensitive", "30 per direction", null, "Calculated from user ratings. Both scoring (weight 90) and filtering (±30).", 1],
     ["height", "גובה", "Height", "form", 80, "normal", "Man > Woman for straights", null, "Special calc if important to user", 2],
     ["look_style", "סגנון מראה", "Look Style", "form_ai", 0, "normal", null, '["sporty","groomed","casual","elegant","hipster","natural"]', null, 3],
     ["body_type", "מבנה גוף", "Body Type", "ai", 90, "sensitive", null, '["muscular","slim","toned","chubby","fat"]', "Can filter if critical to user", 4],
