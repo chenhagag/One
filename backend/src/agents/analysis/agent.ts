@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import OpenAI from "openai";
 import dotenv from "dotenv";
+import { trackTokens } from "../../tokenTracker";
 import type {
   AnalysisAgentInput,
   AnalysisAgentOutput,
@@ -293,7 +294,9 @@ function validateOutput(raw: any): AnalysisAgentOutput {
 // ── Main Agent Function ─────────────────────────────────────────
 
 export async function runAnalysisAgent(
-  input: AnalysisAgentInput
+  input: AnalysisAgentInput,
+  userId?: number | null,
+  actionType: string = "analysis"
 ): Promise<AnalysisAgentOutput> {
   // Set up ID→name lookups for validation
   setTraitLookups(input.internal_trait_definitions, input.external_trait_definitions);
@@ -310,6 +313,8 @@ export async function runAnalysisAgent(
     temperature: 0.2,
     response_format: { type: "json_object" },
   });
+
+  trackTokens(userId ?? null, actionType, "gpt-4o-mini", response.usage);
 
   const raw = response.choices[0].message.content || "{}";
   const parsed = JSON.parse(raw);

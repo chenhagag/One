@@ -4,7 +4,7 @@ import Chat from "./Chat";
 import Result from "./Result";
 import AdminView from "./AdminView";
 
-type View = "register" | "ready_for_chat" | "chat" | "result" | "admin";
+type View = "register" | "ready_for_chat" | "chat" | "result" | "done" | "admin";
 
 // Full user type matching the expanded DB schema
 export interface User {
@@ -128,9 +128,8 @@ export default function App() {
       {view === "chat" && user && (
         <Chat
           user={{ id: user.id, name: user.first_name, email: user.email }}
-          onSuccess={(a) => {
-            setAnalysis(a);
-            setView("result");
+          onComplete={() => {
+            setView("done");
           }}
           onPause={() => {
             setView("ready_for_chat");
@@ -151,9 +150,28 @@ export default function App() {
         />
       )}
 
+      {/* Step 5: Conversation complete — waiting for match */}
+      {view === "done" && user && (
+        <div style={styles.readyContainer}>
+          <h2 style={{ fontSize: 24, marginBottom: 12 }}>!{user.first_name} ,תודה</h2>
+          <p style={{ color: "#666", marginBottom: 8, fontSize: 16 }}>
+            אנחנו מתחילים לחפש עבורך את ההתאמה המושלמת
+          </p>
+          <p style={{ color: "#999", fontSize: 14 }}>
+            נעדכן אותך ברגע שנמצא מישהו מתאים
+          </p>
+        </div>
+      )}
+
       {/* Admin view */}
       {view === "admin" && (
-        <AdminView onBack={() => setView("register")} />
+        <AdminView
+          onBack={() => setView("register")}
+          onStartChat={(u) => {
+            setUser({ id: u.id, first_name: u.first_name, email: u.email } as User);
+            setView("chat");
+          }}
+        />
       )}
     </div>
   );

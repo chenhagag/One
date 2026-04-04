@@ -168,22 +168,17 @@ app.post("/conversation/start", async (req, res) => {
     });
   }
 
-  try {
-    const { message, state } = await generateOpeningMessage(db, userId);
-    conversationStates.set(userId, state);
-    console.log(`[conversation] Started for user ${userId}`);
-    return res.json({
-      assistant_message: message,
-      phase: "chatting",
-      coverage_pct: 0,
-      turn_count: 0,
-      resumed: false,
-      turns: state.turns,
-    });
-  } catch (err: any) {
-    console.error(`[conversation] Start error for user ${userId}:`, err);
-    return res.status(500).json({ error: "Failed to start conversation: " + err.message });
-  }
+  const { message, state } = generateOpeningMessage(db, userId);
+  conversationStates.set(userId, state);
+  console.log(`[conversation] Started for user ${userId}`);
+  return res.json({
+    assistant_message: message,
+    phase: "chatting",
+    coverage_pct: 0,
+    turn_count: 0,
+    resumed: false,
+    turns: state.turns,
+  });
 });
 
 // POST /conversation/message — Send a user message and get assistant response
@@ -197,6 +192,7 @@ app.post("/conversation/message", async (req, res) => {
     state = {
       user_id: userId, turns: [], turn_count: 0,
       last_analysis: null, last_analysis_at_turn: 0, phase: "chatting",
+      analysis_in_flight: false, analysis_scheduled_at: 0,
     };
   }
 
@@ -307,7 +303,7 @@ app.post("/analyze-profile", async (req, res) => {
     const input = buildAnalysisInput(db, transcript);
     console.log(`[analyze-profile] User ${user_id}: ${allAnswers.length} answers, ${input.internal_trait_definitions.length} internal + ${input.external_trait_definitions.length} external trait defs`);
 
-    const output = await runAnalysisAgent(input);
+    const output = await runAnalysisAgent(input, user_id, "analysis");
 
     console.log(`[analyze-profile] Agent returned ${output.internal_traits.length} internal, ${output.external_traits.length} external traits for user ${user_id}`);
 
@@ -375,6 +371,34 @@ app.get("/users/:id/profile-status", (req, res) => {
 // ADMIN — Data exploration endpoints
 // ════════════════════════════════════════════════════════════════
 
+// DELETE /admin/users/:id — Permanently delete a user and all related data
+app.delete("/admin/users/:id", (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  if (!Number.isFinite(userId) || userId <= 0) {
+    return res.status(400).json({ error: "Invalid user_id" });
+  }
+
+  const user = db.prepare("SELECT id, first_name, email FROM users WHERE id = ?").get(userId) as any;
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const result = db.transaction(() => {
+    const profiles = db.prepare("DELETE FROM profiles WHERE user_id = ?").run(userId).changes;
+    const traits = db.prepare("DELETE FROM user_traits WHERE user_id = ?").run(userId).changes;
+    const lookTraits = db.prepare("DELETE FROM user_look_traits WHERE user_id = ?").run(userId).changes;
+    const matchScores = db.prepare("DELETE FROM match_scores WHERE match_id IN (SELECT id FROM matches WHERE user1_id = ? OR user2_id = ?)").run(userId, userId).changes;
+    const matches = db.prepare("DELETE FROM matches WHERE user1_id = ? OR user2_id = ?").run(userId, userId).changes;
+    const candidates = db.prepare("DELETE FROM candidate_matches WHERE user_id = ? OR candidate_user_id = ?").run(userId, userId).changes;
+    db.prepare("DELETE FROM users WHERE id = ?").run(userId);
+    return { profiles, traits, lookTraits, matchScores, matches, candidates };
+  })();
+
+  // Clear in-memory conversation state
+  conversationStates.delete(userId);
+
+  console.log(`[admin] Deleted user ${userId} (${user.first_name} <${user.email}>):`, result);
+  return res.json({ deleted: true, user_id: userId, ...result });
+});
+
 // GET /admin/users — All users with registration data
 app.get("/admin/users", (_req, res) => {
   // Use a subquery to get only the LATEST profile per user (avoids duplicate rows)
@@ -382,10 +406,16 @@ app.get("/admin/users", (_req, res) => {
     SELECT u.*,
       lp.raw_answer,
       lp.analysis_json,
-      lp.created_at as profile_created_at
+      lp.created_at as profile_created_at,
+      COALESCE(tu.total_tokens, 0) as total_tokens,
+      COALESCE(tu.total_cost_usd, 0) as total_cost_usd
     FROM users u
     LEFT JOIN profiles lp ON lp.user_id = u.id
       AND lp.id = (SELECT MAX(p2.id) FROM profiles p2 WHERE p2.user_id = u.id)
+    LEFT JOIN (
+      SELECT user_id, SUM(total_tokens) as total_tokens, SUM(estimated_cost_usd) as total_cost_usd
+      FROM token_usage GROUP BY user_id
+    ) tu ON tu.user_id = u.id
     ORDER BY u.created_at DESC
   `).all();
 
@@ -467,11 +497,16 @@ app.get("/admin/users/:id/full", (req, res) => {
     ),
   }));
 
+  // Server-side coverage (based on per-trait required_confidence thresholds)
+  const userId = parseInt(req.params.id, 10);
+  const serverCoverage = computeCoverage(db, userId);
+
   return res.json({
     user,
     profile: profile ? { raw_answer: profile.raw_answer, analysis: JSON.parse(profile.analysis_json), created_at: profile.created_at } : null,
     traits: traitsWithEW,
     lookTraits: lookTraitsWithEW,
+    coverage: serverCoverage,
   });
 });
 
@@ -591,16 +626,71 @@ app.get("/admin/matches", (_req, res) => {
 
 // GET /admin/stats — Quick overview stats
 app.get("/admin/stats", (_req, res) => {
+  const tokenStats = db.prepare(`
+    SELECT COUNT(*) as total_calls,
+           SUM(total_tokens) as total_tokens,
+           SUM(estimated_cost_usd) as total_cost_usd
+    FROM token_usage
+  `).get() as any;
+
+  const userCount = (db.prepare("SELECT COUNT(*) as c FROM users").get() as any).c;
+
   const stats = {
-    total_users: (db.prepare("SELECT COUNT(*) as c FROM users").get() as any).c,
+    total_users: userCount,
     users_with_profiles: (db.prepare("SELECT COUNT(DISTINCT user_id) as c FROM profiles").get() as any).c,
     users_with_traits: (db.prepare("SELECT COUNT(DISTINCT user_id) as c FROM user_traits").get() as any).c,
     total_trait_definitions: (db.prepare("SELECT COUNT(*) as c FROM trait_definitions").get() as any).c,
     total_look_trait_definitions: (db.prepare("SELECT COUNT(*) as c FROM look_trait_definitions").get() as any).c,
     total_matches: (db.prepare("SELECT COUNT(*) as c FROM matches").get() as any).c,
     total_config_keys: (db.prepare("SELECT COUNT(*) as c FROM config").get() as any).c,
+    total_ai_calls: tokenStats.total_calls || 0,
+    total_tokens: tokenStats.total_tokens || 0,
+    total_cost_usd: Math.round((tokenStats.total_cost_usd || 0) * 1000000) / 1000000,
+    avg_tokens_per_user: userCount > 0 ? Math.round((tokenStats.total_tokens || 0) / userCount) : 0,
+    avg_cost_per_user: userCount > 0 ? Math.round(((tokenStats.total_cost_usd || 0) / userCount) * 1000000) / 1000000 : 0,
   };
   return res.json(stats);
+});
+
+// GET /admin/users/:id/token-usage — Per-user token usage breakdown
+app.get("/admin/users/:id/token-usage", (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+
+  const byAction = db.prepare(`
+    SELECT action_type,
+           COUNT(*) as calls,
+           SUM(input_tokens) as input_tokens,
+           SUM(output_tokens) as output_tokens,
+           SUM(total_tokens) as total_tokens,
+           SUM(estimated_cost_usd) as cost_usd
+    FROM token_usage
+    WHERE user_id = ?
+    GROUP BY action_type
+    ORDER BY total_tokens DESC
+  `).all(userId) as any[];
+
+  const totals = db.prepare(`
+    SELECT SUM(total_tokens) as total_tokens,
+           SUM(estimated_cost_usd) as total_cost_usd,
+           COUNT(*) as total_calls
+    FROM token_usage
+    WHERE user_id = ?
+  `).get(userId) as any;
+
+  return res.json({
+    user_id: userId,
+    total_tokens: totals.total_tokens || 0,
+    total_cost_usd: Math.round((totals.total_cost_usd || 0) * 1000000) / 1000000,
+    total_calls: totals.total_calls || 0,
+    by_action: byAction.map((r: any) => ({
+      action_type: r.action_type,
+      calls: r.calls,
+      input_tokens: r.input_tokens,
+      output_tokens: r.output_tokens,
+      total_tokens: r.total_tokens,
+      cost_usd: Math.round((r.cost_usd || 0) * 1000000) / 1000000,
+    })),
+  });
 });
 
 // POST /admin/run-matching — Matching algorithm: filter + score + promote to rating flow
@@ -696,7 +786,7 @@ app.post("/admin/users/:id/reanalyze", async (req, res) => {
     const input = buildAnalysisInput(db, transcript);
     console.log(`[reanalyze] User ${user_id}: ${allAnswers.length} answers, running analysis agent...`);
 
-    const output = await runAnalysisAgent(input);
+    const output = await runAnalysisAgent(input, user_id, "reanalyze");
     const saved = saveAnalysisToDb(db, user_id, output);
 
     // Update latest profile with new analysis JSON

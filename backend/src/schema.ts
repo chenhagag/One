@@ -125,7 +125,8 @@ export function createSchema(db: Database.Database) {
       -- System-managed fields (computed by algorithm)
       user_status TEXT DEFAULT 'waiting_match',  -- in_match | frozen | waiting_payment | waiting_match
       is_real_user INTEGER DEFAULT 1,
-      is_matchable INTEGER DEFAULT 0,            -- Calculated readiness
+      is_matchable INTEGER DEFAULT 0,            -- Calculated readiness (1 = ready for matching)
+      readiness_score REAL DEFAULT 0,             -- Weighted readiness 0.0-1.0
       first_priority_score REAL DEFAULT 0,       -- Queue priority
       subscription_status TEXT DEFAULT 'free',
       pickiness_score REAL,                      -- Calculated from user ratings
@@ -268,6 +269,24 @@ export function createSchema(db: Database.Database) {
     );
 
     -- ================================================================
+    -- 7. TOKEN USAGE TRACKING
+    -- ================================================================
+    CREATE TABLE IF NOT EXISTS token_usage (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id),
+      action_type TEXT NOT NULL,
+      model TEXT NOT NULL,
+      input_tokens INTEGER NOT NULL DEFAULT 0,
+      output_tokens INTEGER NOT NULL DEFAULT 0,
+      total_tokens INTEGER NOT NULL DEFAULT 0,
+      estimated_cost_usd REAL NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_token_usage_user ON token_usage(user_id);
+    CREATE INDEX IF NOT EXISTS idx_token_usage_action ON token_usage(action_type);
+
+    -- ================================================================
     -- INDEXES for performance
     -- ================================================================
     CREATE INDEX IF NOT EXISTS idx_user_traits_user ON user_traits(user_id);
@@ -306,6 +325,7 @@ export function createSchema(db: Database.Database) {
     ["users", "system_match_priority", "ALTER TABLE users ADD COLUMN system_match_priority REAL DEFAULT 0"],
     ["matches", "previous_status", "ALTER TABLE matches ADD COLUMN previous_status TEXT"],
     ["matches", "final_match_priority", "ALTER TABLE matches ADD COLUMN final_match_priority REAL"],
+    ["users", "readiness_score", "ALTER TABLE users ADD COLUMN readiness_score REAL DEFAULT 0"],
   ];
 
   for (const [table, column, sql] of migrations) {

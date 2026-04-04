@@ -24,86 +24,142 @@ export interface ConversationState {
   last_analysis: AnalysisAgentOutput | null;
   last_analysis_at_turn: number; // user turn when analysis last ran
   phase: ConversationPhase;
+  // Background analysis tracking
+  analysis_in_flight: boolean;     // true while a background analysis is running
+  analysis_scheduled_at: number;   // which turn triggered the in-flight analysis
 }
 
 export interface NextTurnResult {
   assistant_message: string;
   analysis_ran: boolean;
-  analysis?: AnalysisAgentOutput;
+  analysis_in_background: boolean;
   phase: ConversationPhase;
   coverage_pct: number;
+  readiness_score: number;
   turn_count: number;
 }
 
-// ── Coverage calculation (server-side, confidence-weighted) ────
+// ── Coverage calculation (per-trait required_confidence) ───────
 
-const CONF_HIGH = 0.50;
-const CONF_MEDIUM = 0.30;
-const WEIGHT_HIGH = 1.0;
-const WEIGHT_MEDIUM = 0.4;
-const WEIGHT_LOW = 0.1;
+export interface CoverageResult {
+  coverage_pct: number;         // % of traits that meet their required_confidence
+  met_count: number;            // traits meeting required_confidence
+  below_count: number;          // traits assessed but below required_confidence
+  missing_count: number;        // traits not assessed at all
+  total_count: number;
+  profile_complete: boolean;    // ALL traits meet their required_confidence
+  readiness_score: number;      // weighted readiness 0.0-1.0: sum(w*min(conf/req,1)) / sum(w)
+  ready_for_matching: boolean;  // readiness_score >= 0.9
+  unmet_traits: string[];       // internal_names of traits not yet meeting their threshold
+}
 
-export function computeCoverage(db: Database.Database, userId: number): {
-  coverage_pct: number;
-  high_count: number;
-  medium_count: number;
-  weak_count: number;
-  missing_count: number;
-  ready_for_matching: boolean;
-} {
-  const totalInternal = (db.prepare(
-    "SELECT COUNT(*) as c FROM trait_definitions WHERE is_active = 1"
-  ).get() as any).c;
+export function computeCoverage(db: Database.Database, userId: number): CoverageResult {
+  const EXTERNAL_REQ_CONF = 0.5;
 
-  const internalTraits = db.prepare(
-    "SELECT confidence FROM user_traits WHERE user_id = ?"
-  ).all(userId) as { confidence: number }[];
+  // Internal traits
+  const internalDefs = db.prepare(
+    "SELECT id, internal_name, required_confidence, weight FROM trait_definitions WHERE is_active = 1"
+  ).all() as { id: number; internal_name: string; required_confidence: number; weight: number }[];
 
-  const totalExternal = (db.prepare(
-    "SELECT COUNT(*) as c FROM look_trait_definitions WHERE is_active = 1"
-  ).get() as any).c;
+  const userTraits = db.prepare(
+    "SELECT trait_definition_id, confidence FROM user_traits WHERE user_id = ?"
+  ).all(userId) as { trait_definition_id: number; confidence: number }[];
 
-  const externalTraits = db.prepare(`
-    SELECT
-      CASE WHEN desired_value IS NOT NULL THEN desired_value_confidence ELSE NULL END as d_conf,
-      CASE WHEN personal_value IS NOT NULL THEN personal_value_confidence ELSE NULL END as p_conf
+  const traitConfMap = new Map(userTraits.map(t => [t.trait_definition_id, t.confidence]));
+
+  // External traits
+  const externalDefs = db.prepare(
+    "SELECT id, internal_name, weight FROM look_trait_definitions WHERE is_active = 1"
+  ).all() as { id: number; internal_name: string; weight: number }[];
+
+  const userLookTraits = db.prepare(`
+    SELECT look_trait_definition_id,
+      desired_value_confidence as d_conf,
+      personal_value_confidence as p_conf
     FROM user_look_traits WHERE user_id = ?
-  `).all(userId) as { d_conf: number | null; p_conf: number | null }[];
+  `).all(userId) as { look_trait_definition_id: number; d_conf: number | null; p_conf: number | null }[];
 
-  const totalTraits = totalInternal + totalExternal;
-  if (totalTraits === 0) return { coverage_pct: 0, high_count: 0, medium_count: 0, weak_count: 0, missing_count: 0, ready_for_matching: false };
+  const lookConfMap = new Map(userLookTraits.map(t => [t.look_trait_definition_id, Math.max(t.d_conf ?? 0, t.p_conf ?? 0)]));
 
-  let weightedSum = 0;
-  let high = 0, medium = 0, weak = 0;
+  let met = 0, below = 0, missing = 0;
+  let weightedReadinessSum = 0, totalWeight = 0;
+  const unmet: string[] = [];
 
-  for (const t of internalTraits) {
-    if (t.confidence >= CONF_HIGH) { weightedSum += WEIGHT_HIGH; high++; }
-    else if (t.confidence >= CONF_MEDIUM) { weightedSum += WEIGHT_MEDIUM; medium++; }
-    else { weightedSum += WEIGHT_LOW; weak++; }
+  // Score internal traits
+  for (const def of internalDefs) {
+    const reqConf = def.required_confidence || 0.5;
+    const w = def.weight || 1;
+    totalWeight += w;
+
+    const conf = traitConfMap.get(def.id);
+    if (conf == null) {
+      missing++;
+      // readiness_i = 0 for missing traits (contributes 0 to weighted sum)
+      if (def.weight >= 3) unmet.push(def.internal_name);
+    } else if (conf >= reqConf) {
+      met++;
+      weightedReadinessSum += w * 1.0; // capped at 1.0
+    } else {
+      below++;
+      weightedReadinessSum += w * Math.min(conf / reqConf, 1.0);
+      if (def.weight >= 3) unmet.push(def.internal_name);
+    }
   }
 
-  for (const t of externalTraits) {
-    const bestConf = Math.max(t.d_conf ?? 0, t.p_conf ?? 0);
-    if (bestConf >= CONF_HIGH) { weightedSum += WEIGHT_HIGH; high++; }
-    else if (bestConf >= CONF_MEDIUM) { weightedSum += WEIGHT_MEDIUM; medium++; }
-    else { weightedSum += WEIGHT_LOW; weak++; }
+  // Score external traits
+  for (const def of externalDefs) {
+    const reqConf = EXTERNAL_REQ_CONF;
+    const w = def.weight || 1;
+    totalWeight += w;
+
+    const conf = lookConfMap.get(def.id);
+    if (conf == null || conf === 0) {
+      missing++;
+      if (def.weight >= 20) unmet.push(def.internal_name);
+    } else if (conf >= reqConf) {
+      met++;
+      weightedReadinessSum += w * 1.0;
+    } else {
+      below++;
+      weightedReadinessSum += w * Math.min(conf / reqConf, 1.0);
+      if (def.weight >= 20) unmet.push(def.internal_name);
+    }
   }
 
-  const assessed = internalTraits.length + externalTraits.length;
-  const missing = totalTraits - assessed;
-  const coverage = Math.round((weightedSum / totalTraits) * 100);
-  const ready = coverage >= 50 && high >= 15;
+  const total = internalDefs.length + externalDefs.length;
+  const coverage = total > 0 ? Math.round((met / total) * 100) : 0;
+  const readinessScore = totalWeight > 0
+    ? Math.round((weightedReadinessSum / totalWeight) * 1000) / 1000  // 3 decimal places
+    : 0;
 
-  return { coverage_pct: coverage, high_count: high, medium_count: medium, weak_count: weak, missing_count: missing, ready_for_matching: ready };
+  const profileComplete = met === total && total > 0;
+  const readyForMatching = readinessScore >= 0.9;
+
+  return {
+    coverage_pct: coverage,
+    met_count: met,
+    below_count: below,
+    missing_count: missing,
+    total_count: total,
+    profile_complete: profileComplete,
+    readiness_score: readinessScore,
+    ready_for_matching: readyForMatching,
+    unmet_traits: unmet,
+  };
+}
+
+/** Persist readiness_score and is_matchable on the user row */
+function updateUserReadiness(db: Database.Database, userId: number, cov: CoverageResult): void {
+  db.prepare(
+    "UPDATE users SET readiness_score = ?, is_matchable = ? WHERE id = ?"
+  ).run(cov.readiness_score, cov.ready_for_matching ? 1 : 0, userId);
 }
 
 // ── Checkpoint logic ───────────────────────────────────────────
 
 const FIRST_CHECKPOINT = 4;
 const CHECKPOINT_INTERVAL = 2;
-const READY_COVERAGE = 50;
-const READY_HIGH_MIN = 15;
-const MAX_TURNS = 15;
+const MAX_QUESTIONS = 10;  // temp rule: stop after 10 agent questions
 
 function shouldRunAnalysis(state: ConversationState): boolean {
   const { turn_count, last_analysis_at_turn } = state;
@@ -157,9 +213,9 @@ function traitToTopic(name: string): string {
   return TRAIT_TO_TOPIC[name] || name.replace(/_/g, " ");
 }
 
-function buildGuidance(analysis: AnalysisAgentOutput | null, turnCount: number): string {
+function buildGuidance(analysis: AnalysisAgentOutput | null, turnCount: number, cov?: CoverageResult): string {
   if (!analysis) {
-    // Pre-analysis: give structured turn-by-turn guidance
+    // Pre-analysis: structured turn-by-turn guidance
     if (turnCount <= 1) return "Ask about their work/career and what energizes them day-to-day.";
     if (turnCount === 2) return "Ask about their values — what matters most to them in life or relationships.";
     if (turnCount === 3) return "Ask about what they are looking for in a partner — personality, energy, values.";
@@ -168,45 +224,56 @@ function buildGuidance(analysis: AnalysisAgentOutput | null, turnCount: number):
 
   const lines: string[] = [];
 
-  // Already known (brief, so agent doesn't re-ask)
+  // Already covered (so agent doesn't re-ask)
   const assessed = analysis.internal_traits;
   if (assessed.length > 0) {
     const known = assessed
       .filter(t => t.confidence >= 0.4)
       .sort((a, b) => b.confidence - a.confidence)
-      .slice(0, 8)
+      .slice(0, 10)
       .map(t => traitToTopic(t.internal_name))
       .join(", ");
-    if (known) lines.push(`Already covered (do NOT ask about these): ${known}`);
+    if (known) lines.push(`Already covered (do NOT re-ask): ${known}`);
   }
 
-  // Missing — these are the priority questions
-  const missing = analysis.missing_traits;
-  if (missing.length > 0) {
-    // Prioritize actionable topics over obscure ones
-    const prioritized = missing
+  // Unmet traits from coverage check — these are the real priority
+  if (cov && cov.unmet_traits.length > 0) {
+    const topics = cov.unmet_traits
       .filter(m => !["toxicity_score", "trollness", "sexual_identity"].includes(m))
       .slice(0, 6)
       .map(traitToTopic);
-    if (prioritized.length > 0) {
-      lines.push(`PRIORITY — ask about one of these: ${prioritized.join(", ")}`);
+    if (topics.length > 0) {
+      lines.push(`PRIORITY — these traits still need stronger signal. Ask about one: ${topics.join(", ")}`);
     }
   }
 
-  // Weak — could use more signal
+  // Also include analysis-reported missing traits as secondary
+  const missing = analysis.missing_traits;
+  if (missing.length > 0) {
+    const secondary = missing
+      .filter(m => !["toxicity_score", "trollness", "sexual_identity"].includes(m))
+      .filter(m => !(cov?.unmet_traits || []).includes(m)) // don't duplicate
+      .slice(0, 4)
+      .map(traitToTopic);
+    if (secondary.length > 0) {
+      lines.push(`Also missing: ${secondary.join(", ")}`);
+    }
+  }
+
+  // Weak traits (assessed but below their required confidence)
   const weakTraits = assessed
     .filter(t => t.confidence > 0 && t.confidence < 0.4)
     .slice(0, 4)
     .map(t => traitToTopic(t.internal_name));
   if (weakTraits.length > 0) {
-    lines.push(`Could use more signal: ${weakTraits.join(", ")}`);
+    lines.push(`Weak (needs refinement from a new angle): ${weakTraits.join(", ")}`);
   }
 
   // External trait gaps
   const hasDesired = analysis.external_traits.some(t => t.desired_value);
   const hasPersonal = analysis.external_traits.some(t => t.personal_value);
-  if (!hasDesired) lines.push("MISSING: Have not asked about physical attraction / what kind of look they are drawn to");
-  if (!hasPersonal) lines.push("MISSING: Have not asked about their own appearance / style / presence");
+  if (!hasDesired) lines.push("MISSING: physical attraction / what kind of look draws them in");
+  if (!hasPersonal) lines.push("MISSING: their own appearance / style / presence");
 
   // Probes from analysis agent
   if (analysis.recommended_probes.length > 0) {
@@ -254,9 +321,9 @@ function buildProfileSummary(analysis: AnalysisAgentOutput): string {
   return lines.join("\n");
 }
 
-function getStage(turnCount: number, coverage: number, phase: ConversationPhase): ConversationContext["stage"] {
+function getStage(turnCount: number, profileComplete: boolean, phase: ConversationPhase): ConversationContext["stage"] {
   if (phase === "summarizing") return "closing";
-  if (coverage >= READY_COVERAGE) return "closing";
+  if (profileComplete) return "closing";
   if (turnCount <= 3) return "early";
   if (turnCount <= 7) return "middle";
   return "later";
@@ -264,21 +331,18 @@ function getStage(turnCount: number, coverage: number, phase: ConversationPhase)
 
 // ── Conversation history formatting ────────────────────────────
 
-function formatHistory(turns: ConversationTurn[], maxRecent: number = 10): string {
-  if (turns.length <= maxRecent) {
-    return turns.map(t => `${t.role === "user" ? "User" : "Assistant"}: ${t.content}`).join("\n\n");
-  }
-
-  const early = turns.slice(0, turns.length - maxRecent);
-  const recent = turns.slice(-maxRecent);
-
-  const earlyTopics = early
-    .filter(t => t.role === "user")
-    .map(t => t.content.slice(0, 80))
-    .join("; ");
-
-  return `[Earlier topics covered: ${earlyTopics}]\n\n` +
-    recent.map(t => `${t.role === "user" ? "User" : "Assistant"}: ${t.content}`).join("\n\n");
+// Full conversation history — the agent needs it to avoid repeating questions.
+// Assistant messages are truncated to save tokens (user messages are kept in full
+// because they contain the actual information the agent must not re-ask about).
+function formatHistory(turns: ConversationTurn[]): string {
+  return turns.map(t => {
+    const label = t.role === "user" ? "User" : "Assistant";
+    // Truncate long assistant messages (the agent doesn't need its own verbose output)
+    const content = t.role === "assistant" && t.content.length > 150
+      ? t.content.slice(0, 150) + "..."
+      : t.content;
+    return `${label}: ${content}`;
+  }).join("\n\n");
 }
 
 // ── Build transcript for analysis agent ────────────────────────
@@ -291,6 +355,49 @@ function buildAnalysisTranscript(db: Database.Database, userId: number): string 
   return allAnswers
     .map((a, i) => `[Round ${i + 1}]\nUser: ${a.raw_answer}`)
     .join("\n\n");
+}
+
+// ── Background analysis runner ─────────────────────────────────
+
+// Fires analysis in the background without blocking the caller.
+// When done, updates state.last_analysis and saves to DB.
+// The NEXT turn's processUserMessage will see the updated analysis.
+function fireBackgroundAnalysis(
+  db: Database.Database,
+  state: ConversationState,
+): void {
+  const userId = state.user_id;
+  const turn = state.turn_count;
+
+  state.analysis_in_flight = true;
+  state.analysis_scheduled_at = turn;
+
+  console.log(`[orchestrator] Background analysis started at turn ${turn} for user ${userId}`);
+
+  const transcript = buildAnalysisTranscript(db, userId);
+  const input = buildAnalysisInput(db, transcript);
+
+  runAnalysisAgent(input, userId, "analysis")
+    .then((output) => {
+      saveAnalysisToDb(db, userId, output);
+
+      db.prepare(`
+        UPDATE profiles SET analysis_json = ?
+        WHERE user_id = ? AND id = (SELECT MAX(id) FROM profiles WHERE user_id = ?)
+      `).run(JSON.stringify(output), userId, userId);
+
+      // Update state (still referenced by the conversationStates Map)
+      state.last_analysis = output;
+      state.last_analysis_at_turn = turn;
+      state.analysis_in_flight = false;
+
+      const cov = computeCoverage(db, userId);
+      console.log(`[orchestrator] Background analysis done for user ${userId}: coverage=${cov.coverage_pct}%, readiness=${cov.readiness_score}, complete=${cov.profile_complete} (met=${cov.met_count}, below=${cov.below_count}, missing=${cov.missing_count})`);
+    })
+    .catch((err) => {
+      console.error(`[orchestrator] Background analysis failed for user ${userId}:`, err);
+      state.analysis_in_flight = false;
+    });
 }
 
 // ── Main orchestration function ────────────────────────────────
@@ -312,77 +419,55 @@ export async function processUserMessage(
     "INSERT INTO profiles (user_id, raw_answer, analysis_json) VALUES (?, ?, '{}')"
   ).run(userId, userMessage);
 
-  // 3. If we're in summarizing phase, the user is responding to the summary
+  // 3. If we're in summarizing phase, the user is responding to the summary → confirm
   if (state.phase === "summarizing") {
-    // The user responded to "Did I get this right?" — mark confirmed
     state.phase = "confirmed";
-
-    // Generate a brief closing message
-    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+    const userRow = db.prepare("SELECT gender, looking_for_gender FROM users WHERE id = ?").get(userId) as any;
+    const closing = getFixedClosing({ gender: userRow?.gender, lookingFor: userRow?.looking_for_gender });
+    state.turns.push({ role: "assistant", content: closing });
     const cov = computeCoverage(db, userId);
-    const ctx: ConversationContext = {
-      user_name: user?.first_name || "there",
-      user_age: user?.age,
-      user_gender: user?.gender,
-      user_city: user?.city,
-      conversation_history: formatHistory(state.turns),
-      turn_number: state.turn_count,
-      stage: "closing",
-      coverage_pct: cov.coverage_pct,
-      guidance_block: "The user just confirmed the profile summary. Say something brief and warm like 'Great, we have everything we need. We will start looking for your match now.' Do NOT ask more questions.",
-    };
-
-    const assistantMessage = await runConversationAgent(ctx);
-    state.turns.push({ role: "assistant", content: assistantMessage });
+    updateUserReadiness(db, userId, cov);
 
     return {
       result: {
-        assistant_message: assistantMessage,
+        assistant_message: closing,
         analysis_ran: false,
+        analysis_in_background: false,
         phase: "confirmed",
         coverage_pct: cov.coverage_pct,
+        readiness_score: cov.readiness_score,
         turn_count: state.turn_count,
       },
       state,
     };
   }
 
-  // 4. Normal chatting phase — run analysis checkpoint if needed
-  let analysisRan = false;
-  let analysis = state.last_analysis;
-
-  if (shouldRunAnalysis(state)) {
-    console.log(`[orchestrator] Running analysis checkpoint at turn ${state.turn_count} for user ${userId}`);
-    const transcript = buildAnalysisTranscript(db, userId);
-    const input = buildAnalysisInput(db, transcript);
-    analysis = await runAnalysisAgent(input);
-    const saved = saveAnalysisToDb(db, userId, analysis);
-
-    db.prepare(`
-      UPDATE profiles SET analysis_json = ?
-      WHERE user_id = ? AND id = (SELECT MAX(id) FROM profiles WHERE user_id = ?)
-    `).run(JSON.stringify(analysis), userId, userId);
-
-    state.last_analysis = analysis;
-    state.last_analysis_at_turn = state.turn_count;
-    analysisRan = true;
+  // 4. Check if a background analysis should be kicked off (non-blocking)
+  let analysisKicked = false;
+  if (shouldRunAnalysis(state) && !state.analysis_in_flight) {
+    fireBackgroundAnalysis(db, state);
+    analysisKicked = true;
   }
 
-  // 5. Compute coverage
+  // 5. Use the LATEST COMPLETED analysis for guidance
+  const analysis = state.last_analysis;
+
+  // 6. Compute coverage + readiness from DB
   const cov = computeCoverage(db, userId);
   const coveragePct = cov.coverage_pct;
 
-  if (analysisRan) {
-    console.log(`[orchestrator] Analysis done. Server coverage: ${coveragePct}% (high=${cov.high_count}, med=${cov.medium_count}, weak=${cov.weak_count}, missing=${cov.missing_count})`);
+  // Persist readiness_score and is_matchable on every turn that has coverage data
+  if (cov.readiness_score > 0) {
+    updateUserReadiness(db, userId, cov);
   }
 
-  // 6. Check if we should move to summarizing phase
-  const readyForSummary = (coveragePct >= READY_COVERAGE && cov.high_count >= READY_HIGH_MIN) || state.turn_count >= MAX_TURNS;
+  // 7. Check if we should move to summarizing phase
+  // Stop conditions: profile fully complete OR 10 questions reached
+  const readyForSummary = cov.profile_complete || state.turn_count >= MAX_QUESTIONS;
 
   if (readyForSummary && state.phase === "chatting") {
     state.phase = "summarizing";
 
-    // Build summary and generate confirmation message
     const profileSummary = analysis ? buildProfileSummary(analysis) : "Profile data gathered.";
     const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
 
@@ -395,29 +480,32 @@ export async function processUserMessage(
       turn_number: state.turn_count,
       stage: "closing",
       coverage_pct: coveragePct,
-      guidance_block: `We have enough information. Summarize what you learned about the user in a warm, natural way. Include:\n${profileSummary}\n\nThen ask something like: "Does that sound about right? Anything you'd want to add or correct?"`,
+      guidance_block: `The conversation is ending. Summarize what you learned about the user in a warm, natural way. Include:\n${profileSummary}\n\nThen ask: "זה נשמע נכון? יש משהו שתרצי להוסיף או לתקן?"`,
     };
 
-    const assistantMessage = await runConversationAgent(ctx);
+    const assistantMessage = await runConversationAgent(ctx, userId, "conversation_summary");
     state.turns.push({ role: "assistant", content: assistantMessage });
+
+    console.log(`[orchestrator] Moving to summary: profile_complete=${cov.profile_complete}, turns=${state.turn_count}, readiness=${cov.readiness_score}`);
 
     return {
       result: {
         assistant_message: assistantMessage,
-        analysis_ran: analysisRan,
-        analysis: analysisRan ? analysis ?? undefined : undefined,
+        analysis_ran: false,
+        analysis_in_background: analysisKicked,
         phase: "summarizing",
         coverage_pct: coveragePct,
+        readiness_score: cov.readiness_score,
         turn_count: state.turn_count,
       },
       state,
     };
   }
 
-  // 7. Normal turn — generate assistant response
+  // 8. Normal turn — generate assistant response immediately
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
-  const stage = getStage(state.turn_count, coveragePct, state.phase);
-  const guidance = buildGuidance(analysis, state.turn_count);
+  const stage = getStage(state.turn_count, cov.profile_complete, state.phase);
+  const guidance = buildGuidance(analysis, state.turn_count, cov);
 
   const ctx: ConversationContext = {
     user_name: user?.first_name || "there",
@@ -431,53 +519,104 @@ export async function processUserMessage(
     guidance_block: guidance,
   };
 
-  const assistantMessage = await runConversationAgent(ctx);
+  const assistantMessage = await runConversationAgent(ctx, userId, "conversation_turn");
   state.turns.push({ role: "assistant", content: assistantMessage });
 
   return {
     result: {
       assistant_message: assistantMessage,
-      analysis_ran: analysisRan,
-      analysis: analysisRan ? analysis ?? undefined : undefined,
+      analysis_ran: false,
+      analysis_in_background: analysisKicked,
       phase: state.phase,
       coverage_pct: coveragePct,
+      readiness_score: cov.readiness_score,
       turn_count: state.turn_count,
     },
     state,
   };
 }
 
+// ── Gender-adapted fixed messages ──────────────────────────────
+
+interface GenderContext {
+  gender?: string | null;         // user's gender
+  lookingFor?: string | null;     // what gender they seek
+}
+
+function isFemaleGender(g?: string | null): boolean {
+  return g === "female" || g === "woman" || g === "נקבה";
+}
+function isMaleGender(g?: string | null): boolean {
+  return g === "male" || g === "man" || g === "זכר";
+}
+
+function genderForms(ctx: GenderContext) {
+  const fem = isFemaleGender(ctx.gender);
+  const mal = isMaleGender(ctx.gender);
+
+  // Forms addressing the user
+  const ready = fem ? "מוכנה" : mal ? "מוכן" : "מוכן/ה";
+  const youAnswer = fem ? "שתעני" : mal ? "שתענה" : "שתענה/י";
+  const youKnow = fem ? "שתדעי" : mal ? "שתדע" : "שתדע/י";
+  const yourSelf = "אותך"; // same in both genders in this context
+
+  // "The one" — depends on who they're looking for
+  const seeksFemale = isFemaleGender(ctx.lookingFor);
+  const seeksMale = isMaleGender(ctx.lookingFor);
+  let theOne: string;
+  if (seeksMale && !seeksFemale) theOne = "את האחד שמתאים לך";
+  else if (seeksFemale && !seeksMale) theOne = "את האחת שמתאימה לך";
+  else theOne = "את האדם שמתאים לך";
+
+  // Matchmaker self-reference (always male persona)
+  const iKnow = "שאני מכיר";
+
+  return { ready, youAnswer, youKnow, yourSelf, theOne, iKnow };
+}
+
+function getFixedIntro(userName: string, ctx: GenderContext): string {
+  const g = genderForms(ctx);
+  return [
+    `היי ${userName}, אני השדכן שלך 😊`,
+    `כדי למצוא לך מישהו מתאים ברמה הכי מדויקת שיש, אני צריך להכיר ${g.yourSelf} לעומק.`,
+    `אשמח לשאול ${g.yourSelf} כמה שאלות — ככל ${g.youAnswer} יותר בהרחבה, בפתיחות ובכנות, נוכל למצוא התאמה מדויקת וחזקה יותר.`,
+    `אנחנו לא מתפשרים על איכות, ולכן אוספים כמה שיותר מידע.`,
+    `אם השיחה ארוכה לך מדי, תמיד אפשר לעצור ולהמשיך בזמן אחר ;)`,
+    `וחשוב ${g.youKnow} — התשובות כאן לא מתפרסמות בפרופיל, הן לעיני בלבד, כדי שאוכל להכיר ${g.yourSelf} לעומק ולמצוא ${g.theOne}.`,
+    `${g.ready}?`,
+  ].join("\n");
+}
+
+function getFixedClosing(ctx: GenderContext): string {
+  const g = genderForms(ctx);
+  return [
+    `מעולה, אני מרגיש ${g.iKnow} ${g.yourSelf} מספיק כדי למצוא ${g.theOne} ברמה העמוקה ביותר.`,
+    `${g.ready} להתחיל את התהליך?`,
+  ].join("\n");
+}
+
 // ── Opening message ────────────────────────────────────────────
 
-export async function generateOpeningMessage(
+export function generateOpeningMessage(
   db: Database.Database,
   userId: number
-): Promise<{ message: string; state: ConversationState }> {
+): { message: string; state: ConversationState } {
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const userName = user?.first_name || "there";
+  const gCtx: GenderContext = { gender: user?.gender, lookingFor: user?.looking_for_gender };
+
+  const introMessage = getFixedIntro(userName, gCtx);
 
   const state: ConversationState = {
     user_id: userId,
-    turns: [],
+    turns: [{ role: "assistant", content: introMessage }],
     turn_count: 0,
     last_analysis: null,
     last_analysis_at_turn: 0,
     phase: "chatting",
+    analysis_in_flight: false,
+    analysis_scheduled_at: 0,
   };
 
-  const ctx: ConversationContext = {
-    user_name: user?.first_name || "there",
-    user_age: user?.age,
-    user_gender: user?.gender,
-    user_city: user?.city,
-    conversation_history: "(This is the start of the conversation. No messages yet.)",
-    turn_number: 0,
-    stage: "early",
-    coverage_pct: 0,
-    guidance_block: "Start with a warm greeting. Ask an open-ended question about who they are or what their life is like. Keep it light and inviting.",
-  };
-
-  const message = await runConversationAgent(ctx);
-  state.turns.push({ role: "assistant", content: message });
-
-  return { message, state };
+  return { message: introMessage, state };
 }

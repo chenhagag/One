@@ -50,7 +50,7 @@ const s: Record<string, React.CSSProperties> = {
   scrollWrap: { overflowX: "auto" as const },
 };
 
-export default function AdminView({ onBack }: { onBack: () => void }) {
+export default function AdminView({ onBack, onStartChat }: { onBack: () => void; onStartChat?: (user: { id: number; first_name: string; email: string }) => void }) {
   const [tab, setTab] = useState<Tab>("overview");
 
   return (
@@ -80,7 +80,7 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
       </div>
 
       {tab === "overview" && <OverviewTab />}
-      {tab === "users" && <UsersTab />}
+      {tab === "users" && <UsersTab onStartChat={onStartChat} />}
       {tab === "traits" && <TraitDefsTab />}
       {tab === "look_traits" && <LookTraitDefsTab />}
       {tab === "enums" && <EnumsTab />}
@@ -116,7 +116,7 @@ function OverviewTab() {
 
 // ── Users Tab ────────────────────────────────────────────────────
 
-function UsersTab() {
+function UsersTab({ onStartChat }: { onStartChat?: (user: { id: number; first_name: string; email: string }) => void }) {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
@@ -132,7 +132,7 @@ function UsersTab() {
   if (loading) return <p style={s.loading}>Loading...</p>;
 
   if (selectedUserId !== null) {
-    return <UserDetail userId={selectedUserId} onBack={() => setSelectedUserId(null)} />;
+    return <UserDetail userId={selectedUserId} onBack={() => setSelectedUserId(null)} onStartChat={onStartChat} />;
   }
 
   return (
@@ -158,6 +158,8 @@ function UsersTab() {
             <th style={s.th}>Matchable</th>
             <th style={s.th}>Wait Days</th>
             <th style={s.th}>Sys Priority</th>
+            <th style={s.th}>Tokens</th>
+            <th style={s.th}>Cost</th>
           </tr>
         </thead>
         <tbody>
@@ -181,6 +183,8 @@ function UsersTab() {
               <td style={s.td}>{u.is_matchable ? "Yes" : "No"}</td>
               <td style={s.td}>{u.waiting_days ?? 0}</td>
               <td style={s.td}>{u.system_match_priority != null ? <strong>{u.system_match_priority}</strong> : "-"}</td>
+              <td style={s.td}>{u.total_tokens ? u.total_tokens.toLocaleString() : "-"}</td>
+              <td style={s.td}>{u.total_cost_usd ? `$${u.total_cost_usd.toFixed(4)}` : "-"}</td>
             </tr>
           ))}
         </tbody>
@@ -191,12 +195,13 @@ function UsersTab() {
 
 // ── User Detail View ────────────────────────────────────────────
 
-function UserDetail({ userId, onBack }: { userId: number; onBack: () => void }) {
+function UserDetail({ userId, onBack, onStartChat }: { userId: number; onBack: () => void; onStartChat?: (user: { id: number; first_name: string; email: string }) => void }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [matches, setMatches] = useState<any[]>([]);
   const [viewingUserId, setViewingUserId] = useState<number | null>(null);
+  const [tokenUsage, setTokenUsage] = useState<any>(null);
   const [ratingInProgress, setRatingInProgress] = useState<number | null>(null);
   const [cancelInProgress, setCancelInProgress] = useState<number | null>(null);
   const [reanalyzing, setReanalyzing] = useState(false);
@@ -292,9 +297,30 @@ function UserDetail({ userId, onBack }: { userId: number; onBack: () => void }) 
     finally { setResetting(false); }
   }
 
+  async function handleDeleteUser() {
+    if (!confirm(
+      `Permanently delete user #${userId}?\n\n` +
+      "This will delete:\n" +
+      "  - The user record\n" +
+      "  - All conversation answers\n" +
+      "  - All trait data\n" +
+      "  - All matches and candidates\n\n" +
+      "This cannot be undone."
+    )) return;
+
+    try {
+      const r = await fetch(`/api/admin/users/${userId}`, { method: "DELETE" });
+      const json = await r.json();
+      if (!r.ok) { alert(json.error || "Delete failed"); return; }
+      alert(`User #${userId} deleted.`);
+      onBack();
+    } catch { alert("Network error"); }
+  }
+
   useEffect(() => {
     loadUserData();
     loadMatches();
+    fetch(`/api/admin/users/${userId}/token-usage`).then(r => r.json()).then(setTokenUsage).catch(() => {});
   }, [userId]);
 
   // Navigate to another user's profile from match candidates
@@ -306,7 +332,7 @@ function UserDetail({ userId, onBack }: { userId: number; onBack: () => void }) 
   if (error) return <p style={{ color: "red" }}>Error loading user: {error}</p>;
   if (!data) return null;
 
-  const { user, profile, traits, lookTraits } = data;
+  const { user, profile, traits, lookTraits, coverage } = data;
 
   // Split traits into visible (normal/special/filter) and internal-use
   const visibleTraits = traits.filter((t: any) => t.calc_type !== "internal_use");
@@ -314,7 +340,25 @@ function UserDetail({ userId, onBack }: { userId: number; onBack: () => void }) 
 
   return (
     <div>
-      <button style={s.backBtn} onClick={onBack}>← Back to Users</button>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <button style={s.backBtn} onClick={onBack}>← Back to Users</button>
+        <div style={{ display: "flex", gap: 8 }}>
+          {onStartChat && !coverage?.profile_complete && user.is_real_user !== 0 && (
+            <button
+              style={{ padding: "4px 12px", fontSize: 12, cursor: "pointer", background: "#1a73e8", color: "#fff", border: "none", borderRadius: 4 }}
+              onClick={() => onStartChat({ id: user.id, first_name: user.first_name, email: user.email })}
+            >
+              חזרה לשיחה
+            </button>
+          )}
+          <button
+            style={{ padding: "4px 12px", fontSize: 12, cursor: "pointer", background: "#dc3545", color: "#fff", border: "none", borderRadius: 4 }}
+            onClick={handleDeleteUser}
+          >
+            Delete User
+          </button>
+        </div>
+      </div>
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 4 }}>
@@ -325,12 +369,31 @@ function UserDetail({ userId, onBack }: { userId: number; onBack: () => void }) 
         <span style={{ ...s.badge, fontSize: 12 }}>{user.city}</span>
         {!user.is_real_user && <span style={{ ...s.badge, background: "#e8daef", fontSize: 11 }}>seed user</span>}
       </div>
+      <p style={{ ...s.sub, marginBottom: 8 }}>
+        Status: <strong>{user.user_status}</strong> |
+        Readiness: <strong>{coverage?.readiness_score != null ? `${Math.round(coverage.readiness_score * 100)}%` : "-"}</strong> |
+        Matchable: <strong style={{ color: user.is_matchable ? "#28a745" : "#dc3545" }}>{user.is_matchable ? "Yes" : "No"}</strong> |
+        Profile complete: <strong>{coverage?.profile_complete ? "Yes" : "No"}</strong> |
+        Traits complete: <strong>{coverage ? `${coverage.met_count}/${coverage.total_count}` : "-"}</strong>
+      </p>
       <p style={{ ...s.sub, marginBottom: 24 }}>
-        Status: <strong>{user.user_status}</strong> | Matchable: <strong>{user.is_matchable ? "Yes" : "No"}</strong> |
         Pickiness: <strong>{user.pickiness_score ?? "-"}</strong> | Attraction signal: <strong>{user.initial_attraction_signal ?? "-"}</strong> |
         Matches: <strong>{user.total_matches ?? 0}</strong> | Good matches: <strong>{user.good_matches ?? 0}</strong> |
         Waiting days: <strong>{user.waiting_days ?? 0}</strong> | System priority: <strong>{user.system_match_priority ?? "-"}</strong>
       </p>
+
+      {/* Token Usage */}
+      {tokenUsage && tokenUsage.total_tokens > 0 && (
+        <div style={{ background: "#f8f9fa", borderRadius: 8, padding: "10px 16px", marginBottom: 16, fontSize: 12 }}>
+          <strong>Token Usage:</strong>{" "}
+          {tokenUsage.total_tokens.toLocaleString()} tokens ({tokenUsage.total_calls} calls) — ${tokenUsage.total_cost_usd.toFixed(4)}
+          {tokenUsage.by_action.length > 0 && (
+            <span style={{ color: "#888", marginLeft: 12 }}>
+              {tokenUsage.by_action.map((a: any) => `${a.action_type}: ${a.total_tokens.toLocaleString()}`).join(" | ")}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Two-column layout */}
       <div style={{ display: "flex", gap: 32, flexWrap: "wrap" }}>
@@ -365,7 +428,7 @@ function UserDetail({ userId, onBack }: { userId: number; onBack: () => void }) 
                 "{profile.raw_answer}"
               </p>
               <SectionHeading title="AI Analysis Summary" />
-              <AnalysisSummary analysis={profile.analysis} />
+              <AnalysisSummary analysis={profile.analysis} serverCoverage={coverage} />
             </>
           )}
         </div>
@@ -627,7 +690,7 @@ function traitStatus(confidence: number | null | undefined): { label: string; co
   return { label: "filled", color: "#28a745" };
 }
 
-function AnalysisSummary({ analysis }: { analysis: any }) {
+function AnalysisSummary({ analysis, serverCoverage }: { analysis: any; serverCoverage?: any }) {
   if (!analysis || typeof analysis !== "object") return <p style={{ fontSize: 12, color: "#888" }}>No analysis data.</p>;
 
   // Old-format analysis (flat fields like intelligence_score) — render as simple key/value
@@ -642,21 +705,30 @@ function AnalysisSummary({ analysis }: { analysis: any }) {
   }
 
   // New-format analysis — render structured sections
-  const { internal_traits = [], external_traits = [], missing_traits = [], profiling_completeness } = analysis;
+  const { internal_traits = [], external_traits = [], missing_traits = [] } = analysis;
   const tinyBadge = (text: string, bg: string): React.CSSProperties => ({
     display: "inline-block", padding: "1px 6px", borderRadius: 3, fontSize: 10, fontWeight: 600, background: bg, color: "#fff", marginLeft: 4
   });
 
   return (
     <div style={{ fontSize: 12 }}>
-      {/* Profiling Completeness */}
-      {profiling_completeness && (
+      {/* Server-side profiling status (from computeCoverage, not LLM self-report) */}
+      {serverCoverage && (
         <div style={{ background: "#f0f4ff", borderRadius: 6, padding: "8px 12px", marginBottom: 12 }}>
-          <strong>Coverage:</strong> {profiling_completeness.coverage_pct}%
-          {" | "}<strong>Internal:</strong> {profiling_completeness.internal_assessed}/{profiling_completeness.internal_total}
-          {" | "}<strong>External:</strong> {profiling_completeness.external_assessed}/{profiling_completeness.external_total}
-          {" | "}<strong>Ready:</strong> {profiling_completeness.ready_for_matching ? "Yes" : "No"}
-          {profiling_completeness.notes && <div style={{ color: "#666", marginTop: 4 }}>{profiling_completeness.notes}</div>}
+          <strong>Traits complete:</strong> {serverCoverage.met_count}/{serverCoverage.total_count}
+          {" | "}<strong>Below threshold:</strong> {serverCoverage.below_count}
+          {" | "}<strong>Missing:</strong> {serverCoverage.missing_count}
+          {" | "}<strong>Readiness:</strong> {Math.round(serverCoverage.readiness_score * 100)}%
+          {" | "}<strong>Profile complete:</strong> {serverCoverage.profile_complete ? "Yes" : "No"}
+          {" | "}<strong>Ready for match:</strong>{" "}
+          <span style={{ color: serverCoverage.ready_for_matching ? "#28a745" : "#dc3545", fontWeight: 600 }}>
+            {serverCoverage.ready_for_matching ? "Yes" : "No"}
+          </span>
+          {serverCoverage.unmet_traits?.length > 0 && (
+            <div style={{ color: "#888", marginTop: 4, fontSize: 11 }}>
+              Unmet: {serverCoverage.unmet_traits.slice(0, 10).join(", ")}{serverCoverage.unmet_traits.length > 10 ? "..." : ""}
+            </div>
+          )}
         </div>
       )}
 
@@ -801,6 +873,7 @@ function TraitDefsTab() {
             <th style={s.th}>Internal Name</th>
             <th style={s.th}>English</th>
             <th style={s.th}>Weight</th>
+            <th style={s.th}>Req. Conf.</th>
             <th style={s.th}>Is Filter</th>
             <th style={s.th}>Filter Type</th>
             <th style={s.th}>Min</th>
@@ -821,6 +894,7 @@ function TraitDefsTab() {
                 <td style={s.td}>
                   {e ? <input style={s.configInput} value={e.weight} onChange={(ev) => updateField(t.id, "weight", ev.target.value)} /> : <strong>{t.weight}</strong>}
                 </td>
+                <td style={s.td}>{t.required_confidence ?? "-"}</td>
                 <td style={s.td}>
                   {e ? (
                     <select style={s.configInput} value={e.is_filter} onChange={(ev) => updateField(t.id, "is_filter", ev.target.value)}>

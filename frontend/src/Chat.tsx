@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { ChatUser } from "./App";
 
 interface Message {
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
 }
 
@@ -22,7 +22,13 @@ const s: Record<string, React.CSSProperties> = {
   bubbleAssistant: {
     alignSelf: "flex-start", background: "#f0f0f0", color: "#1a1a1a",
     borderRadius: "16px 16px 16px 4px", padding: "10px 16px",
-    maxWidth: "80%", fontSize: 15, lineHeight: 1.5,
+    maxWidth: "80%", fontSize: 15, lineHeight: 1.5, whiteSpace: "pre-line" as const,
+  },
+  bubbleSystem: {
+    alignSelf: "center", background: "#f8f4e8", color: "#5a4a2a",
+    borderRadius: 12, padding: "14px 20px",
+    maxWidth: "90%", fontSize: 14, lineHeight: 1.7, textAlign: "center" as const,
+    whiteSpace: "pre-line" as const,
   },
   inputRow: {
     display: "flex", gap: 8, padding: "12px 0", borderTop: "1px solid #e5e5e5",
@@ -41,24 +47,26 @@ const s: Record<string, React.CSSProperties> = {
     padding: "8px 16px", fontSize: 13, fontWeight: 500,
     background: "transparent", color: "#888", border: "1px solid #ddd", borderRadius: 8, cursor: "pointer",
   },
-  btnPrimary: {
-    padding: "12px 32px", fontSize: 15, fontWeight: 600,
-    background: "#1a73e8", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer",
+  findBtn: {
+    padding: "14px 40px", fontSize: 17, fontWeight: 700,
+    background: "linear-gradient(135deg, #1a73e8, #6c3ad1)",
+    color: "#fff", border: "none", borderRadius: 12, cursor: "pointer",
+    letterSpacing: 0.5,
   },
   status: { fontSize: 12, color: "#888", textAlign: "center", padding: "4px 0" },
   bottomBar: {
-    display: "flex", justifyContent: "center", alignItems: "center", gap: 12,
-    padding: "16px 0", borderTop: "1px solid #e5e5e5",
+    display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 12,
+    padding: "20px 0", borderTop: "1px solid #e5e5e5",
   },
 };
 
 export default function Chat({
   user,
-  onSuccess,
+  onComplete,
   onPause,
 }: {
   user: ChatUser;
-  onSuccess: (a: any) => void;
+  onComplete: () => void;
   onPause?: () => void;
 }) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -66,10 +74,8 @@ export default function Chat({
   const [loading, setLoading] = useState(false);
   const [started, setStarted] = useState(false);
   const [phase, setPhase] = useState<Phase>("chatting");
-  const [coverage, setCoverage] = useState(0);
   const [turnCount, setTurnCount] = useState(0);
   const [error, setError] = useState("");
-  const [lastAnalysis, setLastAnalysis] = useState<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -100,12 +106,11 @@ export default function Chat({
       .then((data) => {
         if (data.error) { setError(data.error); return; }
         if (data.resumed && data.turns) {
-          // Resuming — restore full history
           setMessages(data.turns);
           setTurnCount(data.turn_count);
-          setCoverage(data.coverage_pct);
         } else {
-          setMessages([{ role: "assistant", content: data.assistant_message }]);
+          // New conversation — show the fixed intro as a system message
+          setMessages([{ role: "system", content: data.assistant_message }]);
         }
         setPhase(data.phase || "chatting");
       })
@@ -130,15 +135,16 @@ export default function Chat({
         body: JSON.stringify({ user_id: user.id, message: text }),
       });
       const data = await res.json();
-
       if (!res.ok) { setError(data.error || "Something went wrong"); return; }
 
-      setMessages((prev) => [...prev, { role: "assistant", content: data.assistant_message }]);
-      setCoverage(data.coverage_pct);
+      if (data.phase === "confirmed") {
+        // Show the fixed closing as a system message
+        setMessages((prev) => [...prev, { role: "system", content: data.assistant_message }]);
+      } else {
+        setMessages((prev) => [...prev, { role: "assistant", content: data.assistant_message }]);
+      }
       setTurnCount(data.turn_count);
       setPhase(data.phase);
-
-      if (data.analysis) setLastAnalysis(data.analysis);
     } catch {
       setError("Could not reach the server");
     } finally {
@@ -160,13 +166,6 @@ export default function Chat({
     }
   }
 
-  function handleGoToResults() {
-    onSuccess({
-      saved: lastAnalysis?.saved || { internal_saved: 0, external_saved: 0 },
-      analysis: lastAnalysis || null,
-    });
-  }
-
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -178,17 +177,13 @@ export default function Chat({
 
   return (
     <div style={s.container}>
-      <h2 style={{ margin: "0 0 4px", fontSize: 20 }}>
-        {user.name} ,היי
-      </h2>
-      <p style={{ color: "#666", margin: "0 0 12px", fontSize: 14 }}>
-        בוא/י נכיר קצת
-      </p>
-
       {/* Messages */}
       <div ref={scrollRef} style={s.messages}>
         {messages.map((m, i) => (
-          <div key={i} style={m.role === "user" ? s.bubbleUser : s.bubbleAssistant}>
+          <div
+            key={i}
+            style={m.role === "system" ? s.bubbleSystem : m.role === "user" ? s.bubbleUser : s.bubbleAssistant}
+          >
             {m.content}
           </div>
         ))}
@@ -197,30 +192,17 @@ export default function Chat({
         )}
       </div>
 
-      {/* Status bar */}
-      {turnCount > 0 && (
-        <div style={s.status}>
-          {phase === "confirmed"
-            ? "Profile complete"
-            : phase === "paused"
-              ? "Conversation paused"
-              : phase === "summarizing"
-                ? "Reviewing your profile..."
-                : `Turn ${turnCount}${coverage > 0 ? ` — ${Math.round(coverage)}% coverage` : ""}`}
-        </div>
-      )}
-
-      {/* Bottom area — depends on phase */}
+      {/* Bottom area */}
       {phase === "confirmed" ? (
         <div style={s.bottomBar}>
-          <button style={s.btnPrimary} onClick={handleGoToResults}>
-            Continue to results
+          <button style={s.findBtn} onClick={onComplete}>
+            Find My One ❤️
           </button>
         </div>
       ) : phase === "paused" ? (
         <div style={s.bottomBar}>
           <p style={{ fontSize: 14, color: "#666", margin: 0 }}>
-            Conversation saved. You can resume anytime.
+            השיחה נשמרה. אפשר להמשיך בכל זמן.
           </p>
         </div>
       ) : (
@@ -233,20 +215,16 @@ export default function Chat({
               rows={1}
               onChange={(e) => { setInput(e.target.value); autoResize(); }}
               onKeyDown={handleKeyDown}
-              placeholder={phase === "summarizing" ? "Add corrections or confirm..." : "Type your message..."}
+              placeholder={phase === "summarizing" ? "...תיקון או אישור" : "...כתבי כאן"}
               disabled={loading || !canType}
             />
             <button style={s.btn} onClick={handleSend} disabled={loading || !input.trim() || !canType}>
-              Send
+              שלחי
             </button>
           </div>
           <div style={{ display: "flex", justifyContent: "center", padding: "4px 0" }}>
-            <button
-              style={s.btnSecondary}
-              onClick={handlePause}
-              disabled={loading}
-            >
-              Let's continue later
+            <button style={s.btnSecondary} onClick={handlePause} disabled={loading}>
+              נמשיך בפעם אחרת
             </button>
           </div>
         </>

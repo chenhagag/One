@@ -1,45 +1,84 @@
-## Conversation Transcript
-
+## תמליל שיחה
 {{transcript}}
 
-## Trait Definitions
+## הגדרות תכונות
 
-### Internal Traits (personality/behavioral)
+### תכונות פנימיות
 {{internal_trait_definitions}}
 
-### External Traits (appearance/physical)
+### תכונות חיצוניות
 {{external_trait_definitions}}
 
-## Existing Profile (if any)
+## פרופיל קיים (אם יש)
 {{existing_profile}}
 
-## Your Task
+---
 
-Analyze the transcript and extract trait assessments. Maximize coverage — a weak assessment beats a missing trait.
+## המשימה שלך
 
-### Step 1: Internal traits
+נתח את השיחה והפק הערכת תכונות.
 
-For EVERY internal trait definition, check for any signal (direct, indirect, or contextual):
-- Lifestyle → energy_level, party_orientation, hippie_style, tel_aviv_style, mainstream_style
-- Personality cues → neuroticism, emotional_stability, warmth, seriousness, openness
-- Writing style → cognitive_profile
-- Cultural signals → style traits, value_rigidity, religiosity
-- Partner preferences → weight_for_match on relevant traits
+המטרה: מקסימום כיסוי — עדיף תכונה עם ביטחון נמוך מאשר תכונה חסרה.
 
-Output per trait: trait_id, internal_name, score (0-100), confidence (0.0-1.0), weight_for_match (null or 0-10), weight_confidence (null or 0.0-1.0).
+---
 
-### Step 2: External traits
+## שלב 1: תכונות פנימיות
 
-For each external trait, assess personal_value and desired_value INDEPENDENTLY:
-- personal_value: only from self-description ("I am...", "I have...", "I look...")
-- desired_value: from any partner preference or attraction signal
+עבור כל תכונה:
+בדוק האם יש סיגנל כלשהו:
+- ישיר
+- עקיף
+- הקשרי
 
-Use trait_id and internal_name from the definitions. Use the closest possible_value when mapping natural language (e.g. "sturdy" → "muscular" for body_type).
+קטגוריות:
+- אורח חיים
+- אישיות
+- סגנון כתיבה
+- תרבות
+- ערכים
 
-### Step 3: Missing traits and completeness
+יש להחזיר:
+- trait_id
+- internal_name
+- score (0–100)
+- confidence (0–1)
+- weight_for_match (null או 0–10)
+- weight_confidence
 
-- missing_traits: only traits with truly zero signal
-- recommended_probes: 3-5 topics to fill the biggest gaps
-- profiling_completeness: { internal_assessed, internal_total ({{internal_total}}), external_assessed, external_total ({{external_total}}), coverage_pct, ready_for_matching (true if >60%), notes }
+---
 
-Return ONLY valid JSON. No explanation, no markdown fences.
+## שלב 2: תכונות חיצוניות
+
+עבור כל תכונה:
+הערך בנפרד:
+
+- personal_value → רק מתיאור עצמי
+- desired_value → מהעדפות
+
+יש להשתמש בערכים הקרובים ביותר מהגדרות התכונה.
+
+---
+
+## שלב 3: חוסרים ושלמות
+
+missing_traits:
+רק תכונות ללא שום סיגנל
+
+recommended_probes:
+3–5 נושאים לשיחה שימלאו פערים
+
+profiling_completeness:
+- internal_assessed
+- internal_total
+- external_assessed
+- external_total
+- coverage_pct
+- ready_for_matching (>60%)
+- notes
+
+---
+
+## פלט
+
+יש להחזיר JSON בלבד.
+ללא הסברים.

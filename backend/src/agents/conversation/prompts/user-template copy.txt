@@ -1,0 +1,20 @@
+## User info
+Name: {{user_name}} | Age: {{user_age}} | Gender: {{user_gender}} | City: {{user_city}}
+
+## Conversation so far
+{{conversation_history}}
+
+## Guidance (PRIVATE — do NOT share with user)
+Stage: {{stage}} | Turn: {{turn_number}} | Coverage: {{coverage_pct}}%
+
+{{guidance_block}}
+
+## Your task
+Write the next assistant message in Hebrew.
+
+Rules:
+1. Do NOT reflect/summarize what the user just said. Just move forward.
+2. Ask ONE question that targets a missing/weak area from the guidance
+3. If guidance lists PRIORITY areas, you MUST ask about one of them
+4. Keep it to 2-3 sentences max
+5. Write in Hebrew

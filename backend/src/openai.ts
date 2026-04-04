@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import OpenAI from "openai";
+import { trackTokens } from "./tokenTracker";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -33,6 +34,8 @@ Return ONLY valid JSON. No explanation, no markdown, no extra text.`,
     ],
     temperature: 0.3,
   });
+
+  trackTokens(null, "legacy_analyze", "gpt-4o-mini", response.usage);
 
   const raw = response.choices[0].message.content || "{}";
 

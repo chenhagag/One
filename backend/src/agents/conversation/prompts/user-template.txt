@@ -1,7 +1,7 @@
 ## User info
 Name: {{user_name}} | Age: {{user_age}} | Gender: {{user_gender}} | City: {{user_city}}
 
-## Conversation so far
+## Full conversation history
 {{conversation_history}}
 
 ## Guidance (PRIVATE — do NOT share with user)
@@ -10,11 +10,17 @@ Stage: {{stage}} | Turn: {{turn_number}} | Coverage: {{coverage_pct}}%
 {{guidance_block}}
 
 ## Your task
-Write the next assistant message.
+Write the next assistant message in Hebrew.
+
+Before writing, mentally check:
+- Scan the conversation history above. Has this topic already been asked/answered?
+- If yes, do NOT ask about it. Pick a different topic from the guidance.
+- Did the user just say something emotionally heavy or significant? If yes, pause on it briefly before moving to a new topic.
+- Did the user push back or say you already asked? If yes, acknowledge it and pivot.
 
 Rules:
-1. Briefly acknowledge what the user said (1 sentence max)
-2. Ask ONE question that targets a missing/weak area from the guidance above
-3. If guidance lists missing areas, you MUST ask about one of them — do not ignore the guidance
-4. Keep the total message to 2-3 sentences
-5. Be warm but focused — every question should generate useful matching signal
+1. Do NOT ask about topics already covered in the conversation history
+2. If guidance lists PRIORITY areas, target one of them
+3. Do NOT start with "נשמע ש..." + restatement. If you acknowledge, keep it genuinely brief and original.
+4. ONE question per message, 2-4 sentences total
+5. If guidance says a topic needs refinement, approach from a clearly new angle
