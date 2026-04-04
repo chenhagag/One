@@ -12,8 +12,8 @@ import type {
 export function loadInternalTraitDefs(db: Database.Database): TraitDefinitionInput[] {
   return db
     .prepare(
-      `SELECT id, internal_name, display_name_en, ai_description,
-              required_confidence, weight, sensitivity, calc_type
+      `SELECT id, internal_name, display_name_en, display_name_he, ai_description,
+              required_confidence, weight, sensitivity, calc_type, trait_group
        FROM trait_definitions
        WHERE is_active = 1
        ORDER BY sort_order`
@@ -27,7 +27,8 @@ export function loadInternalTraitDefs(db: Database.Database): TraitDefinitionInp
 export function loadExternalTraitDefs(db: Database.Database): LookTraitDefinitionInput[] {
   const rows = db
     .prepare(
-      `SELECT id, internal_name, display_name_en, source, weight, sensitivity, possible_values
+      `SELECT id, internal_name, display_name_en, display_name_he, source, weight,
+              sensitivity, possible_values, ai_description, required_confidence, trait_group
        FROM look_trait_definitions
        WHERE is_active = 1
        ORDER BY sort_order`

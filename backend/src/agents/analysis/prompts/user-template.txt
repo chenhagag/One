@@ -1,84 +1,133 @@
 ## תמליל שיחה
 {{transcript}}
 
-## הגדרות תכונות
-
-### תכונות פנימיות
+## הגדרות תכונות פנימיות
 {{internal_trait_definitions}}
 
-### תכונות חיצוניות
+## הגדרות תכונות חיצוניות
 {{external_trait_definitions}}
 
 ## פרופיל קיים (אם יש)
 {{existing_profile}}
 
----
-
 ## המשימה שלך
+נתח את תמליל השיחה והפק פרופיל מובנה של המשתמש.
 
-נתח את השיחה והפק הערכת תכונות.
+המטרה היא מקסימום כיסוי מבוסס ראיות:
+- אם יש סיגנל כלשהו, גם חלש, עדיף להחזיר הערכה עם confidence מתאים
+- אם אין שום בסיס, אין למלא
 
-המטרה: מקסימום כיסוי — עדיף תכונה עם ביטחון נמוך מאשר תכונה חסרה.
 
----
+עליך להעדיף כיסוי רחב של הפרופיל.
+כאשר יש סיגנל כלשהו לתכונה, גם אם הוא חלש, עדיף להחזיר הערכה עם confidence מתאים מאשר להשאיר את התכונה חסרה.
+אין להחזיר רק תכונות עם ודאות גבוהה.
 
 ## שלב 1: תכונות פנימיות
+עבור כל תכונה פנימית בהגדרות (כל 39 התכונות):
+- בדוק האם יש סיגנל ישיר, עקיף או הקשרי
+- השתמש ב-analysis_guidance / ai_explanation של התכונה כדי להבין מה בדיוק צריך להסיק
+- חובה להחזיר הערכה עבור כל תכונה שיש לגביה סיגנל כלשהו, גם עקיף מאוד
+- עדיף confidence של 0.15 מאשר לדלג על תכונה
+- רק אם באמת אין שום רמז, גם לא עקיף — אז אל תחזיר
 
-עבור כל תכונה:
-בדוק האם יש סיגנל כלשהו:
-- ישיר
-- עקיף
-- הקשרי
+חשוב: המטרה היא כיסוי מקסימלי. אסור להחזיר רק 10 תכונות בודדות. יש לבדוק כל אחת מ-{{trait_count}} התכונות ולהחזיר הערכה ברמת confidence מתאימה.
 
-קטגוריות:
-- אורח חיים
-- אישיות
-- סגנון כתיבה
-- תרבות
-- ערכים
+## רשימת תכונות לבדיקה (חובה לעבור על כל אחת)
+{{trait_checklist}}
 
-יש להחזיר:
+עבור על כל שם ברשימה הזו אחד אחד ושאל את עצמך: האם יש סיגנל כלשהו בשיחה — ישיר, עקיף או הקשרי? אם כן — חובה להחזיר הערכה עם score ו-confidence. אם ממש אין שום סיגנל — הוסף ל-missing_traits.
+
+אזהרה: אם אתה מחזיר פחות מ-25 תכונות ב-internal_traits, כנראה שאתה מפספס סיגנלים עקיפים. בדוק שוב.
+הסקה עקיפה היא מותרת ורצויה — פשוט שים confidence נמוך (0.15-0.3).
+
+לכל תכונה פנימית יש להחזיר:
 - trait_id
 - internal_name
-- score (0–100)
-- confidence (0–1)
-- weight_for_match (null או 0–10)
-- weight_confidence
-
----
+- score (0-100)
+- confidence (0.0-1.0)
+- weight_for_match (null או 0-10)
+- weight_confidence (null או 0.0-1.0)
 
 ## שלב 2: תכונות חיצוניות
-
-עבור כל תכונה:
+עבור כל תכונה חיצונית:
 הערך בנפרד:
+- personal_value
+- personal_value_confidence
+- desired_value
+- desired_value_confidence
+- weight_for_match
+- weight_confidence
 
-- personal_value → רק מתיאור עצמי
-- desired_value → מהעדפות
+חוקים:
+- personal_value רק מתיאור עצמי
+- desired_value מהעדפה או משיכה
+- אם יש possible_values, השתמש רק בערכים הללו או בערך הקרוב ביותר להם
 
-יש להשתמש בערכים הקרובים ביותר מהגדרות התכונה.
+לכל תכונה חיצונית יש להחזיר:
+- trait_id
+- internal_name
+- personal_value
+- personal_value_confidence
+- desired_value
+- desired_value_confidence
+- weight_for_match
+- weight_confidence
 
----
+## שלב 3: דיל ברייקרס
+אם עלו מהשיחה דיל ברייקרס ברורים, החזר אותם כטקסט.
+אל תחזיר score מספרי עבור דיל ברייקרס.
 
-## שלב 3: חוסרים ושלמות
+## שלב 4: חוסרים ושלמות
+החזר:
+- missing_traits: רק תכונות שאין עליהן שום סיגנל
+- recommended_probes: 3-5 נושאים שכדאי לשאול עליהם בהמשך
+- profiling_completeness:
+  - internal_assessed
+  - internal_total
+  - external_assessed
+  - external_total
+  - coverage_pct
+  - ready_for_matching
+  - notes
 
-missing_traits:
-רק תכונות ללא שום סיגנל
+שים דגש מיוחד על תכונות עם required_confidence גבוה שעדיין חסר עליהן מידע מספק.
 
-recommended_probes:
-3–5 נושאים לשיחה שימלאו פערים
+## פורמט פלט
+החזר JSON תקין בלבד, במבנה הבא:
 
-profiling_completeness:
-- internal_assessed
-- internal_total
-- external_assessed
-- external_total
-- coverage_pct
-- ready_for_matching (>60%)
-- notes
-
----
-
-## פלט
-
-יש להחזיר JSON בלבד.
-ללא הסברים.
+{
+  "internal_traits": [
+    {
+      "trait_id": 0,
+      "internal_name": "",
+      "score": 0,
+      "confidence": 0.0,
+      "weight_for_match": null,
+      "weight_confidence": null
+    }
+  ],
+  "external_traits": [
+    {
+      "trait_id": 0,
+      "internal_name": "",
+      "personal_value": null,
+      "personal_value_confidence": null,
+      "desired_value": null,
+      "desired_value_confidence": null,
+      "weight_for_match": null,
+      "weight_confidence": null
+    }
+  ],
+  "deal_breakers": "",
+  "missing_traits": [],
+  "recommended_probes": [],
+  "profiling_completeness": {
+    "internal_assessed": 0,
+    "internal_total": 0,
+    "external_assessed": 0,
+    "external_total": 0,
+    "coverage_pct": 0,
+    "ready_for_matching": false,
+    "notes": ""
+  }
+}

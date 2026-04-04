@@ -326,6 +326,10 @@ export function createSchema(db: Database.Database) {
     ["matches", "previous_status", "ALTER TABLE matches ADD COLUMN previous_status TEXT"],
     ["matches", "final_match_priority", "ALTER TABLE matches ADD COLUMN final_match_priority REAL"],
     ["users", "readiness_score", "ALTER TABLE users ADD COLUMN readiness_score REAL DEFAULT 0"],
+    ["trait_definitions", "trait_group", "ALTER TABLE trait_definitions ADD COLUMN trait_group TEXT"],
+    ["look_trait_definitions", "trait_group", "ALTER TABLE look_trait_definitions ADD COLUMN trait_group TEXT"],
+    ["look_trait_definitions", "ai_description", "ALTER TABLE look_trait_definitions ADD COLUMN ai_description TEXT"],
+    ["look_trait_definitions", "required_confidence", "ALTER TABLE look_trait_definitions ADD COLUMN required_confidence REAL DEFAULT 0.5"],
   ];
 
   for (const [table, column, sql] of migrations) {

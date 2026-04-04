@@ -33,22 +33,29 @@ function buildUserMessage(input: AnalysisAgentInput): string {
 
   msg = msg.replace("{{transcript}}", input.transcript);
 
+  // Compact format: keep guidance short to avoid overwhelming the model
+  // Full guidance is available but truncated to ~120 chars for prompt efficiency
   const internalDefs = input.internal_trait_definitions
-    .map(
-      (t) =>
-        `- ID ${t.id}: ${t.internal_name} (${t.display_name_en}) — ${t.ai_description || "no description"} ` +
-        `[weight: ${t.weight}, sensitivity: ${t.sensitivity}, calc_type: ${t.calc_type}, required_confidence: ${t.required_confidence}]`
-    )
+    .map((t) => {
+      const desc = t.ai_description ? t.ai_description.slice(0, 120).replace(/\s+/g, " ") : "";
+      const textNote = t.calc_type === "text" ? " [TEXT OUTPUT]" : "";
+      return `- ID ${t.id}: ${t.internal_name} (${t.display_name_he || ""}) | ${t.trait_group || ""} | w=${t.weight} req=${t.required_confidence}${textNote}${desc ? " — " + desc : ""}`;
+    })
     .join("\n");
   msg = msg.replace("{{internal_trait_definitions}}", internalDefs);
 
+  // Add explicit checklist of ALL trait internal_names the model must evaluate
+  const checklist = input.internal_trait_definitions
+    .map(t => t.internal_name)
+    .join(", ");
+  msg = msg.replace("{{trait_checklist}}", checklist);
+  msg = msg.replace("{{trait_count}}", String(input.internal_trait_definitions.length));
+
   const externalDefs = input.external_trait_definitions
-    .map(
-      (t) =>
-        `- ID ${t.id}: ${t.internal_name} (${t.display_name_en}) — ` +
-        `source: ${t.source}, weight: ${t.weight}, sensitivity: ${t.sensitivity}` +
-        (t.possible_values ? `, values: [${t.possible_values.join(", ")}]` : "")
-    )
+    .map((t) => {
+      const vals = t.possible_values ? ` values=[${t.possible_values.join(", ")}]` : "";
+      return `- ID ${t.id}: ${t.internal_name} (${t.display_name_he || ""}) | w=${t.weight}${vals}`;
+    })
     .join("\n");
   msg = msg.replace("{{external_trait_definitions}}", externalDefs);
 
@@ -81,6 +88,13 @@ function setTraitLookups(
   externalIdToName = new Map(externalDefs.map((d) => [d.id, d.internal_name]));
 }
 
+// Track which traits are text-type (like deal_breakers)
+let textTypeTraits = new Set<number>();
+
+function setTextTypeTraits(defs: { id: number; calc_type: string }[]) {
+  textTypeTraits = new Set(defs.filter(d => d.calc_type === "text").map(d => d.id));
+}
+
 function validateInternalTrait(t: any): InternalTraitAssessment | null {
   // Accept trait_id or id
   let traitId = t.trait_id ?? t.id;
@@ -93,10 +107,26 @@ function validateInternalTrait(t: any): InternalTraitAssessment | null {
   }
 
   if (typeof traitId !== "number") return null;
-  if (typeof t.score !== "number" || t.score < 0 || t.score > 100) return null;
-  if (typeof t.confidence !== "number" || t.confidence < 0 || t.confidence > 1) return null;
 
   const name = t.internal_name ?? internalIdToName.get(traitId) ?? `trait_${traitId}`;
+
+  // Text-type traits (like deal_breakers): accept text_value instead of numeric score
+  if (textTypeTraits.has(traitId)) {
+    const textVal = t.text_value ?? t.value ?? t.score;
+    if (textVal == null) return null;
+    return {
+      trait_id: traitId,
+      internal_name: name,
+      score: 0,
+      confidence: typeof t.confidence === "number" ? Math.round(t.confidence * 100) / 100 : 0.5,
+      text_value: String(textVal),
+      source: "ai",
+    };
+  }
+
+  // Normal numeric traits
+  if (typeof t.score !== "number" || t.score < 0 || t.score > 100) return null;
+  if (typeof t.confidence !== "number" || t.confidence < 0 || t.confidence > 1) return null;
 
   return {
     trait_id: traitId,
@@ -301,8 +331,11 @@ export async function runAnalysisAgent(
   // Set up ID→name lookups for validation
   setTraitLookups(input.internal_trait_definitions, input.external_trait_definitions);
   setExternalPossibleValues(input.external_trait_definitions as any[]);
+  setTextTypeTraits(input.internal_trait_definitions as any[]);
 
   const userMessage = buildUserMessage(input);
+
+  console.log(`[analysis] Input: transcript=${input.transcript.length}chars, ${input.internal_trait_definitions.length} internal + ${input.external_trait_definitions.length} external defs, prompt=${userMessage.length}chars`);
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -311,15 +344,21 @@ export async function runAnalysisAgent(
       { role: "user", content: userMessage },
     ],
     temperature: 0.2,
+    max_tokens: 8000,  // 39 traits × ~150 chars each + externals + completeness ≈ 7000+
     response_format: { type: "json_object" },
   });
 
   trackTokens(userId ?? null, actionType, "gpt-4o-mini", response.usage);
 
+  const finishReason = response.choices[0].finish_reason;
   const raw = response.choices[0].message.content || "{}";
+
+  if (finishReason !== "stop") {
+    console.error(`[analysis] WARNING: finish_reason=${finishReason} — output may be truncated!`);
+  }
+
   const parsed = JSON.parse(raw);
 
-  console.log(`[runAnalysisAgent] Model returned JSON with keys: ${Object.keys(parsed).join(", ")}`);
   if (process.env.ANALYSIS_DEBUG) {
     console.log("\n=== RAW MODEL OUTPUT (first 2000 chars) ===");
     console.log(raw.slice(0, 2000));

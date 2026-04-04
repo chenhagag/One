@@ -10,11 +10,10 @@ export default function RootLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ title: "MatchMe" }} />
-      <Stack.Screen name="register" options={{ title: "Register" }} />
-      <Stack.Screen
-        name="success"
-        options={{ title: "Welcome!", headerBackVisible: false }}
-      />
+      <Stack.Screen name="register" options={{ title: "הרשמה" }} />
+      <Stack.Screen name="chat" options={{ title: "שיחה", headerBackVisible: false }} />
+      <Stack.Screen name="done" options={{ title: "MatchMe", headerBackVisible: false }} />
+      <Stack.Screen name="success" options={{ title: "Welcome!", headerBackVisible: false }} />
     </Stack>
   );
 }

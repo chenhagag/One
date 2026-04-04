@@ -457,25 +457,26 @@ app.get("/admin/users/:id/full", (req, res) => {
     WHERE user_id = ? ORDER BY created_at DESC LIMIT 1
   `).get(req.params.id) as any;
 
+  // LEFT JOIN: show ALL trait definitions, with user data overlaid where available
   const traits = db.prepare(`
-    SELECT ut.score, ut.confidence, ut.weight_for_match, ut.weight_confidence, ut.source,
-           td.internal_name, td.display_name_he, td.display_name_en, td.weight as default_weight,
-           td.sensitivity, td.calc_type
-    FROM user_traits ut
-    JOIN trait_definitions td ON td.id = ut.trait_definition_id
-    WHERE ut.user_id = ?
+    SELECT td.internal_name, td.display_name_he, td.display_name_en, td.weight as default_weight,
+           td.sensitivity, td.calc_type, td.trait_group, td.required_confidence,
+           ut.score, ut.confidence, ut.weight_for_match, ut.weight_confidence, ut.source
+    FROM trait_definitions td
+    LEFT JOIN user_traits ut ON ut.trait_definition_id = td.id AND ut.user_id = ?
+    WHERE td.is_active = 1
     ORDER BY td.sort_order
   `).all(req.params.id);
 
   const lookTraits = db.prepare(`
-    SELECT ult.personal_value, ult.personal_value_confidence,
+    SELECT ltd.internal_name, ltd.display_name_he, ltd.display_name_en,
+           ltd.weight as default_weight, ltd.possible_values,
+           ult.personal_value, ult.personal_value_confidence,
            ult.desired_value, ult.desired_value_confidence,
-           ult.weight_for_match, ult.weight_confidence, ult.source,
-           ltd.internal_name, ltd.display_name_he, ltd.display_name_en,
-           ltd.weight as default_weight, ltd.possible_values
-    FROM user_look_traits ult
-    JOIN look_trait_definitions ltd ON ltd.id = ult.look_trait_definition_id
-    WHERE ult.user_id = ?
+           ult.weight_for_match, ult.weight_confidence, ult.source
+    FROM look_trait_definitions ltd
+    LEFT JOIN user_look_traits ult ON ult.look_trait_definition_id = ltd.id AND ult.user_id = ?
+    WHERE ltd.is_active = 1
     ORDER BY ltd.sort_order
   `).all(req.params.id);
 
@@ -783,8 +784,13 @@ app.post("/admin/users/:id/reanalyze", async (req, res) => {
     .join("\n\n");
 
   try {
+    // Clear existing traits for a truly fresh analysis
+    db.prepare("DELETE FROM user_traits WHERE user_id = ?").run(user_id);
+    db.prepare("DELETE FROM user_look_traits WHERE user_id = ?").run(user_id);
+
     const input = buildAnalysisInput(db, transcript);
-    console.log(`[reanalyze] User ${user_id}: ${allAnswers.length} answers, running analysis agent...`);
+    console.log(`[reanalyze] User ${user_id}: ${allAnswers.length} answers, transcript=${transcript.length} chars, running FRESH analysis...`);
+    console.log(`[reanalyze] Transcript preview: ${transcript.slice(0, 300)}...`);
 
     const output = await runAnalysisAgent(input, user_id, "reanalyze");
     const saved = saveAnalysisToDb(db, user_id, output);

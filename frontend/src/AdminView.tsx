@@ -334,9 +334,10 @@ function UserDetail({ userId, onBack, onStartChat }: { userId: number; onBack: (
 
   const { user, profile, traits, lookTraits, coverage } = data;
 
-  // Split traits into visible (normal/special/filter) and internal-use
-  const visibleTraits = traits.filter((t: any) => t.calc_type !== "internal_use");
+  // Split traits into visible, internal-use, text (deal_breakers), and deal_breakers
+  const visibleTraits = traits.filter((t: any) => t.calc_type !== "internal_use" && t.calc_type !== "text");
   const internalTraits = traits.filter((t: any) => t.calc_type === "internal_use");
+  const dealBreakers = traits.find((t: any) => t.internal_name === "deal_breakers" || t.calc_type === "text");
 
   return (
     <div>
@@ -465,47 +466,48 @@ function UserDetail({ userId, onBack, onStartChat }: { userId: number; onBack: (
               )}
             </div>
           )}
-          {visibleTraits.length > 0 ? (
-            <table style={{ ...s.table, marginBottom: 24 }}>
-              <thead>
-                <tr>
-                  <th style={s.th}>Trait</th>
-                  <th style={s.th}>Score</th>
-                  <th style={{ ...s.th, width: 100 }}>Bar</th>
-                  <th style={s.th}>Conf.</th>
-                  <th style={s.th}>Sys W</th>
-                  <th style={s.th}>User W</th>
-                  <th style={s.th}>W Conf.</th>
-                  <th style={s.th}>Effective</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleTraits.map((t: any, i: number) => (
-                  <tr key={i}>
+          <table style={{ ...s.table, marginBottom: 24 }}>
+            <thead>
+              <tr>
+                <th style={s.th}>Trait</th>
+                <th style={s.th}>Group</th>
+                <th style={s.th}>Score</th>
+                <th style={{ ...s.th, width: 100 }}>Bar</th>
+                <th style={s.th}>Conf.</th>
+                <th style={s.th}>Sys W</th>
+                <th style={s.th}>User W</th>
+                <th style={s.th}>Effective</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleTraits.map((t: any, i: number) => {
+                const analyzed = t.score != null;
+                return (
+                  <tr key={i} style={analyzed ? {} : { opacity: 0.45 }}>
                     <td style={s.td}>
-                      {t.display_name_en || t.internal_name}
-                      <span style={{ color: "#aaa", fontSize: 10, marginLeft: 4 }}>{t.display_name_he}</span>
+                      {t.display_name_he || t.internal_name}
+                      <span style={{ color: "#aaa", fontSize: 10, marginLeft: 4 }}>{t.internal_name}</span>
+                    </td>
+                    <td style={s.td}><span style={{ ...s.badge, fontSize: 10 }}>{t.trait_group || "-"}</span></td>
+                    <td style={s.td}>
+                      {analyzed
+                        ? <span style={{ ...s.badge, background: scoreColor(t.score) }}>{t.score}</span>
+                        : <span style={{ color: "#bbb", fontSize: 11 }}>—</span>}
                     </td>
                     <td style={s.td}>
-                      <span style={{ ...s.badge, background: scoreColor(t.score) }}>{t.score}</span>
+                      {analyzed
+                        ? <div style={{ background: "#eee", borderRadius: 3, height: 8, width: 80 }}><div style={{ background: barColor(t.score), borderRadius: 3, height: 8, width: `${t.score}%` }} /></div>
+                        : null}
                     </td>
-                    <td style={s.td}>
-                      <div style={{ background: "#eee", borderRadius: 3, height: 8, width: 80 }}>
-                        <div style={{ background: barColor(t.score), borderRadius: 3, height: 8, width: `${t.score}%` }} />
-                      </div>
-                    </td>
-                    <td style={s.td}>{t.confidence?.toFixed(2)}</td>
+                    <td style={s.td}>{analyzed ? t.confidence?.toFixed(2) : <span style={{ color: "#bbb" }}>—</span>}</td>
                     <td style={s.td}>{t.default_weight}</td>
-                    <td style={s.td}>{t.weight_for_match}</td>
-                    <td style={s.td}>{t.weight_confidence?.toFixed(2) ?? "-"}</td>
-                    <td style={s.td}><strong>{t.effective_weight}</strong></td>
+                    <td style={s.td}>{t.weight_for_match ?? <span style={{ color: "#bbb" }}>—</span>}</td>
+                    <td style={s.td}><strong>{analyzed ? t.effective_weight : "—"}</strong></td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <p style={s.none}>No personality traits found.</p>
-          )}
+                );
+              })}
+            </tbody>
+          </table>
 
           {/* Internal-use Traits */}
           {internalTraits.length > 0 && (
@@ -537,46 +539,51 @@ function UserDetail({ userId, onBack, onStartChat }: { userId: number; onBack: (
             </>
           )}
 
+          {/* Deal Breakers */}
+          <SectionHeading title="Deal Breakers" />
+          <div style={{ background: "#fafafa", borderRadius: 6, padding: "10px 14px", marginBottom: 16, fontSize: 13 }}>
+            {dealBreakers?.score != null || dealBreakers?.source
+              ? <span>{dealBreakers.score || "Analyzed — no specific deal breakers found"}</span>
+              : <span style={{ color: "#999" }}>Not analyzed</span>}
+          </div>
+
           {/* Look Traits */}
           <SectionHeading title={`Look Traits (${lookTraits.length})`} />
           <p style={{ fontSize: 11, color: "#888", margin: "0 0 8px" }}>
             Effective = weight × weight_confidence × value_confidence
           </p>
-          {lookTraits.length > 0 ? (
-            <table style={{ ...s.table, marginBottom: 24 }}>
-              <thead>
-                <tr>
-                  <th style={s.th}>Trait</th>
-                  <th style={s.th}>Personal</th>
-                  <th style={s.th}>P. Conf.</th>
-                  <th style={s.th}>Desired</th>
-                  <th style={s.th}>D. Conf.</th>
-                  <th style={s.th}>Weight</th>
-                  <th style={s.th}>W. Conf.</th>
-                  <th style={s.th}>Effective</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lookTraits.map((lt: any, i: number) => (
-                  <tr key={i}>
+          <table style={{ ...s.table, marginBottom: 24 }}>
+            <thead>
+              <tr>
+                <th style={s.th}>Trait</th>
+                <th style={s.th}>Personal</th>
+                <th style={s.th}>P. Conf.</th>
+                <th style={s.th}>Desired</th>
+                <th style={s.th}>D. Conf.</th>
+                <th style={s.th}>Weight</th>
+                <th style={s.th}>Effective</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lookTraits.map((lt: any, i: number) => {
+                const analyzed = lt.personal_value != null || lt.desired_value != null;
+                return (
+                  <tr key={i} style={analyzed ? {} : { opacity: 0.45 }}>
                     <td style={s.td}>
-                      {lt.display_name_en || lt.internal_name}
-                      <span style={{ color: "#aaa", fontSize: 10, marginLeft: 4 }}>{lt.display_name_he}</span>
+                      {lt.display_name_he || lt.internal_name}
+                      <span style={{ color: "#aaa", fontSize: 10, marginLeft: 4 }}>{lt.internal_name}</span>
                     </td>
-                    <td style={s.td}><span style={s.badge}>{lt.personal_value || "-"}</span></td>
-                    <td style={s.td}>{lt.personal_value_confidence?.toFixed(2) ?? "-"}</td>
-                    <td style={s.td}><span style={lt.desired_value ? { ...s.badge, background: "#d6eaff" } : s.none}>{lt.desired_value || "-"}</span></td>
-                    <td style={s.td}>{lt.desired_value_confidence?.toFixed(2) ?? "-"}</td>
-                    <td style={s.td}>{lt.weight_for_match}</td>
-                    <td style={s.td}>{lt.weight_confidence?.toFixed(2) ?? "-"}</td>
-                    <td style={s.td}><strong>{lt.effective_weight}</strong></td>
+                    <td style={s.td}>{lt.personal_value ? <span style={s.badge}>{lt.personal_value}</span> : <span style={{ color: "#bbb" }}>—</span>}</td>
+                    <td style={s.td}>{lt.personal_value_confidence != null ? lt.personal_value_confidence.toFixed(2) : <span style={{ color: "#bbb" }}>—</span>}</td>
+                    <td style={s.td}>{lt.desired_value ? <span style={{ ...s.badge, background: "#d6eaff" }}>{lt.desired_value}</span> : <span style={{ color: "#bbb" }}>—</span>}</td>
+                    <td style={s.td}>{lt.desired_value_confidence != null ? lt.desired_value_confidence.toFixed(2) : <span style={{ color: "#bbb" }}>—</span>}</td>
+                    <td style={s.td}>{lt.default_weight}</td>
+                    <td style={s.td}><strong>{analyzed ? lt.effective_weight : "—"}</strong></td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <p style={s.none}>No look traits found.</p>
-          )}
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -871,14 +878,12 @@ function TraitDefsTab() {
           <tr>
             <th style={s.th}>#</th>
             <th style={s.th}>Internal Name</th>
-            <th style={s.th}>English</th>
+            <th style={s.th}>Hebrew</th>
+            <th style={s.th}>Group</th>
             <th style={s.th}>Weight</th>
             <th style={s.th}>Req. Conf.</th>
-            <th style={s.th}>Is Filter</th>
-            <th style={s.th}>Filter Type</th>
-            <th style={s.th}>Min</th>
-            <th style={s.th}>Max</th>
             <th style={s.th}>Calc Type</th>
+            <th style={s.th}>AI Guidance</th>
             <th style={s.th}>Active</th>
             <th style={s.th}>Edit</th>
           </tr>
@@ -890,36 +895,16 @@ function TraitDefsTab() {
               <tr key={t.id}>
                 <td style={s.td}>{t.sort_order}</td>
                 <td style={s.td}><code style={s.badge}>{t.internal_name}</code></td>
-                <td style={s.td}>{t.display_name_en || t.display_name_he}</td>
+                <td style={s.td}>{t.display_name_he || t.display_name_en}</td>
+                <td style={s.td}><span style={s.badge}>{t.trait_group || "-"}</span></td>
                 <td style={s.td}>
                   {e ? <input style={s.configInput} value={e.weight} onChange={(ev) => updateField(t.id, "weight", ev.target.value)} /> : <strong>{t.weight}</strong>}
                 </td>
                 <td style={s.td}>{t.required_confidence ?? "-"}</td>
-                <td style={s.td}>
-                  {e ? (
-                    <select style={s.configInput} value={e.is_filter} onChange={(ev) => updateField(t.id, "is_filter", ev.target.value)}>
-                      <option value="no">no</option>
-                      <option value="yes">yes</option>
-                      <option value="user_defined">user_defined</option>
-                    </select>
-                  ) : <span style={s.badge}>{t.is_filter || "no"}</span>}
-                </td>
-                <td style={s.td}>
-                  {e ? (
-                    <select style={s.configInput} value={e.filter_type} onChange={(ev) => updateField(t.id, "filter_type", ev.target.value)}>
-                      <option value="">—</option>
-                      <option value="range">range</option>
-                      <option value="fixed">fixed</option>
-                    </select>
-                  ) : <span style={s.badge}>{t.filter_type || "-"}</span>}
-                </td>
-                <td style={s.td}>
-                  {e ? <input style={{ ...s.configInput, width: 60 }} value={e.min_value} onChange={(ev) => updateField(t.id, "min_value", ev.target.value)} /> : (t.min_value ?? "-")}
-                </td>
-                <td style={s.td}>
-                  {e ? <input style={{ ...s.configInput, width: 60 }} value={e.max_value} onChange={(ev) => updateField(t.id, "max_value", ev.target.value)} /> : (t.max_value ?? "-")}
-                </td>
                 <td style={s.td}><span style={s.badge}>{t.calc_type}</span></td>
+                <td style={{ ...s.td, maxWidth: 200, fontSize: 11, color: "#666", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={t.ai_description || ""}>
+                  {t.ai_description ? t.ai_description.slice(0, 60) + (t.ai_description.length > 60 ? "..." : "") : "-"}
+                </td>
                 <td style={s.td}>{t.is_active ? "Yes" : "No"}</td>
                 <td style={s.td}>
                   {e ? (

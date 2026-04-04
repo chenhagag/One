@@ -3,10 +3,11 @@
 export interface InternalTraitAssessment {
   trait_id: number;
   internal_name: string;
-  score: number;                    // 0-100
+  score: number;                    // 0-100 (for numeric traits)
   confidence: number;               // 0.0-1.0
   weight_for_match?: number | null; // 0-10, only when partner preference detected
   weight_confidence?: number | null;// 0.0-1.0
+  text_value?: string | null;       // for text-type traits like deal_breakers
   source: "ai";
 }
 
@@ -46,21 +47,27 @@ export interface TraitDefinitionInput {
   id: number;
   internal_name: string;
   display_name_en: string;
+  display_name_he?: string;
   ai_description: string;
   required_confidence: number;
   weight: number;
   sensitivity: string;
   calc_type: string;
+  trait_group?: string | null;
 }
 
 export interface LookTraitDefinitionInput {
   id: number;
   internal_name: string;
   display_name_en: string;
+  display_name_he?: string;
   source: string;
   weight: number;
   sensitivity: string;
   possible_values: string[] | null;
+  ai_description?: string | null;
+  required_confidence?: number;
+  trait_group?: string | null;
 }
 
 export interface AnalysisAgentInput {
