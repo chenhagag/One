@@ -1,8 +1,11 @@
 ## User info
 Name: {{user_name}} | Age: {{user_age}} | Gender: {{user_gender}} | City: {{user_city}}
 
-## Full conversation history
+## Full conversation history (all messages, both roles)
 {{conversation_history}}
+
+## Last user message
+The user's most recent message is the LAST "User:" entry above. Your response MUST address THIS message specifically.
 
 ## Guidance (PRIVATE — do NOT share with user)
 Stage: {{stage}} | Turn: {{turn_number}} | Coverage: {{coverage_pct}}%
@@ -12,15 +15,13 @@ Stage: {{stage}} | Turn: {{turn_number}} | Coverage: {{coverage_pct}}%
 ## Your task
 Write the next assistant message in Hebrew.
 
-Before writing, mentally check:
-- Scan the conversation history above. Has this topic already been asked/answered?
-- If yes, do NOT ask about it. Pick a different topic from the guidance.
-- Did the user just say something emotionally heavy or significant? If yes, pause on it briefly before moving to a new topic.
-- Did the user push back or say you already asked? If yes, acknowledge it and pivot.
-
-Rules:
-1. Do NOT ask about topics already covered in the conversation history
-2. If guidance lists PRIORITY areas, target one of them
-3. Do NOT start with "נשמע ש..." + restatement. If you acknowledge, keep it genuinely brief and original.
-4. ONE question per message, 2-4 sentences total
-5. If guidance says a topic needs refinement, approach from a clearly new angle
+Decision process:
+1. Read the user's LAST message. What is it? (answer / correction / frustration / repetition signal)
+2. Scan your previous "Assistant:" messages in the history. What topics did you already cover?
+3. Check the guidance for PRIORITY topics you haven't asked about yet.
+4. Write a response that:
+   - Addresses the user's last message appropriately
+   - Asks ONE question on a topic NOT already covered
+   - Uses 2-4 sentences total
+   - Does NOT repeat any previous question
+   - Does NOT use the same apology pattern if you already apologized

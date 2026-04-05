@@ -82,7 +82,7 @@ export default function ChatScreen() {
   }
 
   function handleComplete() {
-    router.replace("/done");
+    router.replace({ pathname: "/photos", params: { userId: rawUserId || "" } });
   }
 
   const canType = phase === "chatting" || phase === "summarizing";

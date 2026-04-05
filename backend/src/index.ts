@@ -1,6 +1,8 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import path from "path";
+import multer from "multer";
 import db from "./db";
 import { analyzeAnswer } from "./openai";
 import { runStage1 } from "./matchStage1";
@@ -130,6 +132,87 @@ app.post("/analyze", async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════
+// PHOTO UPLOAD
+// ════════════════════════════════════════════════════════════════
+
+const uploadsDir = path.join(__dirname, "../../uploads");
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: uploadsDir,
+    filename: (_req, file, cb) => {
+      const unique = Date.now() + "-" + Math.round(Math.random() * 1e6);
+      const ext = path.extname(file.originalname) || ".jpg";
+      cb(null, `${unique}${ext}`);
+    },
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) cb(null, true);
+    else cb(new Error("Only image files allowed"));
+  },
+});
+
+// Serve uploaded files statically
+app.use("/uploads", express.static(uploadsDir));
+
+// POST /users/:id/photos — Upload a photo
+app.post("/users/:id/photos", upload.single("photo"), (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+  const user = db.prepare("SELECT id FROM users WHERE id = ?").get(userId) as any;
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  db.prepare(
+    "INSERT INTO user_photos (user_id, filename, original_name, mime_type, size_bytes) VALUES (?, ?, ?, ?, ?)"
+  ).run(userId, req.file.filename, req.file.originalname, req.file.mimetype, req.file.size);
+
+  const count = (db.prepare("SELECT COUNT(*) as c FROM user_photos WHERE user_id = ?").get(userId) as any).c;
+
+  return res.json({
+    filename: req.file.filename,
+    url: `/uploads/${req.file.filename}`,
+    photo_count: count,
+  });
+});
+
+// GET /users/:id/photos — List user's photos
+app.get("/users/:id/photos", (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const photos = db.prepare(
+    "SELECT id, filename, original_name, created_at FROM user_photos WHERE user_id = ? ORDER BY created_at ASC"
+  ).all(userId) as any[];
+
+  return res.json({
+    photos: photos.map(p => ({
+      id: p.id,
+      filename: p.filename,
+      url: `/uploads/${p.filename}`,
+      original_name: p.original_name,
+      created_at: p.created_at,
+    })),
+    count: photos.length,
+  });
+});
+
+// DELETE /users/:id/photos/:photoId — Delete a specific photo
+app.delete("/users/:id/photos/:photoId", (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const photoId = parseInt(req.params.photoId, 10);
+
+  const photo = db.prepare("SELECT id, filename FROM user_photos WHERE id = ? AND user_id = ?").get(photoId, userId) as any;
+  if (!photo) return res.status(404).json({ error: "Photo not found" });
+
+  db.prepare("DELETE FROM user_photos WHERE id = ?").run(photoId);
+
+  // Try to delete file (non-critical if it fails)
+  try { require("fs").unlinkSync(path.join(uploadsDir, photo.filename)); } catch {}
+
+  const count = (db.prepare("SELECT COUNT(*) as c FROM user_photos WHERE user_id = ?").get(userId) as any).c;
+  return res.json({ deleted: true, photo_count: count });
+});
+
+// ════════════════════════════════════════════════════════════════
 // MULTI-TURN CONVERSATION — Orchestrated chat flow
 // ════════════════════════════════════════════════════════════════
 
@@ -193,6 +276,7 @@ app.post("/conversation/message", async (req, res) => {
       user_id: userId, turns: [], turn_count: 0,
       last_analysis: null, last_analysis_at_turn: 0, phase: "chatting",
       analysis_in_flight: false, analysis_scheduled_at: 0,
+      asked_appearance: false, asked_dealbreakers: false,
     };
   }
 
@@ -254,6 +338,66 @@ app.get("/conversation/state/:id", (req, res) => {
     last_analysis_at_turn: state.last_analysis_at_turn,
     coverage_pct: cov.coverage_pct,
     turns: state.turns,
+  });
+});
+
+// GET /admin/users/:id/full-transcript — Full conversation history (both roles)
+app.get("/admin/users/:id/full-transcript", (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+
+  // Primary: read from conversation_messages (persisted, both roles)
+  const dbMessages = db.prepare(
+    "SELECT role, content, created_at FROM conversation_messages WHERE user_id = ? ORDER BY created_at ASC, id ASC"
+  ).all(userId) as { role: string; content: string; created_at: string }[];
+
+  if (dbMessages.length > 0) {
+    return res.json({
+      source: "db",
+      turn_count: dbMessages.filter(m => m.role === "user").length,
+      messages: dbMessages.map((m, i) => ({
+        index: i,
+        role: m.role,
+        content: m.content,
+        timestamp: m.created_at,
+      })),
+    });
+  }
+
+  // Fallback: in-memory state (for conversations started before this change)
+  const state = conversationStates.get(userId);
+  if (state && state.turns.length > 0) {
+    return res.json({
+      source: "memory",
+      turn_count: state.turn_count,
+      messages: state.turns.map((t, i) => ({
+        index: i,
+        role: t.role,
+        content: t.content,
+      })),
+    });
+  }
+
+  // Last fallback: old profiles table (user messages only)
+  const profiles = db.prepare(
+    "SELECT raw_answer, created_at FROM profiles WHERE user_id = ? ORDER BY created_at ASC"
+  ).all(userId) as { raw_answer: string; created_at: string }[];
+
+  if (profiles.length === 0) {
+    return res.json({ source: "none", turn_count: 0, messages: [] });
+  }
+
+  const messages = profiles.map((p, i) => ({
+    index: i,
+    role: "user" as const,
+    content: p.raw_answer,
+    timestamp: p.created_at,
+  }));
+
+  return res.json({
+    source: "db",
+    turn_count: profiles.length,
+    note: "Only user messages available (assistant messages are not persisted to DB).",
+    messages,
   });
 });
 
@@ -371,6 +515,36 @@ app.get("/users/:id/profile-status", (req, res) => {
 // ADMIN — Data exploration endpoints
 // ════════════════════════════════════════════════════════════════
 
+// POST /admin/users/:id/freeze — Freeze/suspend a user
+app.post("/admin/users/:id/freeze", (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const user = db.prepare("SELECT id, user_status FROM users WHERE id = ?").get(userId) as any;
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  if (user.user_status === "frozen") {
+    return res.status(400).json({ error: "User is already frozen" });
+  }
+
+  db.prepare("UPDATE users SET user_status = 'frozen' WHERE id = ?").run(userId);
+  console.log(`[admin] Froze user ${userId}`);
+  return res.json({ frozen: true, user_id: userId });
+});
+
+// POST /admin/users/:id/unfreeze — Unfreeze a user
+app.post("/admin/users/:id/unfreeze", (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const user = db.prepare("SELECT id, user_status FROM users WHERE id = ?").get(userId) as any;
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  if (user.user_status !== "frozen") {
+    return res.status(400).json({ error: "User is not frozen" });
+  }
+
+  db.prepare("UPDATE users SET user_status = 'waiting_match' WHERE id = ?").run(userId);
+  console.log(`[admin] Unfroze user ${userId}`);
+  return res.json({ unfrozen: true, user_id: userId });
+});
+
 // DELETE /admin/users/:id — Permanently delete a user and all related data
 app.delete("/admin/users/:id", (req, res) => {
   const userId = parseInt(req.params.id, 10);
@@ -383,6 +557,8 @@ app.delete("/admin/users/:id", (req, res) => {
 
   const result = db.transaction(() => {
     const profiles = db.prepare("DELETE FROM profiles WHERE user_id = ?").run(userId).changes;
+    db.prepare("DELETE FROM conversation_messages WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM user_photos WHERE user_id = ?").run(userId);
     const traits = db.prepare("DELETE FROM user_traits WHERE user_id = ?").run(userId).changes;
     const lookTraits = db.prepare("DELETE FROM user_look_traits WHERE user_id = ?").run(userId).changes;
     const matchScores = db.prepare("DELETE FROM match_scores WHERE match_id IN (SELECT id FROM matches WHERE user1_id = ? OR user2_id = ?)").run(userId, userId).changes;
@@ -419,6 +595,24 @@ app.get("/admin/users", (_req, res) => {
     ORDER BY u.created_at DESC
   `).all();
 
+  // Load moderation trait data for all users in one query
+  const moderationTraits = db.prepare(`
+    SELECT ut.user_id, td.internal_name, ut.score, ut.confidence
+    FROM user_traits ut
+    JOIN trait_definitions td ON td.id = ut.trait_definition_id
+    WHERE td.internal_name IN ('toxicity_score', 'trollness', 'sexual_identity')
+  `).all() as { user_id: number; internal_name: string; score: number; confidence: number }[];
+
+  // Build lookup: user_id → { toxic, troll, identity_flag }
+  const flagMap = new Map<number, { flag_toxic: boolean; flag_troll: boolean; flag_identity: boolean }>();
+  for (const t of moderationTraits) {
+    if (!flagMap.has(t.user_id)) flagMap.set(t.user_id, { flag_toxic: false, flag_troll: false, flag_identity: false });
+    const flags = flagMap.get(t.user_id)!;
+    if (t.internal_name === "toxicity_score" && t.score >= 70 && t.confidence >= 0.6) flags.flag_toxic = true;
+    if (t.internal_name === "trollness" && t.score >= 70 && t.confidence >= 0.6) flags.flag_troll = true;
+    if (t.internal_name === "sexual_identity" && t.score >= 80 && t.confidence >= 0.7) flags.flag_identity = true;
+  }
+
   const now = Date.now();
   const result = (users as any[]).map((u) => {
     let waiting_days = 0;
@@ -426,11 +620,13 @@ app.get("/admin/users", (_req, res) => {
       const ms = now - new Date(u.waiting_since + "Z").getTime();
       waiting_days = Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
     }
+    const flags = flagMap.get(u.id) || { flag_toxic: false, flag_troll: false, flag_identity: false };
     return {
       ...u,
       self_style: u.self_style ? JSON.parse(u.self_style) : null,
       analysis: u.analysis_json ? JSON.parse(u.analysis_json) : null,
       waiting_days,
+      ...flags,
     };
   });
 
@@ -771,17 +967,38 @@ app.post("/admin/users/:id/reanalyze", async (req, res) => {
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(user_id) as any;
   if (!user) return res.status(404).json({ error: "User not found" });
 
+  // Try full conversation (both roles) from conversation_messages first
+  const fullMessages = db.prepare(
+    "SELECT role, content FROM conversation_messages WHERE user_id = ? ORDER BY created_at ASC, id ASC"
+  ).all(user_id) as { role: string; content: string }[];
+
+  // Fallback to profiles (user messages only)
   const allAnswers = db.prepare(
     "SELECT raw_answer, created_at FROM profiles WHERE user_id = ? ORDER BY created_at ASC"
   ).all(user_id) as { raw_answer: string; created_at: string }[];
 
-  if (allAnswers.length === 0) {
-    return res.status(400).json({ error: "No profile answers found for this user" });
+  if (fullMessages.length === 0 && allAnswers.length === 0) {
+    return res.status(400).json({ error: "No conversation data found for this user" });
   }
 
-  const transcript = allAnswers
-    .map((a, i) => `[Round ${i + 1}]\nUser: ${a.raw_answer}`)
-    .join("\n\n");
+  // Build transcript: use full conversation (both roles) + all user answers from profiles
+  // Combine both sources for maximum coverage — dedup user messages
+  const parts: string[] = [];
+
+  if (fullMessages.length > 0) {
+    parts.push("## Full conversation:\n" + fullMessages
+      .map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+      .join("\n\n"));
+  }
+
+  // Also include all user answers from profiles (may contain older/additional data)
+  if (allAnswers.length > 0) {
+    parts.push("## All user answers:\n" + allAnswers
+      .map((a, i) => `[${i + 1}] ${a.raw_answer}`)
+      .join("\n\n"));
+  }
+
+  const transcript = parts.join("\n\n---\n\n");
 
   try {
     // Clear existing traits for a truly fresh analysis

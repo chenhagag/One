@@ -111,35 +111,24 @@ export function saveAnalysisToDb(
   let internal_saved = 0;
   let external_saved = 0;
 
-  db.transaction(() => {
-    for (const t of output.internal_traits) {
-      const result = upsertInternal.run(
-        uid,
-        t.trait_id,
-        t.score,
-        t.confidence,
-        t.weight_for_match ?? null,
-        t.weight_confidence ?? null
-      );
+  // Save each trait individually — skip any that fail FK constraints (bad trait_id from model)
+  for (const t of output.internal_traits) {
+    try {
+      const result = upsertInternal.run(uid, t.trait_id, t.score, t.confidence, t.weight_for_match ?? null, t.weight_confidence ?? null);
       if (result.changes > 0) internal_saved++;
-      else console.warn(`[saveAnalysisToDb] internal trait ${t.trait_id} (${t.internal_name}): 0 changes for user ${uid}`);
+    } catch (err: any) {
+      console.warn(`[saveAnalysisToDb] Skipped internal trait ${t.trait_id} (${t.internal_name}): ${err.message}`);
     }
+  }
 
-    for (const t of output.external_traits) {
-      const result = upsertExternal.run(
-        uid,
-        t.trait_id,
-        t.personal_value ?? null,
-        t.personal_value_confidence ?? null,
-        t.desired_value ?? null,
-        t.desired_value_confidence ?? null,
-        t.weight_for_match ?? null,
-        t.weight_confidence ?? null
-      );
+  for (const t of output.external_traits) {
+    try {
+      const result = upsertExternal.run(uid, t.trait_id, t.personal_value ?? null, t.personal_value_confidence ?? null, t.desired_value ?? null, t.desired_value_confidence ?? null, t.weight_for_match ?? null, t.weight_confidence ?? null);
       if (result.changes > 0) external_saved++;
-      else console.warn(`[saveAnalysisToDb] external trait ${t.trait_id} (${t.internal_name}): 0 changes for user ${uid}`);
+    } catch (err: any) {
+      console.warn(`[saveAnalysisToDb] Skipped external trait ${t.trait_id} (${t.internal_name}): ${err.message}`);
     }
-  })();
+  }
 
   // Verify rows actually exist in DB after commit
   const actualInternal = (db.prepare("SELECT COUNT(*) as c FROM user_traits WHERE user_id = ?").get(uid) as any).c;

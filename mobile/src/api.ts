@@ -82,3 +82,49 @@ export async function pauseConversation(userId: number): Promise<void> {
     body: JSON.stringify({ user_id: userId }),
   });
 }
+
+// ── Photo API ──────────────────────────────────────────────────
+
+export interface PhotoUploadResult {
+  filename: string;
+  url: string;
+  photo_count: number;
+}
+
+export interface UserPhoto {
+  id: number;
+  filename: string;
+  url: string;
+  original_name: string;
+  created_at: string;
+}
+
+export async function uploadPhoto(userId: number, imageUri: string): Promise<PhotoUploadResult> {
+  const formData = new FormData();
+  const filename = imageUri.split("/").pop() || "photo.jpg";
+  const match = /\.(\w+)$/.exec(filename);
+  const type = match ? `image/${match[1]}` : "image/jpeg";
+
+  formData.append("photo", { uri: imageUri, name: filename, type } as any);
+
+  const res = await fetch(`${API_BASE_URL}/users/${userId}/photos`, {
+    method: "POST",
+    body: formData,
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || "Upload failed");
+  return json;
+}
+
+export async function getUserPhotos(userId: number): Promise<{ photos: UserPhoto[]; count: number }> {
+  const res = await fetch(`${API_BASE_URL}/users/${userId}/photos`);
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || "Failed to load photos");
+  return json;
+}
+
+export async function deletePhoto(userId: number, photoId: number): Promise<void> {
+  await fetch(`${API_BASE_URL}/users/${userId}/photos/${photoId}`, { method: "DELETE" });
+}
+
+export { API_BASE_URL };

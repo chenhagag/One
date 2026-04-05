@@ -28,23 +28,26 @@ function getUserTemplate(): string { return loadPrompt("user-template.txt"); }
 
 // ── Build the user message from input ───────────────────────────
 
-function buildUserMessage(input: AnalysisAgentInput): string {
+function buildUserMessage(input: AnalysisAgentInput, fullMode: boolean = false): string {
   let msg = getUserTemplate();
 
   msg = msg.replace("{{transcript}}", input.transcript);
 
-  // Compact format: keep guidance short to avoid overwhelming the model
-  // Full guidance is available but truncated to ~120 chars for prompt efficiency
   const internalDefs = input.internal_trait_definitions
     .map((t) => {
-      const desc = t.ai_description ? t.ai_description.slice(0, 120).replace(/\s+/g, " ") : "";
+      // fullMode: include complete ai_description for maximum accuracy
+      // compact mode: truncate to ~120 chars for token efficiency in live flow
+      // fullMode: 300 chars for richer guidance. compact: 120 chars for token efficiency.
+      const maxLen = fullMode ? 300 : 120;
+      const desc = t.ai_description
+        ? t.ai_description.slice(0, maxLen).replace(/\s+/g, " ")
+        : "";
       const textNote = t.calc_type === "text" ? " [TEXT OUTPUT]" : "";
       return `- ID ${t.id}: ${t.internal_name} (${t.display_name_he || ""}) | ${t.trait_group || ""} | w=${t.weight} req=${t.required_confidence}${textNote}${desc ? " — " + desc : ""}`;
     })
     .join("\n");
   msg = msg.replace("{{internal_trait_definitions}}", internalDefs);
 
-  // Add explicit checklist of ALL trait internal_names the model must evaluate
   const checklist = input.internal_trait_definitions
     .map(t => t.internal_name)
     .join(", ");
@@ -54,7 +57,8 @@ function buildUserMessage(input: AnalysisAgentInput): string {
   const externalDefs = input.external_trait_definitions
     .map((t) => {
       const vals = t.possible_values ? ` values=[${t.possible_values.join(", ")}]` : "";
-      return `- ID ${t.id}: ${t.internal_name} (${t.display_name_he || ""}) | w=${t.weight}${vals}`;
+      const desc = fullMode && t.ai_description ? ` — ${t.ai_description.replace(/\s+/g, " ")}` : "";
+      return `- ID ${t.id}: ${t.internal_name} (${t.display_name_he || ""}) | w=${t.weight}${vals}${desc}`;
     })
     .join("\n");
   msg = msg.replace("{{external_trait_definitions}}", externalDefs);
@@ -326,16 +330,23 @@ function validateOutput(raw: any): AnalysisAgentOutput {
 export async function runAnalysisAgent(
   input: AnalysisAgentInput,
   userId?: number | null,
-  actionType: string = "analysis"
+  actionType: string = "analysis",
+  fullMode: boolean = false
 ): Promise<AnalysisAgentOutput> {
   // Set up ID→name lookups for validation
   setTraitLookups(input.internal_trait_definitions, input.external_trait_definitions);
   setExternalPossibleValues(input.external_trait_definitions as any[]);
   setTextTypeTraits(input.internal_trait_definitions as any[]);
 
-  const userMessage = buildUserMessage(input);
+  const userMessage = buildUserMessage(input, fullMode);
 
   console.log(`[analysis] Input: transcript=${input.transcript.length}chars, ${input.internal_trait_definitions.length} internal + ${input.external_trait_definitions.length} external defs, prompt=${userMessage.length}chars`);
+
+  // Debug: log a sample trait to verify ai_description reaches the prompt
+  const sampleTrait = input.internal_trait_definitions.find(t => t.internal_name === "energy_level");
+  if (sampleTrait) {
+    console.log(`[analysis] Sample trait energy_level ai_description: "${(sampleTrait.ai_description || "EMPTY").slice(0, 100)}"`);
+  }
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -352,6 +363,8 @@ export async function runAnalysisAgent(
 
   const finishReason = response.choices[0].finish_reason;
   const raw = response.choices[0].message.content || "{}";
+  const rawInternalCount = (raw.match(/"trait_id"/g) || []).length;
+  console.log(`[analysis] Output: ${raw.length}chars, finish=${finishReason}, ~${rawInternalCount} traits, tokens=${response.usage?.total_tokens}`);
 
   if (finishReason !== "stop") {
     console.error(`[analysis] WARNING: finish_reason=${finishReason} — output may be truncated!`);

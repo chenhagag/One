@@ -18,7 +18,8 @@ const EXCEL_PATH = path.join(__dirname, "../../Docs/MatchMe DB.xlsx");
 // The Excel uses inconsistent names. This maps them to our canonical names.
 const INTERNAL_NAME_MAP: Record<string, string> = {
   "IQ": "cognitive_profile",
-  "Eq": "emotional_intelligence",
+  "Eq": "eq",
+  "EQ": "eq",
   "Mainsteemness": "vibe",
   "emotional_stability": "emotional_stability",
   "family_orientation": "family_orientation",
@@ -60,10 +61,22 @@ const INTERNAL_NAME_MAP: Record<string, string> = {
 const DISPLAY_NAME_MAP: Record<string, string> = {
   '"ילד טוב"': "good_kid",
   'גיקיות': "nerdiness",
+  'יוקרה תעסוקתית': "career_prestige",
+  'אינטלקטואליות': "intellectualism",
+  'יתרונות אפשריים': "advantages",
+  'אהבת הארץ וציונות': "zionism",
+  'ימניות/שמאלניות': "political_leaning",
+  'צמחונות': "vegetarianism",
+  'מוסר עבודה': "work_ethic",
+  'היפסטריות': "hipsterishness",
+  'סגנון תל אביבי': "tel_aviv_style",
+  'עממיות': "mainstream_style",
+  'היפיות': "hippie_style",
+  'סגנון סובייטי': "soviet_style",
 };
 
 // Traits explicitly NOT in MVP (from Excel note)
-const NOT_MVP = new Set(["StyleType", "luxury_orientation", "goophiness"]);
+const NOT_MVP = new Set(["StyleType"]);
 
 function resolveInternalName(excelName: string | null, displayNameHe: string): string | null {
   // Try display name map first
@@ -100,6 +113,7 @@ function importInternalTraits() {
 
   let sortOrder = 0;
   let updated = 0, inserted = 0, skipped = 0;
+  const excelTraitNames = new Set<string>();
 
   for (let i = 4; i < rows.length; i++) {
     const row = rows[i];
@@ -134,20 +148,39 @@ function importInternalTraits() {
       updated++;
       console.log(`  UPDATE: ${internalName} (group=${group}, weight=${weight}, req_conf=${reqConf})`);
     } else {
-      // Determine calc_type and sensitivity from the trait
-      const calcType = internalName === "deal_breakers" ? "text" :
-        ["toxicity_score", "trollness", "sexual_identity", "appearance_sensitivity"].includes(internalName) ? "internal_use" :
-        "normal";
-      const sensitivity = ["toxicity_score", "trollness", "sexual_identity", "value_rigidity", "appearance_sensitivity", "bluntness_score"].includes(internalName)
+      // Determine calc_type from Excel or trait name
+      const excelCalcType = row[7] ? String(row[7]).trim() : "";
+      let calcType = "normal";
+      if (["deal_breakers", "advantages"].includes(internalName)) calcType = "text";
+      else if (excelCalcType.includes("שימוש פנימי") || excelCalcType.includes("internal")) calcType = "internal_use";
+      else if (["toxicity_score", "trollness", "sexual_identity", "appearance_sensitivity"].includes(internalName)) calcType = "internal_use";
+
+      const excelSensitivity = row[6] ? String(row[6]).trim() : "";
+      const sensitivity = excelSensitivity.includes("רגיש") || ["toxicity_score", "trollness", "sexual_identity", "value_rigidity", "appearance_sensitivity", "career_prestige"].includes(internalName)
         ? "sensitive" : "normal";
 
       insert.run(internalName, displayHe, internalName.replace(/_/g, " "), aiDesc, reqConf, weight, sensitivity, calcType, group, sortOrder);
       inserted++;
-      console.log(`  INSERT: ${internalName} (group=${group}, weight=${weight})`);
+      console.log(`  INSERT: ${internalName} (group=${group}, weight=${weight}, calc=${calcType})`);
+    }
+
+    excelTraitNames.add(internalName);
+  }
+
+  // Delete traits that are in DB but NOT in Excel (removed from MVP)
+  const dbTraits = db.prepare("SELECT id, internal_name FROM trait_definitions WHERE is_active = 1").all() as { id: number; internal_name: string }[];
+  let deleted = 0;
+  for (const t of dbTraits) {
+    if (!excelTraitNames.has(t.internal_name)) {
+      // Delete user_traits referencing this definition first
+      const delUserTraits = db.prepare("DELETE FROM user_traits WHERE trait_definition_id = ?").run(t.id);
+      db.prepare("DELETE FROM trait_definitions WHERE id = ?").run(t.id);
+      deleted++;
+      console.log(`  DELETE: ${t.internal_name} (id=${t.id}, ${delUserTraits.changes} user_traits removed)`);
     }
   }
 
-  console.log(`Internal traits: ${updated} updated, ${inserted} inserted, ${skipped} skipped`);
+  console.log(`Internal traits: ${updated} updated, ${inserted} inserted, ${deleted} deleted, ${skipped} skipped`);
 }
 
 function importExternalTraits() {

@@ -135,59 +135,95 @@ function UsersTab({ onStartChat }: { onStartChat?: (user: { id: number; first_na
     return <UserDetail userId={selectedUserId} onBack={() => setSelectedUserId(null)} onStartChat={onStartChat} />;
   }
 
+  // Split users into flagged sections
+  const flaggedToxic = users.filter((u: any) => u.flag_toxic);
+  const flaggedTroll = users.filter((u: any) => u.flag_troll && !u.flag_toxic);
+  const flaggedIdentity = users.filter((u: any) => u.flag_identity && !u.flag_toxic && !u.flag_troll);
+  const unflagged = users.filter((u: any) => !u.flag_toxic && !u.flag_troll && !u.flag_identity);
+
+  const userHeaders = (
+    <tr>
+      <th style={s.th}>ID</th>
+      <th style={s.th}>Name</th>
+      <th style={s.th}>Email</th>
+      <th style={s.th}>Age</th>
+      <th style={s.th}>Gender</th>
+      <th style={s.th}>Status</th>
+      <th style={s.th}>Matchable</th>
+      <th style={s.th}>Flags</th>
+      <th style={s.th}>Tokens</th>
+    </tr>
+  );
+
+  function UserRow({ u }: { u: any }) {
+    const flags: string[] = [];
+    if (u.flag_toxic) flags.push("TOXIC");
+    if (u.flag_troll) flags.push("TROLL");
+    if (u.flag_identity) flags.push("IDENTITY");
+    return (
+      <tr
+        key={u.id}
+        onClick={() => setSelectedUserId(u.id)}
+        style={{ cursor: "pointer", background: u.user_status === "frozen" ? "#fff0f0" : "" }}
+        onMouseEnter={(e) => (e.currentTarget.style.background = "#f0f4ff")}
+        onMouseLeave={(e) => (e.currentTarget.style.background = u.user_status === "frozen" ? "#fff0f0" : "")}
+      >
+        <td style={s.td}>{u.id}</td>
+        <td style={s.td}><strong>{u.first_name}</strong></td>
+        <td style={s.td}>{u.email}</td>
+        <td style={s.td}>{u.age || "-"}</td>
+        <td style={s.td}><span style={s.badge}>{u.gender || "-"}</span></td>
+        <td style={s.td}><span style={{ ...s.badge, background: u.user_status === "frozen" ? "#f8d7da" : "" }}>{u.user_status || "-"}</span></td>
+        <td style={s.td}>{u.is_matchable ? "Yes" : "No"}</td>
+        <td style={s.td}>
+          {flags.map(f => (
+            <span key={f} style={{
+              display: "inline-block", padding: "1px 6px", borderRadius: 3, fontSize: 10, fontWeight: 600, marginRight: 3,
+              background: f === "TOXIC" ? "#dc3545" : f === "TROLL" ? "#fd7e14" : "#6f42c1",
+              color: "#fff",
+            }}>{f}</span>
+          ))}
+          {flags.length === 0 && "-"}
+        </td>
+        <td style={s.td}>{u.total_tokens ? u.total_tokens.toLocaleString() : "-"}</td>
+      </tr>
+    );
+  }
+
+  function FlaggedSection({ title, color, list }: { title: string; color: string; list: any[] }) {
+    if (list.length === 0) return null;
+    return (
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: color }} />
+          <strong style={{ fontSize: 13 }}>{title} ({list.length})</strong>
+        </div>
+        <table style={s.table}>
+          <thead>{userHeaders}</thead>
+          <tbody>{list.map(u => <UserRow key={u.id} u={u} />)}</tbody>
+        </table>
+      </div>
+    );
+  }
+
   return (
     <div style={s.scrollWrap}>
       <p style={s.sub}>
         {users.length} users — click a row to view full profile
         <span style={{ marginLeft: 16, fontWeight: 600 }}>
-          Users currently in match: {users.filter((u: any) => u.user_status === "in_match").length} / {users.length}
+          Flagged: {flaggedToxic.length + flaggedTroll.length + flaggedIdentity.length} | Frozen: {users.filter((u: any) => u.user_status === "frozen").length}
         </span>
       </p>
+
+      {/* Flagged sections at top */}
+      <FlaggedSection title="Users flagged as toxic" color="#dc3545" list={flaggedToxic} />
+      <FlaggedSection title="Users flagged as troll" color="#fd7e14" list={flaggedTroll} />
+      <FlaggedSection title="Users flagged for declared identity variation" color="#6f42c1" list={flaggedIdentity} />
+
+      {/* All remaining users */}
       <table style={s.table}>
-        <thead>
-          <tr>
-            <th style={s.th}>ID</th>
-            <th style={s.th}>Name</th>
-            <th style={s.th}>Email</th>
-            <th style={s.th}>Age</th>
-            <th style={s.th}>Gender</th>
-            <th style={s.th}>City</th>
-            <th style={s.th}>Height</th>
-            <th style={s.th}>Status</th>
-            <th style={s.th}>Looking For</th>
-            <th style={s.th}>Matchable</th>
-            <th style={s.th}>Wait Days</th>
-            <th style={s.th}>Sys Priority</th>
-            <th style={s.th}>Tokens</th>
-            <th style={s.th}>Cost</th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.map((u) => (
-            <tr
-              key={u.id}
-              onClick={() => setSelectedUserId(u.id)}
-              style={{ cursor: "pointer" }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "#f0f4ff")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "")}
-            >
-              <td style={s.td}>{u.id}</td>
-              <td style={s.td}><strong>{u.first_name}</strong></td>
-              <td style={s.td}>{u.email}</td>
-              <td style={s.td}>{u.age || "-"}</td>
-              <td style={s.td}><span style={s.badge}>{u.gender || "-"}</span></td>
-              <td style={s.td}>{u.city || "-"}</td>
-              <td style={s.td}>{u.height || "-"}</td>
-              <td style={s.td}><span style={s.badge}>{u.user_status || "-"}</span></td>
-              <td style={s.td}><span style={s.badge}>{u.looking_for_gender || "-"}</span></td>
-              <td style={s.td}>{u.is_matchable ? "Yes" : "No"}</td>
-              <td style={s.td}>{u.waiting_days ?? 0}</td>
-              <td style={s.td}>{u.system_match_priority != null ? <strong>{u.system_match_priority}</strong> : "-"}</td>
-              <td style={s.td}>{u.total_tokens ? u.total_tokens.toLocaleString() : "-"}</td>
-              <td style={s.td}>{u.total_cost_usd ? `$${u.total_cost_usd.toFixed(4)}` : "-"}</td>
-            </tr>
-          ))}
-        </tbody>
+        <thead>{userHeaders}</thead>
+        <tbody>{unflagged.map(u => <UserRow key={u.id} u={u} />)}</tbody>
       </table>
     </div>
   );
@@ -206,6 +242,9 @@ function UserDetail({ userId, onBack, onStartChat }: { userId: number; onBack: (
   const [cancelInProgress, setCancelInProgress] = useState<number | null>(null);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [transcript, setTranscript] = useState<any>(null);
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   function loadMatches() {
     fetch(`/api/admin/users/${userId}/matches`)
@@ -321,6 +360,7 @@ function UserDetail({ userId, onBack, onStartChat }: { userId: number; onBack: (
     loadUserData();
     loadMatches();
     fetch(`/api/admin/users/${userId}/token-usage`).then(r => r.json()).then(setTokenUsage).catch(() => {});
+    fetch(`/api/admin/users/${userId}/full-transcript`).then(r => r.json()).then(setTranscript).catch(() => {});
   }, [userId]);
 
   // Navigate to another user's profile from match candidates
@@ -337,7 +377,8 @@ function UserDetail({ userId, onBack, onStartChat }: { userId: number; onBack: (
   // Split traits into visible, internal-use, text (deal_breakers), and deal_breakers
   const visibleTraits = traits.filter((t: any) => t.calc_type !== "internal_use" && t.calc_type !== "text");
   const internalTraits = traits.filter((t: any) => t.calc_type === "internal_use");
-  const dealBreakers = traits.find((t: any) => t.internal_name === "deal_breakers" || t.calc_type === "text");
+  const dealBreakers = traits.find((t: any) => t.internal_name === "deal_breakers");
+  const advantages = traits.find((t: any) => t.internal_name === "advantages");
 
   return (
     <div>
@@ -353,6 +394,28 @@ function UserDetail({ userId, onBack, onStartChat }: { userId: number; onBack: (
             </button>
           )}
           <button
+            style={{
+              padding: "4px 12px", fontSize: 12, cursor: "pointer", border: "none", borderRadius: 4,
+              background: user.user_status === "frozen" ? "#28a745" : "#fd7e14", color: "#fff",
+            }}
+            onClick={async () => {
+              const action = user.user_status === "frozen" ? "unfreeze" : "freeze";
+              if (!confirm(action === "freeze"
+                ? `Freeze user #${userId} (${user.first_name})? They will not be included in matching.`
+                : `Unfreeze user #${userId} (${user.first_name})? They will return to matching pool.`
+              )) return;
+              try {
+                const r = await fetch(`/api/admin/users/${userId}/${action}`, { method: "POST" });
+                const json = await r.json();
+                if (!r.ok) { alert(json.error || `${action} failed`); return; }
+                alert(`User ${action === "freeze" ? "frozen" : "unfrozen"}.`);
+                loadUserData();
+              } catch { alert("Network error"); }
+            }}
+          >
+            {user.user_status === "frozen" ? "Unfreeze User" : "Freeze User"}
+          </button>
+          <button
             style={{ padding: "4px 12px", fontSize: 12, cursor: "pointer", background: "#dc3545", color: "#fff", border: "none", borderRadius: 4 }}
             onClick={handleDeleteUser}
           >
@@ -360,6 +423,13 @@ function UserDetail({ userId, onBack, onStartChat }: { userId: number; onBack: (
           </button>
         </div>
       </div>
+
+      {/* Frozen banner */}
+      {user.user_status === "frozen" && (
+        <div style={{ background: "#f8d7da", border: "1px solid #f5c6cb", borderRadius: 6, padding: "8px 14px", marginBottom: 8, fontSize: 13, color: "#721c24", fontWeight: 600 }}>
+          This user is frozen and excluded from matching.
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 4 }}>
@@ -541,9 +611,17 @@ function UserDetail({ userId, onBack, onStartChat }: { userId: number; onBack: (
 
           {/* Deal Breakers */}
           <SectionHeading title="Deal Breakers" />
-          <div style={{ background: "#fafafa", borderRadius: 6, padding: "10px 14px", marginBottom: 16, fontSize: 13 }}>
-            {dealBreakers?.score != null || dealBreakers?.source
+          <div style={{ background: "#fff8f0", borderRadius: 6, padding: "10px 14px", marginBottom: 16, fontSize: 13, border: "1px solid #ffe0b2" }}>
+            {dealBreakers?.source
               ? <span>{dealBreakers.score || "Analyzed — no specific deal breakers found"}</span>
+              : <span style={{ color: "#999" }}>Not analyzed</span>}
+          </div>
+
+          {/* Advantages */}
+          <SectionHeading title="Advantages" />
+          <div style={{ background: "#f0fff4", borderRadius: 6, padding: "10px 14px", marginBottom: 16, fontSize: 13, border: "1px solid #c3e6cb" }}>
+            {advantages?.source
+              ? <span>{advantages.score || "Analyzed — no specific advantages found"}</span>
               : <span style={{ color: "#999" }}>Not analyzed</span>}
           </div>
 
@@ -586,6 +664,50 @@ function UserDetail({ userId, onBack, onStartChat }: { userId: number; onBack: (
           </table>
         </div>
       </div>
+
+      {/* Full Conversation */}
+      {transcript && transcript.messages?.length > 0 && (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16 }}>
+            <SectionHeading title={`Full Conversation (${transcript.messages.length} messages${transcript.source === "db" ? " — user only" : ""})`} />
+            <button
+              style={{ padding: "3px 10px", fontSize: 11, cursor: "pointer", background: transcriptOpen ? "#eee" : "#f0f4ff", border: "1px solid #ddd", borderRadius: 4 }}
+              onClick={() => setTranscriptOpen(!transcriptOpen)}
+            >
+              {transcriptOpen ? "Hide" : "Show"}
+            </button>
+            <button
+              style={{ padding: "3px 10px", fontSize: 11, cursor: "pointer", background: copied ? "#d4edda" : "#fff", border: "1px solid #ddd", borderRadius: 4 }}
+              onClick={() => {
+                const text = transcript.messages
+                  .map((m: any) => `${m.role === "user" ? "User" : m.role === "assistant" ? "Assistant" : "System"}: ${m.content}`)
+                  .join("\n\n");
+                navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+              }}
+            >
+              {copied ? "Copied!" : "Copy Transcript"}
+            </button>
+          </div>
+          {transcriptOpen && (
+            <div style={{ background: "#fafafa", borderRadius: 8, padding: 16, marginBottom: 16, maxHeight: 500, overflowY: "auto", fontSize: 13, lineHeight: 1.7 }}>
+              {transcript.note && <p style={{ fontSize: 11, color: "#999", margin: "0 0 12px", fontStyle: "italic" }}>{transcript.note}</p>}
+              {transcript.messages.map((m: any, i: number) => (
+                <div key={i} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid #eee" }}>
+                  <span style={{
+                    display: "inline-block", padding: "1px 8px", borderRadius: 3, fontSize: 10, fontWeight: 600, marginBottom: 4,
+                    background: m.role === "user" ? "#1a1a1a" : m.role === "assistant" ? "#e8e8e8" : "#f8f4e8",
+                    color: m.role === "user" ? "#fff" : "#333",
+                  }}>
+                    {m.role === "user" ? "User" : m.role === "assistant" ? "Assistant" : "System"}
+                  </span>
+                  {m.timestamp && <span style={{ fontSize: 10, color: "#aaa", marginLeft: 8 }}>{m.timestamp}</span>}
+                  <div style={{ whiteSpace: "pre-wrap", marginTop: 4 }}>{m.content}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
 
       {/* Matches */}
       <SectionHeading title={`Matches (${matches.length})`} />

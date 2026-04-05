@@ -269,7 +269,35 @@ export function createSchema(db: Database.Database) {
     );
 
     -- ================================================================
-    -- 7. TOKEN USAGE TRACKING
+    -- 7. USER PHOTOS
+    -- ================================================================
+    CREATE TABLE IF NOT EXISTS user_photos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      filename TEXT NOT NULL,
+      original_name TEXT,
+      mime_type TEXT,
+      size_bytes INTEGER,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_user_photos_user ON user_photos(user_id);
+
+    -- ================================================================
+    -- 8. CONVERSATION MESSAGES (full history — both roles)
+    -- ================================================================
+    CREATE TABLE IF NOT EXISTS conversation_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      role TEXT NOT NULL,         -- 'user', 'assistant', or 'system'
+      content TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_conv_messages_user ON conversation_messages(user_id, created_at);
+
+    -- ================================================================
+    -- 8. TOKEN USAGE TRACKING
     -- ================================================================
     CREATE TABLE IF NOT EXISTS token_usage (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

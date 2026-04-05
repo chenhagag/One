@@ -25,8 +25,11 @@ export interface ConversationState {
   last_analysis_at_turn: number; // user turn when analysis last ran
   phase: ConversationPhase;
   // Background analysis tracking
-  analysis_in_flight: boolean;     // true while a background analysis is running
-  analysis_scheduled_at: number;   // which turn triggered the in-flight analysis
+  analysis_in_flight: boolean;
+  analysis_scheduled_at: number;
+  // Mandatory question tracking
+  asked_appearance: boolean;     // "יש משהו במראה שלך..."
+  asked_dealbreakers: boolean;   // "יש משהו חשוב עלייך..."
 }
 
 export interface NextTurnResult {
@@ -88,41 +91,40 @@ export function computeCoverage(db: Database.Database, userId: number): Coverage
   // Score internal traits
   for (const def of internalDefs) {
     const reqConf = def.required_confidence || 0.5;
-    const w = def.weight || 1;
-    totalWeight += w;
+    const w = def.weight;  // use actual weight, do NOT default 0→1
 
     const conf = traitConfMap.get(def.id);
     if (conf == null) {
       missing++;
-      // readiness_i = 0 for missing traits (contributes 0 to weighted sum)
-      if (def.weight >= 3) unmet.push(def.internal_name);
+      if (w > 0) totalWeight += w; // only count weighted traits in denominator
+      if (w >= 3) unmet.push(def.internal_name);
     } else if (conf >= reqConf) {
       met++;
-      weightedReadinessSum += w * 1.0; // capped at 1.0
+      if (w > 0) { totalWeight += w; weightedReadinessSum += w * 1.0; }
     } else {
       below++;
-      weightedReadinessSum += w * Math.min(conf / reqConf, 1.0);
-      if (def.weight >= 3) unmet.push(def.internal_name);
+      if (w > 0) { totalWeight += w; weightedReadinessSum += w * Math.min(conf / reqConf, 1.0); }
+      if (w >= 3) unmet.push(def.internal_name);
     }
   }
 
   // Score external traits
   for (const def of externalDefs) {
     const reqConf = EXTERNAL_REQ_CONF;
-    const w = def.weight || 1;
-    totalWeight += w;
+    const w = def.weight;  // use actual weight, do NOT default 0→1
 
     const conf = lookConfMap.get(def.id);
     if (conf == null || conf === 0) {
       missing++;
-      if (def.weight >= 20) unmet.push(def.internal_name);
+      if (w > 0) totalWeight += w;
+      if (w >= 20) unmet.push(def.internal_name);
     } else if (conf >= reqConf) {
       met++;
-      weightedReadinessSum += w * 1.0;
+      if (w > 0) { totalWeight += w; weightedReadinessSum += w * 1.0; }
     } else {
       below++;
-      weightedReadinessSum += w * Math.min(conf / reqConf, 1.0);
-      if (def.weight >= 20) unmet.push(def.internal_name);
+      if (w > 0) { totalWeight += w; weightedReadinessSum += w * Math.min(conf / reqConf, 1.0); }
+      if (w >= 20) unmet.push(def.internal_name);
     }
   }
 
@@ -179,7 +181,8 @@ const TRAIT_TO_TOPIC: Record<string, string> = {
   party_orientation: "nightlife / going out",
   luxury_orientation: "lifestyle expectations / materialism",
   extrovert: "social energy / introvert vs extrovert",
-  energy_level: "activity level / energy",
+  career_prestige: "career / education level / professional prestige",
+  intellectualism: "intellectual depth / abstract thinking",
   analytical_tendency: "how they make decisions",
   seriousness: "how serious vs playful they are",
   goofiness: "humor style / silliness",
@@ -199,7 +202,7 @@ const TRAIT_TO_TOPIC: Record<string, string> = {
   work_ethic: "ambition / career drive",
   good_kid: "responsibility / reliability",
   appearance_sensitivity: "how much looks matter to them",
-  bluntness_score: "communication directness",
+  advantages: "potential advantages / unique positive qualities",
   deal_breakers: "absolute deal-breakers in a partner",
   hipsterishness: "cultural style / hipster tendencies",
   tel_aviv_style: "urban / Tel Aviv lifestyle",
@@ -335,26 +338,43 @@ function getStage(turnCount: number, profileComplete: boolean, phase: Conversati
 // Assistant messages are truncated to save tokens (user messages are kept in full
 // because they contain the actual information the agent must not re-ask about).
 function formatHistory(turns: ConversationTurn[]): string {
+  // Full history — both roles untruncated so the agent can see what it already asked
   return turns.map(t => {
     const label = t.role === "user" ? "User" : "Assistant";
-    // Truncate long assistant messages (the agent doesn't need its own verbose output)
-    const content = t.role === "assistant" && t.content.length > 150
-      ? t.content.slice(0, 150) + "..."
-      : t.content;
-    return `${label}: ${content}`;
+    return `${label}: ${t.content}`;
   }).join("\n\n");
 }
 
 // ── Build transcript for analysis agent ────────────────────────
 
 function buildAnalysisTranscript(db: Database.Database, userId: number): string {
+  // Try full conversation (both roles) from conversation_messages
+  const fullMessages = db.prepare(
+    "SELECT role, content FROM conversation_messages WHERE user_id = ? ORDER BY created_at ASC, id ASC"
+  ).all(userId) as { role: string; content: string }[];
+
+  if (fullMessages.length > 0) {
+    return fullMessages
+      .map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+      .join("\n\n");
+  }
+
+  // Fallback: old profiles table (user messages only)
   const allAnswers = db.prepare(
-    "SELECT raw_answer, created_at FROM profiles WHERE user_id = ? ORDER BY created_at ASC"
-  ).all(userId) as { raw_answer: string; created_at: string }[];
+    "SELECT raw_answer FROM profiles WHERE user_id = ? ORDER BY created_at ASC"
+  ).all(userId) as { raw_answer: string }[];
 
   return allAnswers
     .map((a, i) => `[Round ${i + 1}]\nUser: ${a.raw_answer}`)
     .join("\n\n");
+}
+
+// ── Persist a message to conversation_messages ──────────────────
+
+function persistMessage(db: Database.Database, userId: number, role: string, content: string): void {
+  db.prepare(
+    "INSERT INTO conversation_messages (user_id, role, content) VALUES (?, ?, ?)"
+  ).run(userId, role, content);
 }
 
 // ── Background analysis runner ─────────────────────────────────
@@ -414,10 +434,11 @@ export async function processUserMessage(
   state.turns.push({ role: "user", content: userMessage });
   state.turn_count++;
 
-  // 2. Store answer in profiles table
+  // 2. Store in both profiles (legacy) and conversation_messages (full history)
   db.prepare(
     "INSERT INTO profiles (user_id, raw_answer, analysis_json) VALUES (?, ?, '{}')"
   ).run(userId, userMessage);
+  persistMessage(db, userId, "user", userMessage);
 
   // 3. If we're in summarizing phase, the user is responding to the summary → confirm
   if (state.phase === "summarizing") {
@@ -425,6 +446,7 @@ export async function processUserMessage(
     const userRow = db.prepare("SELECT gender, looking_for_gender FROM users WHERE id = ?").get(userId) as any;
     const closing = getFixedClosing({ gender: userRow?.gender, lookingFor: userRow?.looking_for_gender });
     state.turns.push({ role: "assistant", content: closing });
+    persistMessage(db, userId, "assistant", closing);
     const cov = computeCoverage(db, userId);
     updateUserReadiness(db, userId, cov);
 
@@ -461,11 +483,67 @@ export async function processUserMessage(
     updateUserReadiness(db, userId, cov);
   }
 
-  // 7. Check if we should move to summarizing phase
-  // Stop conditions: profile fully complete OR 10 questions reached
-  const readyForSummary = cov.profile_complete || state.turn_count >= MAX_QUESTIONS;
+  // 7. Detect if mandatory questions were asked (scan assistant messages)
+  if (!state.asked_appearance || !state.asked_dealbreakers) {
+    for (const t of state.turns) {
+      if (t.role !== "assistant") continue;
+      const lc = t.content.toLowerCase();
+      if (lc.includes("מראה") || lc.includes("סטייל") || lc.includes("חזות") || lc.includes("מבנה גוף")) {
+        state.asked_appearance = true;
+      }
+      if (lc.includes("דיל ברייקר") || lc.includes("שוברי עסקאות") || lc.includes("דברים שחשוב") || lc.includes("ערכים") && lc.includes("זהות")) {
+        state.asked_dealbreakers = true;
+      }
+    }
+  }
 
-  if (readyForSummary && state.phase === "chatting") {
+  // 8. Check if we should move to summarizing phase
+  const hitQuestionLimit = state.turn_count >= MAX_QUESTIONS;
+  const canEnd = cov.profile_complete || hitQuestionLimit;
+
+  // If we hit the limit but mandatory questions weren't asked, force them instead of ending
+  if (canEnd && state.phase === "chatting" && (!state.asked_appearance || !state.asked_dealbreakers)) {
+    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+    let forcedQuestion = "";
+    if (!state.asked_appearance) {
+      forcedQuestion = "MANDATORY: You MUST ask the appearance/presence question now. Ask in Hebrew: יש משהו במראה שלך, בסטייל או באנרגיה שלך, שחשוב שניקח בחשבון בשידוך?";
+    } else {
+      forcedQuestion = "MANDATORY: You MUST ask the deal-breakers/identity question now. Ask in Hebrew: יש משהו חשוב עלייך — באורח החיים, בזהות, בערכים, או דברים שהם דיל ברייקרס מבחינתך — שחשוב שאדע?";
+    }
+
+    const ctx: ConversationContext = {
+      user_name: user?.first_name || "there",
+      user_age: user?.age,
+      user_gender: user?.gender,
+      user_city: user?.city,
+      conversation_history: formatHistory(state.turns),
+      turn_number: state.turn_count,
+      stage: "later",
+      coverage_pct: coveragePct,
+      guidance_block: forcedQuestion,
+    };
+
+    const assistantMessage = await runConversationAgent(ctx, userId, "conversation_turn");
+    state.turns.push({ role: "assistant", content: assistantMessage });
+    persistMessage(db, userId, "assistant", assistantMessage);
+
+    console.log(`[orchestrator] Forced mandatory question (appearance=${state.asked_appearance}, dealbreakers=${state.asked_dealbreakers}) at turn ${state.turn_count}`);
+
+    return {
+      result: {
+        assistant_message: assistantMessage,
+        analysis_ran: false,
+        analysis_in_background: analysisKicked,
+        phase: state.phase,
+        coverage_pct: coveragePct,
+        readiness_score: cov.readiness_score,
+        turn_count: state.turn_count,
+      },
+      state,
+    };
+  }
+
+  if (canEnd && state.phase === "chatting") {
     state.phase = "summarizing";
 
     const profileSummary = analysis ? buildProfileSummary(analysis) : "Profile data gathered.";
@@ -485,6 +563,7 @@ export async function processUserMessage(
 
     const assistantMessage = await runConversationAgent(ctx, userId, "conversation_summary");
     state.turns.push({ role: "assistant", content: assistantMessage });
+    persistMessage(db, userId, "assistant", assistantMessage);
 
     console.log(`[orchestrator] Moving to summary: profile_complete=${cov.profile_complete}, turns=${state.turn_count}, readiness=${cov.readiness_score}`);
 
@@ -521,6 +600,7 @@ export async function processUserMessage(
 
   const assistantMessage = await runConversationAgent(ctx, userId, "conversation_turn");
   state.turns.push({ role: "assistant", content: assistantMessage });
+  persistMessage(db, userId, "assistant", assistantMessage);
 
   return {
     result: {
@@ -606,6 +686,7 @@ export function generateOpeningMessage(
   const gCtx: GenderContext = { gender: user?.gender, lookingFor: user?.looking_for_gender };
 
   const introMessage = getFixedIntro(userName, gCtx);
+  persistMessage(db, userId, "assistant", introMessage);
 
   const state: ConversationState = {
     user_id: userId,
@@ -616,6 +697,8 @@ export function generateOpeningMessage(
     phase: "chatting",
     analysis_in_flight: false,
     analysis_scheduled_at: 0,
+    asked_appearance: false,
+    asked_dealbreakers: false,
   };
 
   return { message: introMessage, state };
