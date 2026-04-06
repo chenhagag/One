@@ -14,75 +14,17 @@ dotenv.config();
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// ── Load prompts from files ─────────────────────────────────────
-
 const PROMPTS_DIR = path.join(__dirname, "prompts");
 
 function loadPrompt(filename: string): string {
   return fs.readFileSync(path.join(PROMPTS_DIR, filename), "utf-8");
 }
 
-// Prompts are loaded fresh each call so edits take effect without restart
-function getSystemPrompt(): string { return loadPrompt("system.txt"); }
-function getUserTemplate(): string { return loadPrompt("user-template.txt"); }
+// ── Trait lookups ──────────────────────────────────────────────
 
-// ── Build the user message from input ───────────────────────────
-
-function buildUserMessage(input: AnalysisAgentInput, fullMode: boolean = false): string {
-  let msg = getUserTemplate();
-
-  msg = msg.replace("{{transcript}}", input.transcript);
-
-  const internalDefs = input.internal_trait_definitions
-    .map((t) => {
-      // fullMode: include complete ai_description for maximum accuracy
-      // compact mode: truncate to ~120 chars for token efficiency in live flow
-      // fullMode: 300 chars for richer guidance. compact: 120 chars for token efficiency.
-      const maxLen = fullMode ? 300 : 120;
-      const desc = t.ai_description
-        ? t.ai_description.slice(0, maxLen).replace(/\s+/g, " ")
-        : "";
-      const textNote = t.calc_type === "text" ? " [TEXT OUTPUT]" : "";
-      return `- ID ${t.id}: ${t.internal_name} (${t.display_name_he || ""}) | ${t.trait_group || ""} | w=${t.weight} req=${t.required_confidence}${textNote}${desc ? " — " + desc : ""}`;
-    })
-    .join("\n");
-  msg = msg.replace("{{internal_trait_definitions}}", internalDefs);
-
-  const checklist = input.internal_trait_definitions
-    .map(t => t.internal_name)
-    .join(", ");
-  msg = msg.replace("{{trait_checklist}}", checklist);
-  msg = msg.replace("{{trait_count}}", String(input.internal_trait_definitions.length));
-
-  const externalDefs = input.external_trait_definitions
-    .map((t) => {
-      const vals = t.possible_values ? ` values=[${t.possible_values.join(", ")}]` : "";
-      const desc = fullMode && t.ai_description ? ` — ${t.ai_description.replace(/\s+/g, " ")}` : "";
-      return `- ID ${t.id}: ${t.internal_name} (${t.display_name_he || ""}) | w=${t.weight}${vals}${desc}`;
-    })
-    .join("\n");
-  msg = msg.replace("{{external_trait_definitions}}", externalDefs);
-
-  if (input.existing_profile) {
-    msg = msg.replace(
-      "{{existing_profile}}",
-      JSON.stringify(input.existing_profile, null, 2)
-    );
-  } else {
-    msg = msg.replace("{{existing_profile}}", "No existing profile. This is a new user.");
-  }
-
-  msg = msg.replace("{{internal_total}}", String(input.internal_trait_definitions.length));
-  msg = msg.replace("{{external_total}}", String(input.external_trait_definitions.length));
-
-  return msg;
-}
-
-// ── Validation ──────────────────────────────────────────────────
-
-// Trait ID lookup maps — populated before validation
 let internalIdToName = new Map<number, string>();
 let externalIdToName = new Map<number, string>();
+let textTypeTraits = new Set<number>();
 
 function setTraitLookups(
   internalDefs: { id: number; internal_name: string }[],
@@ -92,225 +34,259 @@ function setTraitLookups(
   externalIdToName = new Map(externalDefs.map((d) => [d.id, d.internal_name]));
 }
 
-// Track which traits are text-type (like deal_breakers)
-let textTypeTraits = new Set<number>();
-
 function setTextTypeTraits(defs: { id: number; calc_type: string }[]) {
   textTypeTraits = new Set(defs.filter(d => d.calc_type === "text").map(d => d.id));
 }
 
-function validateInternalTrait(t: any): InternalTraitAssessment | null {
-  // Accept trait_id or id
-  let traitId = t.trait_id ?? t.id;
+// ── External trait fuzzy matching ──────────────────────────────
 
-  // Fallback: resolve trait_id from internal_name if model forgot to include the ID
-  if (typeof traitId !== "number" && t.internal_name) {
-    for (const [id, name] of internalIdToName) {
-      if (name === t.internal_name) { traitId = id; break; }
-    }
-  }
-
-  if (typeof traitId !== "number") return null;
-
-  const name = t.internal_name ?? internalIdToName.get(traitId) ?? `trait_${traitId}`;
-
-  // Text-type traits (like deal_breakers): accept text_value instead of numeric score
-  if (textTypeTraits.has(traitId)) {
-    const textVal = t.text_value ?? t.value ?? t.score;
-    if (textVal == null) return null;
-    return {
-      trait_id: traitId,
-      internal_name: name,
-      score: 0,
-      confidence: typeof t.confidence === "number" ? Math.round(t.confidence * 100) / 100 : 0.5,
-      text_value: String(textVal),
-      source: "ai",
-    };
-  }
-
-  // Normal numeric traits
-  if (typeof t.score !== "number" || t.score < 0 || t.score > 100) return null;
-  if (typeof t.confidence !== "number" || t.confidence < 0 || t.confidence > 1) return null;
-
-  return {
-    trait_id: traitId,
-    internal_name: name,
-    score: Math.round(t.score * 100) / 100,
-    confidence: Math.round(t.confidence * 100) / 100,
-    weight_for_match: t.weight_for_match != null ? Math.round(t.weight_for_match * 100) / 100 : null,
-    weight_confidence: t.weight_confidence != null ? Math.round(t.weight_confidence * 100) / 100 : null,
-    source: "ai",
-  };
-}
-
-// Map of possible_values keywords → external trait internal_name for fuzzy matching
 let externalNameToId = new Map<string, number>();
-let externalPossibleValues = new Map<number, string[]>(); // trait_id → possible values
+let externalPossibleValues = new Map<number, string[]>();
 
-// Synonyms that map natural language to trait internal_name.
-// These catch common user expressions that don't appear in possible_values.
 const EXTERNAL_TRAIT_SYNONYMS: Record<string, string[]> = {
-  body_type: [
-    "sturdy", "broad", "solid", "strong", "built", "buff", "beefy",
-    "athletic", "fit", "lean", "petite", "curvy", "thick", "big",
-    "skinny", "heavy", "stocky", "lanky", "bulky", "ripped",
-    "masculine build", "has presence", "well-built",
-  ],
-  skin_color: [
-    "tan", "tanned", "dark-skinned", "pale", "fair", "olive", "brown",
-  ],
-  height: [
-    "tall", "short", "average height",
-  ],
-  gender_expression: [
-    "masculine", "feminine", "androgynous", "manly", "womanly", "butch", "femme",
-  ],
-  look_style: [
-    "sporty", "elegant", "casual", "hipster", "groomed", "natural",
-  ],
-  grooming_level: [
-    "well-groomed", "scruffy", "polished", "clean-cut", "rugged",
-  ],
+  body_type: ["sturdy", "broad", "solid", "strong", "built", "buff", "beefy", "athletic", "fit", "lean", "petite", "curvy", "thick", "big", "skinny", "heavy", "stocky", "lanky", "bulky", "ripped", "masculine build", "has presence", "well-built"],
+  skin_color: ["tan", "tanned", "dark-skinned", "pale", "fair", "olive", "brown"],
+  height: ["tall", "short", "average height"],
+  gender_expression: ["masculine", "feminine", "androgynous", "manly", "womanly", "butch", "femme"],
+  look_style: ["sporty", "elegant", "casual", "hipster", "groomed", "natural"],
+  grooming_level: ["well-groomed", "scruffy", "polished", "clean-cut", "rugged"],
 };
 
 function setExternalPossibleValues(defs: { id: number; internal_name: string; possible_values?: string[] | null }[]) {
   externalNameToId = new Map(defs.map(d => [d.internal_name, d.id]));
   externalPossibleValues = new Map();
   for (const d of defs) {
-    // Combine DB possible_values with synonym list for this trait
-    const dbVals = (d.possible_values && Array.isArray(d.possible_values))
-      ? d.possible_values.map(v => String(v).toLowerCase())
-      : [];
+    const dbVals = (d.possible_values && Array.isArray(d.possible_values)) ? d.possible_values.map(v => String(v).toLowerCase()) : [];
     const synonyms = (EXTERNAL_TRAIT_SYNONYMS[d.internal_name] || []).map(s => s.toLowerCase());
     const combined = [...new Set([...dbVals, ...synonyms])];
-    if (combined.length > 0) {
-      externalPossibleValues.set(d.id, combined);
-    }
+    if (combined.length > 0) externalPossibleValues.set(d.id, combined);
   }
 }
 
+// ── All active traits from DB are analyzed (no filter) ─────────
+const ACTIVE_TRAIT_NAMES: Set<string> | null = null;
+
+// Traits that explicitly allow weight_for_match output (per trait definition instruction)
+const WEIGHT_ALLOWED_TRAITS = new Set([
+  "cognitive_profile",
+  "career_prestige",
+]);
+
+function filterActiveTraits(defs: AnalysisAgentInput["internal_trait_definitions"]): AnalysisAgentInput["internal_trait_definitions"] {
+  if (!ACTIVE_TRAIT_NAMES) return defs; // null = no filter, analyze all
+  return defs.filter(t => ACTIVE_TRAIT_NAMES.has(t.internal_name));
+}
+
+// ── Build Stage A prompt (structured trait blocks from Excel columns D-G) ──
+
+function buildTraitPrompt(traits: AnalysisAgentInput["internal_trait_definitions"]): string {
+  const blocks: string[] = [];
+
+  for (const t of traits) {
+    const lines: string[] = [];
+    lines.push(`תכונה: ${t.display_name_he || t.internal_name}`);
+    lines.push(`מזהה: ${t.internal_name} (ID=${t.id})`);
+
+    if (t.ai_description) {
+      // The ai_description is structured with labeled sections from Excel columns D-G
+      // Only include sections that have actual content — skip empty ones entirely
+      const rawSections = t.ai_description.split("\n").filter((l: string) => l.trim());
+
+      const sectionPatterns: RegExp[] = [
+        /^סיגנלים:/,
+        /^הבחנות:/,
+        /^סקאלה:/,
+      ];
+
+      for (const s of rawSections) {
+        const trimmedLine = s.trim();
+        if (!trimmedLine) continue;
+
+        // Check if it's a labeled section
+        const isLabeled = sectionPatterns.some(p => p.test(trimmedLine));
+        if (isLabeled) {
+          lines.push(trimmedLine);
+        } else if (trimmedLine.length > 3) {
+          // General explanation or unmatched content
+          lines.push(trimmedLine);
+        }
+      }
+    }
+
+    if (t.calc_type === "text") {
+      lines.push("סוג פלט: טקסט בלבד, לא ציון מספרי");
+    }
+
+    blocks.push(lines.join("\n"));
+  }
+
+  return blocks.join("\n\n---\n\n");
+}
+
+function buildStageAUserMessage(input: AnalysisAgentInput): string {
+  // Filter to active traits only
+  const activeTraits = filterActiveTraits(input.internal_trait_definitions);
+  const traitPrompt = buildTraitPrompt(activeTraits);
+
+  const externalDefs = input.external_trait_definitions
+    .map((t) => {
+      const vals = t.possible_values ? ` values=[${t.possible_values.join(", ")}]` : "";
+      return `- ${t.internal_name} (${t.display_name_he || ""}) | w=${t.weight}${vals}`;
+    })
+    .join("\n");
+
+  const checklist = activeTraits.map(t => t.internal_name).join(", ");
+  const traitCount = activeTraits.length;
+
+  return `## תמליל שיחה
+${input.transcript}
+
+## הגדרות תכונות פנימיות
+
+${traitPrompt}
+
+## תכונות חיצוניות
+${externalDefs}
+
+## פרופיל קיים
+${input.existing_profile ? JSON.stringify(input.existing_profile, null, 2) : "אין פרופיל קיים."}
+
+## המשימה — קריטי
+
+חובה לכתוב בלוק עבור כל אחת מ-${traitCount} התכונות הפנימיות. אסור לדלג.
+
+עבור תכונות עם ראיות → פורמט מלא.
+עבור תכונות ללא ראיות → פורמט קצר:
+## [שם]
+Key: [internal_name]
+ראיות: אין אינדיקציה ברורה
+ציון: [best guess] | ודאות: 0.1
+
+הערה: weight_for_match — רק אם מצוין מפורשות בהגדרת התכונה. אם לא — לא לכתוב weight.
+
+## רשימת כל התכונות (חובה — כל אחת חייבת להופיע בפלט)
+${checklist}
+
+אזהרה: אם חסרות תכונות — הפלט פסול.
+
+אם אין ראיות ישירות — בדוק ראיות עקיפות.
+אם אין כלום — ציון best-guess עם ודאות 0.1. הציון לא חייב להיות 50 — תן את ההערכה הסבירה ביותר.
+
+אזהרה: אם חסרים תכונות בפלט — התוצאה פסולה. כל ${traitCount} חייבות להופיע.
+
+אחרי כל התכונות: דיל ברייקרס, יתרונות, תכונות חסרות, הערות כלליות.
+
+גם עבור תכונות חיצוניות — הערך personal_value ו-desired_value בנפרד.`;
+}
+
+// ── Validation (same as before but simplified) ─────────────────
+
+function validateInternalTrait(t: any): InternalTraitAssessment | null {
+  let traitId = t.trait_id ?? t.id;
+  if (typeof traitId !== "number" && t.internal_name) {
+    for (const [id, name] of internalIdToName) {
+      if (name === t.internal_name) { traitId = id; break; }
+    }
+  }
+  if (typeof traitId !== "number") return null;
+
+  const name = t.internal_name ?? internalIdToName.get(traitId) ?? `trait_${traitId}`;
+
+  if (textTypeTraits.has(traitId)) {
+    const textVal = t.text_value ?? t.value ?? t.score;
+    if (textVal == null) return null;
+    return { trait_id: traitId, internal_name: name, score: 0, confidence: typeof t.confidence === "number" ? Math.round(t.confidence * 100) / 100 : 0.5, text_value: String(textVal), source: "ai" };
+  }
+
+  if (typeof t.score !== "number" || t.score < 0 || t.score > 100) return null;
+  if (typeof t.confidence !== "number" || t.confidence < 0 || t.confidence > 1) return null;
+
+  // Only allow weight_for_match for traits that explicitly define it in their definition
+  const allowWeight = WEIGHT_ALLOWED_TRAITS.has(name);
+  return {
+    trait_id: traitId, internal_name: name,
+    score: Math.round(t.score * 100) / 100,
+    confidence: Math.round(t.confidence * 100) / 100,
+    weight_for_match: allowWeight && t.weight_for_match != null ? Math.round(t.weight_for_match * 100) / 100 : null,
+    weight_confidence: allowWeight && t.weight_confidence != null ? Math.round(t.weight_confidence * 100) / 100 : null,
+    source: "ai",
+  };
+}
+
 function guessExternalTraitId(t: any): number | null {
-  // Try trait_id / id first
   const directId = t.trait_id ?? t.id;
   if (typeof directId === "number") return directId;
-
-  // Try internal_name match
   if (t.internal_name) {
     const id = externalNameToId.get(t.internal_name);
     if (id != null) return id;
-    // Try partial match
     for (const [name, id] of externalNameToId) {
       if (t.internal_name.toLowerCase().includes(name) || name.includes(t.internal_name.toLowerCase())) return id;
     }
   }
-
-  // Match desired_value or personal_value against possible_values + synonyms
   const valuesToCheck = [t.desired_value, t.personal_value].filter(Boolean).map((v: any) => String(v).toLowerCase().trim());
   for (const val of valuesToCheck) {
     for (const [traitId, possibleVals] of externalPossibleValues) {
       if (possibleVals.some(pv => pv === val || pv.includes(val) || val.includes(pv))) return traitId;
     }
   }
-
   return null;
 }
 
 function validateExternalTrait(t: any): ExternalTraitAssessment | null {
   const traitId = guessExternalTraitId(t);
-
   if (typeof traitId !== "number") return null;
-
-  // At least one value must be present
   if (t.personal_value == null && t.desired_value == null) return null;
 
   const name = t.internal_name ?? externalIdToName.get(traitId) ?? `look_trait_${traitId}`;
-
   let personalValue = t.personal_value ?? null;
-  let personalConfidence = t.personal_value_confidence != null
-    ? Math.round(t.personal_value_confidence * 100) / 100
-    : null;
-
+  let personalConfidence = t.personal_value_confidence != null ? Math.round(t.personal_value_confidence * 100) / 100 : null;
   const desiredValue = t.desired_value ?? null;
-  const desiredConfidence = t.desired_value_confidence != null
-    ? Math.round(t.desired_value_confidence * 100) / 100
-    : null;
+  const desiredConfidence = t.desired_value_confidence != null ? Math.round(t.desired_value_confidence * 100) / 100 : null;
 
-  // Post-processing guard: if personal_value looks like it was mirrored from desired_value
-  // (same or very similar value + similar confidence), strip it.
-  // The model often incorrectly infers "user IS X" from "user WANTS X in a partner".
+  // Strip mirrored personal_value
   if (personalValue != null && desiredValue != null) {
     const pv = String(personalValue).toLowerCase().trim();
     const dv = String(desiredValue).toLowerCase().trim();
     const confDiff = Math.abs((personalConfidence ?? 0) - (desiredConfidence ?? 0));
-    // If values are identical/similar and confidence is within 0.15, it's likely mirrored
     if ((pv === dv || pv.includes(dv) || dv.includes(pv)) && confDiff <= 0.15) {
-      console.log(`[validateExternalTrait] Stripped mirrored personal_value="${personalValue}" from ${name} (matched desired_value="${desiredValue}")`);
-      personalValue = null;
-      personalConfidence = null;
+      personalValue = null; personalConfidence = null;
     }
   }
-
-  // After stripping, still need at least one value
   if (personalValue == null && desiredValue == null) return null;
 
   return {
-    trait_id: traitId,
-    internal_name: name,
-    personal_value: personalValue,
-    personal_value_confidence: personalConfidence,
-    desired_value: desiredValue,
-    desired_value_confidence: desiredConfidence,
-    weight_for_match: t.weight_for_match ?? null,
-    weight_confidence: t.weight_confidence ?? null,
+    trait_id: traitId, internal_name: name,
+    personal_value: personalValue, personal_value_confidence: personalConfidence,
+    desired_value: desiredValue, desired_value_confidence: desiredConfidence,
+    weight_for_match: t.weight_for_match ?? null, weight_confidence: t.weight_confidence ?? null,
     source: "ai",
   };
 }
 
-function validateOutput(raw: any): AnalysisAgentOutput {
+function validateStageBOutput(raw: any): AnalysisAgentOutput {
   const internal_traits: InternalTraitAssessment[] = [];
   const external_traits: ExternalTraitAssessment[] = [];
-
-  const rawInternalCount = Array.isArray(raw.internal_traits) ? raw.internal_traits.length : 0;
-  const rawExternalCount = Array.isArray(raw.external_traits) ? raw.external_traits.length : 0;
-
-  // Log raw external trait structure for debugging
-  if (Array.isArray(raw.external_traits) && raw.external_traits.length > 0) {
-    console.log(`[validateOutput] Raw external trait sample:`, JSON.stringify(raw.external_traits[0]));
-  }
 
   if (Array.isArray(raw.internal_traits)) {
     for (const t of raw.internal_traits) {
       const valid = validateInternalTrait(t);
       if (valid) internal_traits.push(valid);
-      else console.warn(`[validateOutput] Dropped internal trait:`, JSON.stringify(t));
     }
-  } else if (raw.internal_traits !== undefined) {
-    console.warn(`[validateOutput] internal_traits is not an array:`, typeof raw.internal_traits);
   }
 
   const seenExternalIds = new Set<number>();
   if (Array.isArray(raw.external_traits)) {
     for (const t of raw.external_traits) {
       const valid = validateExternalTrait(t);
-      if (valid) {
-        // Deduplicate: keep first occurrence per trait_id
-        if (!seenExternalIds.has(valid.trait_id)) {
-          seenExternalIds.add(valid.trait_id);
-          external_traits.push(valid);
-        }
-      } else {
-        console.warn(`[validateOutput] Dropped external trait:`, JSON.stringify(t));
+      if (valid && !seenExternalIds.has(valid.trait_id)) {
+        seenExternalIds.add(valid.trait_id);
+        external_traits.push(valid);
       }
     }
-  } else if (raw.external_traits !== undefined) {
-    console.warn(`[validateOutput] external_traits is not an array:`, typeof raw.external_traits);
   }
 
-  console.log(`[validateOutput] Raw: ${rawInternalCount} internal, ${rawExternalCount} external → Valid: ${internal_traits.length} internal, ${external_traits.length} external`);
-
   return {
-    internal_traits,
-    external_traits,
+    internal_traits, external_traits,
     missing_traits: Array.isArray(raw.missing_traits) ? raw.missing_traits : [],
     recommended_probes: Array.isArray(raw.recommended_probes) ? raw.recommended_probes : [],
     profiling_completeness: {
@@ -325,57 +301,103 @@ function validateOutput(raw: any): AnalysisAgentOutput {
   };
 }
 
-// ── Main Agent Function ─────────────────────────────────────────
+// ── Main 2-Stage Agent Function ────────────────────────────────
+
+export interface AnalysisRunData {
+  generated_prompt: string;
+  stage_a_output: string;
+  stage_b_output: AnalysisAgentOutput;
+}
 
 export async function runAnalysisAgent(
   input: AnalysisAgentInput,
   userId?: number | null,
   actionType: string = "analysis",
-  fullMode: boolean = false
-): Promise<AnalysisAgentOutput> {
-  // Set up ID→name lookups for validation
+): Promise<AnalysisAgentOutput & { _run_data?: AnalysisRunData }> {
   setTraitLookups(input.internal_trait_definitions, input.external_trait_definitions);
   setExternalPossibleValues(input.external_trait_definitions as any[]);
   setTextTypeTraits(input.internal_trait_definitions as any[]);
 
-  const userMessage = buildUserMessage(input, fullMode);
+  // ── Stage A: Text analysis ──────────────────────────────────
+  const stageASystem = loadPrompt("stage-a-system.txt");
+  const stageAUser = buildStageAUserMessage(input);
 
-  console.log(`[analysis] Input: transcript=${input.transcript.length}chars, ${input.internal_trait_definitions.length} internal + ${input.external_trait_definitions.length} external defs, prompt=${userMessage.length}chars`);
+  console.log(`[analysis] Stage A: transcript=${input.transcript.length}chars, prompt=${stageAUser.length}chars`);
 
-  // Debug: log a sample trait to verify ai_description reaches the prompt
-  const sampleTrait = input.internal_trait_definitions.find(t => t.internal_name === "energy_level");
-  if (sampleTrait) {
-    console.log(`[analysis] Sample trait energy_level ai_description: "${(sampleTrait.ai_description || "EMPTY").slice(0, 100)}"`);
-  }
-
-  const response = await openai.chat.completions.create({
+  const stageAResponse = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
-      { role: "system", content: getSystemPrompt() },
-      { role: "user", content: userMessage },
+      { role: "system", content: stageASystem },
+      { role: "user", content: stageAUser },
     ],
     temperature: 0.2,
-    max_tokens: 8000,  // 39 traits × ~150 chars each + externals + completeness ≈ 7000+
+    max_tokens: 16000,  // Stage A produces text — needs more room than JSON
+  });
+
+  trackTokens(userId ?? null, `${actionType}_stage_a`, "gpt-4o-mini", stageAResponse.usage);
+
+  const stageAOutput = stageAResponse.choices[0].message.content || "";
+  const stageAFinish = stageAResponse.choices[0].finish_reason;
+
+  console.log(`[analysis] Stage A output: ${stageAOutput.length}chars, finish=${stageAFinish}`);
+  if (stageAFinish !== "stop") {
+    console.error(`[analysis] WARNING: Stage A finish_reason=${stageAFinish}`);
+  }
+
+  // ── Stage B: JSON structuring ───────────────────────────────
+  const stageBSystem = loadPrompt("stage-b-system.txt");
+
+  // Build trait ID mapping for Stage B (only active traits)
+  const activeTraits = filterActiveTraits(input.internal_trait_definitions);
+  const idMapping = activeTraits
+    .map(t => `${t.internal_name} → ID ${t.id}`)
+    .join("\n");
+  const extIdMapping = input.external_trait_definitions
+    .map(t => `${t.internal_name} → ID ${t.id}`)
+    .join("\n");
+
+  const stageBUser = `## Stage A Analysis Output
+${stageAOutput}
+
+## Trait ID Mapping (internal)
+${idMapping}
+
+## Trait ID Mapping (external)
+${extIdMapping}
+
+## Task
+Convert the Stage A analysis above into the required JSON format.
+Use the trait ID mapping to fill trait_id for each trait.
+internal_total = ${activeTraits.length}
+external_total = ${input.external_trait_definitions.length}`;
+
+  const stageBResponse = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      { role: "system", content: stageBSystem },
+      { role: "user", content: stageBUser },
+    ],
+    temperature: 0,
+    max_tokens: 8000,
     response_format: { type: "json_object" },
   });
 
-  trackTokens(userId ?? null, actionType, "gpt-4o-mini", response.usage);
+  trackTokens(userId ?? null, `${actionType}_stage_b`, "gpt-4o-mini", stageBResponse.usage);
 
-  const finishReason = response.choices[0].finish_reason;
-  const raw = response.choices[0].message.content || "{}";
-  const rawInternalCount = (raw.match(/"trait_id"/g) || []).length;
-  console.log(`[analysis] Output: ${raw.length}chars, finish=${finishReason}, ~${rawInternalCount} traits, tokens=${response.usage?.total_tokens}`);
+  const stageBRaw = stageBResponse.choices[0].message.content || "{}";
+  console.log(`[analysis] Stage B output: ${stageBRaw.length}chars`);
 
-  if (finishReason !== "stop") {
-    console.error(`[analysis] WARNING: finish_reason=${finishReason} — output may be truncated!`);
-  }
+  const parsed = JSON.parse(stageBRaw);
+  const result = validateStageBOutput(parsed);
 
-  const parsed = JSON.parse(raw);
+  console.log(`[analysis] Final: ${result.internal_traits.length} internal, ${result.external_traits.length} external`);
 
-  if (process.env.ANALYSIS_DEBUG) {
-    console.log("\n=== RAW MODEL OUTPUT (first 2000 chars) ===");
-    console.log(raw.slice(0, 2000));
-  }
+  // Attach run data for persistence
+  const runData: AnalysisRunData = {
+    generated_prompt: stageAUser,
+    stage_a_output: stageAOutput,
+    stage_b_output: result,
+  };
 
-  return validateOutput(parsed);
+  return Object.assign(result, { _run_data: runData });
 }

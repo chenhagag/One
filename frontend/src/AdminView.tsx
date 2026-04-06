@@ -245,6 +245,10 @@ function UserDetail({ userId, onBack, onStartChat }: { userId: number; onBack: (
   const [transcript, setTranscript] = useState<any>(null);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [analysisRun, setAnalysisRun] = useState<any>(null);
+  const [showPrompt, setShowPrompt] = useState(false);
+  const [showStageA, setShowStageA] = useState(false);
+  const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
 
   function loadMatches() {
     fetch(`/api/admin/users/${userId}/matches`)
@@ -308,6 +312,7 @@ function UserDetail({ userId, onBack, onStartChat }: { userId: number; onBack: (
       if (!r.ok) { alert(json.error || "Re-analysis failed"); return; }
       alert(`Re-analysis complete: ${json.saved.internal_saved} internal + ${json.saved.external_saved} external traits saved`);
       loadUserData();
+      fetch(`/api/admin/users/${userId}/analysis-run`).then(r => r.json()).then(setAnalysisRun).catch(() => {});
     } catch { alert("Network error"); }
     finally { setReanalyzing(false); }
   }
@@ -361,6 +366,7 @@ function UserDetail({ userId, onBack, onStartChat }: { userId: number; onBack: (
     loadMatches();
     fetch(`/api/admin/users/${userId}/token-usage`).then(r => r.json()).then(setTokenUsage).catch(() => {});
     fetch(`/api/admin/users/${userId}/full-transcript`).then(r => r.json()).then(setTranscript).catch(() => {});
+    fetch(`/api/admin/users/${userId}/analysis-run`).then(r => r.json()).then(setAnalysisRun).catch(() => {});
   }, [userId]);
 
   // Navigate to another user's profile from match candidates
@@ -706,6 +712,43 @@ function UserDetail({ userId, onBack, onStartChat }: { userId: number; onBack: (
               ))}
             </div>
           )}
+        </>
+      )}
+
+      {/* Analysis Debug View */}
+      {analysisRun?.exists && (
+        <>
+          {/* Generated Trait Prompt */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16 }}>
+            <SectionHeading title="Generated Trait Prompt" />
+            <button style={{ padding: "2px 8px", fontSize: 11, cursor: "pointer", background: showPrompt ? "#eee" : "#f0f4ff", border: "1px solid #ddd", borderRadius: 4 }}
+              onClick={() => setShowPrompt(!showPrompt)}>{showPrompt ? "Hide" : "Show"}</button>
+          </div>
+          {showPrompt && (
+            <div style={{ background: "#fafafa", borderRadius: 6, padding: 12, marginBottom: 12, maxHeight: 400, overflowY: "auto", fontSize: 11, lineHeight: 1.6, whiteSpace: "pre-wrap", fontFamily: "monospace" }}>
+              {analysisRun.generated_prompt}
+            </div>
+          )}
+
+          {/* Stage A Analysis */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <SectionHeading title="AI Analysis — Stage A (Text)" />
+            <button style={{ padding: "2px 8px", fontSize: 11, cursor: "pointer", background: showStageA ? "#eee" : "#f0f4ff", border: "1px solid #ddd", borderRadius: 4 }}
+              onClick={() => setShowStageA(!showStageA)}>{showStageA ? "Hide" : "Show"}</button>
+            <button style={{ padding: "2px 8px", fontSize: 11, cursor: "pointer", background: copiedLabel === "a" ? "#d4edda" : "#f0f4ff", border: "1px solid #ddd", borderRadius: 4 }}
+              onClick={() => { navigator.clipboard.writeText(analysisRun.stage_a_output || ""); setCopiedLabel("a"); setTimeout(() => setCopiedLabel(l => l === "a" ? null : l), 1500); }}>{copiedLabel === "a" ? "Copied ✓" : "Copy Stage A"}</button>
+            <button style={{ padding: "2px 8px", fontSize: 11, cursor: "pointer", background: copiedLabel === "b" ? "#d4edda" : "#f0f4ff", border: "1px solid #ddd", borderRadius: 4 }}
+              onClick={() => { const raw = analysisRun.stage_b_output || ""; let text: string; try { text = typeof raw === "string" ? JSON.stringify(JSON.parse(raw), null, 2) : JSON.stringify(raw, null, 2); } catch { text = String(raw); } navigator.clipboard.writeText(text); setCopiedLabel("b"); setTimeout(() => setCopiedLabel(l => l === "b" ? null : l), 1500); }}>{copiedLabel === "b" ? "Copied ✓" : "Copy Stage B"}</button>
+          </div>
+          {showStageA && (
+            <div style={{ background: "#fffde7", borderRadius: 6, padding: 12, marginBottom: 12, maxHeight: 500, overflowY: "auto", fontSize: 12, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
+              {analysisRun.stage_a_output}
+            </div>
+          )}
+
+          <p style={{ fontSize: 10, color: "#aaa", margin: "0 0 16px" }}>
+            Last analysis run: {analysisRun.created_at}
+          </p>
         </>
       )}
 

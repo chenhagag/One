@@ -20,7 +20,8 @@ const INTERNAL_NAME_MAP: Record<string, string> = {
   "IQ": "cognitive_profile",
   "Eq": "eq",
   "EQ": "eq",
-  "Mainsteemness": "vibe",
+  "Mainstreamness": "mainstreamness",
+  "Mainsteemness": "mainstreamness",
   "emotional_stability": "emotional_stability",
   "family_orientation": "family_orientation",
   "party_orientation": "party_orientation",
@@ -67,9 +68,9 @@ const DISPLAY_NAME_MAP: Record<string, string> = {
   'אהבת הארץ וציונות': "zionism",
   'ימניות/שמאלניות': "political_leaning",
   'צמחונות': "vegetarianism",
-  'מוסר עבודה': "work_ethic",
+  // 'מוסר עבודה' removed from MVP
   'היפסטריות': "hipsterishness",
-  'סגנון תל אביבי': "tel_aviv_style",
+  // 'סגנון תל אביבי' removed from MVP
   'עממיות': "mainstream_style",
   'היפיות': "hippie_style",
   'סגנון סובייטי': "soviet_style",
@@ -93,11 +94,16 @@ function resolveInternalName(excelName: string | null, displayNameHe: string): s
 
 function importInternalTraits() {
   const wb = XLSX.readFile(EXCEL_PATH);
-  const ws = wb.Sheets["מאפיינים - כללי"];
+  // Use the new "internal traits" sheet (replaces deprecated "מאפיינים - כללי")
+  const ws = wb.Sheets["internal traits"] || wb.Sheets["מאפיינים - כללי"];
+  if (!ws) { console.error("ERROR: Neither 'internal traits' nor 'מאפיינים - כללי' sheet found"); return; }
   const rows = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
 
-  // Headers at row index 3
-  // Data starts at row index 4, stops when we hit the "not in MVP" marker
+  // Sheet structure (read from header row 3):
+  // 0(A)=שם פנימי, 1(B)=קבוצה, 2(C)=תכונה, 3(D)=הסבר כללי, 4(E)=מה כן נחשב סיגנל,
+  // 5(F)=הבחנות, 6(G)=סקאלת ציונים, 7(H)=ודאות נדרשת, 8(I)=משקל,
+  // 9(J)=רגישות, 10(K)=סוג חישוב, 11(L)=טווח סינון דיפולטי, 12(M)=טווח סינון אישי, 13(N)=הערות
+
   const upsert = db.prepare(`
     UPDATE trait_definitions SET
       display_name_he = ?, ai_description = ?, required_confidence = ?,
@@ -117,14 +123,19 @@ function importInternalTraits() {
 
   for (let i = 4; i < rows.length; i++) {
     const row = rows[i];
-    if (!row || !row[0]) continue;
+    if (!row || (!row[0] && !row[2])) continue;
 
-    const displayHe = String(row[0]).trim();
+    // Col A(0)=שם פנימי, Col B(1)=קבוצה, Col C(2)=תכונה
+    const excelName = row[0] ? String(row[0]).trim() : null;
+    const group = row[1] ? String(row[1]).trim() : null;
+    const displayHe = row[2] ? String(row[2]).trim() : "";
 
-    // Stop at "not in MVP" marker
+    // Stop at "not in MVP" marker (can appear in col A or col C)
     if (displayHe.includes("לא נכנסו") || displayHe.includes("MVP")) break;
+    if (excelName && (excelName.includes("לא נכנסו") || excelName.includes("MVP"))) break;
 
-    const excelName = row[1] ? String(row[1]).trim() : null;
+    if (!displayHe) continue;
+
     if (excelName && NOT_MVP.has(excelName)) { skipped++; continue; }
 
     const internalName = resolveInternalName(excelName, displayHe);
@@ -134,10 +145,22 @@ function importInternalTraits() {
       continue;
     }
 
-    const group = row[2] ? String(row[2]).trim() : null;
-    const aiDesc = row[3] ? String(row[3]).trim() : null;
-    const reqConf = typeof row[4] === "number" ? row[4] : 0.5;
-    const weight = typeof row[5] === "number" ? row[5] : 0;
+    // Build structured ai_description from Excel columns D-G (indices 3-6)
+    // Only include sections that have actual content — skip empty columns entirely
+    const parts: string[] = [];
+    const col3 = row[3] ? String(row[3]).trim() : "";  // הסבר כללי
+    const col4 = row[4] ? String(row[4]).trim() : "";  // מה כן נחשב סיגנל
+    const col5 = row[5] ? String(row[5]).trim() : "";  // הבחנות
+    const col6 = row[6] ? String(row[6]).trim() : "";  // סקאלת ציונים
+    if (col3) parts.push(col3);
+    if (col4) parts.push(`סיגנלים: ${col4}`);
+    if (col5) parts.push(`הבחנות: ${col5}`);
+    if (col6) parts.push(`סקאלה: ${col6}`);
+    const aiDesc = parts.join("\n") || null;
+
+    // System fields (indices 7+)
+    const reqConf = typeof row[7] === "number" ? row[7] : 0.5;
+    const weight = typeof row[8] === "number" ? row[8] : 0;
     sortOrder++;
 
     // Check if exists
@@ -148,14 +171,15 @@ function importInternalTraits() {
       updated++;
       console.log(`  UPDATE: ${internalName} (group=${group}, weight=${weight}, req_conf=${reqConf})`);
     } else {
-      // Determine calc_type from Excel or trait name
-      const excelCalcType = row[7] ? String(row[7]).trim() : "";
+      // Determine calc_type from Excel col 10 or trait name
+      const excelCalcType = row[10] ? String(row[10]).trim() : "";
       let calcType = "normal";
       if (["deal_breakers", "advantages"].includes(internalName)) calcType = "text";
       else if (excelCalcType.includes("שימוש פנימי") || excelCalcType.includes("internal")) calcType = "internal_use";
       else if (["toxicity_score", "trollness", "sexual_identity", "appearance_sensitivity"].includes(internalName)) calcType = "internal_use";
 
-      const excelSensitivity = row[6] ? String(row[6]).trim() : "";
+      // Sensitivity from Excel col 9
+      const excelSensitivity = row[9] ? String(row[9]).trim() : "";
       const sensitivity = excelSensitivity.includes("רגיש") || ["toxicity_score", "trollness", "sexual_identity", "value_rigidity", "appearance_sensitivity", "career_prestige"].includes(internalName)
         ? "sensitive" : "normal";
 

@@ -1,5 +1,6 @@
 export { runAnalysisAgent } from "./agent";
-export { buildAnalysisInput, saveAnalysisToDb, loadInternalTraitDefs, loadExternalTraitDefs } from "./loader";
+export type { AnalysisRunData } from "./agent";
+export { buildAnalysisInput, saveAnalysisToDb, saveAnalysisRun, getLatestAnalysisRun, loadInternalTraitDefs, loadExternalTraitDefs } from "./loader";
 export type {
   AnalysisAgentOutput,
   AnalysisAgentInput,

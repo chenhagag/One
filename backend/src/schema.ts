@@ -269,7 +269,22 @@ export function createSchema(db: Database.Database) {
     );
 
     -- ================================================================
-    -- 7. USER PHOTOS
+    -- 7. ANALYSIS RUNS (Stage A/B debug and transparency)
+    -- ================================================================
+    CREATE TABLE IF NOT EXISTS analysis_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      generated_prompt TEXT,
+      stage_a_output TEXT,
+      stage_b_output TEXT,
+      action_type TEXT DEFAULT 'analysis',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_analysis_runs_user ON analysis_runs(user_id, created_at);
+
+    -- ================================================================
+    -- 8. USER PHOTOS
     -- ================================================================
     CREATE TABLE IF NOT EXISTS user_photos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -407,7 +422,7 @@ export function createSchema(db: Database.Database) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   insertTrait.run("hipsterishness", "היפסטריות", "Hipsterishness", "Hipster style and culture affinity", 0.2, 4, "sensitive", "normal", 36);
-  insertTrait.run("tel_aviv_style", "סגנון תל אביבי", "Tel Aviv Style", "Tel Aviv urban culture and lifestyle", 0.2, 3, "normal", "normal", 37);
+  // tel_aviv_style removed from MVP
   insertTrait.run("mainstream_style", "עממיות", "Mainstream Style", "Mainstream/populist style and taste", 0.4, 6, "sensitive", "normal", 38);
   insertTrait.run("nerdiness", "חנוניות", "Nerdiness", "Nerd culture affinity and intellectual style", 0.3, 4, "sensitive", "normal", 39);
   insertTrait.run("hippie_style", "היפיות", "Hippie Style", "Hippie/free-spirit lifestyle and values", 0.2, 3, "normal", "normal", 40);

@@ -141,3 +141,31 @@ export function saveAnalysisToDb(
 
   return { internal_saved, external_saved };
 }
+
+/**
+ * Save analysis run data (prompt, Stage A, Stage B) for debugging.
+ */
+export function saveAnalysisRun(
+  db: Database.Database,
+  userId: number,
+  generatedPrompt: string,
+  stageAOutput: string,
+  stageBOutput: string,
+  actionType: string = "analysis"
+): void {
+  db.prepare(
+    "INSERT INTO analysis_runs (user_id, generated_prompt, stage_a_output, stage_b_output, action_type) VALUES (?, ?, ?, ?, ?)"
+  ).run(userId, generatedPrompt, stageAOutput, stageBOutput, actionType);
+}
+
+/**
+ * Get the latest analysis run for a user.
+ */
+export function getLatestAnalysisRun(
+  db: Database.Database,
+  userId: number
+): { generated_prompt: string; stage_a_output: string; stage_b_output: string; created_at: string } | null {
+  return db.prepare(
+    "SELECT generated_prompt, stage_a_output, stage_b_output, created_at FROM analysis_runs WHERE user_id = ? ORDER BY created_at DESC LIMIT 1"
+  ).get(userId) as any || null;
+}

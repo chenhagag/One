@@ -7,7 +7,7 @@ import db from "./db";
 import { analyzeAnswer } from "./openai";
 import { runStage1 } from "./matchStage1";
 import { runStage2, runMatchmaking } from "./matchStage2";
-import { runAnalysisAgent, buildAnalysisInput, saveAnalysisToDb } from "./agents/analysis";
+import { runAnalysisAgent, buildAnalysisInput, saveAnalysisToDb, saveAnalysisRun, getLatestAnalysisRun } from "./agents/analysis";
 import { generateOpeningMessage, processUserMessage, computeCoverage, type ConversationState } from "./agents/conversation";
 
 dotenv.config();
@@ -448,6 +448,7 @@ app.post("/analyze-profile", async (req, res) => {
     console.log(`[analyze-profile] User ${user_id}: ${allAnswers.length} answers, ${input.internal_trait_definitions.length} internal + ${input.external_trait_definitions.length} external trait defs`);
 
     const output = await runAnalysisAgent(input, user_id, "analysis");
+    delete (output as any)._run_data; // strip before serialization
 
     console.log(`[analyze-profile] Agent returned ${output.internal_traits.length} internal, ${output.external_traits.length} external traits for user ${user_id}`);
 
@@ -849,6 +850,14 @@ app.get("/admin/stats", (_req, res) => {
   return res.json(stats);
 });
 
+// GET /admin/users/:id/analysis-run — Latest analysis run debug data
+app.get("/admin/users/:id/analysis-run", (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const run = getLatestAnalysisRun(db, userId);
+  if (!run) return res.json({ exists: false });
+  return res.json({ exists: true, ...run });
+});
+
 // GET /admin/users/:id/token-usage — Per-user token usage breakdown
 app.get("/admin/users/:id/token-usage", (req, res) => {
   const userId = parseInt(req.params.id, 10);
@@ -1010,13 +1019,23 @@ app.post("/admin/users/:id/reanalyze", async (req, res) => {
     console.log(`[reanalyze] Transcript preview: ${transcript.slice(0, 300)}...`);
 
     const output = await runAnalysisAgent(input, user_id, "reanalyze");
+
+    // Extract and save run data before stripping it
+    const runData = (output as any)._run_data;
+    delete (output as any)._run_data;
+
     const saved = saveAnalysisToDb(db, user_id, output);
 
-    // Update latest profile with new analysis JSON
+    // Update latest profile with new analysis JSON (safe now — no circular ref)
     db.prepare(`
       UPDATE profiles SET analysis_json = ?
       WHERE user_id = ? AND id = (SELECT MAX(id) FROM profiles WHERE user_id = ?)
     `).run(JSON.stringify(output), user_id, user_id);
+
+    // Save analysis run data for debugging
+    if (runData) {
+      saveAnalysisRun(db, user_id, runData.generated_prompt, runData.stage_a_output, JSON.stringify(output), "reanalyze");
+    }
 
     console.log(`[reanalyze] User ${user_id}: saved ${saved.internal_saved} internal, ${saved.external_saved} external traits`);
     return res.json({ saved, analysis: output });

@@ -399,6 +399,7 @@ function fireBackgroundAnalysis(
 
   runAnalysisAgent(input, userId, "analysis")
     .then((output) => {
+      delete (output as any)._run_data; // strip before serialization
       saveAnalysisToDb(db, userId, output);
 
       db.prepare(`
