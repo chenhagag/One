@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import { runConversationAgent, type ConversationContext } from "./agent";
-import { runAnalysisAgent, buildAnalysisInput, saveAnalysisToDb } from "../analysis";
+import { runAnalysisAgent, runCoverageProbe, buildAnalysisInput, saveAnalysisToDb, loadInternalTraitDefs } from "../analysis";
 import type { AnalysisAgentOutput } from "../analysis";
 
 // ── Types ──────────────────────────────────────────────────────
@@ -216,8 +216,50 @@ function traitToTopic(name: string): string {
   return TRAIT_TO_TOPIC[name] || name.replace(/_/g, " ");
 }
 
-function buildGuidance(analysis: AnalysisAgentOutput | null, turnCount: number, cov?: CoverageResult): string {
-  if (!analysis) {
+// Read "already covered" topics from the DB (user_traits + user_look_traits)
+// This replaces the previous reliance on analysis.internal_traits.
+function getCoveredTopics(db: Database.Database, userId: number): { covered: string[]; weak: string[]; hasPersonalLook: boolean; hasDesiredLook: boolean } {
+  const internalRows = db.prepare(`
+    SELECT td.internal_name, ut.confidence
+    FROM user_traits ut
+    JOIN trait_definitions td ON td.id = ut.trait_definition_id
+    WHERE ut.user_id = ? AND td.is_active = 1
+  `).all(userId) as { internal_name: string; confidence: number }[];
+
+  const covered = internalRows
+    .filter(r => r.confidence >= 0.4)
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, 10)
+    .map(r => traitToTopic(r.internal_name));
+
+  const weak = internalRows
+    .filter(r => r.confidence > 0 && r.confidence < 0.4)
+    .slice(0, 4)
+    .map(r => traitToTopic(r.internal_name));
+
+  const lookRow = db.prepare(`
+    SELECT
+      SUM(CASE WHEN personal_value IS NOT NULL THEN 1 ELSE 0 END) as has_personal,
+      SUM(CASE WHEN desired_value IS NOT NULL THEN 1 ELSE 0 END) as has_desired
+    FROM user_look_traits WHERE user_id = ?
+  `).get(userId) as { has_personal: number; has_desired: number } | undefined;
+
+  return {
+    covered,
+    weak,
+    hasPersonalLook: (lookRow?.has_personal ?? 0) > 0,
+    hasDesiredLook: (lookRow?.has_desired ?? 0) > 0,
+  };
+}
+
+function buildGuidance(
+  db: Database.Database,
+  userId: number,
+  analysis: AnalysisAgentOutput | null,
+  turnCount: number,
+  cov?: CoverageResult
+): string {
+  if (!analysis && turnCount <= 4) {
     // Pre-analysis: structured turn-by-turn guidance
     if (turnCount <= 1) return "Ask about their work/career and what energizes them day-to-day.";
     if (turnCount === 2) return "Ask about their values — what matters most to them in life or relationships.";
@@ -226,36 +268,29 @@ function buildGuidance(analysis: AnalysisAgentOutput | null, turnCount: number, 
   }
 
   const lines: string[] = [];
+  const topics = getCoveredTopics(db, userId);
 
-  // Already covered (so agent doesn't re-ask)
-  const assessed = analysis.internal_traits;
-  if (assessed.length > 0) {
-    const known = assessed
-      .filter(t => t.confidence >= 0.4)
-      .sort((a, b) => b.confidence - a.confidence)
-      .slice(0, 10)
-      .map(t => traitToTopic(t.internal_name))
-      .join(", ");
-    if (known) lines.push(`Already covered (do NOT re-ask): ${known}`);
+  // Already covered (read from DB, not from analysis state)
+  if (topics.covered.length > 0) {
+    lines.push(`Already covered (do NOT re-ask): ${topics.covered.join(", ")}`);
   }
 
-  // Unmet traits from coverage check — these are the real priority
+  // Unmet traits from coverage check — the real priority
   if (cov && cov.unmet_traits.length > 0) {
-    const topics = cov.unmet_traits
+    const priorityTopics = cov.unmet_traits
       .filter(m => !["toxicity_score", "trollness", "sexual_identity"].includes(m))
       .slice(0, 6)
       .map(traitToTopic);
-    if (topics.length > 0) {
-      lines.push(`PRIORITY — these traits still need stronger signal. Ask about one: ${topics.join(", ")}`);
+    if (priorityTopics.length > 0) {
+      lines.push(`PRIORITY — these traits still need stronger signal. Ask about one: ${priorityTopics.join(", ")}`);
     }
   }
 
-  // Also include analysis-reported missing traits as secondary
-  const missing = analysis.missing_traits;
-  if (missing.length > 0) {
-    const secondary = missing
+  // Missing traits from probe/analysis (secondary, deduped against unmet)
+  if (analysis && analysis.missing_traits.length > 0) {
+    const secondary = analysis.missing_traits
       .filter(m => !["toxicity_score", "trollness", "sexual_identity"].includes(m))
-      .filter(m => !(cov?.unmet_traits || []).includes(m)) // don't duplicate
+      .filter(m => !(cov?.unmet_traits || []).includes(m))
       .slice(0, 4)
       .map(traitToTopic);
     if (secondary.length > 0) {
@@ -263,23 +298,17 @@ function buildGuidance(analysis: AnalysisAgentOutput | null, turnCount: number, 
     }
   }
 
-  // Weak traits (assessed but below their required confidence)
-  const weakTraits = assessed
-    .filter(t => t.confidence > 0 && t.confidence < 0.4)
-    .slice(0, 4)
-    .map(t => traitToTopic(t.internal_name));
-  if (weakTraits.length > 0) {
-    lines.push(`Weak (needs refinement from a new angle): ${weakTraits.join(", ")}`);
+  // Weak traits (read from DB)
+  if (topics.weak.length > 0) {
+    lines.push(`Weak (needs refinement from a new angle): ${topics.weak.join(", ")}`);
   }
 
-  // External trait gaps
-  const hasDesired = analysis.external_traits.some(t => t.desired_value);
-  const hasPersonal = analysis.external_traits.some(t => t.personal_value);
-  if (!hasDesired) lines.push("MISSING: physical attraction / what kind of look draws them in");
-  if (!hasPersonal) lines.push("MISSING: their own appearance / style / presence");
+  // External trait gaps (read from DB)
+  if (!topics.hasDesiredLook) lines.push("MISSING: physical attraction / what kind of look draws them in");
+  if (!topics.hasPersonalLook) lines.push("MISSING: their own appearance / style / presence");
 
-  // Probes from analysis agent
-  if (analysis.recommended_probes.length > 0) {
+  // Probes from analysis/coverage probe
+  if (analysis && analysis.recommended_probes.length > 0) {
     lines.push(`Suggested questions: ${analysis.recommended_probes.slice(0, 3).join("; ")}`);
   }
 
@@ -377,12 +406,12 @@ function persistMessage(db: Database.Database, userId: number, role: string, con
   ).run(userId, role, content);
 }
 
-// ── Background analysis runner ─────────────────────────────────
+// ── Background runners ─────────────────────────────────────────
 
-// Fires analysis in the background without blocking the caller.
-// When done, updates state.last_analysis and saves to DB.
-// The NEXT turn's processUserMessage will see the updated analysis.
-function fireBackgroundAnalysis(
+// Lightweight coverage probe — runs during conversation.
+// Fires non-blocking. Populates state.last_analysis with missing_traits + recommended_probes only
+// (no scoring). The NEXT turn's guidance uses this signal.
+function fireCoverageProbe(
   db: Database.Database,
   state: ConversationState,
 ): void {
@@ -392,33 +421,69 @@ function fireBackgroundAnalysis(
   state.analysis_in_flight = true;
   state.analysis_scheduled_at = turn;
 
-  console.log(`[orchestrator] Background analysis started at turn ${turn} for user ${userId}`);
+  console.log(`[orchestrator] Coverage probe started at turn ${turn} for user ${userId}`);
+
+  const transcript = buildAnalysisTranscript(db, userId);
+  const internalDefs = loadInternalTraitDefs(db);
+
+  runCoverageProbe(transcript, internalDefs, userId, "coverage_probe")
+    .then((probe) => {
+      // Build a minimal AnalysisAgentOutput shape so the rest of the orchestrator works unchanged
+      const minimal: AnalysisAgentOutput = {
+        internal_traits: [],
+        external_traits: [],
+        missing_traits: probe.missing_traits,
+        recommended_probes: probe.recommended_probes,
+        profiling_completeness: {
+          internal_assessed: 0,
+          internal_total: internalDefs.length,
+          external_assessed: 0,
+          external_total: 0,
+          coverage_pct: 0,
+          ready_for_matching: false,
+          notes: `Coverage probe at turn ${turn}: ${probe.covered_traits.length} covered, ${probe.missing_traits.length} missing`,
+        },
+      };
+      state.last_analysis = minimal;
+      state.last_analysis_at_turn = turn;
+      state.analysis_in_flight = false;
+
+      console.log(`[orchestrator] Coverage probe done for user ${userId}: covered=${probe.covered_traits.length}, missing=${probe.missing_traits.length}, probes=${probe.recommended_probes.length}`);
+    })
+    .catch((err) => {
+      console.error(`[orchestrator] Coverage probe failed for user ${userId}:`, err);
+      state.analysis_in_flight = false;
+    });
+}
+
+// Full grouped analysis — runs once at the end of the conversation (phase → summarizing).
+// AWAITED, not background — the summary message generation depends on it.
+async function runFullAnalysisAtEnd(
+  db: Database.Database,
+  state: ConversationState,
+): Promise<AnalysisAgentOutput> {
+  const userId = state.user_id;
+  console.log(`[orchestrator] Running full grouped analysis at end for user ${userId} (turn ${state.turn_count})`);
 
   const transcript = buildAnalysisTranscript(db, userId);
   const input = buildAnalysisInput(db, transcript);
 
-  runAnalysisAgent(input, userId, "analysis")
-    .then((output) => {
-      delete (output as any)._run_data; // strip before serialization
-      saveAnalysisToDb(db, userId, output);
+  const output = await runAnalysisAgent(input, userId, "analysis_final");
+  delete (output as any)._run_data;
+  saveAnalysisToDb(db, userId, output);
 
-      db.prepare(`
-        UPDATE profiles SET analysis_json = ?
-        WHERE user_id = ? AND id = (SELECT MAX(id) FROM profiles WHERE user_id = ?)
-      `).run(JSON.stringify(output), userId, userId);
+  db.prepare(`
+    UPDATE profiles SET analysis_json = ?
+    WHERE user_id = ? AND id = (SELECT MAX(id) FROM profiles WHERE user_id = ?)
+  `).run(JSON.stringify(output), userId, userId);
 
-      // Update state (still referenced by the conversationStates Map)
-      state.last_analysis = output;
-      state.last_analysis_at_turn = turn;
-      state.analysis_in_flight = false;
+  state.last_analysis = output;
+  state.last_analysis_at_turn = state.turn_count;
 
-      const cov = computeCoverage(db, userId);
-      console.log(`[orchestrator] Background analysis done for user ${userId}: coverage=${cov.coverage_pct}%, readiness=${cov.readiness_score}, complete=${cov.profile_complete} (met=${cov.met_count}, below=${cov.below_count}, missing=${cov.missing_count})`);
-    })
-    .catch((err) => {
-      console.error(`[orchestrator] Background analysis failed for user ${userId}:`, err);
-      state.analysis_in_flight = false;
-    });
+  const cov = computeCoverage(db, userId);
+  console.log(`[orchestrator] Full analysis done: coverage=${cov.coverage_pct}%, readiness=${cov.readiness_score}, complete=${cov.profile_complete}`);
+
+  return output;
 }
 
 // ── Main orchestration function ────────────────────────────────
@@ -465,10 +530,10 @@ export async function processUserMessage(
     };
   }
 
-  // 4. Check if a background analysis should be kicked off (non-blocking)
+  // 4. Check if a coverage probe should be kicked off (lightweight, non-blocking)
   let analysisKicked = false;
   if (shouldRunAnalysis(state) && !state.analysis_in_flight) {
-    fireBackgroundAnalysis(db, state);
+    fireCoverageProbe(db, state);
     analysisKicked = true;
   }
 
@@ -547,7 +612,27 @@ export async function processUserMessage(
   if (canEnd && state.phase === "chatting") {
     state.phase = "summarizing";
 
-    const profileSummary = analysis ? buildProfileSummary(analysis) : "Profile data gathered.";
+    // Run the FULL grouped analysis now (awaited) — this is the only point in the
+    // conversation where actual trait scores get written to the DB.
+    let finalAnalysis: AnalysisAgentOutput;
+    try {
+      finalAnalysis = await runFullAnalysisAtEnd(db, state);
+    } catch (err) {
+      console.error(`[orchestrator] Final analysis failed for user ${userId}:`, err);
+      finalAnalysis = analysis ?? {
+        internal_traits: [],
+        external_traits: [],
+        missing_traits: [],
+        recommended_probes: [],
+        profiling_completeness: { internal_assessed: 0, internal_total: 0, external_assessed: 0, external_total: 0, coverage_pct: 0, ready_for_matching: false, notes: "fallback after error" },
+      };
+    }
+
+    // Recompute coverage after the final analysis wrote scores
+    const finalCov = computeCoverage(db, userId);
+    updateUserReadiness(db, userId, finalCov);
+
+    const profileSummary = buildProfileSummary(finalAnalysis);
     const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
 
     const ctx: ConversationContext = {
@@ -558,7 +643,7 @@ export async function processUserMessage(
       conversation_history: formatHistory(state.turns),
       turn_number: state.turn_count,
       stage: "closing",
-      coverage_pct: coveragePct,
+      coverage_pct: finalCov.coverage_pct,
       guidance_block: `The conversation is ending. Summarize what you learned about the user in a warm, natural way. Include:\n${profileSummary}\n\nThen ask: "זה נשמע נכון? יש משהו שתרצי להוסיף או לתקן?"`,
     };
 
@@ -566,16 +651,16 @@ export async function processUserMessage(
     state.turns.push({ role: "assistant", content: assistantMessage });
     persistMessage(db, userId, "assistant", assistantMessage);
 
-    console.log(`[orchestrator] Moving to summary: profile_complete=${cov.profile_complete}, turns=${state.turn_count}, readiness=${cov.readiness_score}`);
+    console.log(`[orchestrator] Moving to summary: profile_complete=${finalCov.profile_complete}, turns=${state.turn_count}, readiness=${finalCov.readiness_score}`);
 
     return {
       result: {
         assistant_message: assistantMessage,
-        analysis_ran: false,
+        analysis_ran: true,
         analysis_in_background: analysisKicked,
         phase: "summarizing",
-        coverage_pct: coveragePct,
-        readiness_score: cov.readiness_score,
+        coverage_pct: finalCov.coverage_pct,
+        readiness_score: finalCov.readiness_score,
         turn_count: state.turn_count,
       },
       state,
@@ -585,7 +670,7 @@ export async function processUserMessage(
   // 8. Normal turn — generate assistant response immediately
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
   const stage = getStage(state.turn_count, cov.profile_complete, state.phase);
-  const guidance = buildGuidance(analysis, state.turn_count, cov);
+  const guidance = buildGuidance(db, userId, analysis, state.turn_count, cov);
 
   const ctx: ConversationContext = {
     user_name: user?.first_name || "there",

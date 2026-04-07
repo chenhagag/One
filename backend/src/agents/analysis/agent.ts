@@ -8,6 +8,8 @@ import type {
   AnalysisAgentOutput,
   InternalTraitAssessment,
   ExternalTraitAssessment,
+  TraitDefinitionInput,
+  LookTraitDefinitionInput,
 } from "./types";
 
 dotenv.config();
@@ -63,125 +65,111 @@ function setExternalPossibleValues(defs: { id: number; internal_name: string; po
   }
 }
 
-// ── All active traits from DB are analyzed (no filter) ─────────
-const ACTIVE_TRAIT_NAMES: Set<string> | null = null;
+// ── Trait grouping ─────────────────────────────────────────────
+// Groups traits by their trait_group field (data-driven from Excel).
+// Text-type traits (deal_breakers, advantages) are excluded — they go to a dedicated call.
 
-// Traits that explicitly allow weight_for_match output (per trait definition instruction)
-const WEIGHT_ALLOWED_TRAITS = new Set([
-  "cognitive_profile",
-  "career_prestige",
-]);
-
-function filterActiveTraits(defs: AnalysisAgentInput["internal_trait_definitions"]): AnalysisAgentInput["internal_trait_definitions"] {
-  if (!ACTIVE_TRAIT_NAMES) return defs; // null = no filter, analyze all
-  return defs.filter(t => ACTIVE_TRAIT_NAMES.has(t.internal_name));
+function groupTraitsByCategory(
+  traits: TraitDefinitionInput[]
+): Map<string, TraitDefinitionInput[]> {
+  const groups = new Map<string, TraitDefinitionInput[]>();
+  for (const t of traits) {
+    if (t.calc_type === "text") continue; // text traits handled separately
+    const key = (t.trait_group && t.trait_group.trim()) || "כללי";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(t);
+  }
+  return groups;
 }
 
-// ── Build Stage A prompt (structured trait blocks from Excel columns D-G) ──
+// Hebrew → English label for token tracking action_type (avoids mangled names)
+const GROUP_LABEL_EN: Record<string, string> = {
+  "כללי": "general",
+  "אורח חיים": "lifestyle",
+  "וייב": "vibe",
+  "פרופיל קוגנטיבי": "cognitive",
+  "ערכים": "values",
+  "פרופיל רגשי": "emotional",
+  "סגנון": "style",
+};
 
-function buildTraitPrompt(traits: AnalysisAgentInput["internal_trait_definitions"]): string {
-  const blocks: string[] = [];
+function groupActionLabel(groupName: string): string {
+  return GROUP_LABEL_EN[groupName] || groupName.replace(/[^\w]/g, "_").substring(0, 20) || "group";
+}
 
-  for (const t of traits) {
-    const lines: string[] = [];
-    lines.push(`תכונה: ${t.display_name_he || t.internal_name}`);
-    lines.push(`מזהה: ${t.internal_name} (ID=${t.id})`);
+// ── Build a single trait block (the per-trait prompt fragment) ──
 
-    if (t.ai_description) {
-      // The ai_description is structured with labeled sections from Excel columns D-G
-      // Only include sections that have actual content — skip empty ones entirely
-      const rawSections = t.ai_description.split("\n").filter((l: string) => l.trim());
+function buildTraitBlock(t: TraitDefinitionInput): string {
+  const lines: string[] = [];
+  lines.push(`תכונה: ${t.display_name_he || t.internal_name}`);
+  lines.push(`מזהה: ${t.internal_name}`);
 
-      const sectionPatterns: RegExp[] = [
-        /^סיגנלים:/,
-        /^הבחנות:/,
-        /^סקאלה:/,
-      ];
-
-      for (const s of rawSections) {
-        const trimmedLine = s.trim();
-        if (!trimmedLine) continue;
-
-        // Check if it's a labeled section
-        const isLabeled = sectionPatterns.some(p => p.test(trimmedLine));
-        if (isLabeled) {
-          lines.push(trimmedLine);
-        } else if (trimmedLine.length > 3) {
-          // General explanation or unmatched content
-          lines.push(trimmedLine);
-        }
-      }
+  if (t.ai_description) {
+    const rawSections = t.ai_description.split("\n").filter((l: string) => l.trim());
+    for (const s of rawSections) {
+      const trimmedLine = s.trim();
+      if (trimmedLine.length > 3) lines.push(trimmedLine);
     }
-
-    if (t.calc_type === "text") {
-      lines.push("סוג פלט: טקסט בלבד, לא ציון מספרי");
-    }
-
-    blocks.push(lines.join("\n"));
   }
 
-  return blocks.join("\n\n---\n\n");
+  if (t.calc_type === "text") {
+    lines.push("סוג פלט: טקסט בלבד, לא ציון מספרי");
+  }
+
+  return lines.join("\n");
 }
 
-function buildStageAUserMessage(input: AnalysisAgentInput): string {
-  // Filter to active traits only
-  const activeTraits = filterActiveTraits(input.internal_trait_definitions);
-  const traitPrompt = buildTraitPrompt(activeTraits);
+// ── Build the user message for one group call ──
 
-  const externalDefs = input.external_trait_definitions
-    .map((t) => {
-      const vals = t.possible_values ? ` values=[${t.possible_values.join(", ")}]` : "";
-      return `- ${t.internal_name} (${t.display_name_he || ""}) | w=${t.weight}${vals}`;
-    })
-    .join("\n");
-
-  const checklist = activeTraits.map(t => t.internal_name).join(", ");
-  const traitCount = activeTraits.length;
+function buildGroupUserMessage(
+  transcript: string,
+  groupName: string,
+  traits: TraitDefinitionInput[]
+): string {
+  const blocks = traits.map(buildTraitBlock).join("\n\n---\n\n");
+  const traitNames = traits.map(t => t.internal_name).join(", ");
 
   return `## תמליל שיחה
-${input.transcript}
+${transcript}
 
-## הגדרות תכונות פנימיות
+## קבוצת תכונות: ${groupName} (${traits.length} תכונות)
 
-${traitPrompt}
+${blocks}
 
-## תכונות חיצוניות
-${externalDefs}
+## משימה
+הערך כל אחת מ-${traits.length} התכונות בקבוצה. החזר JSON תקין.
 
-## פרופיל קיים
-${input.existing_profile ? JSON.stringify(input.existing_profile, null, 2) : "אין פרופיל קיים."}
-
-## המשימה — קריטי
-
-חובה לכתוב בלוק עבור כל אחת מ-${traitCount} התכונות הפנימיות. אסור לדלג.
-
-עבור תכונות עם ראיות → פורמט מלא.
-עבור תכונות ללא ראיות → פורמט קצר:
-## [שם]
-Key: [internal_name]
-ראיות: אין אינדיקציה ברורה
-ציון: [best guess] | ודאות: 0.1
-
-הערה: weight_for_match — רק אם מצוין מפורשות בהגדרת התכונה. אם לא — לא לכתוב weight.
-
-## רשימת כל התכונות (חובה — כל אחת חייבת להופיע בפלט)
-${checklist}
-
-אזהרה: אם חסרות תכונות — הפלט פסול.
-
-אם אין ראיות ישירות — בדוק ראיות עקיפות.
-אם אין כלום — ציון best-guess עם ודאות 0.1. הציון לא חייב להיות 50 — תן את ההערכה הסבירה ביותר.
-
-אזהרה: אם חסרים תכונות בפלט — התוצאה פסולה. כל ${traitCount} חייבות להופיע.
-
-אחרי כל התכונות: דיל ברייקרס, יתרונות, תכונות חסרות, הערות כלליות.
-
-גם עבור תכונות חיצוניות — הערך personal_value ו-desired_value בנפרד.`;
+רשימת התכונות (חובה לכלול את כולן בפלט):
+${traitNames}`;
 }
 
-// ── Validation (same as before but simplified) ─────────────────
+// ── Build the user message for the external traits call ──
+
+function buildExternalUserMessage(
+  transcript: string,
+  externalDefs: LookTraitDefinitionInput[]
+): string {
+  const traitList = externalDefs.map((t) => {
+    const vals = t.possible_values && t.possible_values.length > 0
+      ? ` | ערכים מותרים: [${t.possible_values.join(", ")}]`
+      : "";
+    return `- ${t.internal_name} (${t.display_name_he || ""}) | משקל מערכת: ${t.weight}${vals}`;
+  }).join("\n");
+
+  return `## תמליל שיחה
+${transcript}
+
+## תכונות חיצוניות להערכה
+${traitList}
+
+## משימה
+הפרד personal_value (המשתמש עצמו) מ-desired_value (פרטנר). השתמש רק בערכים מהרשימה. כלול רק תכונות שיש להן מידע. החזר JSON.`;
+}
+
+// ── Validation ──────────────────────────────────────────────────
 
 function validateInternalTrait(t: any): InternalTraitAssessment | null {
+  // Resolve trait_id from internal_name (the LLM emits internal_name only now)
   let traitId = t.trait_id ?? t.id;
   if (typeof traitId !== "number" && t.internal_name) {
     for (const [id, name] of internalIdToName) {
@@ -192,10 +180,18 @@ function validateInternalTrait(t: any): InternalTraitAssessment | null {
 
   const name = t.internal_name ?? internalIdToName.get(traitId) ?? `trait_${traitId}`;
 
+  // Text-type traits (deal_breakers, advantages)
   if (textTypeTraits.has(traitId)) {
-    const textVal = t.text_value ?? t.value ?? t.score;
+    const textVal = t.text_value ?? t.value ?? (typeof t.score === "string" ? t.score : null);
     if (textVal == null) return null;
-    return { trait_id: traitId, internal_name: name, score: 0, confidence: typeof t.confidence === "number" ? Math.round(t.confidence * 100) / 100 : 0.5, text_value: String(textVal), source: "ai" };
+    return {
+      trait_id: traitId,
+      internal_name: name,
+      score: 0,
+      confidence: typeof t.confidence === "number" ? Math.round(t.confidence * 100) / 100 : 0.5,
+      text_value: String(textVal),
+      source: "ai",
+    };
   }
 
   if (typeof t.score !== "number" || t.score < 0 || t.score > 100) return null;
@@ -204,7 +200,8 @@ function validateInternalTrait(t: any): InternalTraitAssessment | null {
   // Only allow weight_for_match for traits that explicitly define it in their definition
   const allowWeight = WEIGHT_ALLOWED_TRAITS.has(name);
   return {
-    trait_id: traitId, internal_name: name,
+    trait_id: traitId,
+    internal_name: name,
     score: Math.round(t.score * 100) / 100,
     confidence: Math.round(t.confidence * 100) / 100,
     weight_for_match: allowWeight && t.weight_for_match != null ? Math.round(t.weight_for_match * 100) / 100 : null,
@@ -212,6 +209,12 @@ function validateInternalTrait(t: any): InternalTraitAssessment | null {
     source: "ai",
   };
 }
+
+// Traits that explicitly allow weight_for_match output (per trait definition instruction)
+const WEIGHT_ALLOWED_TRAITS = new Set([
+  "cognitive_profile",
+  "career_prestige",
+]);
 
 function guessExternalTraitId(t: any): number | null {
   const directId = t.trait_id ?? t.id;
@@ -243,65 +246,248 @@ function validateExternalTrait(t: any): ExternalTraitAssessment | null {
   const desiredValue = t.desired_value ?? null;
   const desiredConfidence = t.desired_value_confidence != null ? Math.round(t.desired_value_confidence * 100) / 100 : null;
 
-  // Strip mirrored personal_value
+  // Strip mirrored personal_value (when LLM duplicates desired into personal)
   if (personalValue != null && desiredValue != null) {
     const pv = String(personalValue).toLowerCase().trim();
     const dv = String(desiredValue).toLowerCase().trim();
     const confDiff = Math.abs((personalConfidence ?? 0) - (desiredConfidence ?? 0));
     if ((pv === dv || pv.includes(dv) || dv.includes(pv)) && confDiff <= 0.15) {
-      personalValue = null; personalConfidence = null;
+      personalValue = null;
+      personalConfidence = null;
     }
   }
   if (personalValue == null && desiredValue == null) return null;
 
   return {
-    trait_id: traitId, internal_name: name,
-    personal_value: personalValue, personal_value_confidence: personalConfidence,
-    desired_value: desiredValue, desired_value_confidence: desiredConfidence,
-    weight_for_match: t.weight_for_match ?? null, weight_confidence: t.weight_confidence ?? null,
+    trait_id: traitId,
+    internal_name: name,
+    personal_value: personalValue,
+    personal_value_confidence: personalConfidence,
+    desired_value: desiredValue,
+    desired_value_confidence: desiredConfidence,
+    weight_for_match: t.weight_for_match ?? null,
+    weight_confidence: t.weight_confidence ?? null,
     source: "ai",
   };
 }
 
-function validateStageBOutput(raw: any): AnalysisAgentOutput {
-  const internal_traits: InternalTraitAssessment[] = [];
-  const external_traits: ExternalTraitAssessment[] = [];
+// ── Single group call (one parallel branch) ─────────────────────
 
-  if (Array.isArray(raw.internal_traits)) {
-    for (const t of raw.internal_traits) {
-      const valid = validateInternalTrait(t);
-      if (valid) internal_traits.push(valid);
-    }
+interface GroupCallResult {
+  groupName: string;
+  promptSent: string;
+  rawOutput: string;
+  parsed: any;
+  durationMs: number;
+}
+
+async function runOneGroupCall(
+  groupName: string,
+  traits: TraitDefinitionInput[],
+  transcript: string,
+  systemPrompt: string,
+  userId: number | null,
+  actionType: string
+): Promise<GroupCallResult> {
+  const userPrompt = buildGroupUserMessage(transcript, groupName, traits);
+  const start = Date.now();
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    temperature: 0.2,
+    max_tokens: 4000,
+    response_format: { type: "json_object" },
+  });
+
+  const durationMs = Date.now() - start;
+  trackTokens(userId, `${actionType}_${groupActionLabel(groupName)}`, "gpt-4o-mini", response.usage);
+
+  const rawOutput = response.choices[0].message.content || "{}";
+  let parsed: any = {};
+  try {
+    parsed = JSON.parse(rawOutput);
+  } catch (err: any) {
+    console.error(`[analysis] Failed to parse JSON for group "${groupName}":`, err.message);
   }
 
-  const seenExternalIds = new Set<number>();
-  if (Array.isArray(raw.external_traits)) {
-    for (const t of raw.external_traits) {
-      const valid = validateExternalTrait(t);
-      if (valid && !seenExternalIds.has(valid.trait_id)) {
-        seenExternalIds.add(valid.trait_id);
-        external_traits.push(valid);
-      }
-    }
+  console.log(`[analysis] Group "${groupName}" (${traits.length} traits) done in ${durationMs}ms`);
+  return { groupName, promptSent: userPrompt, rawOutput, parsed, durationMs };
+}
+
+// ── Text traits call (deal_breakers, advantages) ────────────────
+
+interface TextCallResult {
+  promptSent: string;
+  rawOutput: string;
+  parsed: any;
+  durationMs: number;
+}
+
+async function runTextTraitsCall(
+  textTraits: TraitDefinitionInput[],
+  transcript: string,
+  userId: number | null,
+  actionType: string
+): Promise<TextCallResult> {
+  const systemPrompt = loadPrompt("text-system.txt");
+  const traitList = textTraits
+    .map(t => {
+      const desc = t.ai_description ? ` — ${t.ai_description.split("\n")[0].slice(0, 200)}` : "";
+      return `- ${t.internal_name} (${t.display_name_he || ""})${desc}`;
+    })
+    .join("\n");
+
+  const userPrompt = `## תמליל שיחה
+${transcript}
+
+## תכונות טקסטואליות לחילוץ
+${traitList}
+
+## משימה
+לכל תכונה — חלץ את התוכן הרלוונטי מהשיחה. החזר JSON.`;
+
+  const start = Date.now();
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    temperature: 0.2,
+    max_tokens: 1500,
+    response_format: { type: "json_object" },
+  });
+
+  const durationMs = Date.now() - start;
+  trackTokens(userId, `${actionType}_text`, "gpt-4o-mini", response.usage);
+
+  const rawOutput = response.choices[0].message.content || "{}";
+  let parsed: any = {};
+  try {
+    parsed = JSON.parse(rawOutput);
+  } catch (err: any) {
+    console.error(`[analysis] Failed to parse JSON for text traits:`, err.message);
   }
+
+  console.log(`[analysis] Text traits (${textTraits.length} traits) done in ${durationMs}ms`);
+  return { promptSent: userPrompt, rawOutput, parsed, durationMs };
+}
+
+// ── External traits call ────────────────────────────────────────
+
+interface ExternalCallResult {
+  promptSent: string;
+  rawOutput: string;
+  parsed: any;
+  durationMs: number;
+}
+
+async function runExternalCall(
+  externalDefs: LookTraitDefinitionInput[],
+  transcript: string,
+  userId: number | null,
+  actionType: string
+): Promise<ExternalCallResult> {
+  const systemPrompt = loadPrompt("external-system.txt");
+  const userPrompt = buildExternalUserMessage(transcript, externalDefs);
+  const start = Date.now();
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    temperature: 0.2,
+    max_tokens: 2000,
+    response_format: { type: "json_object" },
+  });
+
+  const durationMs = Date.now() - start;
+  trackTokens(userId, `${actionType}_external`, "gpt-4o-mini", response.usage);
+
+  const rawOutput = response.choices[0].message.content || "{}";
+  let parsed: any = {};
+  try {
+    parsed = JSON.parse(rawOutput);
+  } catch (err: any) {
+    console.error(`[analysis] Failed to parse JSON for external traits:`, err.message);
+  }
+
+  console.log(`[analysis] External (${externalDefs.length} traits) done in ${durationMs}ms`);
+  return { promptSent: userPrompt, rawOutput, parsed, durationMs };
+}
+
+// ── Coverage probe (lightweight, mid-conversation) ──────────────
+
+export interface CoverageProbeResult {
+  covered_traits: string[];
+  missing_traits: string[];
+  recommended_probes: string[];
+}
+
+export async function runCoverageProbe(
+  transcript: string,
+  internalDefs: TraitDefinitionInput[],
+  userId: number | null = null,
+  actionType: string = "coverage_probe"
+): Promise<CoverageProbeResult> {
+  const systemPrompt = loadPrompt("coverage-system.txt");
+
+  // Compact trait list — just internal_name and display name (no full descriptions)
+  const traitList = internalDefs
+    .filter(t => t.calc_type !== "text") // skip text traits (deal_breakers/advantages handled separately)
+    .map(t => `- ${t.internal_name} (${t.display_name_he || ""})`)
+    .join("\n");
+
+  const userPrompt = `## תמליל שיחה
+${transcript}
+
+## רשימת תכונות לבדיקה
+${traitList}
+
+## משימה
+לכל תכונה — האם יש לה אינדיקציה כלשהי בשיחה? החזר JSON.`;
+
+  const start = Date.now();
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    temperature: 0.1,
+    max_tokens: 1500,
+    response_format: { type: "json_object" },
+  });
+
+  const durationMs = Date.now() - start;
+  trackTokens(userId, actionType, "gpt-4o-mini", response.usage);
+
+  const raw = response.choices[0].message.content || "{}";
+  let parsed: any = {};
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err: any) {
+    console.error(`[analysis] Coverage probe JSON parse failed:`, err.message);
+  }
+
+  console.log(`[analysis] Coverage probe done in ${durationMs}ms`);
 
   return {
-    internal_traits, external_traits,
-    missing_traits: Array.isArray(raw.missing_traits) ? raw.missing_traits : [],
-    recommended_probes: Array.isArray(raw.recommended_probes) ? raw.recommended_probes : [],
-    profiling_completeness: {
-      internal_assessed: internal_traits.length,
-      internal_total: raw.profiling_completeness?.internal_total ?? 0,
-      external_assessed: external_traits.length,
-      external_total: raw.profiling_completeness?.external_total ?? 0,
-      coverage_pct: raw.profiling_completeness?.coverage_pct ?? 0,
-      ready_for_matching: raw.profiling_completeness?.ready_for_matching ?? false,
-      notes: raw.profiling_completeness?.notes ?? "",
-    },
+    covered_traits: Array.isArray(parsed.covered_traits) ? parsed.covered_traits : [],
+    missing_traits: Array.isArray(parsed.missing_traits) ? parsed.missing_traits : [],
+    recommended_probes: Array.isArray(parsed.recommended_probes)
+      ? parsed.recommended_probes.slice(0, 5)
+      : [],
   };
 }
 
-// ── Main 2-Stage Agent Function ────────────────────────────────
+// ── Main analysis function (grouped + parallel + JSON mode) ─────
 
 export interface AnalysisRunData {
   generated_prompt: string;
@@ -318,84 +504,130 @@ export async function runAnalysisAgent(
   setExternalPossibleValues(input.external_trait_definitions as any[]);
   setTextTypeTraits(input.internal_trait_definitions as any[]);
 
-  // ── Stage A: Text analysis ──────────────────────────────────
-  const stageASystem = loadPrompt("stage-a-system.txt");
-  const stageAUser = buildStageAUserMessage(input);
+  const systemPrompt = loadPrompt("group-system.txt");
 
-  console.log(`[analysis] Stage A: transcript=${input.transcript.length}chars, prompt=${stageAUser.length}chars`);
+  // Group internal traits by trait_group field (data-driven, excludes text traits)
+  const groupedMap = groupTraitsByCategory(input.internal_trait_definitions);
+  const groupList = Array.from(groupedMap.entries()).map(([name, traits]) => ({ name, traits }));
 
-  const stageAResponse = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: stageASystem },
-      { role: "user", content: stageAUser },
-    ],
-    temperature: 0.2,
-    max_tokens: 16000,  // Stage A produces text — needs more room than JSON
-  });
+  // Text traits get their own dedicated call (different prompt structure)
+  const textTraits = input.internal_trait_definitions.filter(t => t.calc_type === "text");
 
-  trackTokens(userId ?? null, `${actionType}_stage_a`, "gpt-4o-mini", stageAResponse.usage);
+  console.log(
+    `[analysis] Starting grouped analysis: transcript=${input.transcript.length}chars, ` +
+    `${input.internal_trait_definitions.length} internal traits in ${groupList.length} groups + ${textTraits.length} text, ` +
+    `${input.external_trait_definitions.length} external traits`
+  );
 
-  const stageAOutput = stageAResponse.choices[0].message.content || "";
-  const stageAFinish = stageAResponse.choices[0].finish_reason;
+  const overallStart = Date.now();
 
-  console.log(`[analysis] Stage A output: ${stageAOutput.length}chars, finish=${stageAFinish}`);
-  if (stageAFinish !== "stop") {
-    console.error(`[analysis] WARNING: Stage A finish_reason=${stageAFinish}`);
+  // Fire all internal group calls + text + external in parallel
+  const internalPromises = groupList.map(g =>
+    runOneGroupCall(g.name, g.traits, input.transcript, systemPrompt, userId ?? null, actionType)
+  );
+
+  const externalPromise: Promise<ExternalCallResult | null> =
+    input.external_trait_definitions.length > 0
+      ? runExternalCall(input.external_trait_definitions, input.transcript, userId ?? null, actionType)
+      : Promise.resolve(null);
+
+  const textPromise: Promise<TextCallResult | null> =
+    textTraits.length > 0
+      ? runTextTraitsCall(textTraits, input.transcript, userId ?? null, actionType)
+      : Promise.resolve(null);
+
+  const [groupResults, externalResult, textResult] = await Promise.all([
+    Promise.all(internalPromises),
+    externalPromise,
+    textPromise,
+  ]);
+
+  const totalDuration = Date.now() - overallStart;
+  console.log(`[analysis] All parallel calls done in ${totalDuration}ms (wall time)`);
+
+  // ── Merge results ──────────────────────────────────────────────
+  const internal_traits: InternalTraitAssessment[] = [];
+  const missing_traits_set = new Set<string>();
+  const recommended_probes_set = new Set<string>();
+
+  for (const gr of groupResults) {
+    if (Array.isArray(gr.parsed.internal_traits)) {
+      for (const t of gr.parsed.internal_traits) {
+        const valid = validateInternalTrait(t);
+        if (valid) internal_traits.push(valid);
+      }
+    }
+    if (Array.isArray(gr.parsed.missing_traits)) {
+      for (const m of gr.parsed.missing_traits) missing_traits_set.add(String(m));
+    }
+    if (Array.isArray(gr.parsed.recommended_probes)) {
+      for (const p of gr.parsed.recommended_probes) recommended_probes_set.add(String(p));
+    }
   }
 
-  // ── Stage B: JSON structuring ───────────────────────────────
-  const stageBSystem = loadPrompt("stage-b-system.txt");
+  // Merge text traits into internal_traits
+  if (textResult && Array.isArray(textResult.parsed.text_traits)) {
+    for (const t of textResult.parsed.text_traits) {
+      if (!t.text_value) continue; // skip null text values
+      const valid = validateInternalTrait({
+        internal_name: t.internal_name,
+        text_value: t.text_value,
+        confidence: t.confidence ?? 0.5,
+      });
+      if (valid) internal_traits.push(valid);
+    }
+  }
 
-  // Build trait ID mapping for Stage B (only active traits)
-  const activeTraits = filterActiveTraits(input.internal_trait_definitions);
-  const idMapping = activeTraits
-    .map(t => `${t.internal_name} → ID ${t.id}`)
-    .join("\n");
-  const extIdMapping = input.external_trait_definitions
-    .map(t => `${t.internal_name} → ID ${t.id}`)
-    .join("\n");
+  // Merge external traits (dedupe by trait_id)
+  const external_traits: ExternalTraitAssessment[] = [];
+  if (externalResult && Array.isArray(externalResult.parsed.external_traits)) {
+    const seen = new Set<number>();
+    for (const t of externalResult.parsed.external_traits) {
+      const valid = validateExternalTrait(t);
+      if (valid && !seen.has(valid.trait_id)) {
+        seen.add(valid.trait_id);
+        external_traits.push(valid);
+      }
+    }
+  }
 
-  const stageBUser = `## Stage A Analysis Output
-${stageAOutput}
+  const totalInternal = input.internal_trait_definitions.length;
+  const result: AnalysisAgentOutput = {
+    internal_traits,
+    external_traits,
+    missing_traits: Array.from(missing_traits_set),
+    recommended_probes: Array.from(recommended_probes_set).slice(0, 5),
+    profiling_completeness: {
+      internal_assessed: internal_traits.length,
+      internal_total: totalInternal,
+      external_assessed: external_traits.length,
+      external_total: input.external_trait_definitions.length,
+      coverage_pct: totalInternal > 0 ? Math.round((internal_traits.length / totalInternal) * 100) : 0,
+      ready_for_matching: false,
+      notes: `Grouped analysis: ${groupList.length} groups + ${externalResult ? 1 : 0} external, ${totalDuration}ms wall time`,
+    },
+  };
 
-## Trait ID Mapping (internal)
-${idMapping}
+  console.log(
+    `[analysis] Final: ${result.internal_traits.length}/${totalInternal} internal, ` +
+    `${result.external_traits.length}/${input.external_trait_definitions.length} external`
+  );
 
-## Trait ID Mapping (external)
-${extIdMapping}
+  // ── Build run data for persistence (admin debug view) ──────────
+  const promptParts = groupResults.map(gr => `=== ${gr.groupName} ===\n${gr.promptSent}`).join("\n\n");
+  const textPromptPart = textResult ? `\n\n=== text ===\n${textResult.promptSent}` : "";
+  const externalPromptPart = externalResult ? `\n\n=== external ===\n${externalResult.promptSent}` : "";
+  const outputParts = groupResults
+    .map(gr => `=== ${gr.groupName} (${gr.durationMs}ms) ===\n${gr.rawOutput}`)
+    .join("\n\n");
+  const textOutputPart = textResult ? `\n\n=== text (${textResult.durationMs}ms) ===\n${textResult.rawOutput}` : "";
+  const externalOutputPart = externalResult
+    ? `\n\n=== external (${externalResult.durationMs}ms) ===\n${externalResult.rawOutput}`
+    : "";
 
-## Task
-Convert the Stage A analysis above into the required JSON format.
-Use the trait ID mapping to fill trait_id for each trait.
-internal_total = ${activeTraits.length}
-external_total = ${input.external_trait_definitions.length}`;
-
-  const stageBResponse = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: stageBSystem },
-      { role: "user", content: stageBUser },
-    ],
-    temperature: 0,
-    max_tokens: 8000,
-    response_format: { type: "json_object" },
-  });
-
-  trackTokens(userId ?? null, `${actionType}_stage_b`, "gpt-4o-mini", stageBResponse.usage);
-
-  const stageBRaw = stageBResponse.choices[0].message.content || "{}";
-  console.log(`[analysis] Stage B output: ${stageBRaw.length}chars`);
-
-  const parsed = JSON.parse(stageBRaw);
-  const result = validateStageBOutput(parsed);
-
-  console.log(`[analysis] Final: ${result.internal_traits.length} internal, ${result.external_traits.length} external`);
-
-  // Attach run data for persistence
   const runData: AnalysisRunData = {
-    generated_prompt: stageAUser,
-    stage_a_output: stageAOutput,
+    generated_prompt: promptParts + textPromptPart + externalPromptPart,
+    stage_a_output: outputParts + textOutputPart + externalOutputPart,
     stage_b_output: result,
   };
 

@@ -1,5 +1,5 @@
-export { runAnalysisAgent } from "./agent";
-export type { AnalysisRunData } from "./agent";
+export { runAnalysisAgent, runCoverageProbe } from "./agent";
+export type { AnalysisRunData, CoverageProbeResult } from "./agent";
 export { buildAnalysisInput, saveAnalysisToDb, saveAnalysisRun, getLatestAnalysisRun, loadInternalTraitDefs, loadExternalTraitDefs } from "./loader";
 export type {
   AnalysisAgentOutput,
