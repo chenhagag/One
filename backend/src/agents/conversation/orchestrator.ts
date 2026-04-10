@@ -30,6 +30,8 @@ export interface ConversationState {
   // Mandatory question tracking
   asked_appearance: boolean;     // "יש משהו במראה שלך..."
   asked_dealbreakers: boolean;   // "יש משהו חשוב עלייך..."
+  // Return-to-conversation tracking
+  returned_at_turn: number;      // turn_count when user returned (0 = new conversation)
 }
 
 export interface NextTurnResult {
@@ -161,7 +163,7 @@ function updateUserReadiness(db: Database.Database, userId: number, cov: Coverag
 
 const FIRST_CHECKPOINT = 4;
 const CHECKPOINT_INTERVAL = 2;
-const MAX_QUESTIONS = 10;  // temp rule: stop after 10 agent questions
+const MAX_QUESTIONS = 12;  // stop after 12 agent questions
 
 function shouldRunAnalysis(state: ConversationState): boolean {
   const { turn_count, last_analysis_at_turn } = state;
@@ -185,10 +187,8 @@ const TRAIT_TO_TOPIC: Record<string, string> = {
   intellectualism: "intellectual depth / abstract thinking",
   analytical_tendency: "how they make decisions",
   seriousness: "how serious vs playful they are",
-  goofiness: "humor style / silliness",
   self_awareness: "self-reflection / emotional maturity",
   humor: "sense of humor / what makes them laugh",
-  political_orientation: "political views",
   social_involvement: "community involvement / causes",
   positivity: "optimism / outlook on life",
   warmth: "warmth / affection style",
@@ -196,20 +196,23 @@ const TRAIT_TO_TOPIC: Record<string, string> = {
   childishness: "maturity level",
   value_rigidity: "flexibility vs strong convictions",
   loves_animals: "attitude toward animals / pets",
-  zionism: "relationship to Israel / Zionism",
-  political_leaning: "political direction (left/right)",
   vegetarianism: "dietary values / vegetarian",
-  work_ethic: "ambition / career drive",
   good_kid: "responsibility / reliability",
   appearance_sensitivity: "how much looks matter to them",
   advantages: "potential advantages / unique positive qualities",
   deal_breakers: "absolute deal-breakers in a partner",
   hipsterishness: "cultural style / hipster tendencies",
-  tel_aviv_style: "urban / Tel Aviv lifestyle",
-  mainstream_style: "mainstream vs alternative",
+  broad_appeal: "mainstream vs alternative style",
   nerdiness: "nerdiness / intellectual interests",
   hippie_style: "alternative / spiritual lifestyle",
   soviet_style: "eastern European cultural background",
+  conformity: "conformity / how much they follow social norms",
+  oriental: "eastern/mizrahi cultural style",
+  emotional_expressiveness: "emotional expressiveness / sensitivity",
+  family_of_origin_closeness: "closeness to family of origin",
+  serious_relationship_intent: "readiness for a serious relationship",
+  right_wing: "right-wing political orientation",
+  left_wing: "left-wing political orientation",
 };
 
 function traitToTopic(name: string): string {
@@ -257,14 +260,32 @@ function buildGuidance(
   userId: number,
   analysis: AnalysisAgentOutput | null,
   turnCount: number,
-  cov?: CoverageResult
+  cov?: CoverageResult,
+  state?: ConversationState
 ): string {
-  if (!analysis && turnCount <= 4) {
-    // Pre-analysis: structured turn-by-turn guidance
-    if (turnCount <= 1) return "Ask about their work/career and what energizes them day-to-day.";
-    if (turnCount === 2) return "Ask about their values — what matters most to them in life or relationships.";
-    if (turnCount === 3) return "Ask about what they are looking for in a partner — personality, energy, values.";
-    return "Ask about physical attraction — what kind of look or presence draws them in.";
+  // ── Returning user: first response after coming back ──
+  const isReturnFirstTurn = state && state.returned_at_turn > 0 && turnCount === state.returned_at_turn + 1;
+  if (isReturnFirstTurn) {
+    return [
+      "המשתמש/ת חזר/ה לשיחה קיימת והגיב/ה להודעת החזרה.",
+      "התחל/י עם: 'תן/י לי רגע להיזכר על מה דיברנו...' (התאם/י מגדרית)",
+      "אחרי זה כתוב סיכום קצר (2-3 משפטים) של הנושאים המרכזיים מהשיחה הקודמת.",
+      "אסור לכלול בסיכום: מראה חיצוני, אינטליגנציה, מצב תעסוקתי, תכונות רגישות, ניתוח פנימי.",
+      "הסיכום חייב להכיל רק מידע שהמשתמש/ת שיתף/ה מפורשות — נושאים ניטרליים בלבד.",
+      "מיד אחרי הסיכום — שאל/י שאלה חדשה מבנק השאלות (העדף/י שאלות שעדיין לא נשאלו).",
+      "זו המשכה של השיחה הקודמת — לא התחלה חדשה. המשך/י לפי כל הכללים הרגילים.",
+    ].join("\n");
+  }
+
+  if (!analysis && turnCount <= 4 && (!state || state.returned_at_turn === 0)) {
+    // Pre-analysis: structured turn-by-turn guidance (new conversations only)
+    // Turn 1 = user responds to "מוכנה?" → ask the ideal day question
+    // Turn 2 = user answered ideal day → follow up with "real day"
+    // Turn 3+ = continue with question bank
+    if (turnCount <= 1) return "המשתמש/ת הגיב/ה להודעת הפתיחה. שאל/י עכשיו את שאלת היום האידיאלי: 'בואי נתחיל קליל - תארי לי את היום האידיאלי בשבילך. איפה את קמה בבוקר, מה את עושה, עם מי, ואיך את מסיימת את היום?' (התאם/י מגדרית למשתמש/ת)";
+    if (turnCount === 2) return "המשתמש/ת ענה/תה על שאלת היום האידיאלי. הגב/י בקצרה ושאל/י את שאלת ההמשך: 'ומה קורה בפועל? איך נראה היום יום האמיתי שלך?'";
+    if (turnCount === 3) return "המשך/י עם אחת מהשאלות מבנק השאלות — העדף/י שאלת סימולציה או שאלה חוויתית ספציפית. אל תשאל/י שאלות כלליות או מופשטות.";
+    return "המשך/י עם שאלות מבנק השאלות. העדף/י שאלות סימולציה (למשל: מיליון דולר, דייט בלי משיכה). אל תשאל/י שאלות כלליות.";
   }
 
   const lines: string[] = [];
@@ -553,11 +574,13 @@ export async function processUserMessage(
   if (!state.asked_appearance || !state.asked_dealbreakers) {
     for (const t of state.turns) {
       if (t.role !== "assistant") continue;
-      const lc = t.content.toLowerCase();
-      if (lc.includes("מראה") || lc.includes("סטייל") || lc.includes("חזות") || lc.includes("מבנה גוף")) {
+      const lc = t.content;
+      // Appearance: "איך היית מתאר/ת את המראה שלך" or similar
+      if (lc.includes("מראה שלך") || lc.includes("סטייל") || lc.includes("חזות") || lc.includes("מבנה גוף") || lc.includes("איך היית מתאר")) {
         state.asked_appearance = true;
       }
-      if (lc.includes("דיל ברייקר") || lc.includes("שוברי עסקאות") || lc.includes("דברים שחשוב") || lc.includes("ערכים") && lc.includes("זהות")) {
+      // Identity / deal-breakers: "משהו מהותי בזהות" or "דיל ברייקר" or "פרט חשוב עליך"
+      if (lc.includes("דיל ברייקר") || lc.includes("מהותי בזהות") || lc.includes("פרט חשוב עליך") || lc.includes("שחשוב שאדע")) {
         state.asked_dealbreakers = true;
       }
     }
@@ -565,16 +588,24 @@ export async function processUserMessage(
 
   // 8. Check if we should move to summarizing phase
   const hitQuestionLimit = state.turn_count >= MAX_QUESTIONS;
-  const canEnd = cov.profile_complete || hitQuestionLimit;
+
+  // If user returned mid-conversation, force at least 3 more turns before allowing end
+  const MIN_TURNS_AFTER_RETURN = 3;
+  const turnsSinceReturn = state.returned_at_turn > 0
+    ? state.turn_count - state.returned_at_turn
+    : Infinity; // new conversation — no minimum
+  const returnGuardMet = turnsSinceReturn >= MIN_TURNS_AFTER_RETURN;
+
+  const canEnd = (cov.profile_complete || hitQuestionLimit) && returnGuardMet;
 
   // If we hit the limit but mandatory questions weren't asked, force them instead of ending
   if (canEnd && state.phase === "chatting" && (!state.asked_appearance || !state.asked_dealbreakers)) {
     const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
     let forcedQuestion = "";
     if (!state.asked_appearance) {
-      forcedQuestion = "MANDATORY: You MUST ask the appearance/presence question now. Ask in Hebrew: יש משהו במראה שלך, בסטייל או באנרגיה שלך, שחשוב שניקח בחשבון בשידוך?";
+      forcedQuestion = "MANDATORY: You MUST ask the appearance question now. Ask in Hebrew: איך היית מתאר/ת את המראה שלך? (then follow up about partner appearance preferences)";
     } else {
-      forcedQuestion = "MANDATORY: You MUST ask the deal-breakers/identity question now. Ask in Hebrew: יש משהו חשוב עלייך — באורח החיים, בזהות, בערכים, או דברים שהם דיל ברייקרס מבחינתך — שחשוב שאדע?";
+      forcedQuestion = "MANDATORY: You MUST ask the identity/deal-breakers question now. Ask in Hebrew: האם יש משהו מהותי בזהות שלך, או פרט חשוב עליך, שחשוב שאדע לפני שאני מתאים/ה לך בן/בת זוג?";
     }
 
     const ctx: ConversationContext = {
@@ -670,7 +701,7 @@ export async function processUserMessage(
   // 8. Normal turn — generate assistant response immediately
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
   const stage = getStage(state.turn_count, cov.profile_complete, state.phase);
-  const guidance = buildGuidance(db, userId, analysis, state.turn_count, cov);
+  const guidance = buildGuidance(db, userId, analysis, state.turn_count, cov, state);
 
   const ctx: ConversationContext = {
     user_name: user?.first_name || "there",
@@ -742,13 +773,13 @@ function genderForms(ctx: GenderContext) {
 
 function getFixedIntro(userName: string, ctx: GenderContext): string {
   const g = genderForms(ctx);
+
   return [
     `היי ${userName}, אני השדכן שלך 😊`,
     `כדי למצוא לך מישהו מתאים ברמה הכי מדויקת שיש, אני צריך להכיר ${g.yourSelf} לעומק.`,
-    `אשמח לשאול ${g.yourSelf} כמה שאלות — ככל ${g.youAnswer} יותר בהרחבה, בפתיחות ובכנות, נוכל למצוא התאמה מדויקת וחזקה יותר.`,
-    `אנחנו לא מתפשרים על איכות, ולכן אוספים כמה שיותר מידע.`,
+    `ככל ${g.youAnswer} יותר בהרחבה, בפתיחות ובכנות — נוכל למצוא התאמה מדויקת וחזקה יותר.`,
     `אם השיחה ארוכה לך מדי, תמיד אפשר לעצור ולהמשיך בזמן אחר ;)`,
-    `וחשוב ${g.youKnow} — התשובות כאן לא מתפרסמות בפרופיל, הן לעיני בלבד, כדי שאוכל להכיר ${g.yourSelf} לעומק ולמצוא ${g.theOne}.`,
+    `חשוב ${g.youKnow} — התשובות כאן לא מתפרסמות בפרופיל, הן לעיני בלבד, כדי שאוכל להכיר ${g.yourSelf} לעומק ולמצוא ${g.theOne}.`,
     `${g.ready}?`,
   ].join("\n");
 }
@@ -763,29 +794,115 @@ function getFixedClosing(ctx: GenderContext): string {
 
 // ── Opening message ────────────────────────────────────────────
 
+// Varied return greetings — picks one at random
+function getReturnIntro(userName: string, ctx: GenderContext): string {
+  const g = genderForms(ctx);
+  const options = [
+    `היי ${userName}, איזה כיף שחזרת! יש עוד כמה דברים שמסקרנים אותי לגביך 🙂 ${g.ready}?`,
+    `היי ${userName}, כיף לראות אותך שוב! יש לי עוד כמה שאלות 🙂 ${g.ready}?`,
+    `${userName}! חזרת 😊 בואי נמשיך מאיפה שהפסקנו. ${g.ready}?`,
+    `היי ${userName}, שמח שחזרת! נמשיך? יש עוד כמה דברים שמעניינים אותי 🙂`,
+  ];
+  return options[Math.floor(Math.random() * options.length)];
+}
+
+// "Thinking" message — shown after user responds, NOT on initial return
+function getThinkingMessage(ctx: GenderContext): string {
+  const fem = isFemaleGender(ctx.gender);
+  const mal = isMaleGender(ctx.gender);
+  const letMe = fem ? "תני" : mal ? "תן" : "תן/י";
+  return `${letMe} לי רגע להיזכר על מה דיברנו...`;
+}
+
 export function generateOpeningMessage(
   db: Database.Database,
   userId: number
-): { message: string; state: ConversationState } {
+): { message: string; state: ConversationState; isReturning: boolean } {
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
   const userName = user?.first_name || "there";
   const gCtx: GenderContext = { gender: user?.gender, lookingFor: user?.looking_for_gender };
 
-  const introMessage = getFixedIntro(userName, gCtx);
-  persistMessage(db, userId, "assistant", introMessage);
+  // A user is "returning" only if they have sent at least one message previously.
+  // Assistant-only messages (intros from previous /start calls) don't count —
+  // otherwise a page refresh on a new conversation would trigger the return flow.
+  const existingUserMessages = db.prepare(
+    "SELECT COUNT(*) as c FROM conversation_messages WHERE user_id = ? AND role = 'user'"
+  ).get(userId) as { c: number };
+  const isReturning = existingUserMessages.c > 0;
+
+  let introMessage: string;
+  if (isReturning) {
+    // Return greeting only — no thinking message yet (that comes after user responds)
+    introMessage = getReturnIntro(userName, gCtx);
+  } else {
+    introMessage = getFixedIntro(userName, gCtx);
+  }
+  // Persist the intro only once — skip if the last assistant message is already an intro
+  // (prevents duplicates on page refresh / multiple /start calls)
+  const lastMsg = db.prepare(
+    "SELECT content FROM conversation_messages WHERE user_id = ? AND role = 'assistant' ORDER BY created_at DESC, id DESC LIMIT 1"
+  ).get(userId) as { content: string } | undefined;
+  const lastIsIntro = lastMsg && (
+    lastMsg.content.includes("איזה כיף שחזרת") ||
+    lastMsg.content.includes("כיף לראות אותך") ||
+    lastMsg.content.includes("חזרת 😊") ||
+    lastMsg.content.includes("שמח שחזרת") ||
+    lastMsg.content.includes("אני השדכן שלך")
+  );
+  if (!lastIsIntro) {
+    persistMessage(db, userId, "assistant", introMessage);
+  }
+
+  // For returning users, reconstruct turn_count from existing user messages
+  let turnCount = 0;
+  if (isReturning) {
+    const userMsgCount = db.prepare(
+      "SELECT COUNT(*) as c FROM conversation_messages WHERE user_id = ? AND role = 'user'"
+    ).get(userId) as { c: number };
+    turnCount = userMsgCount.c;
+  }
+
+  // Rebuild turns from DB for returning users so the agent has full context
+  let turns: ConversationTurn[] = [];
+  if (isReturning) {
+    const dbMessages = db.prepare(
+      "SELECT role, content FROM conversation_messages WHERE user_id = ? ORDER BY created_at ASC, id ASC"
+    ).all(userId) as { role: string; content: string }[];
+    turns = dbMessages.map(m => ({
+      role: m.role === "user" ? "user" as const : "assistant" as const,
+      content: m.content,
+    }));
+  } else {
+    turns = [{ role: "assistant", content: introMessage }];
+  }
+
+  // Detect which mandatory questions were already asked (scan previous assistant messages)
+  let askedAppearance = false;
+  let askedDealbreakers = false;
+  for (const t of turns) {
+    if (t.role !== "assistant") continue;
+    const lc = t.content;
+    if (lc.includes("מראה שלך") || lc.includes("סטייל") || lc.includes("חזות") || lc.includes("מבנה גוף") || lc.includes("איך היית מתאר")) {
+      askedAppearance = true;
+    }
+    if (lc.includes("דיל ברייקר") || lc.includes("מהותי בזהות") || lc.includes("פרט חשוב עליך") || lc.includes("שחשוב שאדע")) {
+      askedDealbreakers = true;
+    }
+  }
 
   const state: ConversationState = {
     user_id: userId,
-    turns: [{ role: "assistant", content: introMessage }],
-    turn_count: 0,
+    turns,
+    turn_count: turnCount,
     last_analysis: null,
     last_analysis_at_turn: 0,
     phase: "chatting",
     analysis_in_flight: false,
     analysis_scheduled_at: 0,
-    asked_appearance: false,
-    asked_dealbreakers: false,
+    asked_appearance: askedAppearance,
+    asked_dealbreakers: askedDealbreakers,
+    returned_at_turn: isReturning ? turnCount : 0,
   };
 
-  return { message: introMessage, state };
+  return { message: introMessage, state, isReturning };
 }

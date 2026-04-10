@@ -423,7 +423,7 @@ export function createSchema(db: Database.Database) {
   `);
   insertTrait.run("hipsterishness", "היפסטריות", "Hipsterishness", "Hipster style and culture affinity", 0.2, 4, "sensitive", "normal", 36);
   // tel_aviv_style removed from MVP
-  insertTrait.run("mainstream_style", "עממיות", "Mainstream Style", "Mainstream/populist style and taste", 0.4, 6, "sensitive", "normal", 38);
+  // mainstream_style removed from MVP (replaced by broad_appeal in Excel)
   insertTrait.run("nerdiness", "חנוניות", "Nerdiness", "Nerd culture affinity and intellectual style", 0.3, 4, "sensitive", "normal", 39);
   insertTrait.run("hippie_style", "היפיות", "Hippie Style", "Hippie/free-spirit lifestyle and values", 0.2, 3, "normal", "normal", 40);
   insertTrait.run("soviet_style", "סגנון סובייטי", "Soviet Style", "Soviet/Russian cultural style markers", 0.2, 3, "sensitive", "normal", 41);

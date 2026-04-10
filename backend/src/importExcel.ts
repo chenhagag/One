@@ -65,15 +65,15 @@ const DISPLAY_NAME_MAP: Record<string, string> = {
   'יוקרה תעסוקתית': "career_prestige",
   'אינטלקטואליות': "intellectualism",
   'יתרונות אפשריים': "advantages",
-  'אהבת הארץ וציונות': "zionism",
-  'ימניות/שמאלניות': "political_leaning",
   'צמחונות': "vegetarianism",
-  // 'מוסר עבודה' removed from MVP
   'היפסטריות': "hipsterishness",
-  // 'סגנון תל אביבי' removed from MVP
-  'עממיות': "mainstream_style",
   'היפיות': "hippie_style",
   'סגנון סובייטי': "soviet_style",
+  'ימין פוליטי': "right_wing",
+  'שמאל פוליטי': "left_wing",
+  // Removed from MVP: 'אהבת הארץ וציונות' (zionism), 'ימניות/שמאלניות' (political_leaning),
+  //                   'מוסר עבודה' (work_ethic), 'סגנון תל אביבי' (tel_aviv_style),
+  //                   'עממיות' (mainstream_style — now `broad_appeal` with explicit internal_name)
 };
 
 // Traits explicitly NOT in MVP (from Excel note)

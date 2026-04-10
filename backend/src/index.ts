@@ -251,15 +251,16 @@ app.post("/conversation/start", async (req, res) => {
     });
   }
 
-  const { message, state } = generateOpeningMessage(db, userId);
+  const { message, state, isReturning } = generateOpeningMessage(db, userId);
   conversationStates.set(userId, state);
-  console.log(`[conversation] Started for user ${userId}`);
+  const cov = isReturning ? computeCoverage(db, userId) : { coverage_pct: 0 } as any;
+  console.log(`[conversation] ${isReturning ? "Returning" : "Started"} for user ${userId}, turns=${state.turn_count}`);
   return res.json({
     assistant_message: message,
     phase: "chatting",
-    coverage_pct: 0,
-    turn_count: 0,
-    resumed: false,
+    coverage_pct: isReturning ? cov.coverage_pct : 0,
+    turn_count: state.turn_count,
+    resumed: isReturning,
     turns: state.turns,
   });
 });
@@ -276,7 +277,7 @@ app.post("/conversation/message", async (req, res) => {
       user_id: userId, turns: [], turn_count: 0,
       last_analysis: null, last_analysis_at_turn: 0, phase: "chatting",
       analysis_in_flight: false, analysis_scheduled_at: 0,
-      asked_appearance: false, asked_dealbreakers: false,
+      asked_appearance: false, asked_dealbreakers: false, returned_at_turn: 0,
     };
   }
 
