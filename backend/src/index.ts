@@ -78,6 +78,19 @@ app.post("/register", (req, res) => {
   }
 });
 
+// PATCH /users/:id/guide — Save selected conversation guide
+app.patch("/users/:id/guide", (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const { selected_guide } = req.body;
+  const valid = ["psychologist", "coach", "spiritual_mentor"];
+  if (!valid.includes(selected_guide)) {
+    return res.status(400).json({ error: `selected_guide must be one of: ${valid.join(", ")}` });
+  }
+  db.prepare("UPDATE users SET selected_guide = ?, updated_at = datetime('now') WHERE id = ?")
+    .run(selected_guide, userId);
+  return res.json({ ok: true, selected_guide });
+});
+
 // Keep old POST /users for backward compatibility
 app.post("/users", (req, res) => {
   const { name, email } = req.body;
@@ -277,7 +290,9 @@ app.post("/conversation/message", async (req, res) => {
       user_id: userId, turns: [], turn_count: 0,
       last_analysis: null, last_analysis_at_turn: 0, phase: "chatting",
       analysis_in_flight: false, analysis_scheduled_at: 0,
-      asked_appearance: false, asked_dealbreakers: false, returned_at_turn: 0,
+      asked_appearance: false, asked_dealbreakers: false,
+      asked_worst_match: false, asked_last_relationship: false,
+      asked_simulation: false, asked_cognition: false, returned_at_turn: 0,
     };
   }
 

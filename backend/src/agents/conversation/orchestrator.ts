@@ -28,8 +28,12 @@ export interface ConversationState {
   analysis_in_flight: boolean;
   analysis_scheduled_at: number;
   // Mandatory question tracking
-  asked_appearance: boolean;     // "יש משהו במראה שלך..."
-  asked_dealbreakers: boolean;   // "יש משהו חשוב עלייך..."
+  asked_appearance: boolean;     // "איך היית מתאר/ת את המראה שלך"
+  asked_dealbreakers: boolean;   // "משהו מהותי בזהות שלך" — must be last
+  asked_worst_match: boolean;    // "בן/בת זוג שהכי לא מתאים"
+  asked_last_relationship: boolean; // "מערכת היחסים האחרונה"
+  asked_simulation: boolean;     // at least 1 simulation question asked
+  asked_cognition: boolean;      // at least 1 cognition question asked
   // Return-to-conversation tracking
   returned_at_turn: number;      // turn_count when user returned (0 = new conversation)
 }
@@ -159,11 +163,63 @@ function updateUserReadiness(db: Database.Database, userId: number, cov: Coverag
   ).run(cov.readiness_score, cov.ready_for_matching ? 1 : 0, userId);
 }
 
+// ── Mandatory question detection ──────────────────────────────
+
+function scanMandatoryQuestions(state: ConversationState): void {
+  for (const t of state.turns) {
+    if (t.role !== "assistant") continue;
+    const c = t.content;
+
+    // Appearance
+    if (c.includes("מראה שלך") || c.includes("איך היית מתאר") || c.includes("חזות")) {
+      state.asked_appearance = true;
+    }
+    // Identity / deal-breakers
+    if (c.includes("מהותי בזהות") || c.includes("דיל ברייקר") || c.includes("פרט חשוב עליך") || c.includes("שחשוב שאדע")) {
+      state.asked_dealbreakers = true;
+    }
+    // Worst match
+    if (c.includes("הכי לא מתאים") || c.includes("הכי *לא*") || c.includes("הכי לא בשביל") || c.includes("נעשה את זה הפוך")) {
+      state.asked_worst_match = true;
+    }
+    // Last relationship
+    if (c.includes("מערכת היחסים האחרונה") || c.includes("מערכת יחסים אחרונה") || c.includes("הקשר האחרון")) {
+      state.asked_last_relationship = true;
+    }
+    // Simulation (detect common simulation question keywords)
+    if (c.includes("מיליון דולר") || c.includes("אין משיכה פיזית") || c.includes("לוקח קרדיט") || c.includes("לא מתאים לך — איך")) {
+      state.asked_simulation = true;
+    }
+    // Cognition
+    if (c.includes("חייזר") || c.includes("קנאה") || c.includes("טעות מוחלטת")) {
+      state.asked_cognition = true;
+    }
+  }
+}
+
+function getMissingMandatory(state: ConversationState): string[] {
+  const missing: string[] = [];
+  if (!state.asked_worst_match) missing.push("worst_match");
+  if (!state.asked_last_relationship) missing.push("last_relationship");
+  if (!state.asked_appearance) missing.push("appearance");
+  if (!state.asked_simulation) missing.push("simulation");
+  if (!state.asked_cognition) missing.push("cognition");
+  // dealbreakers is always last — tracked separately
+  if (!state.asked_dealbreakers) missing.push("dealbreakers");
+  return missing;
+}
+
+function allMandatoryCovered(state: ConversationState): boolean {
+  return state.asked_appearance && state.asked_dealbreakers
+    && state.asked_worst_match && state.asked_last_relationship
+    && state.asked_simulation && state.asked_cognition;
+}
+
 // ── Checkpoint logic ───────────────────────────────────────────
 
 const FIRST_CHECKPOINT = 4;
 const CHECKPOINT_INTERVAL = 2;
-const MAX_QUESTIONS = 12;  // stop after 12 agent questions
+const MAX_QUESTIONS = 14;  // stop after 14 agent questions
 
 function shouldRunAnalysis(state: ConversationState): boolean {
   const { turn_count, last_analysis_at_turn } = state;
@@ -327,6 +383,26 @@ function buildGuidance(
   // External trait gaps (read from DB)
   if (!topics.hasDesiredLook) lines.push("MISSING: physical attraction / what kind of look draws them in");
   if (!topics.hasPersonalLook) lines.push("MISSING: their own appearance / style / presence");
+
+  // Mandatory question status — tell the LLM what's still needed
+  if (state) {
+    const missing = getMissingMandatory(state);
+    if (missing.length > 0) {
+      const labels: Record<string, string> = {
+        worst_match: "שאלת פרטנר לא מתאים",
+        last_relationship: "שאלת מערכת יחסים אחרונה",
+        appearance: "שאלת מראה",
+        simulation: "שאלת סימולציה (לפחות 1)",
+        cognition: "שאלת קוגניציה (לפחות 1)",
+        dealbreakers: "שאלת זהות/דיל ברייקרס (חובה אחרונה!)",
+      };
+      const missingLabels = missing.map(m => labels[m] || m).join(", ");
+      lines.push(`שאלות חובה שעדיין לא נשאלו: ${missingLabels}`);
+      if (missing.includes("dealbreakers") && missing.length === 1) {
+        lines.push("זו השאלה האחרונה שצריך לשאול — שאלת הזהות/דיל ברייקרס. שאל אותה עכשיו.");
+      }
+    }
+  }
 
   // Probes from analysis/coverage probe
   if (analysis && analysis.recommended_probes.length > 0) {
@@ -570,21 +646,8 @@ export async function processUserMessage(
     updateUserReadiness(db, userId, cov);
   }
 
-  // 7. Detect if mandatory questions were asked (scan assistant messages)
-  if (!state.asked_appearance || !state.asked_dealbreakers) {
-    for (const t of state.turns) {
-      if (t.role !== "assistant") continue;
-      const lc = t.content;
-      // Appearance: "איך היית מתאר/ת את המראה שלך" or similar
-      if (lc.includes("מראה שלך") || lc.includes("סטייל") || lc.includes("חזות") || lc.includes("מבנה גוף") || lc.includes("איך היית מתאר")) {
-        state.asked_appearance = true;
-      }
-      // Identity / deal-breakers: "משהו מהותי בזהות" or "דיל ברייקר" or "פרט חשוב עליך"
-      if (lc.includes("דיל ברייקר") || lc.includes("מהותי בזהות") || lc.includes("פרט חשוב עליך") || lc.includes("שחשוב שאדע")) {
-        state.asked_dealbreakers = true;
-      }
-    }
-  }
+  // 7. Detect which mandatory questions were asked (scan assistant messages)
+  scanMandatoryQuestions(state);
 
   // 8. Check if we should move to summarizing phase
   const hitQuestionLimit = state.turn_count >= MAX_QUESTIONS;
@@ -596,16 +659,36 @@ export async function processUserMessage(
     : Infinity; // new conversation — no minimum
   const returnGuardMet = turnsSinceReturn >= MIN_TURNS_AFTER_RETURN;
 
-  const canEnd = (cov.profile_complete || hitQuestionLimit) && returnGuardMet;
+  // All mandatory questions must be covered before ending
+  const mandatoriesDone = allMandatoryCovered(state);
+  const canEnd = (cov.profile_complete || hitQuestionLimit) && returnGuardMet && mandatoriesDone;
 
-  // If we hit the limit but mandatory questions weren't asked, force them instead of ending
-  if (canEnd && state.phase === "chatting" && (!state.asked_appearance || !state.asked_dealbreakers)) {
+  // If we want to end but mandatory questions are missing → force them one by one
+  const wantToEnd = (cov.profile_complete || hitQuestionLimit) && returnGuardMet;
+  if (wantToEnd && !mandatoriesDone && state.phase === "chatting") {
     const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+    const missing = getMissingMandatory(state);
     let forcedQuestion = "";
-    if (!state.asked_appearance) {
-      forcedQuestion = "MANDATORY: You MUST ask the appearance question now. Ask in Hebrew: איך היית מתאר/ת את המראה שלך? (then follow up about partner appearance preferences)";
-    } else {
-      forcedQuestion = "MANDATORY: You MUST ask the identity/deal-breakers question now. Ask in Hebrew: האם יש משהו מהותי בזהות שלך, או פרט חשוב עליך, שחשוב שאדע לפני שאני מתאים/ה לך בן/בת זוג?";
+
+    // Force in priority order (dealbreakers is always last)
+    const next = missing.find(m => m !== "dealbreakers") || "dealbreakers";
+
+    if (next === "worst_match") {
+      const seeksFemale = isFemaleGender(user?.looking_for_gender);
+      const seeksMale = isMaleGender(user?.looking_for_gender);
+      const partnerWord = seeksMale ? "בן הזוג" : seeksFemale ? "בת הזוג" : "בן/בת הזוג";
+      const notFit = seeksMale ? "לא מתאים" : seeksFemale ? "לא מתאימה" : "לא מתאים/ה";
+      forcedQuestion = `MANDATORY: שאל עכשיו את שאלת הפרטנר הלא מתאים. התאם מגדרית: "בוא/י רגע נעשה את זה הפוך — תן/י לי תיאור של ${partnerWord} שלדעתך הכי *לא* ${notFit} לך? מה הווייב? מה הדעות והאמונות?"`;
+    } else if (next === "last_relationship") {
+      forcedQuestion = "MANDATORY: שאל עכשיו על מערכת היחסים האחרונה: 'תאר/י לי קצת את מערכת היחסים האחרונה שהייתה לך. מה עבד לך ומה לא עבד?' (התאם מגדרית)";
+    } else if (next === "appearance") {
+      forcedQuestion = "MANDATORY: שאל עכשיו על מראה: 'איך היית מתאר/ת את המראה שלך?' (התאם מגדרית, אחרי התשובה שאל גם על העדפות מראה בפרטנר)";
+    } else if (next === "simulation") {
+      forcedQuestion = "MANDATORY: שאל עכשיו שאלת סימולציה מבנק השאלות (למשל: מיליון דולר, דייט בלי משיכה, קרדיט בעבודה). התאם מגדרית.";
+    } else if (next === "cognition") {
+      forcedQuestion = "MANDATORY: שאל עכשיו שאלת קוגניציה מבנק השאלות (למשל: חייזר וכריזמה, הסבר קנאה, דעה לא פופולרית). התאם מגדרית.";
+    } else if (next === "dealbreakers") {
+      forcedQuestion = "MANDATORY: זו השאלה האחרונה — שאל את שאלת הזהות/דיל ברייקרס: 'האם יש משהו מהותי בזהות שלך, או פרט חשוב עליך, שחשוב שאדע לפני שאני מתאים/ה לך בן/בת זוג?' (התאם מגדרית)";
     }
 
     const ctx: ConversationContext = {
@@ -624,7 +707,7 @@ export async function processUserMessage(
     state.turns.push({ role: "assistant", content: assistantMessage });
     persistMessage(db, userId, "assistant", assistantMessage);
 
-    console.log(`[orchestrator] Forced mandatory question (appearance=${state.asked_appearance}, dealbreakers=${state.asked_dealbreakers}) at turn ${state.turn_count}`);
+    console.log(`[orchestrator] Forced mandatory: ${next} (missing: ${missing.join(", ")}) at turn ${state.turn_count}`);
 
     return {
       result: {
@@ -771,9 +854,42 @@ function genderForms(ctx: GenderContext) {
   return { ready, youAnswer, youKnow, yourSelf, theOne, iKnow };
 }
 
-function getFixedIntro(userName: string, ctx: GenderContext): string {
-  const g = genderForms(ctx);
+// Guide-specific opening intros
+const GUIDE_INTROS: Record<string, (userName: string, g: ReturnType<typeof genderForms>) => string> = {
+  psychologist: (userName, g) => [
+    `היי ${userName}, אני כאן כדי להכיר ${g.yourSelf} קצת יותר לעומק 🙂`,
+    `ננסה להבין יחד מה חשוב לך באמת ומה עובד לך בקשרים.`,
+    `ככל ${g.youAnswer} יותר בפתיחות — כך נוכל להגיע להתאמה מדויקת יותר.`,
+    `אם השיחה ארוכה לך מדי, תמיד אפשר לעצור ולהמשיך בזמן אחר ;)`,
+    `חשוב ${g.youKnow} — התשובות כאן לעיני בלבד, כדי שאוכל למצוא ${g.theOne}.`,
+    `${g.ready}?`,
+  ].join("\n"),
 
+  coach: (userName, g) => [
+    `היי ${userName}, בוא ניגש לזה בצורה ברורה ומדויקת 💪`,
+    `המטרה שלי היא להבין מה ${g.yourSelf === "אותך" ? "את/ה רוצה" : "אתם רוצים"} ואיך להגיע להתאמה הכי טובה.`,
+    `ככל ${g.youAnswer} בכנות וללא פילטרים — כך התוצאה תהיה חדה יותר.`,
+    `אם השיחה ארוכה לך מדי, תמיד אפשר לעצור ולהמשיך בזמן אחר ;)`,
+    `חשוב ${g.youKnow} — התשובות כאן לעיני בלבד, כדי שאוכל למצוא ${g.theOne}.`,
+    `${g.ready}?`,
+  ].join("\n"),
+
+  spiritual_mentor: (userName, g) => [
+    `היי ${userName}, נתחיל מרגע של שקט 🌿`,
+    `ננסה להבין יחד מה נכון לך ומה באמת מרגיש לך מדויק בדרך שלך.`,
+    `ככל ${g.youAnswer} יותר מהלב — כך נוכל להגיע לחיבור אמיתי.`,
+    `אם השיחה ארוכה לך מדי, תמיד אפשר לעצור ולהמשיך בזמן אחר ;)`,
+    `חשוב ${g.youKnow} — התשובות כאן לעיני בלבד, כדי שאוכל למצוא ${g.theOne}.`,
+    `${g.ready}?`,
+  ].join("\n"),
+};
+
+function getFixedIntro(userName: string, ctx: GenderContext, selectedGuide?: string | null): string {
+  const g = genderForms(ctx);
+  const guideIntro = selectedGuide && GUIDE_INTROS[selectedGuide];
+  if (guideIntro) return guideIntro(userName, g);
+
+  // Default fallback (no guide selected)
   return [
     `היי ${userName}, אני השדכן שלך 😊`,
     `כדי למצוא לך מישהו מתאים ברמה הכי מדויקת שיש, אני צריך להכיר ${g.yourSelf} לעומק.`,
@@ -832,10 +948,9 @@ export function generateOpeningMessage(
 
   let introMessage: string;
   if (isReturning) {
-    // Return greeting only — no thinking message yet (that comes after user responds)
     introMessage = getReturnIntro(userName, gCtx);
   } else {
-    introMessage = getFixedIntro(userName, gCtx);
+    introMessage = getFixedIntro(userName, gCtx, user?.selected_guide);
   }
   // Persist the intro only once — skip if the last assistant message is already an intro
   // (prevents duplicates on page refresh / multiple /start calls)
@@ -876,20 +991,6 @@ export function generateOpeningMessage(
     turns = [{ role: "assistant", content: introMessage }];
   }
 
-  // Detect which mandatory questions were already asked (scan previous assistant messages)
-  let askedAppearance = false;
-  let askedDealbreakers = false;
-  for (const t of turns) {
-    if (t.role !== "assistant") continue;
-    const lc = t.content;
-    if (lc.includes("מראה שלך") || lc.includes("סטייל") || lc.includes("חזות") || lc.includes("מבנה גוף") || lc.includes("איך היית מתאר")) {
-      askedAppearance = true;
-    }
-    if (lc.includes("דיל ברייקר") || lc.includes("מהותי בזהות") || lc.includes("פרט חשוב עליך") || lc.includes("שחשוב שאדע")) {
-      askedDealbreakers = true;
-    }
-  }
-
   const state: ConversationState = {
     user_id: userId,
     turns,
@@ -899,10 +1000,17 @@ export function generateOpeningMessage(
     phase: "chatting",
     analysis_in_flight: false,
     analysis_scheduled_at: 0,
-    asked_appearance: askedAppearance,
-    asked_dealbreakers: askedDealbreakers,
+    asked_appearance: false,
+    asked_dealbreakers: false,
+    asked_worst_match: false,
+    asked_last_relationship: false,
+    asked_simulation: false,
+    asked_cognition: false,
     returned_at_turn: isReturning ? turnCount : 0,
   };
+
+  // Scan existing history to detect previously asked mandatory questions
+  scanMandatoryQuestions(state);
 
   return { message: introMessage, state, isReturning };
 }

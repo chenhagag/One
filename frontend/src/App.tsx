@@ -1,10 +1,11 @@
 import { useState } from "react";
 import Register from "./Register";
+import GuideSelection, { type GuideType } from "./GuideSelection";
 import Chat from "./Chat";
 import Result from "./Result";
 import AdminView from "./AdminView";
 
-type View = "register" | "ready_for_chat" | "chat" | "result" | "done" | "admin";
+type View = "register" | "ready_for_chat" | "guide_selection" | "chat" | "result" | "done" | "admin";
 
 // Full user type matching the expanded DB schema
 export interface User {
@@ -17,6 +18,7 @@ export interface User {
   city?: string;
   height?: number;
   self_style?: string[];
+  selected_guide?: GuideType;
 }
 
 // Simplified user type for Chat/Result (legacy components use .name)
@@ -103,12 +105,34 @@ export default function App() {
         <Register
           onSuccess={(u) => {
             setUser(u);
+            setView("guide_selection");
+          }}
+        />
+      )}
+
+      {/* Step 2: Choose conversation guide */}
+      {view === "guide_selection" && user && (
+        <GuideSelection
+          userName={user.first_name}
+          onSelect={async (guide) => {
+            // Save to backend
+            try {
+              await fetch(`/api/users/${user.id}/guide`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ selected_guide: guide }),
+              });
+            } catch (err) {
+              console.error("Failed to save guide selection:", err);
+            }
+            // Update local state and proceed
+            setUser({ ...user, selected_guide: guide });
             setView("ready_for_chat");
           }}
         />
       )}
 
-      {/* Step 2: Registration complete / paused → navigate to chat */}
+      {/* Step 3: Registration complete / paused → navigate to chat */}
       {view === "ready_for_chat" && user && (
         <div style={styles.readyContainer}>
           <h2 style={styles.readyHeading}>!{user.first_name} ,נרשמת בהצלחה</h2>
@@ -124,7 +148,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Step 3: AI Chat */}
+      {/* Step 4: AI Chat */}
       {view === "chat" && user && (
         <Chat
           user={{ id: user.id, name: user.first_name, email: user.email }}
@@ -137,7 +161,7 @@ export default function App() {
         />
       )}
 
-      {/* Step 4: Result display */}
+      {/* Step 5: Result display */}
       {view === "result" && user && analysis && (
         <Result
           user={{ id: user.id, name: user.first_name, email: user.email }}
@@ -150,7 +174,7 @@ export default function App() {
         />
       )}
 
-      {/* Step 5: Conversation complete — waiting for match */}
+      {/* Step 6: Conversation complete — waiting for match */}
       {view === "done" && user && (
         <div style={styles.readyContainer}>
           <h2 style={{ fontSize: 24, marginBottom: 12 }}>!{user.first_name} ,תודה</h2>
