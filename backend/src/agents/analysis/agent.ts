@@ -628,7 +628,8 @@ export async function runAnalysisAgent(
   const runData: AnalysisRunData = {
     generated_prompt: promptParts + textPromptPart + externalPromptPart,
     stage_a_output: outputParts + textOutputPart + externalOutputPart,
-    stage_b_output: result,
+    // Use a plain copy to avoid circular reference (result._run_data.stage_b_output → result)
+    stage_b_output: JSON.parse(JSON.stringify(result)),
   };
 
   return Object.assign(result, { _run_data: runData });

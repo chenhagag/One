@@ -56,19 +56,26 @@ export const GUIDE_CONFIG: Record<GuideType, { name: string; toneSummary: string
 interface Props {
   userName: string;
   onSelect: (guide: GuideType) => void;
+  mode?: "first_time" | "returning";  // changes title/subtitle
+  previousGuide?: GuideType | null;   // highlight previous guide for returning users
 }
 
-export default function GuideSelection({ userName, onSelect }: Props) {
+export default function GuideSelection({ userName, onSelect, mode = "first_time", previousGuide }: Props) {
   const [selected, setSelected] = useState<GuideType | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const isReturning = mode === "returning";
+
   return (
     <div style={s.container}>
-      <h2 style={s.title}>בחירת מלווה לשיחה</h2>
+      <h2 style={s.title}>
+        {isReturning ? "עם מי תרצה לדבר הפעם?" : "בחירת מלווה לשיחה"}
+      </h2>
       <p style={s.subtitle}>
-        לפני שמתחילים, {userName}, אפשר לבחור את הסגנון שילווה את השיחה.
-        <br />
-        כל מלווה מוביל את השיחה קצת אחרת — ואת/ה יכול/ה לבחור מה מרגיש לך הכי נכון.
+        {isReturning
+          ? `${userName}, אפשר להמשיך עם אותו מלווה או לבחור מלווה אחר לשיחה מזווית קצת שונה.`
+          : <>לפני שמתחילים, {userName}, אפשר לבחור את הסגנון שילווה את השיחה.<br />כל מלווה מוביל את השיחה קצת אחרת — ואת/ה יכול/ה לבחור מה מרגיש לך הכי נכון.</>
+        }
       </p>
 
       <div style={s.cardsContainer}>
@@ -123,6 +130,13 @@ export default function GuideSelection({ userName, onSelect }: Props) {
               {isSelected && (
                 <div style={{ ...s.selectedBadge, backgroundColor: g.color }}>
                   נבחר
+                </div>
+              )}
+
+              {/* "Last used" indicator for returning users */}
+              {!isSelected && isReturning && previousGuide === g.value && (
+                <div style={{ ...s.selectedBadge, backgroundColor: "#aaa" }}>
+                  פעם קודמת
                 </div>
               )}
             </button>

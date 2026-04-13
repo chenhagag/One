@@ -8,7 +8,7 @@ import { analyzeAnswer } from "./openai";
 import { runStage1 } from "./matchStage1";
 import { runStage2, runMatchmaking } from "./matchStage2";
 import { runAnalysisAgent, buildAnalysisInput, saveAnalysisToDb, saveAnalysisRun, getLatestAnalysisRun } from "./agents/analysis";
-import { generateOpeningMessage, processUserMessage, computeCoverage, type ConversationState } from "./agents/conversation";
+import { generateOpeningMessage, processUserMessage, computeCoverage, buildAnalysisTranscript, type ConversationState } from "./agents/conversation";
 
 dotenv.config();
 
@@ -245,25 +245,6 @@ app.post("/conversation/start", async (req, res) => {
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
   if (!user) return res.status(404).json({ error: "User not found" });
 
-  // Check for existing paused conversation
-  const existing = conversationStates.get(userId);
-  if (existing && existing.phase === "paused") {
-    // Resume — restore the phase that was active before pausing
-    existing.phase = (existing as any)._phase_before_pause || "chatting";
-    delete (existing as any)._phase_before_pause;
-    conversationStates.set(userId, existing);
-    const cov = computeCoverage(db, userId);
-    console.log(`[conversation] Resumed for user ${userId} at turn ${existing.turn_count}, phase=${existing.phase}`);
-    return res.json({
-      assistant_message: existing.turns[existing.turns.length - 1]?.content || "Welcome back! Where were we?",
-      phase: existing.phase,
-      coverage_pct: cov.coverage_pct,
-      turn_count: existing.turn_count,
-      resumed: true,
-      turns: existing.turns,
-    });
-  }
-
   const { message, state, isReturning } = generateOpeningMessage(db, userId);
   conversationStates.set(userId, state);
   const cov = isReturning ? computeCoverage(db, userId) : { coverage_pct: 0 } as any;
@@ -293,6 +274,7 @@ app.post("/conversation/message", async (req, res) => {
       asked_appearance: false, asked_dealbreakers: false,
       asked_worst_match: false, asked_last_relationship: false,
       asked_simulation: false, asked_cognition: false, returned_at_turn: 0,
+      forced_questions: new Set(),
     };
   }
 
@@ -315,29 +297,85 @@ app.post("/conversation/message", async (req, res) => {
 });
 
 // POST /conversation/pause — Save state and pause the conversation
-app.post("/conversation/pause", (req, res) => {
+// Also triggers analysis so trait scores are saved
+app.post("/conversation/pause", async (req, res) => {
   const userId = parseUserId(req.body.user_id);
   if (!userId) return res.status(400).json({ error: "Valid user_id required" });
 
+  // Update in-memory state if it exists (may not exist after server restart)
   const state = conversationStates.get(userId);
-  if (!state) return res.status(404).json({ error: "No active conversation" });
-
-  if (state.phase === "confirmed") {
-    return res.status(400).json({ error: "Conversation already confirmed" });
+  if (state && state.phase !== "confirmed") {
+    (state as any)._phase_before_pause = state.phase;
+    state.phase = "paused";
+    conversationStates.set(userId, state);
   }
 
-  // Remember what phase we were in so resume can restore it
-  (state as any)._phase_before_pause = state.phase;
-  state.phase = "paused";
-  conversationStates.set(userId, state);
+  // Count user messages directly from DB — don't rely on in-memory state
+  const userMsgCount = (db.prepare(
+    "SELECT COUNT(*) as c FROM conversation_messages WHERE user_id = ? AND role = 'user'"
+  ).get(userId) as any).c;
+
+  console.log(`[conversation] Paused for user ${userId} (${userMsgCount} user messages in DB)`);
+
+  // Fire analysis in background — do NOT block the pause response
+  if (userMsgCount >= 3) {
+    console.log(`[conversation] Triggering background analysis for user ${userId} on pause...`);
+    const transcript = buildAnalysisTranscript(db, userId);
+    const input = buildAnalysisInput(db, transcript);
+    runAnalysisAgent(input, userId, "analysis_pause")
+      .then((output: any) => {
+        const runData = output._run_data;
+        if (runData) {
+          saveAnalysisRun(db, userId, runData.generated_prompt, runData.stage_a_output, JSON.stringify(runData.stage_b_output), "analysis_pause");
+        }
+        delete output._run_data;
+        const saved = saveAnalysisToDb(db, userId, output);
+        console.log(`[conversation] Pause analysis DONE for user ${userId}: ${saved.internal_saved} internal, ${saved.external_saved} external`);
+      })
+      .catch((err: any) => {
+        console.error(`[conversation] Pause analysis FAILED for user ${userId}:`, err.message);
+      });
+  }
 
   const cov = computeCoverage(db, userId);
-  console.log(`[conversation] Paused for user ${userId} at turn ${state.turn_count}`);
   return res.json({
     phase: "paused",
-    turn_count: state.turn_count,
+    analysis_ran: false, // analysis runs in background
+    turn_count: userMsgCount,
     coverage_pct: cov.coverage_pct,
   });
+});
+
+// POST /conversation/analyze — Explicitly trigger analysis for a user
+app.post("/conversation/analyze", async (req, res) => {
+  const userId = parseUserId(req.body.user_id);
+  if (!userId) return res.status(400).json({ error: "Valid user_id required" });
+
+  const userMsgCount = (db.prepare(
+    "SELECT COUNT(*) as c FROM conversation_messages WHERE user_id = ? AND role = 'user'"
+  ).get(userId) as any).c;
+
+  if (userMsgCount < 3) {
+    return res.json({ analysis_ran: false, reason: "not_enough_messages", user_messages: userMsgCount });
+  }
+
+  try {
+    console.log(`[analyze] Explicit analysis for user ${userId} (${userMsgCount} messages)...`);
+    const transcript = buildAnalysisTranscript(db, userId);
+    const input = buildAnalysisInput(db, transcript);
+    const output = await runAnalysisAgent(input, userId, "analysis_explicit");
+    const runData = (output as any)._run_data;
+    if (runData) {
+      saveAnalysisRun(db, userId, runData.generated_prompt, runData.stage_a_output, JSON.stringify(runData.stage_b_output), "analysis_explicit");
+    }
+    delete (output as any)._run_data;
+    const saved = saveAnalysisToDb(db, userId, output);
+    console.log(`[analyze] DONE for user ${userId}: ${saved.internal_saved} internal, ${saved.external_saved} external`);
+    return res.json({ analysis_ran: true, saved, traits_count: output.internal_traits?.length });
+  } catch (err: any) {
+    console.error(`[analyze] FAILED for user ${userId}:`, err.message);
+    return res.status(500).json({ analysis_ran: false, error: err.message });
+  }
 });
 
 // GET /conversation/state/:id — Current conversation state
@@ -1050,7 +1088,7 @@ app.post("/admin/users/:id/reanalyze", async (req, res) => {
 
     // Save analysis run data for debugging
     if (runData) {
-      saveAnalysisRun(db, user_id, runData.generated_prompt, runData.stage_a_output, JSON.stringify(output), "reanalyze");
+      saveAnalysisRun(db, user_id, runData.generated_prompt, runData.stage_a_output, JSON.stringify(runData.stage_b_output), "reanalyze");
     }
 
     console.log(`[reanalyze] User ${user_id}: saved ${saved.internal_saved} internal, ${saved.external_saved} external traits`);

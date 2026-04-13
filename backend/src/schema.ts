@@ -372,6 +372,7 @@ export function createSchema(db: Database.Database) {
     ["trait_definitions", "trait_group", "ALTER TABLE trait_definitions ADD COLUMN trait_group TEXT"],
     ["look_trait_definitions", "trait_group", "ALTER TABLE look_trait_definitions ADD COLUMN trait_group TEXT"],
     ["users", "selected_guide", "ALTER TABLE users ADD COLUMN selected_guide TEXT"],
+    ["conversation_messages", "guide", "ALTER TABLE conversation_messages ADD COLUMN guide TEXT"],
     ["look_trait_definitions", "ai_description", "ALTER TABLE look_trait_definitions ADD COLUMN ai_description TEXT"],
     ["look_trait_definitions", "required_confidence", "ALTER TABLE look_trait_definitions ADD COLUMN required_confidence REAL DEFAULT 0.5"],
   ];

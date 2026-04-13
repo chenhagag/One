@@ -154,11 +154,24 @@ export default function Chat({
 
   async function handlePause() {
     try {
-      await fetch("/api/conversation/pause", {
+      // Pause the conversation (also triggers analysis on the backend)
+      const pauseRes = await fetch("/api/conversation/pause", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: user.id }),
       });
+      const pauseData = await pauseRes.json();
+
+      // If pause didn't run analysis (e.g. state was missing), trigger it explicitly
+      if (!pauseData.analysis_ran && turnCount >= 3) {
+        console.log("[chat] Pause did not run analysis, triggering explicitly...");
+        fetch("/api/conversation/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: user.id }),
+        }).catch(() => {}); // fire-and-forget fallback
+      }
+
       setPhase("paused");
       if (onPause) onPause();
     } catch {
