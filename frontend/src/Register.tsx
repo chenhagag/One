@@ -182,12 +182,9 @@ export default function Register({ onSuccess }: { onSuccess: (u: User) => void }
   return (
     <form onSubmit={handleSubmit} dir="rtl">
       <h2 style={s.heading}>הרשמה ל-MatchMe</h2>
-      <p style={s.sub}>ספר/י לנו קצת על עצמך</p>
+      <p style={s.sub}>רק כמה פרטים בסיסיים כדי להתחיל</p>
 
-      {/* ── About Me ─────────────────────────────────── */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle}>עליי</h3>
-
         <label style={s.label}>שם *</label>
         <input
           style={s.input}
@@ -207,33 +204,6 @@ export default function Register({ onSuccess }: { onSuccess: (u: User) => void }
           required
         />
 
-        <div style={s.row}>
-          <div style={s.rowItem}>
-            <label style={s.label}>גיל</label>
-            <input
-              style={s.input}
-              type="number"
-              min={18}
-              max={99}
-              value={age}
-              onChange={(e) => setAge(e.target.value)}
-              placeholder="גיל"
-            />
-          </div>
-          <div style={s.rowItem}>
-            <label style={s.label}>גובה (ס"מ)</label>
-            <input
-              style={s.input}
-              type="number"
-              min={120}
-              max={220}
-              value={height}
-              onChange={(e) => setHeight(e.target.value)}
-              placeholder='גובה בס"מ'
-            />
-          </div>
-        </div>
-
         <label style={s.label}>מגדר</label>
         <select style={s.select} value={gender} onChange={(e) => setGender(e.target.value)}>
           <option value="">בחר/י</option>
@@ -246,40 +216,7 @@ export default function Register({ onSuccess }: { onSuccess: (u: User) => void }
           ))}
         </select>
 
-        <label style={s.label}>עיר</label>
-        <input
-          style={s.input}
-          value={city}
-          onChange={(e) => setCity(e.target.value)}
-          placeholder="העיר שלך"
-        />
-
-        <label style={s.label}>סגנון מראה</label>
-        <div style={s.checkboxGroup}>
-          {(opts("look_style").length > 0 ? opts("look_style") : [
-            { value: "sporty", label_he: "ספורטיבי" },
-            { value: "groomed", label_he: "מטופח" },
-            { value: "casual", label_he: "קז'ואל" },
-            { value: "elegant", label_he: "אלגנטי" },
-            { value: "hipster", label_he: "היפסטר" },
-            { value: "natural", label_he: "טבעי" },
-          ]).map((o) => (
-            <span
-              key={o.value}
-              style={selfStyle.includes(o.value) ? s.chipActive : s.chip}
-              onClick={() => toggleStyle(o.value)}
-            >
-              {o.label_he}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Looking For ──────────────────────────────── */}
-      <div style={s.section}>
-        <h3 style={s.sectionTitle}>מה אני מחפש/ת</h3>
-
-        <label style={s.label}>מגדר רצוי</label>
+        <label style={s.label}>מחפש/ת</label>
         <select style={s.select} value={lookingForGender} onChange={(e) => setLookingForGender(e.target.value)}>
           <option value="">בחר/י</option>
           {(opts("looking_for_gender").length > 0 ? opts("looking_for_gender") : [
@@ -287,92 +224,6 @@ export default function Register({ onSuccess }: { onSuccess: (u: User) => void }
             { value: "woman", label_he: "אישה" },
             { value: "both", label_he: "שניהם" },
             { value: "doesnt_matter", label_he: "לא משנה" },
-          ]).map((o) => (
-            <option key={o.value} value={o.value}>{o.label_he}</option>
-          ))}
-        </select>
-
-        <label style={s.label}>טווח גילאים רצוי</label>
-        <div style={s.row}>
-          <div style={s.rowItem}>
-            <input
-              style={s.input}
-              type="number"
-              min={18}
-              max={99}
-              value={desiredAgeMin}
-              onChange={(e) => setDesiredAgeMin(e.target.value)}
-              placeholder="מגיל"
-            />
-          </div>
-          <div style={s.rowItem}>
-            <input
-              style={s.input}
-              type="number"
-              min={18}
-              max={99}
-              value={desiredAgeMax}
-              onChange={(e) => setDesiredAgeMax(e.target.value)}
-              placeholder="עד גיל"
-            />
-          </div>
-          <div style={s.rowItem}>
-            <select style={s.select} value={ageFlex} onChange={(e) => setAgeFlex(e.target.value)}>
-              {(opts("flexibility").length > 0 ? opts("flexibility") : [
-                { value: "not_flexible", label_he: "לא גמיש" },
-                { value: "slightly_flexible", label_he: "קצת גמיש" },
-                { value: "very_flexible", label_he: "מאוד גמיש" },
-              ]).map((o) => (
-                <option key={o.value} value={o.value}>{o.label_he}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <label style={s.label}>טווח גובה רצוי (ס"מ)</label>
-        <div style={s.row}>
-          <div style={s.rowItem}>
-            <input
-              style={s.input}
-              type="number"
-              min={120}
-              max={220}
-              value={desiredHeightMin}
-              onChange={(e) => setDesiredHeightMin(e.target.value)}
-              placeholder="מגובה"
-            />
-          </div>
-          <div style={s.rowItem}>
-            <input
-              style={s.input}
-              type="number"
-              min={120}
-              max={220}
-              value={desiredHeightMax}
-              onChange={(e) => setDesiredHeightMax(e.target.value)}
-              placeholder="עד גובה"
-            />
-          </div>
-          <div style={s.rowItem}>
-            <select style={s.select} value={heightFlex} onChange={(e) => setHeightFlex(e.target.value)}>
-              {(opts("flexibility").length > 0 ? opts("flexibility") : [
-                { value: "not_flexible", label_he: "לא גמיש" },
-                { value: "slightly_flexible", label_he: "קצת גמיש" },
-                { value: "very_flexible", label_he: "מאוד גמיש" },
-              ]).map((o) => (
-                <option key={o.value} value={o.value}>{o.label_he}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <label style={s.label}>טווח מיקום</label>
-        <select style={s.select} value={locationRange} onChange={(e) => setLocationRange(e.target.value)}>
-          {(opts("location_range").length > 0 ? opts("location_range") : [
-            { value: "my_city", label_he: "העיר שלי בלבד" },
-            { value: "my_area", label_he: "האזור שלי" },
-            { value: "bit_further", label_he: "קצת רחוק יותר" },
-            { value: "whole_country", label_he: "כל הארץ" },
           ]).map((o) => (
             <option key={o.value} value={o.value}>{o.label_he}</option>
           ))}

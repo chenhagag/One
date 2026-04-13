@@ -50,7 +50,7 @@ const s: Record<string, React.CSSProperties> = {
   scrollWrap: { overflowX: "auto" as const },
 };
 
-export default function AdminView({ onBack, onStartChat }: { onBack: () => void; onStartChat?: (user: { id: number; first_name: string; email: string }) => void }) {
+export default function AdminView({ onBack, onStartChat, onViewDashboard }: { onBack: () => void; onStartChat?: (user: { id: number; first_name: string; email: string }) => void; onViewDashboard?: (user: { id: number; first_name: string; email: string }) => void }) {
   const [tab, setTab] = useState<Tab>("overview");
 
   return (
@@ -80,7 +80,7 @@ export default function AdminView({ onBack, onStartChat }: { onBack: () => void;
       </div>
 
       {tab === "overview" && <OverviewTab />}
-      {tab === "users" && <UsersTab onStartChat={onStartChat} />}
+      {tab === "users" && <UsersTab onStartChat={onStartChat} onViewDashboard={onViewDashboard} />}
       {tab === "traits" && <TraitDefsTab />}
       {tab === "look_traits" && <LookTraitDefsTab />}
       {tab === "enums" && <EnumsTab />}
@@ -116,7 +116,7 @@ function OverviewTab() {
 
 // ── Users Tab ────────────────────────────────────────────────────
 
-function UsersTab({ onStartChat }: { onStartChat?: (user: { id: number; first_name: string; email: string }) => void }) {
+function UsersTab({ onStartChat, onViewDashboard }: { onStartChat?: (user: { id: number; first_name: string; email: string }) => void; onViewDashboard?: (user: { id: number; first_name: string; email: string }) => void }) {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
@@ -132,7 +132,7 @@ function UsersTab({ onStartChat }: { onStartChat?: (user: { id: number; first_na
   if (loading) return <p style={s.loading}>Loading...</p>;
 
   if (selectedUserId !== null) {
-    return <UserDetail userId={selectedUserId} onBack={() => setSelectedUserId(null)} onStartChat={onStartChat} />;
+    return <UserDetail userId={selectedUserId} onBack={() => setSelectedUserId(null)} onStartChat={onStartChat} onViewDashboard={onViewDashboard} />;
   }
 
   // Split users into flagged sections
@@ -231,7 +231,7 @@ function UsersTab({ onStartChat }: { onStartChat?: (user: { id: number; first_na
 
 // ── User Detail View ────────────────────────────────────────────
 
-function UserDetail({ userId, onBack, onStartChat }: { userId: number; onBack: () => void; onStartChat?: (user: { id: number; first_name: string; email: string }) => void }) {
+function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: number; onBack: () => void; onStartChat?: (user: { id: number; first_name: string; email: string }) => void; onViewDashboard?: (user: { id: number; first_name: string; email: string }) => void }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -391,6 +391,14 @@ function UserDetail({ userId, onBack, onStartChat }: { userId: number; onBack: (
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <button style={s.backBtn} onClick={onBack}>← Back to Users</button>
         <div style={{ display: "flex", gap: 8 }}>
+          {onViewDashboard && (
+            <button
+              style={{ padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", background: "#7c3aed", color: "#fff", border: "none", borderRadius: 6 }}
+              onClick={() => onViewDashboard({ id: user.id, first_name: user.first_name, email: user.email })}
+            >
+              צפייה במסך המשתמש
+            </button>
+          )}
           {onStartChat && !coverage?.profile_complete && user.is_real_user !== 0 && (
             <button
               style={{ padding: "4px 12px", fontSize: 12, cursor: "pointer", background: "#1a73e8", color: "#fff", border: "none", borderRadius: 4 }}

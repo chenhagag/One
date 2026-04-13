@@ -1,10 +1,12 @@
 import { useState } from "react";
 import Register from "./Register";
+import Dashboard from "./Dashboard";
+import ProfileEdit from "./ProfileEdit";
 import Chat from "./Chat";
 import Result from "./Result";
 import AdminView from "./AdminView";
 
-type View = "register" | "ready_for_chat" | "chat" | "result" | "done" | "admin";
+type View = "register" | "dashboard" | "profile_edit" | "chat" | "result" | "done" | "admin";
 
 // Full user type matching the expanded DB schema
 export interface User {
@@ -17,6 +19,13 @@ export interface User {
   city?: string;
   height?: number;
   self_style?: string[];
+  desired_age_min?: number;
+  desired_age_max?: number;
+  age_flexibility?: string;
+  desired_height_min?: number;
+  desired_height_max?: number;
+  height_flexibility?: string;
+  desired_location_range?: string;
 }
 
 // Simplified user type for Chat/Result (legacy components use .name)
@@ -64,18 +73,6 @@ const styles: Record<string, React.CSSProperties> = {
     textDecoration: "underline",
   },
   readyContainer: { textAlign: "center" as const, padding: "40px 0" },
-  readyHeading: { fontSize: 24, marginBottom: 12 },
-  readySub: { color: "#666", marginBottom: 32 },
-  startChatBtn: {
-    padding: "14px 40px",
-    fontSize: 16,
-    fontWeight: 600,
-    background: "#1a1a1a",
-    color: "#fff",
-    border: "none",
-    borderRadius: 8,
-    cursor: "pointer",
-  },
 };
 
 export default function App() {
@@ -84,50 +81,60 @@ export default function App() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [chatSessionKey, setChatSessionKey] = useState(0);
 
+  // Dashboard uses a dark theme — hide the default light header
+  const showHeader = view !== "dashboard";
+
   return (
-    <div style={view === "admin" ? { ...styles.app, maxWidth: "100%" } : styles.app}>
-      <div style={styles.header}>
-        <h1
-          style={{ ...styles.title, cursor: "pointer" }}
-          onClick={() => { setView("register"); setUser(null); setAnalysis(null); }}
-        >
-          MatchMe
-        </h1>
-        <button style={styles.adminLink} onClick={() => setView("admin")}>
-          Admin
-        </button>
-      </div>
+    <div style={view === "admin" ? { ...styles.app, maxWidth: "100%" } : view === "dashboard" ? { ...styles.app, padding: "20px" } : styles.app}>
+      {showHeader && (
+        <div style={styles.header}>
+          <h1
+            style={{ ...styles.title, cursor: "pointer" }}
+            onClick={() => { if (user) setView("dashboard"); else { setView("register"); setUser(null); setAnalysis(null); } }}
+          >
+            MatchMe
+          </h1>
+          <button style={styles.adminLink} onClick={() => setView("admin")}>
+            Admin
+          </button>
+        </div>
+      )}
 
       {/* Step 1: Registration form */}
       {view === "register" && (
         <Register
           onSuccess={(u) => {
             setUser(u);
-            setView("ready_for_chat");
+            setView("dashboard");
           }}
         />
       )}
 
-      {/* Step 2: Registration complete / paused → navigate to chat */}
-      {view === "ready_for_chat" && user && (
-        <div style={styles.readyContainer}>
-          <h2 style={styles.readyHeading}>!{user.first_name} ,נרשמת בהצלחה</h2>
-          <p style={styles.readySub}>
-            עכשיו נכיר אותך קצת יותר לעומק בשיחה קצרה
-          </p>
-          <button
-            style={styles.startChatBtn}
-            onClick={() => {
+      {/* Step 2: Dashboard */}
+      {view === "dashboard" && user && (
+        <Dashboard
+          userName={user.first_name}
+          onNavigate={(key) => {
+            if (key === "identity") {
+              setView("profile_edit");
+            } else if (key === "personality_lab") {
               setChatSessionKey(k => k + 1);
               setView("chat");
-            }}
-          >
-            {analysis ? "המשך שיחה" : "התחל שיחה"}
-          </button>
-        </div>
+            }
+            // deep_chat and partner_compass are locked — no action
+          }}
+        />
       )}
 
-      {/* Step 3: AI Chat */}
+      {/* Profile edit */}
+      {view === "profile_edit" && user && (
+        <ProfileEdit
+          user={user}
+          onBack={() => setView("dashboard")}
+        />
+      )}
+
+      {/* AI Chat */}
       {view === "chat" && user && (
         <Chat
           key={`chat-${chatSessionKey}`}
@@ -141,12 +148,12 @@ export default function App() {
             setView("done");
           }}
           onPause={() => {
-            setView("ready_for_chat");
+            setView("dashboard");
           }}
         />
       )}
 
-      {/* Step 4: Result display */}
+      {/* Result display */}
       {view === "result" && user && analysis && (
         <Result
           user={{ id: user.id, name: user.first_name, email: user.email }}
@@ -159,7 +166,7 @@ export default function App() {
         />
       )}
 
-      {/* Step 5: Conversation complete — waiting for match */}
+      {/* Conversation complete — waiting for match */}
       {view === "done" && user && (
         <div style={styles.readyContainer}>
           <h2 style={{ fontSize: 24, marginBottom: 12 }}>!{user.first_name} ,תודה</h2>
@@ -175,11 +182,15 @@ export default function App() {
       {/* Admin view */}
       {view === "admin" && (
         <AdminView
-          onBack={() => setView("register")}
+          onBack={() => user ? setView("dashboard") : setView("register")}
           onStartChat={(u) => {
             setUser({ id: u.id, first_name: u.first_name, email: u.email } as User);
             setChatSessionKey(k => k + 1);
             setView("chat");
+          }}
+          onViewDashboard={(u) => {
+            setUser({ id: u.id, first_name: u.first_name, email: u.email } as User);
+            setView("dashboard");
           }}
         />
       )}

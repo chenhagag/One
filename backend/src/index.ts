@@ -91,6 +91,43 @@ app.patch("/users/:id/guide", (req, res) => {
   return res.json({ ok: true, selected_guide });
 });
 
+// PATCH /users/:id — Update user profile fields
+app.patch("/users/:id", (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const {
+    first_name, age, gender, looking_for_gender, city, height, self_style,
+    desired_age_min, desired_age_max, age_flexibility,
+    desired_height_min, desired_height_max, height_flexibility,
+    desired_location_range,
+  } = req.body;
+  const fields: string[] = [];
+  const values: any[] = [];
+
+  if (first_name !== undefined) { fields.push("first_name = ?"); values.push(first_name); }
+  if (age !== undefined) { fields.push("age = ?"); values.push(age); }
+  if (gender !== undefined) { fields.push("gender = ?"); values.push(gender); }
+  if (looking_for_gender !== undefined) { fields.push("looking_for_gender = ?"); values.push(looking_for_gender); }
+  if (city !== undefined) { fields.push("city = ?"); values.push(city); }
+  if (height !== undefined) { fields.push("height = ?"); values.push(height); }
+  if (self_style !== undefined) { fields.push("self_style = ?"); values.push(self_style ? JSON.stringify(self_style) : null); }
+  if (desired_age_min !== undefined) { fields.push("desired_age_min = ?"); values.push(desired_age_min); }
+  if (desired_age_max !== undefined) { fields.push("desired_age_max = ?"); values.push(desired_age_max); }
+  if (age_flexibility !== undefined) { fields.push("age_flexibility = ?"); values.push(age_flexibility); }
+  if (desired_height_min !== undefined) { fields.push("desired_height_min = ?"); values.push(desired_height_min); }
+  if (desired_height_max !== undefined) { fields.push("desired_height_max = ?"); values.push(desired_height_max); }
+  if (height_flexibility !== undefined) { fields.push("height_flexibility = ?"); values.push(height_flexibility); }
+  if (desired_location_range !== undefined) { fields.push("desired_location_range = ?"); values.push(desired_location_range); }
+
+  if (fields.length === 0) return res.status(400).json({ error: "No fields to update" });
+
+  fields.push("updated_at = datetime('now')");
+  values.push(userId);
+
+  db.prepare(`UPDATE users SET ${fields.join(", ")} WHERE id = ?`).run(...values);
+  const updated = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+  return res.json(updated);
+});
+
 // Keep old POST /users for backward compatibility
 app.post("/users", (req, res) => {
   const { name, email } = req.body;
