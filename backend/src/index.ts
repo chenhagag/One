@@ -92,6 +92,15 @@ app.patch("/users/:id/guide", (req, res) => {
   return res.json({ ok: true, selected_guide });
 });
 
+// GET /users/:id — Get user profile
+app.get("/users/:id", (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  if (!user) return res.status(404).json({ error: "User not found" });
+  if (user.self_style) user.self_style = JSON.parse(user.self_style);
+  return res.json(user);
+});
+
 // PATCH /users/:id — Update user profile fields
 app.patch("/users/:id", (req, res) => {
   const userId = parseInt(req.params.id, 10);
@@ -607,6 +616,52 @@ app.post("/analyze-profile", async (req, res) => {
     console.error(`[analyze-profile] Error for user ${user_id}:`, err);
     return res.status(500).json({ error: "Analysis failed: " + err.message });
   }
+});
+
+// GET /users/:id/dashboard-progress — All progress data for the dashboard
+app.get("/users/:id/dashboard-progress", (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  // Identity: count filled profile fields
+  const profileFields = ["first_name", "email", "age", "gender", "looking_for_gender", "city", "height",
+    "desired_age_min", "desired_age_max", "desired_height_min", "desired_height_max"];
+  const filled = profileFields.filter(f => user[f] != null && user[f] !== "").length;
+  const identity_pct = Math.round((filled / profileFields.length) * 100);
+
+  // Lab: progress = user turns out of 12 (max questions)
+  const labTurns = (db.prepare(
+    "SELECT COUNT(*) as c FROM conversation_messages WHERE user_id = ? AND role = 'user' AND (guide IS NULL OR guide != 'psychologist')"
+  ).get(userId) as any).c;
+  const lab_pct = Math.min(100, Math.round((labTurns / 12) * 100));
+
+  // Deep chat: user turns out of 12 for turn-based progress
+  const depthTurns = (db.prepare(
+    "SELECT COUNT(*) as c FROM conversation_messages WHERE user_id = ? AND role = 'user' AND guide = 'psychologist'"
+  ).get(userId) as any).c;
+
+  // Trait coverage (readiness from analysis)
+  const assessed = (db.prepare(
+    "SELECT COUNT(*) as c FROM user_traits WHERE user_id = ? AND score IS NOT NULL"
+  ).get(userId) as any).c;
+  const total = (db.prepare(
+    "SELECT COUNT(*) as c FROM trait_definitions WHERE is_active = 1"
+  ).get() as any).c;
+  const coverage_pct = total > 0 ? Math.round((assessed / total) * 100) : 0;
+
+  // Deep chat progress: use coverage_pct when analysis has run,
+  // otherwise show turn-based progress (turns / 12) so bar moves immediately
+  const depth_pct = coverage_pct > 0
+    ? coverage_pct
+    : Math.min(100, Math.round((depthTurns / 12) * 100));
+
+  return res.json({
+    identity_pct,
+    lab_pct,
+    depth_pct,
+    coverage_pct,
+  });
 });
 
 // GET /users/:id/profile-status — Get current trait coverage and readiness

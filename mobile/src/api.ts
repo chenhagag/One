@@ -83,6 +83,65 @@ export async function pauseConversation(userId: number): Promise<void> {
   });
 }
 
+// ── Psychologist API ──────────────────────────────────────────
+
+export async function startPsychologist(userId: number): Promise<{ messages: { role: string; content: string }[]; is_returning: boolean }> {
+  const res = await fetch(`${API_BASE_URL}/psychologist/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || "Failed to start psychologist chat");
+  return json;
+}
+
+export async function sendPsychologistMessage(userId: number, message: string): Promise<{ assistant_message: string; turn_count: number; done?: boolean }> {
+  const res = await fetch(`${API_BASE_URL}/psychologist/message`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId, message }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || "Failed to send message");
+  return json;
+}
+
+export async function triggerAnalysis(userId: number): Promise<void> {
+  await fetch(`${API_BASE_URL}/conversation/analyze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId }),
+  }).catch(() => {});
+}
+
+// ── User Update API ──────────────────────────────────────────
+
+export async function getUser(userId: number): Promise<User> {
+  const res = await fetch(`${API_BASE_URL}/users/${userId}`);
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || "Failed to get user");
+  return json;
+}
+
+export async function updateUser(userId: number, data: Record<string, any>): Promise<any> {
+  const res = await fetch(`${API_BASE_URL}/users/${userId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || "Failed to update user");
+  return json;
+}
+
+export async function getEnumOptions(): Promise<{ value: string; label_he: string; label_en: string; category: string }[]> {
+  const res = await fetch(`${API_BASE_URL}/admin/enum-options`);
+  const json = await res.json();
+  if (!res.ok) return [];
+  return json;
+}
+
 // ── Photo API ──────────────────────────────────────────────────
 
 export interface PhotoUploadResult {

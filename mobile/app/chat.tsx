@@ -4,7 +4,7 @@ import {
   KeyboardAvoidingView, Platform, ActivityIndicator,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { startConversation, sendMessage, pauseConversation } from "../src/api";
+import { startConversation, sendMessage, pauseConversation, triggerAnalysis } from "../src/api";
 
 interface Message {
   role: "user" | "assistant" | "system";
@@ -77,12 +77,13 @@ export default function ChatScreen() {
   async function handlePause() {
     try {
       await pauseConversation(userId);
-      setPhase("paused");
+      router.back();
     } catch {}
   }
 
   function handleComplete() {
-    router.replace({ pathname: "/photos", params: { userId: rawUserId || "" } });
+    triggerAnalysis(userId);
+    router.back();
   }
 
   const canType = phase === "chatting" || phase === "summarizing";

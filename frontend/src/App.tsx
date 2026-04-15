@@ -114,6 +114,7 @@ export default function App() {
       {/* Step 2: Dashboard */}
       {view === "dashboard" && user && (
         <Dashboard
+          userId={user.id}
           userName={user.first_name}
           onNavigate={(key) => {
             if (key === "identity") {

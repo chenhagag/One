@@ -11,8 +11,6 @@ export default function ProfileEdit({ user, onBack }: { user: User; onBack: () =
   const [gender, setGender] = useState(user.gender || "");
   const [city, setCity] = useState(user.city || "");
   const [height, setHeight] = useState(user.height ? String(user.height) : "");
-  const [selfStyle, setSelfStyle] = useState<string[]>(user.self_style || []);
-
   // Looking for
   const [lookingForGender, setLookingForGender] = useState(user.looking_for_gender || "");
   const [desiredAgeMin, setDesiredAgeMin] = useState(user.desired_age_min ? String(user.desired_age_min) : "");
@@ -42,10 +40,6 @@ export default function ProfileEdit({ user, onBack }: { user: User; onBack: () =
       .catch(() => {});
   }, []);
 
-  function toggleStyle(val: string) {
-    setSelfStyle((prev) => prev.includes(val) ? prev.filter((v) => v !== val) : [...prev, val]);
-  }
-
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setError(""); setSaved(false); setLoading(true);
@@ -60,7 +54,6 @@ export default function ProfileEdit({ user, onBack }: { user: User; onBack: () =
           looking_for_gender: lookingForGender || null,
           city: city.trim() || null,
           height: height ? parseInt(height) : null,
-          self_style: selfStyle.length > 0 ? selfStyle : null,
           desired_age_min: desiredAgeMin ? parseInt(desiredAgeMin) : null,
           desired_age_max: desiredAgeMax ? parseInt(desiredAgeMax) : null,
           age_flexibility: ageFlex,
@@ -78,11 +71,6 @@ export default function ProfileEdit({ user, onBack }: { user: User; onBack: () =
   }
 
   const opts = (cat: string): EnumOption[] => enums[cat] || [];
-  const styleOptions = opts("look_style").length > 0 ? opts("look_style") : [
-    { value: "sporty", label_he: "ספורטיבי", label_en: "" }, { value: "groomed", label_he: "מטופח", label_en: "" },
-    { value: "casual", label_he: "קז'ואל", label_en: "" }, { value: "elegant", label_he: "אלגנטי", label_en: "" },
-    { value: "hipster", label_he: "היפסטר", label_en: "" }, { value: "natural", label_he: "טבעי", label_en: "" },
-  ];
   const genderOptions = opts("gender").length > 0 ? opts("gender") : [
     { value: "man", label_he: "גבר", label_en: "" }, { value: "woman", label_he: "אישה", label_en: "" },
   ];
@@ -135,14 +123,6 @@ export default function ProfileEdit({ user, onBack }: { user: User; onBack: () =
 
           <label style={s.label}>עיר</label>
           <input style={s.input} value={city} onChange={(e) => setCity(e.target.value)} />
-
-          <label style={s.label}>סגנון</label>
-          <div style={s.chipGroup}>
-            {styleOptions.map((o) => (
-              <span key={o.value} onClick={() => toggleStyle(o.value)}
-                style={selfStyle.includes(o.value) ? s.chipActive : s.chip}>{o.label_he}</span>
-            ))}
-          </div>
         </div>
 
         {/* ── Looking For ── */}
@@ -219,9 +199,6 @@ const s: Record<string, React.CSSProperties> = {
   },
   row: { display: "flex", gap: 12, marginBottom: 0 },
   rowItem: { flex: 1 },
-  chipGroup: { display: "flex", flexWrap: "wrap" as const, gap: 8, marginBottom: 16 },
-  chip: { padding: "6px 14px", borderRadius: 20, border: "1px solid #ddd", background: "#fff", fontSize: 13, cursor: "pointer" },
-  chipActive: { padding: "6px 14px", borderRadius: 20, border: "1px solid #1a1a1a", background: "#1a1a1a", color: "#fff", fontSize: 13, cursor: "pointer" },
   btn: {
     width: "100%", padding: "14px", fontSize: 16, fontWeight: 600,
     background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", marginTop: 8,

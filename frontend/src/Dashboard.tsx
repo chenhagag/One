@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Fingerprint, MessageCircleHeart, FlaskConical, Compass, Lock, Check } from "lucide-react";
 
 interface DashboardCard {
@@ -11,18 +12,43 @@ interface DashboardCard {
 }
 
 interface Props {
+  userId: number;
   userName: string;
   onNavigate: (cardKey: string) => void;
 }
 
-export default function Dashboard({ userName, onNavigate }: Props) {
+interface Progress {
+  identity_pct: number;
+  lab_pct: number;
+  depth_pct: number;
+  coverage_pct: number;
+}
+
+export default function Dashboard({ userId, userName, onNavigate }: Props) {
+  const [progress, setProgress] = useState<Progress>({ identity_pct: 0, lab_pct: 0, depth_pct: 0, coverage_pct: 0 });
+
+  // Fetch on mount and refetch when returning from sub-screens
+  useEffect(() => {
+    fetchProgress();
+    const onFocus = () => fetchProgress();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [userId]);
+
+  function fetchProgress() {
+    fetch(`/api/users/${userId}/dashboard-progress`)
+      .then(r => r.json())
+      .then(setProgress)
+      .catch(() => {});
+  }
+
   const cards: DashboardCard[] = [
     {
       key: "identity",
       title: "תעודת זהות",
       icon: <Fingerprint size={28} />,
-      progress: 100,
-      status: "completed",
+      progress: progress.identity_pct,
+      status: progress.identity_pct >= 100 ? "completed" : "available",
       accentColor: "#A78BFA",
     },
     {
@@ -30,8 +56,8 @@ export default function Dashboard({ userName, onNavigate }: Props) {
       title: "שיחת עומק",
       description: "שיחה חופשית על מה שחשוב לך באמת, על ערכים ועל מה שבלב.",
       icon: <MessageCircleHeart size={28} />,
-      progress: 0,
-      status: "available",
+      progress: progress.depth_pct,
+      status: progress.depth_pct >= 100 ? "completed" : "available",
       accentColor: "#818CF8",
     },
     {
@@ -39,8 +65,8 @@ export default function Dashboard({ userName, onNavigate }: Props) {
       title: "מעבדת האישיות",
       description: "מבדק אקטיבי של סימולציות ודילמות כדי להבין את ה-DNA שלך.",
       icon: <FlaskConical size={28} />,
-      progress: 0,
-      status: "available",
+      progress: progress.lab_pct,
+      status: progress.lab_pct >= 100 ? "completed" : "available",
       accentColor: "#6366F1",
     },
     {
@@ -120,7 +146,7 @@ export default function Dashboard({ userName, onNavigate }: Props) {
                 }} />
               </div>
               <span style={s.progressLabel}>
-                {card.progress === 100 ? "הושלם" : card.status === "locked" ? "בקרוב" : "טרם הושלם"}
+                {card.progress >= 100 ? "הושלם" : card.status === "locked" ? "בקרוב" : `${card.progress}%`}
               </span>
             </button>
           );
