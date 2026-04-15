@@ -687,14 +687,13 @@ export async function processUserMessage(
     };
   }
 
-  // 4. Check if a coverage probe should be kicked off (lightweight, non-blocking)
-  let analysisKicked = false;
-  if (shouldRunAnalysis(state) && !state.analysis_in_flight) {
-    fireCoverageProbe(db, state);
-    analysisKicked = true;
-  }
+  // 4. Mid-conversation coverage probe disabled — not impactful enough to justify the cost.
+  //    The conversation is guided by: system prompt rules, mandatory question tracking,
+  //    and the full conversation history sent to the LLM each turn.
+  //    Full analysis runs on pause/end only.
+  const analysisKicked = false;
 
-  // 5. Use the LATEST COMPLETED analysis for guidance
+  // 5. Use the LATEST COMPLETED analysis for guidance (will be null in most cases now)
   const analysis = state.last_analysis;
 
   // 6. Compute coverage + readiness from DB
