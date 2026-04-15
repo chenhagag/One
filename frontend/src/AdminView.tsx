@@ -244,6 +244,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
   const [resetting, setResetting] = useState(false);
   const [transcript, setTranscript] = useState<any>(null);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
+  const [transcriptTab, setTranscriptTab] = useState<"all" | "interviewer" | "psychologist">("all");
   const [copied, setCopied] = useState(false);
   const [analysisRun, setAnalysisRun] = useState<any>(null);
   const [showPrompt, setShowPrompt] = useState(false);
@@ -680,10 +681,16 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
       </div>
 
       {/* Full Conversation */}
-      {transcript && transcript.messages?.length > 0 && (
+      {transcript && transcript.messages?.length > 0 && (() => {
+        const interviewerMsgs = transcript.messages.filter((m: any) => m.chat_type !== "psychologist");
+        const psychMsgs = transcript.messages.filter((m: any) => m.chat_type === "psychologist");
+        const filteredMsgs = transcriptTab === "interviewer" ? interviewerMsgs
+          : transcriptTab === "psychologist" ? psychMsgs
+          : transcript.messages;
+        return (
         <>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16 }}>
-            <SectionHeading title={`Full Conversation (${transcript.messages.length} messages${transcript.source === "db" ? " — user only" : ""})`} />
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16, flexWrap: "wrap" }}>
+            <SectionHeading title={`Conversation (${transcript.messages.length} messages)`} />
             <button
               style={{ padding: "3px 10px", fontSize: 11, cursor: "pointer", background: transcriptOpen ? "#eee" : "#f0f4ff", border: "1px solid #ddd", borderRadius: 4 }}
               onClick={() => setTranscriptOpen(!transcriptOpen)}
@@ -693,19 +700,28 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
             <button
               style={{ padding: "3px 10px", fontSize: 11, cursor: "pointer", background: copied ? "#d4edda" : "#fff", border: "1px solid #ddd", borderRadius: 4 }}
               onClick={() => {
-                const text = transcript.messages
+                const text = filteredMsgs
                   .map((m: any) => `${m.role === "user" ? "User" : m.role === "assistant" ? "Assistant" : "System"}: ${m.content}`)
                   .join("\n\n");
                 navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
               }}
             >
-              {copied ? "Copied!" : "Copy Transcript"}
+              {copied ? "Copied!" : "Copy"}
             </button>
           </div>
           {transcriptOpen && (
-            <div style={{ background: "#fafafa", borderRadius: 8, padding: 16, marginBottom: 16, maxHeight: 500, overflowY: "auto", fontSize: 13, lineHeight: 1.7 }}>
-              {transcript.note && <p style={{ fontSize: 11, color: "#999", margin: "0 0 12px", fontStyle: "italic" }}>{transcript.note}</p>}
-              {transcript.messages.map((m: any, i: number) => (
+            <>
+              {/* Tabs for chat type */}
+              <div style={{ display: "flex", gap: 4, marginBottom: 8, marginTop: 8 }}>
+                {([["all", `הכל (${transcript.messages.length})`], ["interviewer", `מעבדת האישיות (${interviewerMsgs.length})`], ["psychologist", `שיחת עומק (${psychMsgs.length})`]] as [string, string][]).map(([key, label]) => (
+                  <button key={key} onClick={() => setTranscriptTab(key as any)} style={{
+                    padding: "4px 12px", fontSize: 11, border: "1px solid #ddd", borderRadius: 4, cursor: "pointer",
+                    background: transcriptTab === key ? "#1a1a1a" : "#fff", color: transcriptTab === key ? "#fff" : "#333",
+                  }}>{label}</button>
+                ))}
+              </div>
+              <div style={{ background: "#fafafa", borderRadius: 8, padding: 16, marginBottom: 16, maxHeight: 500, overflowY: "auto", fontSize: 13, lineHeight: 1.7 }}>
+              {filteredMsgs.map((m: any, i: number) => (
                 <div key={i} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid #eee" }}>
                   <span style={{
                     display: "inline-block", padding: "1px 8px", borderRadius: 3, fontSize: 10, fontWeight: 600, marginBottom: 4,
@@ -714,14 +730,17 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
                   }}>
                     {m.role === "user" ? "User" : m.role === "assistant" ? "Assistant" : "System"}
                   </span>
+                  {m.chat_type === "psychologist" && <span style={{ fontSize: 9, color: "#7c3aed", marginLeft: 6 }}>פסיכולוג</span>}
                   {m.timestamp && <span style={{ fontSize: 10, color: "#aaa", marginLeft: 8 }}>{m.timestamp}</span>}
                   <div style={{ whiteSpace: "pre-wrap", marginTop: 4 }}>{m.content}</div>
                 </div>
               ))}
-            </div>
+              </div>
+            </>
           )}
         </>
-      )}
+        );
+      })()}
 
       {/* Analysis Debug View */}
       {analysisRun?.exists && (

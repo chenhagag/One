@@ -3,10 +3,11 @@ import Register from "./Register";
 import Dashboard from "./Dashboard";
 import ProfileEdit from "./ProfileEdit";
 import Chat from "./Chat";
+import PsychologistChat from "./PsychologistChat";
 import Result from "./Result";
 import AdminView from "./AdminView";
 
-type View = "register" | "dashboard" | "profile_edit" | "chat" | "result" | "done" | "admin";
+type View = "register" | "dashboard" | "profile_edit" | "chat" | "psychologist_chat" | "result" | "done" | "admin";
 
 // Full user type matching the expanded DB schema
 export interface User {
@@ -120,8 +121,10 @@ export default function App() {
             } else if (key === "personality_lab") {
               setChatSessionKey(k => k + 1);
               setView("chat");
+            } else if (key === "deep_chat") {
+              setView("psychologist_chat");
             }
-            // deep_chat and partner_compass are locked — no action
+            // partner_compass is locked — no action
           }}
         />
       )}
@@ -134,7 +137,15 @@ export default function App() {
         />
       )}
 
-      {/* AI Chat */}
+      {/* Psychologist Chat */}
+      {view === "psychologist_chat" && user && (
+        <PsychologistChat
+          user={{ id: user.id, name: user.first_name, email: user.email }}
+          onBack={() => setView("dashboard")}
+        />
+      )}
+
+      {/* AI Chat (Interviewer) */}
       {view === "chat" && user && (
         <Chat
           key={`chat-${chatSessionKey}`}

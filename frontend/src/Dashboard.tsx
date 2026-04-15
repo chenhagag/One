@@ -31,7 +31,7 @@ export default function Dashboard({ userName, onNavigate }: Props) {
       description: "שיחה חופשית על מה שחשוב לך באמת, על ערכים ועל מה שבלב.",
       icon: <MessageCircleHeart size={28} />,
       progress: 0,
-      status: "locked",
+      status: "available",
       accentColor: "#818CF8",
     },
     {

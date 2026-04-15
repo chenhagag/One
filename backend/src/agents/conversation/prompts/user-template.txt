@@ -1,5 +1,5 @@
 ## User info
-Name: {{user_name}} | Age: {{user_age}} | Gender: {{user_gender}} | City: {{user_city}}
+Name: {{user_name}} | Age: {{user_age}} | Gender: {{user_gender}} | Looking for: {{user_gender_interest}} | City: {{user_city}}
 
 ## Full conversation history (all messages, both roles)
 {{conversation_history}}

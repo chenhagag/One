@@ -8,7 +8,7 @@ import { analyzeAnswer } from "./openai";
 import { runStage1 } from "./matchStage1";
 import { runStage2, runMatchmaking } from "./matchStage2";
 import { runAnalysisAgent, buildAnalysisInput, saveAnalysisToDb, saveAnalysisRun, getLatestAnalysisRun } from "./agents/analysis";
-import { generateOpeningMessage, processUserMessage, computeCoverage, buildAnalysisTranscript, type ConversationState } from "./agents/conversation";
+import { generateOpeningMessage, processUserMessage, computeCoverage, buildAnalysisTranscript, runPsychologistAgent, type ConversationState } from "./agents/conversation";
 
 dotenv.config();
 
@@ -415,6 +415,116 @@ app.post("/conversation/analyze", async (req, res) => {
   }
 });
 
+// ════════════════════════════════════════════════════════════════
+// PSYCHOLOGIST CHAT — separate fluid conversation
+// ════════════════════════════════════════════════════════════════
+
+const PSYCH_CHAT_TYPE = "psychologist";
+
+// POST /psychologist/start — Start or resume the psychologist chat
+app.post("/psychologist/start", (req, res) => {
+  const userId = parseUserId(req.body.user_id);
+  if (!userId) return res.status(400).json({ error: "Valid user_id required" });
+
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  // Load existing psychologist messages
+  const messages = db.prepare(
+    "SELECT role, content FROM conversation_messages WHERE user_id = ? AND guide = ? ORDER BY created_at ASC, id ASC"
+  ).all(userId, PSYCH_CHAT_TYPE) as { role: string; content: string }[];
+
+  const isReturning = messages.length > 0;
+
+  // Generate intro message for new sessions — gender-adapted with privacy statement
+  if (!isReturning) {
+    const userName = user.first_name || "there";
+    const isFem = user.gender === "female" || user.gender === "woman" || user.gender === "נקבה";
+    const lfFem = user.looking_for_gender === "female" || user.looking_for_gender === "woman";
+    const lfMal = user.looking_for_gender === "male" || user.looking_for_gender === "man";
+    const ready = isFem ? "מוכנה" : "מוכן";
+    const partnerTerm = lfMal ? "בן הזוג" : lfFem ? "בת הזוג" : "בן/בת הזוג";
+    const partnerFit = lfMal ? "שהכי מתאים לך" : lfFem ? "שהכי מתאימה לך" : "שמתאים/ה לך";
+    const talkFreely = isFem ? "דברי" : "דבר";
+    const youKnow = isFem ? "שתדעי" : "שתדע";
+    const open = isFem ? "פתוחה" : "פתוח";
+    const introMessage = [
+      `היי ${userName}, אני המלווה שלך בתהליך 🙂`,
+      `כדי שאוכל לדייק ולמצוא לך את ${partnerTerm} ${partnerFit}, אני רוצה שנכיר קצת יותר לעומק.`,
+      `חשוב לי ${youKnow} — השיחה הזו היא לעיניי בלבד, שום דבר ממה שנאמר כאן לא יופיע בפרופיל שלך.`,
+      `זה המקום שלך להיות הכי ${open} שיש. פשוט ${talkFreely} בחופשיות.`,
+      `${ready}?`,
+    ].join("\n");
+
+    db.prepare(
+      "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES (?, 'assistant', ?, ?)"
+    ).run(userId, introMessage, PSYCH_CHAT_TYPE);
+
+    messages.push({ role: "assistant", content: introMessage });
+  }
+
+  console.log(`[psychologist] ${isReturning ? "Resuming" : "Starting"} for user ${userId}, ${messages.length} messages`);
+
+  return res.json({
+    messages: messages.map(m => ({ role: m.role, content: m.content })),
+    is_returning: isReturning,
+  });
+});
+
+// POST /psychologist/message — Send a message in the psychologist chat
+app.post("/psychologist/message", async (req, res) => {
+  const userId = parseUserId(req.body.user_id);
+  const message = req.body.message;
+  if (!userId || !message) return res.status(400).json({ error: "user_id and message required" });
+
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  // Save user message
+  db.prepare(
+    "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES (?, 'user', ?, ?)"
+  ).run(userId, message, PSYCH_CHAT_TYPE);
+
+  // Build conversation history for the psychologist
+  const allMessages = db.prepare(
+    "SELECT role, content FROM conversation_messages WHERE user_id = ? AND guide = ? ORDER BY created_at ASC, id ASC"
+  ).all(userId, PSYCH_CHAT_TYPE) as { role: string; content: string }[];
+
+  const history = allMessages
+    .map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+    .join("\n\n");
+
+  try {
+    const turnCount = allMessages.filter(m => m.role === "user").length;
+
+    const assistantMessage = await runPsychologistAgent(
+      {
+        user_name: user.first_name,
+        user_age: user.age,
+        user_gender: user.gender,
+        user_looking_for: user.looking_for_gender,
+        user_city: user.city,
+        conversation_history: history,
+        turn_number: turnCount,
+      },
+      userId,
+      "psychologist_turn"
+    );
+
+    // Save assistant message
+    db.prepare(
+      "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES (?, 'assistant', ?, ?)"
+    ).run(userId, assistantMessage, PSYCH_CHAT_TYPE);
+
+    console.log(`[psychologist] User ${userId} turn ${turnCount}`);
+
+    return res.json({ assistant_message: assistantMessage, turn_count: turnCount });
+  } catch (err: any) {
+    console.error(`[psychologist] Error for user ${userId}:`, err.message);
+    return res.status(500).json({ error: "Psychologist chat failed: " + err.message });
+  }
+});
+
 // GET /conversation/state/:id — Current conversation state
 app.get("/conversation/state/:id", (req, res) => {
   const userId = parseInt(req.params.id, 10);
@@ -436,10 +546,10 @@ app.get("/conversation/state/:id", (req, res) => {
 app.get("/admin/users/:id/full-transcript", (req, res) => {
   const userId = parseInt(req.params.id, 10);
 
-  // Primary: read from conversation_messages (persisted, both roles)
+  // Primary: read from conversation_messages (persisted, both roles) — include guide field
   const dbMessages = db.prepare(
-    "SELECT role, content, created_at FROM conversation_messages WHERE user_id = ? ORDER BY created_at ASC, id ASC"
-  ).all(userId) as { role: string; content: string; created_at: string }[];
+    "SELECT role, content, created_at, guide FROM conversation_messages WHERE user_id = ? ORDER BY created_at ASC, id ASC"
+  ).all(userId) as { role: string; content: string; created_at: string; guide: string | null }[];
 
   if (dbMessages.length > 0) {
     return res.json({
@@ -450,6 +560,7 @@ app.get("/admin/users/:id/full-transcript", (req, res) => {
         role: m.role,
         content: m.content,
         timestamp: m.created_at,
+        chat_type: m.guide === "psychologist" ? "psychologist" : "interviewer",
       })),
     });
   }

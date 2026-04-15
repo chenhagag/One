@@ -9,20 +9,22 @@ interface Message {
 type Phase = "chatting" | "summarizing" | "confirmed" | "paused";
 
 const s: Record<string, React.CSSProperties> = {
-  container: { display: "flex", flexDirection: "column", height: "70vh", maxHeight: 600 },
+  container: { display: "flex", flexDirection: "column", height: "70vh", maxHeight: 600, direction: "rtl" as const },
   messages: {
     flex: 1, overflowY: "auto", padding: "12px 0",
     display: "flex", flexDirection: "column", gap: 12,
   },
   bubbleUser: {
-    alignSelf: "flex-end", background: "#1a1a1a", color: "#fff",
-    borderRadius: "16px 16px 4px 16px", padding: "10px 16px",
+    alignSelf: "flex-start", background: "#1a1a1a", color: "#fff",
+    borderRadius: "16px 16px 16px 4px", padding: "10px 16px",
     maxWidth: "80%", fontSize: 15, lineHeight: 1.5,
+    textAlign: "right" as const, direction: "rtl" as const, unicodeBidi: "isolate" as const,
   },
   bubbleAssistant: {
-    alignSelf: "flex-start", background: "#f0f0f0", color: "#1a1a1a",
-    borderRadius: "16px 16px 16px 4px", padding: "10px 16px",
+    alignSelf: "flex-end", background: "#f0f0f0", color: "#1a1a1a",
+    borderRadius: "16px 16px 4px 16px", padding: "10px 16px",
     maxWidth: "80%", fontSize: 15, lineHeight: 1.5, whiteSpace: "pre-line" as const,
+    textAlign: "right" as const, direction: "rtl" as const, unicodeBidi: "isolate" as const,
   },
   bubbleSystem: {
     alignSelf: "center", background: "#f8f4e8", color: "#5a4a2a",
@@ -37,7 +39,7 @@ const s: Record<string, React.CSSProperties> = {
     flex: 1, padding: "10px 14px", fontSize: 15, border: "1px solid #ddd",
     borderRadius: 8, outline: "none", fontFamily: "inherit",
     resize: "none" as const, overflow: "hidden", lineHeight: 1.5,
-    minHeight: 40, maxHeight: 160,
+    minHeight: 40, maxHeight: 160, direction: "rtl" as const, textAlign: "right" as const,
   },
   btn: {
     padding: "10px 20px", fontSize: 14, fontWeight: 600,

@@ -1,3 +1,4 @@
-export { runConversationAgent } from "./agent";
+export { runConversationAgent, runPsychologistAgent } from "./agent";
+export type { PsychologistContext } from "./agent";
 export { processUserMessage, generateOpeningMessage, computeCoverage, buildAnalysisTranscript } from "./orchestrator";
 export type { ConversationState, ConversationTurn, NextTurnResult, ConversationPhase, CoverageResult } from "./orchestrator";

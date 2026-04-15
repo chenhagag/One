@@ -495,18 +495,38 @@ function formatHistory(turns: ConversationTurn[]): string {
 // ── Build transcript for analysis agent ────────────────────────
 
 // Builds a unified transcript from all conversation messages for the analyzer.
+// Separates interviewer and psychologist histories with clear labels.
 export function buildAnalysisTranscript(db: Database.Database, userId: number): string {
-  const fullMessages = db.prepare(
-    "SELECT role, content FROM conversation_messages WHERE user_id = ? ORDER BY created_at ASC, id ASC"
+  // Interviewer messages (guide is NULL or not 'psychologist')
+  const interviewerMsgs = db.prepare(
+    "SELECT role, content FROM conversation_messages WHERE user_id = ? AND (guide IS NULL OR guide != 'psychologist') ORDER BY created_at ASC, id ASC"
   ).all(userId) as { role: string; content: string }[];
 
-  if (fullMessages.length > 0) {
-    return fullMessages
-      .map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
-      .join("\n\n");
+  // Psychologist messages
+  const psychMsgs = db.prepare(
+    "SELECT role, content FROM conversation_messages WHERE user_id = ? AND guide = 'psychologist' ORDER BY created_at ASC, id ASC"
+  ).all(userId) as { role: string; content: string }[];
+
+  const parts: string[] = [];
+
+  // Synthesis instruction for the analyzer
+  if (interviewerMsgs.length > 0 && psychMsgs.length > 0) {
+    parts.push("הנחיה: נתח את שני התמלילים. השתמש בשיחת הראיון (חלק 1) להערכת תכונות מובנות, ובשיחת העומק (חלק 2) להבנת ערכים עמוקים ודפוסים רגשיים. שלב את שניהם לפרופיל אחד מדויק.\n");
   }
 
-  // Fallback: old profiles table (user messages only)
+  if (interviewerMsgs.length > 0) {
+    parts.push("### חלק 1: מעבדת האישיות (ראיון מובנה)");
+    parts.push(interviewerMsgs.map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`).join("\n\n"));
+  }
+
+  if (psychMsgs.length > 0) {
+    parts.push("\n### חלק 2: שיחת עומק (פסיכולוג)");
+    parts.push(psychMsgs.map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`).join("\n\n"));
+  }
+
+  if (parts.length > 0) return parts.join("\n\n");
+
+  // Fallback: old profiles table
   const allAnswers = db.prepare(
     "SELECT raw_answer FROM profiles WHERE user_id = ? ORDER BY created_at ASC"
   ).all(userId) as { raw_answer: string }[];
@@ -783,6 +803,7 @@ export async function processUserMessage(
       user_name: user?.first_name || "there",
       user_age: user?.age,
       user_gender: user?.gender,
+      user_looking_for: user?.looking_for_gender,
       user_city: user?.city,
       conversation_history: formatHistory(state.turns),
       turn_number: state.turn_count,
@@ -847,6 +868,7 @@ export async function processUserMessage(
       user_name: user?.first_name || "there",
       user_age: user?.age,
       user_gender: user?.gender,
+      user_looking_for: user?.looking_for_gender,
       user_city: user?.city,
       conversation_history: formatHistory(state.turns),
       turn_number: state.turn_count,
@@ -923,6 +945,7 @@ ${profileSummary || "אין — סכם מהשיחה עצמה"}
     user_name: user?.first_name || "there",
     user_age: user?.age,
     user_gender: user?.gender,
+      user_looking_for: user?.looking_for_gender,
     user_city: user?.city,
     conversation_history: formatHistory(state.turns),
     turn_number: state.turn_count,
@@ -1037,9 +1060,9 @@ export function generateOpeningMessage(
   const userName = user?.first_name || "there";
   const gCtx: GenderContext = { gender: user?.gender, lookingFor: user?.looking_for_gender };
 
-  // A user is "returning" only if they have sent at least one message previously.
+  // A user is "returning" to the INTERVIEWER only if they have interviewer messages.
   const existingUserMessages = db.prepare(
-    "SELECT COUNT(*) as c FROM conversation_messages WHERE user_id = ? AND role = 'user'"
+    "SELECT COUNT(*) as c FROM conversation_messages WHERE user_id = ? AND role = 'user' AND (guide IS NULL OR guide != 'psychologist')"
   ).get(userId) as { c: number };
   const isReturning = existingUserMessages.c > 0;
 
@@ -1062,19 +1085,19 @@ export function generateOpeningMessage(
     persistMessage(db, userId, "assistant", introMessage);
   }
 
-  // Count total turns
+  // Count interviewer turns only
   let turnCount = 0;
   if (isReturning) {
     turnCount = (db.prepare(
-      "SELECT COUNT(*) as c FROM conversation_messages WHERE user_id = ? AND role = 'user'"
+      "SELECT COUNT(*) as c FROM conversation_messages WHERE user_id = ? AND role = 'user' AND (guide IS NULL OR guide != 'psychologist')"
     ).get(userId) as { c: number }).c;
   }
 
-  // Load ALL messages (single unified thread)
+  // Load only INTERVIEWER messages (exclude psychologist chat)
   let turns: ConversationTurn[] = [];
   if (isReturning) {
     const dbMessages = db.prepare(
-      "SELECT role, content FROM conversation_messages WHERE user_id = ? ORDER BY created_at ASC, id ASC"
+      "SELECT role, content FROM conversation_messages WHERE user_id = ? AND (guide IS NULL OR guide != 'psychologist') ORDER BY created_at ASC, id ASC"
     ).all(userId) as { role: string; content: string }[];
     turns = dbMessages.map(m => ({
       role: m.role === "user" ? "user" as const : "assistant" as const,
