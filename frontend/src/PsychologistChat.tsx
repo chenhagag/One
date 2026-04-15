@@ -57,6 +57,7 @@ export default function PsychologistChat({
   const [error, setError] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const analysisFiredRef = useRef(false);
 
   const autoResize = useCallback(() => {
     const ta = textareaRef.current;
@@ -68,6 +69,30 @@ export default function PsychologistChat({
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
+
+  // Trigger analysis when user leaves (unmount or tab close)
+  useEffect(() => {
+    const triggerAnalysis = () => {
+      if (analysisFiredRef.current) return;
+      analysisFiredRef.current = true;
+      const body = JSON.stringify({ user_id: user.id });
+      if (navigator.sendBeacon) {
+        const blob = new Blob([body], { type: "application/json" });
+        navigator.sendBeacon("/api/conversation/analyze", blob);
+      } else {
+        fetch("/api/conversation/analyze", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body,
+          keepalive: true,
+        }).catch(() => {});
+      }
+    };
+
+    window.addEventListener("beforeunload", triggerAnalysis);
+    return () => {
+      window.removeEventListener("beforeunload", triggerAnalysis);
+      triggerAnalysis();
+    };
+  }, [user.id]);
 
   // Start or resume psychologist chat
   useEffect(() => {
@@ -169,7 +194,7 @@ export default function PsychologistChat({
 
       <div style={{ display: "flex", justifyContent: "center", padding: "4px 0" }}>
         <button style={s.btnSecondary} onClick={() => {
-          // Trigger analysis on exit (fire-and-forget)
+          analysisFiredRef.current = true; // prevent double-trigger on unmount
           fetch("/api/conversation/analyze", {
             method: "POST",
             headers: { "Content-Type": "application/json" },

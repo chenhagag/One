@@ -8,7 +8,8 @@ import { analyzeAnswer } from "./openai";
 import { runStage1 } from "./matchStage1";
 import { runStage2, runMatchmaking } from "./matchStage2";
 import { runAnalysisAgent, buildAnalysisInput, saveAnalysisToDb, saveAnalysisRun, getLatestAnalysisRun } from "./agents/analysis";
-import { generateOpeningMessage, processUserMessage, computeCoverage, buildAnalysisTranscript, runPsychologistAgent, type ConversationState } from "./agents/conversation";
+import { generateOpeningMessage, processUserMessage, computeCoverage, buildAnalysisTranscript, type ConversationState } from "./agents/conversation";
+import { generatePsychologistOpening, processPsychologistMessage, type PsychologistState } from "./agents/conversation";
 
 dotenv.config();
 
@@ -308,10 +309,7 @@ app.post("/conversation/message", async (req, res) => {
       user_id: userId, turns: [], turn_count: 0,
       last_analysis: null, last_analysis_at_turn: 0, phase: "chatting",
       analysis_in_flight: false, analysis_scheduled_at: 0,
-      asked_appearance: false, asked_dealbreakers: false,
-      asked_worst_match: false, asked_last_relationship: false,
-      asked_simulation: false, asked_cognition: false, returned_at_turn: 0,
-      forced_questions: new Set(),
+      returned_at_turn: 0,
     };
   }
 
@@ -416,57 +414,23 @@ app.post("/conversation/analyze", async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════
-// PSYCHOLOGIST CHAT — separate fluid conversation
+// PSYCHOLOGIST CHAT — managed by psychologist-orchestrator
 // ════════════════════════════════════════════════════════════════
 
-const PSYCH_CHAT_TYPE = "psychologist";
+const psychologistStates = new Map<number, PsychologistState>();
 
 // POST /psychologist/start — Start or resume the psychologist chat
 app.post("/psychologist/start", (req, res) => {
   const userId = parseUserId(req.body.user_id);
   if (!userId) return res.status(400).json({ error: "Valid user_id required" });
 
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
-  if (!user) return res.status(404).json({ error: "User not found" });
+  const { message, state, isReturning } = generatePsychologistOpening(db, userId);
+  psychologistStates.set(userId, state);
 
-  // Load existing psychologist messages
-  const messages = db.prepare(
-    "SELECT role, content FROM conversation_messages WHERE user_id = ? AND guide = ? ORDER BY created_at ASC, id ASC"
-  ).all(userId, PSYCH_CHAT_TYPE) as { role: string; content: string }[];
-
-  const isReturning = messages.length > 0;
-
-  // Generate intro message for new sessions — gender-adapted with privacy statement
-  if (!isReturning) {
-    const userName = user.first_name || "there";
-    const isFem = user.gender === "female" || user.gender === "woman" || user.gender === "נקבה";
-    const lfFem = user.looking_for_gender === "female" || user.looking_for_gender === "woman";
-    const lfMal = user.looking_for_gender === "male" || user.looking_for_gender === "man";
-    const ready = isFem ? "מוכנה" : "מוכן";
-    const partnerTerm = lfMal ? "בן הזוג" : lfFem ? "בת הזוג" : "בן/בת הזוג";
-    const partnerFit = lfMal ? "שהכי מתאים לך" : lfFem ? "שהכי מתאימה לך" : "שמתאים/ה לך";
-    const talkFreely = isFem ? "דברי" : "דבר";
-    const youKnow = isFem ? "שתדעי" : "שתדע";
-    const open = isFem ? "פתוחה" : "פתוח";
-    const introMessage = [
-      `היי ${userName}, אני המלווה שלך בתהליך 🙂`,
-      `כדי שאוכל לדייק ולמצוא לך את ${partnerTerm} ${partnerFit}, אני רוצה שנכיר קצת יותר לעומק.`,
-      `חשוב לי ${youKnow} — השיחה הזו היא לעיניי בלבד, שום דבר ממה שנאמר כאן לא יופיע בפרופיל שלך.`,
-      `זה המקום שלך להיות הכי ${open} שיש. פשוט ${talkFreely} בחופשיות.`,
-      `${ready}?`,
-    ].join("\n");
-
-    db.prepare(
-      "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES (?, 'assistant', ?, ?)"
-    ).run(userId, introMessage, PSYCH_CHAT_TYPE);
-
-    messages.push({ role: "assistant", content: introMessage });
-  }
-
-  console.log(`[psychologist] ${isReturning ? "Resuming" : "Starting"} for user ${userId}, ${messages.length} messages`);
+  console.log(`[psychologist] ${isReturning ? "Resuming" : "Starting"} for user ${userId}, turns=${state.turn_count}`);
 
   return res.json({
-    messages: messages.map(m => ({ role: m.role, content: m.content })),
+    messages: state.turns.map(t => ({ role: t.role, content: t.content })),
     is_returning: isReturning,
   });
 });
@@ -477,48 +441,18 @@ app.post("/psychologist/message", async (req, res) => {
   const message = req.body.message;
   if (!userId || !message) return res.status(400).json({ error: "user_id and message required" });
 
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
-  if (!user) return res.status(404).json({ error: "User not found" });
-
-  // Save user message
-  db.prepare(
-    "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES (?, 'user', ?, ?)"
-  ).run(userId, message, PSYCH_CHAT_TYPE);
-
-  // Build conversation history for the psychologist
-  const allMessages = db.prepare(
-    "SELECT role, content FROM conversation_messages WHERE user_id = ? AND guide = ? ORDER BY created_at ASC, id ASC"
-  ).all(userId, PSYCH_CHAT_TYPE) as { role: string; content: string }[];
-
-  const history = allMessages
-    .map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
-    .join("\n\n");
+  let state = psychologistStates.get(userId);
+  if (!state) {
+    // Reconstruct state if missing (server restart)
+    const { state: newState } = generatePsychologistOpening(db, userId);
+    state = newState;
+    psychologistStates.set(userId, state);
+  }
 
   try {
-    const turnCount = allMessages.filter(m => m.role === "user").length;
-
-    const assistantMessage = await runPsychologistAgent(
-      {
-        user_name: user.first_name,
-        user_age: user.age,
-        user_gender: user.gender,
-        user_looking_for: user.looking_for_gender,
-        user_city: user.city,
-        conversation_history: history,
-        turn_number: turnCount,
-      },
-      userId,
-      "psychologist_turn"
-    );
-
-    // Save assistant message
-    db.prepare(
-      "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES (?, 'assistant', ?, ?)"
-    ).run(userId, assistantMessage, PSYCH_CHAT_TYPE);
-
-    console.log(`[psychologist] User ${userId} turn ${turnCount}`);
-
-    return res.json({ assistant_message: assistantMessage, turn_count: turnCount });
+    const { result, state: newState } = await processPsychologistMessage(db, state, message);
+    psychologistStates.set(userId, newState);
+    return res.json(result);
   } catch (err: any) {
     console.error(`[psychologist] Error for user ${userId}:`, err.message);
     return res.status(500).json({ error: "Psychologist chat failed: " + err.message });
@@ -1178,38 +1112,13 @@ app.post("/admin/users/:id/reanalyze", async (req, res) => {
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(user_id) as any;
   if (!user) return res.status(404).json({ error: "User not found" });
 
-  // Try full conversation (both roles) from conversation_messages first
-  const fullMessages = db.prepare(
-    "SELECT role, content FROM conversation_messages WHERE user_id = ? ORDER BY created_at ASC, id ASC"
-  ).all(user_id) as { role: string; content: string }[];
+  // Use the same transcript builder as the normal analysis flow —
+  // properly separates interviewer (Personality Lab) and psychologist (Depth Chat)
+  const transcript = buildAnalysisTranscript(db, user_id);
 
-  // Fallback to profiles (user messages only)
-  const allAnswers = db.prepare(
-    "SELECT raw_answer, created_at FROM profiles WHERE user_id = ? ORDER BY created_at ASC"
-  ).all(user_id) as { raw_answer: string; created_at: string }[];
-
-  if (fullMessages.length === 0 && allAnswers.length === 0) {
+  if (!transcript || transcript.trim().length === 0) {
     return res.status(400).json({ error: "No conversation data found for this user" });
   }
-
-  // Build transcript: use full conversation (both roles) + all user answers from profiles
-  // Combine both sources for maximum coverage — dedup user messages
-  const parts: string[] = [];
-
-  if (fullMessages.length > 0) {
-    parts.push("## Full conversation:\n" + fullMessages
-      .map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
-      .join("\n\n"));
-  }
-
-  // Also include all user answers from profiles (may contain older/additional data)
-  if (allAnswers.length > 0) {
-    parts.push("## All user answers:\n" + allAnswers
-      .map((a, i) => `[${i + 1}] ${a.raw_answer}`)
-      .join("\n\n"));
-  }
-
-  const transcript = parts.join("\n\n---\n\n");
 
   try {
     // Clear existing traits for a truly fresh analysis
@@ -1217,7 +1126,7 @@ app.post("/admin/users/:id/reanalyze", async (req, res) => {
     db.prepare("DELETE FROM user_look_traits WHERE user_id = ?").run(user_id);
 
     const input = buildAnalysisInput(db, transcript);
-    console.log(`[reanalyze] User ${user_id}: ${allAnswers.length} answers, transcript=${transcript.length} chars, running FRESH analysis...`);
+    console.log(`[reanalyze] User ${user_id}: transcript=${transcript.length} chars, running FRESH analysis...`);
     console.log(`[reanalyze] Transcript preview: ${transcript.slice(0, 300)}...`);
 
     const output = await runAnalysisAgent(input, user_id, "reanalyze");

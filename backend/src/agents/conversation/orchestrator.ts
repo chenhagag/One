@@ -28,17 +28,8 @@ export interface ConversationState {
   // Background analysis tracking
   analysis_in_flight: boolean;
   analysis_scheduled_at: number;
-  // Mandatory question tracking
-  asked_appearance: boolean;     // "איך היית מתאר/ת את המראה שלך"
-  asked_dealbreakers: boolean;   // "משהו מהותי בזהות שלך" — must be last
-  asked_worst_match: boolean;    // "בן/בת זוג שהכי לא מתאים"
-  asked_last_relationship: boolean; // "מערכת היחסים האחרונה"
-  asked_simulation: boolean;     // at least 1 simulation question asked
-  asked_cognition: boolean;      // at least 1 cognition question asked
   // Return-to-conversation tracking
   returned_at_turn: number;      // turn_count when user returned (0 = new conversation)
-  // Forced question tracking — prevents asking the same mandatory twice
-  forced_questions: Set<string>; // mandatory keys that were already forced
 }
 
 export interface NextTurnResult {
@@ -166,66 +157,8 @@ function updateUserReadiness(db: Database.Database, userId: number, cov: Coverag
   ).run(cov.readiness_score, cov.ready_for_matching ? 1 : 0, userId);
 }
 
-// ── Mandatory question detection ──────────────────────────────
-
-function scanMandatoryQuestions(state: ConversationState): void {
-  for (const t of state.turns) {
-    if (t.role !== "assistant") continue;
-    const c = t.content;
-
-    // Appearance — broad detection
-    if (c.includes("מראה שלך") || c.includes("מראה") && c.includes("מתאר")
-      || c.includes("חזות") || c.includes("תופס") && c.includes("מראה")
-      || c.includes("מעטפת החיצונית")) {
-      state.asked_appearance = true;
-    }
-    // Identity / deal-breakers
-    if (c.includes("מהותי בזהות") || c.includes("דיל ברייקר") || c.includes("פרט חשוב")
-      || c.includes("שחשוב שאדע") || c.includes("זהות שלך") || c.includes("זהות העמוקה")) {
-      state.asked_dealbreakers = true;
-    }
-    // Worst match — broad detection
-    if (c.includes("לא מתאים") || c.includes("לא מתאימה") || c.includes("הפוך")
-      || c.includes("לא בשביל") || c.includes("לא הולם") || c.includes("לא מהדהד")) {
-      state.asked_worst_match = true;
-    }
-    // Last relationship
-    if (c.includes("יחסים האחרונ") || c.includes("קשר האחרון") || c.includes("הקשר האחרון")
-      || c.includes("מערכת יחסים") && (c.includes("אחרונה") || c.includes("קודמת"))) {
-      state.asked_last_relationship = true;
-    }
-    // Simulation — broad detection (covers all simulation question variants)
-    if (c.includes("מיליון דולר") || c.includes("מיליון") || c.includes("משיכה פיזית")
-      || c.includes("לוקח קרדיט") || c.includes("שפע") || c.includes("זוכה ב")
-      || c.includes("דייט ראשון") || c.includes("לא מתאים לך") && c.includes("מתמודד")) {
-      state.asked_simulation = true;
-    }
-    // Cognition — broad detection (covers all cognition question variants)
-    if (c.includes("חייזר") || c.includes("כריזמה") || c.includes("קנאה")
-      || c.includes("טעות מוחלטת") || c.includes("להסביר ל") && c.includes("מה זה")
-      || c.includes("מנגנון") || c.includes("רוב האנשים") && c.includes("מסכימים")) {
-      state.asked_cognition = true;
-    }
-  }
-}
-
-function getMissingMandatory(state: ConversationState): string[] {
-  const missing: string[] = [];
-  if (!state.asked_worst_match) missing.push("worst_match");
-  if (!state.asked_last_relationship) missing.push("last_relationship");
-  if (!state.asked_appearance) missing.push("appearance");
-  if (!state.asked_simulation) missing.push("simulation");
-  if (!state.asked_cognition) missing.push("cognition");
-  // dealbreakers is always last — tracked separately
-  if (!state.asked_dealbreakers) missing.push("dealbreakers");
-  return missing;
-}
-
-function allMandatoryCovered(state: ConversationState): boolean {
-  return state.asked_appearance && state.asked_dealbreakers
-    && state.asked_worst_match && state.asked_last_relationship
-    && state.asked_simulation && state.asked_cognition;
-}
+// Mandatory question detection removed — interviewer uses question bank only, no mandatory tracking.
+// Psychologist has its own mandatory tracking in psychologist-orchestrator.ts.
 
 // ── Checkpoint logic ───────────────────────────────────────────
 
@@ -325,112 +258,24 @@ function getCoveredTopics(db: Database.Database, userId: number): { covered: str
 }
 
 function buildGuidance(
-  db: Database.Database,
-  userId: number,
-  analysis: AnalysisAgentOutput | null,
-  turnCount: number,
-  cov?: CoverageResult,
-  state?: ConversationState
+  state: ConversationState
 ): string {
-  // ── Returning user: first response after coming back ──
-  const isReturnFirstTurn = state && state.returned_at_turn > 0 && turnCount === state.returned_at_turn + 1;
+  // Returning user: first turn after coming back
+  const isReturnFirstTurn = state.returned_at_turn > 0 && state.turn_count === state.returned_at_turn + 1;
   if (isReturnFirstTurn) {
     return [
-      "המשתמש/ת חזר/ה לשיחה קיימת והגיב/ה להודעת החזרה.",
-      "התחל/י עם: 'תן/י לי רגע להיזכר על מה דיברנו...' (התאם/י מגדרית)",
-      "אחרי זה כתוב סיכום קצר (2-3 משפטים) של הנושאים המרכזיים מהשיחה הקודמת.",
-      "אסור לכלול בסיכום: מראה חיצוני, אינטליגנציה, מצב תעסוקתי, תכונות רגישות, ניתוח פנימי.",
-      "הסיכום חייב להכיל רק מידע שהמשתמש/ת שיתף/ה מפורשות — נושאים ניטרליים בלבד.",
-      "מיד אחרי הסיכום — שאל/י שאלה חדשה מבנק השאלות (העדף/י שאלות שעדיין לא נשאלו).",
-      "זו המשכה של השיחה הקודמת — לא התחלה חדשה. המשך/י לפי כל הכללים הרגילים.",
+      "המשתמש/ת חזר/ה לשיחה. הגב/י בקצרה ושאל/י שאלה חדשה מבנק השאלות.",
+      "אסור לחזור על שאלות שכבר נשאלו.",
     ].join("\n");
   }
 
-  if (!analysis && turnCount <= 4 && (!state || state.returned_at_turn === 0)) {
-    // Pre-analysis: structured turn-by-turn guidance (new conversations only)
-    if (turnCount <= 1) return "המשתמש/ת הגיב/ה להודעת הפתיחה. שאל/י עכשיו את שאלת היום האידיאלי: 'בוא/י נתחיל קליל - תאר/י לי את היום האידיאלי בשבילך. איפה את/ה קם/ה בבוקר, מה את/ה עושה, עם מי, ואיך את/ה מסיים/ת את היום?' (התאם/י מגדרית)";
-    if (turnCount === 2) return "המשתמש/ת ענה/תה על שאלת היום האידיאלי. הגב/י בקצרה ושאל/י את שאלת ההמשך: 'ומה קורה בפועל? איך נראה היום יום האמיתי שלך?' (התאם/י מגדרית)";
-    if (turnCount === 3) return "המשך/י עם אחת מהשאלות מבנק השאלות — העדף/י שאלת סימולציה או שאלה חוויתית ספציפית. התאם/י מגדרית. אל תשאל/י שאלות כלליות או מופשטות.";
-    return "המשך/י עם שאלות מבנק השאלות. העדף/י שאלות סימולציה. התאם/י מגדרית. אל תשאל/י שאלות כלליות.";
+  // First turn — start from the question bank
+  if (state.turn_count <= 1) {
+    return "המשתמש/ת הגיב/ה להודעת הפתיחה. שאל/י שאלה ראשונה מבנק השאלות. התאם/י מגדרית.";
   }
 
-  const lines: string[] = [];
-  const topics = getCoveredTopics(db, userId);
-
-  // Already covered (read from DB, not from analysis state)
-  if (topics.covered.length > 0) {
-    lines.push(`נושאים שכבר כוסו (אסור לשאול עליהם שוב, גם לא בניסוח אחר): ${topics.covered.join(", ")}`);
-  }
-
-  // Unmet traits from coverage check — the real priority
-  if (cov && cov.unmet_traits.length > 0) {
-    const priorityTopics = cov.unmet_traits
-      .filter(m => !["toxicity_score", "trollness", "sexual_identity"].includes(m))
-      .slice(0, 6)
-      .map(traitToTopic);
-    if (priorityTopics.length > 0) {
-      lines.push(`PRIORITY — these traits still need stronger signal. Ask about one: ${priorityTopics.join(", ")}`);
-    }
-  }
-
-  // Missing traits from probe/analysis (secondary, deduped against unmet)
-  if (analysis && analysis.missing_traits.length > 0) {
-    const secondary = analysis.missing_traits
-      .filter(m => !["toxicity_score", "trollness", "sexual_identity"].includes(m))
-      .filter(m => !(cov?.unmet_traits || []).includes(m))
-      .slice(0, 4)
-      .map(traitToTopic);
-    if (secondary.length > 0) {
-      lines.push(`Also missing: ${secondary.join(", ")}`);
-    }
-  }
-
-  // Weak traits (read from DB)
-  if (topics.weak.length > 0) {
-    lines.push(`Weak (needs refinement from a new angle): ${topics.weak.join(", ")}`);
-  }
-
-  // External trait gaps (read from DB)
-  if (!topics.hasDesiredLook) lines.push("MISSING: physical attraction / what kind of look draws them in");
-  if (!topics.hasPersonalLook) lines.push("MISSING: their own appearance / style / presence");
-
-  // Mandatory question status — tell the LLM what's still needed
-  if (state) {
-    const missing = getMissingMandatory(state);
-    if (missing.length > 0) {
-      const labels: Record<string, string> = {
-        worst_match: "שאלת פרטנר לא מתאים",
-        last_relationship: "שאלת מערכת יחסים אחרונה",
-        appearance: "שאלת מראה",
-        simulation: "שאלת סימולציה (לפחות 1)",
-        cognition: "שאלת קוגניציה (לפחות 1)",
-        dealbreakers: "שאלת זהות/דיל ברייקרס (חובה אחרונה!)",
-      };
-      const missingLabels = missing.map(m => labels[m] || m).join(", ");
-      lines.push(`שאלות חובה שעדיין לא נשאלו: ${missingLabels}`);
-      lines.push("כשמגיע הזמן לשאול שאלת חובה — התאם מגדרית ושאל. אל תשכח לשאול את כולן.");
-
-      // Urgency based on remaining turns
-      const turnsLeft = MAX_QUESTIONS - turnCount;
-      const mandatoryCount = missing.filter(m => m !== "dealbreakers").length + (missing.includes("dealbreakers") ? 1 : 0);
-      if (turnsLeft <= mandatoryCount + 2) {
-        lines.push(`דחוף: נשארו רק ${turnsLeft} תורות. חובה לשאול עכשיו שאלת חובה מהרשימה למעלה.`);
-      }
-
-      if (missing.includes("dealbreakers") && missing.length === 1) {
-        lines.push("זו השאלה האחרונה שצריך לשאול — שאלת הזהות/דיל ברייקרס. שאל אותה עכשיו.");
-      }
-    }
-  }
-
-  // (guide-switch context removed — single unified conversation)
-
-  // Probes from analysis/coverage probe
-  if (analysis && analysis.recommended_probes.length > 0) {
-    lines.push(`Suggested questions: ${analysis.recommended_probes.slice(0, 3).join("; ")}`);
-  }
-
-  return lines.join("\n");
+  // Normal turn — just remind not to repeat
+  return "המשך/י עם השאלה הבאה מבנק השאלות. אסור לחזור על שאלות שכבר נשאלו. התאם/י מגדרית.";
 }
 
 // ── Summary builder for the confirmation step ──────────────────
@@ -497,25 +342,23 @@ function formatHistory(turns: ConversationTurn[]): string {
 // Builds a unified transcript from all conversation messages for the analyzer.
 // Separates interviewer and psychologist histories with clear labels.
 export function buildAnalysisTranscript(db: Database.Database, userId: number): string {
-  // Interviewer messages (guide is NULL or not 'psychologist')
+  // Both interviewer AND psychologist messages go to the analyzer.
   const interviewerMsgs = db.prepare(
     "SELECT role, content FROM conversation_messages WHERE user_id = ? AND (guide IS NULL OR guide != 'psychologist') ORDER BY created_at ASC, id ASC"
   ).all(userId) as { role: string; content: string }[];
 
-  // Psychologist messages
   const psychMsgs = db.prepare(
     "SELECT role, content FROM conversation_messages WHERE user_id = ? AND guide = 'psychologist' ORDER BY created_at ASC, id ASC"
   ).all(userId) as { role: string; content: string }[];
 
   const parts: string[] = [];
 
-  // Synthesis instruction for the analyzer
   if (interviewerMsgs.length > 0 && psychMsgs.length > 0) {
-    parts.push("הנחיה: נתח את שני התמלילים. השתמש בשיחת הראיון (חלק 1) להערכת תכונות מובנות, ובשיחת העומק (חלק 2) להבנת ערכים עמוקים ודפוסים רגשיים. שלב את שניהם לפרופיל אחד מדויק.\n");
+    parts.push("הנחיה: נתח את שני התמלילים. השתמש בשיחת המעבדה (חלק 1) להערכת תגובות לסימולציות ודילמות, ובשיחת העומק (חלק 2) להבנת ערכים עמוקים ודפוסים רגשיים. שלב את שניהם לפרופיל אחד מדויק.\n");
   }
 
   if (interviewerMsgs.length > 0) {
-    parts.push("### חלק 1: מעבדת האישיות (ראיון מובנה)");
+    parts.push("### חלק 1: מעבדת האישיות (סימולציות ודילמות)");
     parts.push(interviewerMsgs.map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`).join("\n\n"));
   }
 
@@ -651,18 +494,6 @@ export async function processUserMessage(
   ).run(userId, userMessage);
   persistMessage(db, userId, "user", userMessage);
 
-  // 2b. Detect user frustration / repetition signals → mark forced questions as done
-  const msgLower = userMessage.trim();
-  const isRepetitionSignal = msgLower.includes("כבר שאלת") || msgLower.includes("כבר דיברנו")
-    || msgLower.includes("חפרת") || msgLower.includes("שוב") && msgLower.includes("שאלה")
-    || msgLower === "די" || msgLower.includes("מה יש לך") || msgLower.includes("אותו דבר");
-  if (isRepetitionSignal) {
-    // Mark ALL currently-missing mandatories as forced so they won't be asked again
-    const missing = getMissingMandatory(state);
-    for (const m of missing) state.forced_questions.add(m);
-    console.log(`[orchestrator] User frustration detected: "${msgLower.substring(0, 40)}". Marked ${missing.length} mandatories as forced to prevent repetition.`);
-  }
-
   // 3. If we're in summarizing phase, the user is responding to the summary → confirm
   if (state.phase === "summarizing") {
     state.phase = "confirmed";
@@ -687,180 +518,22 @@ export async function processUserMessage(
     };
   }
 
-  // 4. Mid-conversation coverage probe disabled — not impactful enough to justify the cost.
-  //    The conversation is guided by: system prompt rules, mandatory question tracking,
-  //    and the full conversation history sent to the LLM each turn.
-  //    Full analysis runs on pause/end only.
   const analysisKicked = false;
 
-  // 5. Use the LATEST COMPLETED analysis for guidance (will be null in most cases now)
-  const analysis = state.last_analysis;
-
-  // 6. Compute coverage + readiness from DB
-  const cov = computeCoverage(db, userId);
-  const coveragePct = cov.coverage_pct;
-
-  // Persist readiness_score and is_matchable on every turn that has coverage data
-  if (cov.readiness_score > 0) {
-    updateUserReadiness(db, userId, cov);
-  }
-
-  // 7. Detect which mandatory questions were asked (scan ALL guide threads, not just current)
-  {
-    const allAssistantMsgs = db.prepare(
-      "SELECT content FROM conversation_messages WHERE user_id = ? AND role = 'assistant' ORDER BY created_at ASC"
-    ).all(userId) as { content: string }[];
-    const allTurns = allAssistantMsgs.map(m => ({ role: "assistant" as const, content: m.content }));
-    const scanState = { ...state, turns: allTurns };
-    scanMandatoryQuestions(scanState);
-    state.asked_appearance = scanState.asked_appearance;
-    state.asked_dealbreakers = scanState.asked_dealbreakers;
-    state.asked_worst_match = scanState.asked_worst_match;
-    state.asked_last_relationship = scanState.asked_last_relationship;
-    state.asked_simulation = scanState.asked_simulation;
-    state.asked_cognition = scanState.asked_cognition;
-  }
-
-  // 8. Check if we should move to summarizing phase
-  // Use session-relative count so returning users aren't immediately at the limit
+  // 4. Check if we should end the conversation (simple: hit question limit)
   const turnsInSession = state.returned_at_turn > 0
     ? state.turn_count - state.returned_at_turn
     : state.turn_count;
   const hitQuestionLimit = turnsInSession >= MAX_QUESTIONS;
-
-  // If user returned mid-conversation, force at least 3 more turns before allowing end
   const MIN_TURNS_AFTER_RETURN = 5;
-  const turnsSinceReturn = state.returned_at_turn > 0
-    ? state.turn_count - state.returned_at_turn
-    : Infinity; // new conversation — no minimum
-  const returnGuardMet = turnsSinceReturn >= MIN_TURNS_AFTER_RETURN;
+  const returnGuardMet = state.returned_at_turn > 0
+    ? (state.turn_count - state.returned_at_turn) >= MIN_TURNS_AFTER_RETURN
+    : true;
+  const canEnd = hitQuestionLimit && returnGuardMet;
 
-  // All mandatory questions must be covered before ending
-  const mandatoriesDone = allMandatoryCovered(state);
-
-  // Safety valve: if we've been going 4+ turns past the limit IN THIS SESSION, end regardless.
-  const HARD_LIMIT_EXTRA = 4;
-  const turnsThisSession = state.returned_at_turn > 0
-    ? state.turn_count - state.returned_at_turn
-    : state.turn_count;
-  const hardLimitReached = turnsThisSession >= MAX_QUESTIONS + HARD_LIMIT_EXTRA;
-
-  const canEnd = (
-    ((cov.profile_complete || hitQuestionLimit) && returnGuardMet && mandatoriesDone)
-    || hardLimitReached
-  );
-
-  // Diagnostic logging
-  if (turnsInSession >= MAX_QUESTIONS - 1) {
-    const missing = getMissingMandatory(state);
-    console.log(`[orchestrator] End-check at turn ${state.turn_count} (session=${turnsInSession}): hitLimit=${hitQuestionLimit} returnGuard=${returnGuardMet} mandatories=${mandatoriesDone} hardLimit=${hardLimitReached} canEnd=${canEnd} missing=[${missing.join(",")}]`);
-  }
-
-  // If we want to end but mandatory questions are missing → force them one by one
-  const wantToEnd = (cov.profile_complete || hitQuestionLimit) && returnGuardMet;
-  if (wantToEnd && !mandatoriesDone && state.phase === "chatting") {
-    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
-    const missing = getMissingMandatory(state);
-
-    // Filter out questions that were already forced — never force the same one twice
-    const notYetForced = missing.filter(m => !state.forced_questions.has(m));
-
-    // If all missing questions were already forced once, consider them done
-    if (notYetForced.length === 0) {
-      console.log(`[orchestrator] All missing mandatories already forced once — marking as done. Missing were: [${missing.join(",")}]`);
-      // Mark remaining mandatories as covered to break the loop
-      state.asked_appearance = true;
-      state.asked_dealbreakers = true;
-      state.asked_worst_match = true;
-      state.asked_last_relationship = true;
-      state.asked_simulation = true;
-      state.asked_cognition = true;
-      // Fall through to canEnd check below (will now pass)
-    } else {
-    let forcedQuestion = "";
-
-    // Force in priority order (dealbreakers is always last)
-    const next = notYetForced.find(m => m !== "dealbreakers") || "dealbreakers";
-    state.forced_questions.add(next);
-    console.log(`[orchestrator] Forcing mandatory: ${next} (first attempt, won't repeat)`);
-
-    if (next === "worst_match") {
-      forcedQuestion = `MANDATORY: שאל עכשיו את שאלת הפרטנר שהכי הכי *לא* מתאים. התאם מגדרית: "בוא/י רגע נעשה את זה הפוך — תן/י לי תיאור של בן/בת הזוג שהכי הכי *לא* מתאים/ה לך, ממש הכי לא בשבילך. מה הווייב? מה הדעות, האמונות והסגנון?"`;
-    } else if (next === "last_relationship") {
-      forcedQuestion = `MANDATORY: שאל עכשיו על מערכת היחסים האחרונה. התאם מגדרית: "תאר/י לי קצת את מערכת היחסים האחרונה שהייתה לך. מה עבד לך ומה לא עבד?"`;
-    } else if (next === "appearance") {
-      forcedQuestion = `MANDATORY: שאל עכשיו על מראה. התאם מגדרית: "איך היית מתאר/ת את המראה שלך?" (אחרי התשובה שאל גם על העדפות מראה בפרטנר)`;
-    } else if (next === "simulation") {
-      forcedQuestion = `MANDATORY: שאל עכשיו שאלת סימולציה. התאם מגדרית: "מחר את/ה זוכה במיליון דולר — מה את/ה עושה עם הכסף?"`;
-    } else if (next === "cognition") {
-      forcedQuestion = `MANDATORY: שאל עכשיו שאלת קוגניציה. חובה להתחיל עם משפט פתיחה קצר כמו: "בוא נעשה רגע תרגיל מחשבתי..." — ואז שאל. התאם מגדרית: "אם היית צריך/ה להסביר למישהו שמעולם לא חווה קנאה מה זה הרגש הזה, בלי להשתמש במילה 'קנאה', איך היית מתאר/ת את המנגנון שלו?"`;
-    } else if (next === "dealbreakers") {
-      forcedQuestion = `MANDATORY: זו השאלה האחרונה — שאל את שאלת הזהות/דיל ברייקרס. התאם מגדרית: "האם יש משהו מהותי בזהות שלך, או פרט חשוב עליך, שחשוב שאדע לפני שאני מתאים/ה לך בן/בת זוג?"`;
-    }
-
-    const ctx: ConversationContext = {
-      user_name: user?.first_name || "there",
-      user_age: user?.age,
-      user_gender: user?.gender,
-      user_looking_for: user?.looking_for_gender,
-      user_city: user?.city,
-      conversation_history: formatHistory(state.turns),
-      turn_number: state.turn_count,
-      stage: "later",
-      coverage_pct: coveragePct,
-      guidance_block: forcedQuestion,
-    };
-
-    const assistantMessage = await runConversationAgent(ctx, userId, "conversation_turn");
-    state.turns.push({ role: "assistant", content: assistantMessage });
-    persistMessage(db, userId, "assistant", assistantMessage);
-
-    console.log(`[orchestrator] Forced mandatory: ${next} (missing: ${missing.join(", ")}) at turn ${state.turn_count}`);
-
-    return {
-      result: {
-        assistant_message: assistantMessage,
-        analysis_ran: false,
-        analysis_in_background: analysisKicked,
-        phase: state.phase,
-        coverage_pct: coveragePct,
-        readiness_score: cov.readiness_score,
-        turn_count: state.turn_count,
-      },
-      state,
-    };
-    } // end else (notYetForced.length > 0)
-  }
-
-  // Re-check canEnd after potential forced-questions-done shortcircuit
-  const canEndFinal = allMandatoryCovered(state)
-    ? (cov.profile_complete || hitQuestionLimit) && returnGuardMet
-    : hardLimitReached;
-
-  if ((canEnd || canEndFinal) && state.phase === "chatting") {
+  if (canEnd && state.phase === "chatting") {
     state.phase = "summarizing";
 
-    // Run the FULL grouped analysis now (awaited) — this is the only point in the
-    // conversation where actual trait scores get written to the DB.
-    let finalAnalysis: AnalysisAgentOutput;
-    try {
-      finalAnalysis = await runFullAnalysisAtEnd(db, state);
-    } catch (err) {
-      console.error(`[orchestrator] Final analysis failed for user ${userId}:`, err);
-      finalAnalysis = analysis ?? {
-        internal_traits: [],
-        external_traits: [],
-        missing_traits: [],
-        recommended_probes: [],
-        profiling_completeness: { internal_assessed: 0, internal_total: 0, external_assessed: 0, external_total: 0, coverage_pct: 0, ready_for_matching: false, notes: "fallback after error" },
-      };
-    }
-
-    // Recompute coverage after the final analysis wrote scores
-    const finalCov = computeCoverage(db, userId);
-    updateUserReadiness(db, userId, finalCov);
-
-    const profileSummary = buildProfileSummary(finalAnalysis);
     const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
 
     const ctx: ConversationContext = {
@@ -872,84 +545,45 @@ export async function processUserMessage(
       conversation_history: formatHistory(state.turns),
       turn_number: state.turn_count,
       stage: "closing",
-      coverage_pct: finalCov.coverage_pct,
-      guidance_block: (() => {
-        const isFem = user?.gender === "female" || user?.gender === "woman" || user?.gender === "נקבה";
-        const isMal = user?.gender === "male" || user?.gender === "man" || user?.gender === "זכר";
-        const lfFem = user?.looking_for_gender === "female" || user?.looking_for_gender === "woman" || user?.looking_for_gender === "נקבה";
-        const lfMal = user?.looking_for_gender === "male" || user?.looking_for_gender === "man" || user?.looking_for_gender === "זכר";
-        const youAre = isFem ? "את מישהי" : isMal ? "אתה מישהו" : "את/ה מישהו/י";
-        const youWant = isFem ? "שתרצי" : isMal ? "שתרצה" : "שתרצה/י";
-        const partnerWord = lfMal ? "בן זוג" : lfFem ? "בת זוג" : "בן/בת זוג";
-        const partnerAdj = lfMal ? "מישהו רגיש, שיודע" : lfFem ? "מישהי רגישה, שיודעת" : "מישהו/י רגיש/ה";
-        const partnerFit = lfMal ? "יהיה מדויק" : lfFem ? "תהיה מדויקת" : "יתאים";
-        const example = `"${youAre} ${isFem ? "שחיה" : isMal ? "שחי" : "שחי/ה"} את הרגע, עם מודעות רגשית גבוהה ורצון לעומק...\nאני ${isFem ? "חושב" : "חושבת"} ש${partnerAdj} לתת מקום אבל גם לצחוק איתך, ${partnerFit} בשבילך."`;
-        return `השיחה מגיעה לסיום. כתוב סיכום קצר (2-4 משפטים) בעברית.
-
-מגדר המשתמש/ת: ${user?.gender || "לא ידוע"}
-מגדר הפרטנר המבוקש: ${user?.looking_for_gender || "לא ידוע"}
-
-חובה להתאים מגדרית:
-- פניות למשתמש/ת → לפי מגדר המשתמש/ת
-- כל אזכור של ${partnerWord} → לפי מגדר הפרטנר המבוקש (${user?.looking_for_gender})
-- לכתוב "${partnerWord}" ולא "בן/בת זוג"
-
-הסיכום צריך להיות עמוק ומדויק — לא תיאור שטחי:
-1. הסגנון הרגשי — איך חווים קשרים, מה האנרגיה, מה חשוב באמת
-2. מה צריכים מ${partnerWord} — איזה סוג אדם ישלים אותם
-3. תובנה אחת מדויקת — משהו שמרגיש כאילו באמת "תפסת" אותם
-
-דוגמה לכיוון (אל תעתיק — כתוב משהו מקורי):
-${example}
-
-חשוב:
-- התבסס על כלל השיחה, לא רק על התשובה האחרונה
-- אסור לכלול מראה חיצוני, תכונות רגישות, או ניתוח פנימי
-- אסור לתאר דברים שטחיים
-- טון חם, אישי
-
-מידע מהניתוח:
-${profileSummary || "אין — סכם מהשיחה עצמה"}
-
-אחרי הסיכום שאל: "האם קלעתי? יש משהו ${youWant} לחדד?"`;
-      })(),
+      coverage_pct: 0,
+      guidance_block: "השיחה מגיעה לסיום. כתוב הודעת סיום קצרה וחמה בעברית. למשל: 'היה לי ממש כיף לשוחח איתך, למדתי המון על מה יכול להתאים לך.' התאם מגדרית.",
     };
 
     const assistantMessage = await runConversationAgent(ctx, userId, "conversation_summary");
     state.turns.push({ role: "assistant", content: assistantMessage });
     persistMessage(db, userId, "assistant", assistantMessage);
 
-    console.log(`[orchestrator] Moving to summary: profile_complete=${finalCov.profile_complete}, turns=${state.turn_count}, readiness=${finalCov.readiness_score}`);
+    console.log(`[orchestrator] Closing conversation at turn ${state.turn_count}`);
 
     return {
       result: {
         assistant_message: assistantMessage,
-        analysis_ran: true,
-        analysis_in_background: analysisKicked,
+        analysis_ran: false,
+        analysis_in_background: false,
         phase: "summarizing",
-        coverage_pct: finalCov.coverage_pct,
-        readiness_score: finalCov.readiness_score,
+        coverage_pct: 0,
+        readiness_score: 0,
         turn_count: state.turn_count,
       },
       state,
     };
   }
 
-  // 8. Normal turn — generate assistant response immediately
+  // 5. Normal turn — generate assistant response from question bank
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
-  const stage = getStage(state.turn_count, cov.profile_complete, state.phase);
-  const guidance = buildGuidance(db, userId, analysis, state.turn_count, cov, state);
+  const stage = getStage(state.turn_count, false, state.phase);
+  const guidance = buildGuidance(state);
 
   const ctx: ConversationContext = {
     user_name: user?.first_name || "there",
     user_age: user?.age,
     user_gender: user?.gender,
-      user_looking_for: user?.looking_for_gender,
+    user_looking_for: user?.looking_for_gender,
     user_city: user?.city,
     conversation_history: formatHistory(state.turns),
     turn_number: state.turn_count,
     stage,
-    coverage_pct: coveragePct,
+    coverage_pct: 0,
     guidance_block: guidance,
   };
 
@@ -963,8 +597,8 @@ ${profileSummary || "אין — סכם מהשיחה עצמה"}
       analysis_ran: false,
       analysis_in_background: analysisKicked,
       phase: state.phase,
-      coverage_pct: coveragePct,
-      readiness_score: cov.readiness_score,
+      coverage_pct: 0,
+      readiness_score: 0,
       turn_count: state.turn_count,
     },
     state,
@@ -1010,14 +644,23 @@ function genderForms(ctx: GenderContext) {
 }
 
 function getFixedIntro(userName: string, ctx: GenderContext): string {
-  const g = genderForms(ctx);
+  const fem = isFemaleGender(ctx.gender);
+  const mal = isMaleGender(ctx.gender);
+
+  const going    = fem ? "הולכת" : mal ? "הולך" : "הולך/ת";
+  const youBe    = fem ? "שתהיי" : mal ? "שתהיה" : "שתהיה/י";
+  const open     = fem ? "פתוחה" : mal ? "פתוח" : "פתוח/ה";
+  const youReact = fem ? "איך שאת היית מגיבה" : mal ? "איך שאתה היית מגיב" : "איך שהיית מגיב/ה";
+  const ready    = fem ? "מוכנה" : mal ? "מוכן" : "מוכן/ה";
+
   return [
-    `היי ${userName}, אני השדכן שלך 😊`,
-    `כדי למצוא לך מישהו מתאים ברמה הכי מדויקת שיש, אני צריך להכיר ${g.yourSelf} לעומק.`,
-    `ככל ${g.youAnswer} יותר בהרחבה, בפתיחות ובכנות — נוכל למצוא התאמה מדויקת וחזקה יותר.`,
-    `אם השיחה ארוכה לך מדי, תמיד אפשר לעצור ולהמשיך בזמן אחר ;)`,
-    `חשוב ${g.youKnow} — התשובות כאן לא מתפרסמות בפרופיל, הן לעיני בלבד, כדי שאוכל להכיר ${g.yourSelf} לעומק ולמצוא ${g.theOne}.`,
-    `${g.ready}?`,
+    `היי ${userName}, כדי למצוא לך התאמה של 10/10, אני צריך לראות קצת מעבר למה שכתוב בפרופיל. 😉`,
+    ``,
+    `אני ${going} לזרוק אותך לכמה סיטואציות לא שגרתיות כדי לראות איך המוח (והלב) שלך עובדים בזמן אמת. בלי מסננים ובלי תשובות \'נכונות\' — פשוט ${youReact} במציאות.`,
+    ``,
+    `ככל ${youBe} יותר ${open}, ככה הדיוק שלי בשידוך יעלה. הפרטיות שלך היא קודש אצלי והשיחה הזו היא לעיניי בלבד, אז אפשר לדבר חופשי על הכל.`,
+    ``,
+    `${ready} לצאת לדרך?`,
   ].join("\n");
 }
 
@@ -1078,7 +721,8 @@ export function generateOpeningMessage(
     lastMsg.content.includes("כיף לראות אותך") ||
     lastMsg.content.includes("חזרת 😊") ||
     lastMsg.content.includes("שמח שחזרת") ||
-    lastMsg.content.includes("אני השדכן שלך")
+    lastMsg.content.includes("אני השדכן שלך") ||
+    lastMsg.content.includes("התאמה של 10/10")
   );
   if (!lastIsIntro) {
     persistMessage(db, userId, "assistant", introMessage);
@@ -1115,30 +759,8 @@ export function generateOpeningMessage(
     phase: "chatting",
     analysis_in_flight: false,
     analysis_scheduled_at: 0,
-    asked_appearance: false,
-    asked_dealbreakers: false,
-    asked_worst_match: false,
-    asked_last_relationship: false,
-    asked_simulation: false,
-    asked_cognition: false,
     returned_at_turn: isReturning ? turnCount : 0,
-    forced_questions: new Set(),
   };
-
-  // Scan ALL messages for mandatory question coverage
-  if (isReturning) {
-    const allMessages = db.prepare(
-      "SELECT content FROM conversation_messages WHERE user_id = ? AND role = 'assistant' ORDER BY created_at ASC"
-    ).all(userId) as { content: string }[];
-    const scanState = { ...state, turns: allMessages.map(m => ({ role: "assistant" as const, content: m.content })) };
-    scanMandatoryQuestions(scanState);
-    state.asked_appearance = scanState.asked_appearance;
-    state.asked_dealbreakers = scanState.asked_dealbreakers;
-    state.asked_worst_match = scanState.asked_worst_match;
-    state.asked_last_relationship = scanState.asked_last_relationship;
-    state.asked_simulation = scanState.asked_simulation;
-    state.asked_cognition = scanState.asked_cognition;
-  }
 
   return { message: introMessage, state, isReturning };
 }

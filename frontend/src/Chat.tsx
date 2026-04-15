@@ -80,6 +80,7 @@ export default function Chat({
   const [error, setError] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const analysisFiredRef = useRef(false);
 
   const autoResize = useCallback(() => {
     const ta = textareaRef.current;
@@ -92,6 +93,30 @@ export default function Chat({
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
+
+  // Trigger analysis when user leaves (unmount or tab close)
+  useEffect(() => {
+    const triggerAnalysis = () => {
+      if (analysisFiredRef.current) return;
+      analysisFiredRef.current = true;
+      const body = JSON.stringify({ user_id: user.id });
+      if (navigator.sendBeacon) {
+        const blob = new Blob([body], { type: "application/json" });
+        navigator.sendBeacon("/api/conversation/pause", blob);
+      } else {
+        fetch("/api/conversation/pause", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body,
+          keepalive: true,
+        }).catch(() => {});
+      }
+    };
+
+    window.addEventListener("beforeunload", triggerAnalysis);
+    return () => {
+      window.removeEventListener("beforeunload", triggerAnalysis);
+      triggerAnalysis();
+    };
+  }, [user.id]);
 
   // Start or resume conversation on mount
   useEffect(() => {
@@ -155,6 +180,7 @@ export default function Chat({
   }
 
   async function handlePause() {
+    analysisFiredRef.current = true; // prevent double-trigger on unmount
     try {
       // Pause the conversation (also triggers analysis on the backend)
       const pauseRes = await fetch("/api/conversation/pause", {
@@ -210,7 +236,7 @@ export default function Chat({
       {/* Bottom area */}
       {phase === "confirmed" ? (
         <div style={s.bottomBar}>
-          <button style={s.findBtn} onClick={onComplete}>
+          <button style={s.findBtn} onClick={() => { analysisFiredRef.current = true; onComplete(); }}>
             Find My One ❤️
           </button>
         </div>

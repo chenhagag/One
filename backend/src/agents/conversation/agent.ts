@@ -72,6 +72,7 @@ export interface PsychologistContext {
   user_city?: string | null;
   conversation_history: string;
   turn_number: number;
+  guidance_block: string;
 }
 
 export async function runPsychologistAgent(
@@ -89,6 +90,7 @@ export async function runPsychologistAgent(
   userMsg = userMsg.replace("{{user_city}}", ctx.user_city || "unknown");
   userMsg = userMsg.replace("{{conversation_history}}", ctx.conversation_history);
   userMsg = userMsg.replace("{{turn_number}}", String(ctx.turn_number));
+  userMsg = userMsg.replace("{{guidance_block}}", ctx.guidance_block);
 
   const model = "gpt-4o-mini";
   const response = await openai.chat.completions.create({
