@@ -354,7 +354,7 @@ export function buildAnalysisTranscript(db: Database.Database, userId: number): 
   const parts: string[] = [];
 
   if (interviewerMsgs.length > 0 && psychMsgs.length > 0) {
-    parts.push("הנחיה: נתח את שני התמלילים. השתמש בשיחת המעבדה (חלק 1) להערכת תגובות לסימולציות ודילמות, ובשיחת העומק (חלק 2) להבנת ערכים עמוקים ודפוסים רגשיים. שלב את שניהם לפרופיל אחד מדויק.\n");
+    parts.push("הנחיה: נתח את שני התמלילים. שיחת המעבדה (חלק 1) - תגובות לסימולציות ודילמות, ושיחת העומק (חלק 2) - שיחה שוטפת ורגשית. שלב את שניהם לפרופיל אחד מדויק.\n");
   }
 
   if (interviewerMsgs.length > 0) {
