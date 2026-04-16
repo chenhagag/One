@@ -35,7 +35,7 @@ User: I love to laugh. I'm more into witty, clever humor than slapstick stuff. M
 
 async function main() {
   console.log("Building analysis input...");
-  const input = buildAnalysisInput(db, SAMPLE_TRANSCRIPT);
+  const input = await buildAnalysisInput(db, SAMPLE_TRANSCRIPT);
   console.log(
     `Loaded ${input.internal_trait_definitions.length} internal + ${input.external_trait_definitions.length} external trait definitions`
   );

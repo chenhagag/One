@@ -139,9 +139,12 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
     -- 3. USER DATA TABLES
     -- ================================================================
 
+    -- NOTE: user_id intentionally has NO FK during the pg migration
+    -- (users still live in SQLite). Re-add REFERENCES users(id) once
+    -- the users table itself is migrated.
     CREATE TABLE IF NOT EXISTS user_traits (
       id                     SERIAL PRIMARY KEY,
-      user_id                INTEGER NOT NULL REFERENCES users(id),
+      user_id                INTEGER NOT NULL,
       trait_definition_id    INTEGER NOT NULL REFERENCES trait_definitions(id),
       score                  DOUBLE PRECISION,
       confidence             DOUBLE PRECISION,
@@ -154,9 +157,10 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       UNIQUE(user_id, trait_definition_id)
     );
 
+    -- NOTE: user_id FK dropped during migration (see user_traits above).
     CREATE TABLE IF NOT EXISTS user_look_traits (
       id                          SERIAL PRIMARY KEY,
-      user_id                     INTEGER NOT NULL REFERENCES users(id),
+      user_id                     INTEGER NOT NULL,
       look_trait_definition_id    INTEGER NOT NULL REFERENCES look_trait_definitions(id),
       personal_value              TEXT,
       personal_value_confidence   DOUBLE PRECISION,
@@ -243,9 +247,10 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
     -- ANALYSIS RUNS
     -- ================================================================
 
+    -- NOTE: user_id FK dropped during migration (see user_traits above).
     CREATE TABLE IF NOT EXISTS analysis_runs (
       id                SERIAL PRIMARY KEY,
-      user_id           INTEGER NOT NULL REFERENCES users(id),
+      user_id           INTEGER NOT NULL,
       generated_prompt  TEXT,
       stage_a_output    JSONB,
       stage_b_output    JSONB,
@@ -315,5 +320,20 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_conv_messages_user         ON conversation_messages(user_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_token_usage_user           ON token_usage(user_id);
     CREATE INDEX IF NOT EXISTS idx_token_usage_action         ON token_usage(action_type);
+  `);
+
+  // ────────────────────────────────────────────────────────────────
+  // Migrations for databases created BEFORE the FKs were removed.
+  // CREATE TABLE IF NOT EXISTS won't drop constraints from existing
+  // tables, so we explicitly drop them here. These are idempotent
+  // (IF EXISTS) and safe to run on every boot.
+  //
+  // Re-add these FKs once `users` is fully migrated from SQLite to pg.
+  // ────────────────────────────────────────────────────────────────
+  await pool.query(`
+    ALTER TABLE user_traits       DROP CONSTRAINT IF EXISTS user_traits_user_id_fkey;
+    ALTER TABLE user_look_traits  DROP CONSTRAINT IF EXISTS user_look_traits_user_id_fkey;
+    ALTER TABLE analysis_runs     DROP CONSTRAINT IF EXISTS analysis_runs_user_id_fkey;
+    ALTER TABLE token_usage       DROP CONSTRAINT IF EXISTS token_usage_user_id_fkey;
   `);
 }

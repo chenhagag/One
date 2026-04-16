@@ -4,7 +4,15 @@ import dotenv from "dotenv";
 import path from "path";
 import multer from "multer";
 import db from "./db";
-import { initDb as initPgDb } from "./db.pg";
+import {
+  initDb as initPgDb,
+  syncConfigFromSqlite,
+  syncUsersAndProfilesFromSqlite,
+  mirrorUserToPg,
+  mirrorProfileToPg,
+  queryOne as pgQueryOne,
+  queryAll as pgQueryAll,
+} from "./db.pg";
 import { analyzeAnswer } from "./openai";
 import { runStage1 } from "./matchStage1";
 import { runStage2, runMatchmaking } from "./matchStage2";
@@ -29,7 +37,7 @@ app.use(express.json());
 // ════════════════════════════════════════════════════════════════
 
 // POST /register — Full registration (replaces old POST /users)
-app.post("/register", (req, res) => {
+app.post("/register", async (req, res) => {
   const {
     first_name, email, age, gender, looking_for_gender,
     city, height, self_style,
@@ -43,6 +51,7 @@ app.post("/register", (req, res) => {
   }
 
   try {
+    // 1) Write to SQLite first (gets auto-id)
     const stmt = db.prepare(`
       INSERT INTO users (
         first_name, email, age, gender, looking_for_gender,
@@ -69,7 +78,11 @@ app.post("/register", (req, res) => {
       desired_height_max || null,
       height_flexibility || "slightly_flexible",
       desired_location_range || "my_area",
-    );
+    ) as any;
+
+    // 2) Mirror to pg (same id, upsert)
+    await mirrorUserToPg(db, user.id);
+
     return res.status(201).json(user);
   } catch (err: any) {
     if (err.message?.includes("UNIQUE")) {
@@ -81,7 +94,7 @@ app.post("/register", (req, res) => {
 });
 
 // PATCH /users/:id/guide — Save selected conversation guide
-app.patch("/users/:id/guide", (req, res) => {
+app.patch("/users/:id/guide", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const { selected_guide } = req.body;
   const valid = ["psychologist", "coach", "spiritual_mentor"];
@@ -90,20 +103,21 @@ app.patch("/users/:id/guide", (req, res) => {
   }
   db.prepare("UPDATE users SET selected_guide = ?, updated_at = datetime('now') WHERE id = ?")
     .run(selected_guide, userId);
+  await mirrorUserToPg(db, userId);
   return res.json({ ok: true, selected_guide });
 });
 
-// GET /users/:id — Get user profile
-app.get("/users/:id", (req, res) => {
+// GET /users/:id — Get user profile (reads from pg)
+app.get("/users/:id", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [userId]);
   if (!user) return res.status(404).json({ error: "User not found" });
-  if (user.self_style) user.self_style = JSON.parse(user.self_style);
+  // pg returns JSONB already-parsed, so no JSON.parse needed on self_style.
   return res.json(user);
 });
 
 // PATCH /users/:id — Update user profile fields
-app.patch("/users/:id", (req, res) => {
+app.patch("/users/:id", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const {
     first_name, age, gender, looking_for_gender, city, height, self_style,
@@ -135,7 +149,8 @@ app.patch("/users/:id", (req, res) => {
   values.push(userId);
 
   db.prepare(`UPDATE users SET ${fields.join(", ")} WHERE id = ?`).run(...values);
-  const updated = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+  await mirrorUserToPg(db, userId);
+  const updated = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [userId]);
   return res.json(updated);
 });
 
@@ -174,7 +189,7 @@ app.post("/analyze", async (req, res) => {
     return res.status(400).json({ error: "user_id and answer are required" });
   }
 
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(user_id);
+  const user = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [user_id]);
   if (!user) {
     return res.status(404).json({ error: "User not found" });
   }
@@ -184,7 +199,8 @@ app.post("/analyze", async (req, res) => {
     const stmt = db.prepare(
       "INSERT INTO profiles (user_id, raw_answer, analysis_json) VALUES (?, ?, ?) RETURNING *"
     );
-    const profile = stmt.get(user_id, answer, JSON.stringify(analysis));
+    const profile = stmt.get(user_id, answer, JSON.stringify(analysis)) as any;
+    await mirrorProfileToPg(db, profile.id);
     return res.status(201).json({ profile, analysis });
   } catch (err: any) {
     console.error(err);
@@ -290,10 +306,10 @@ app.post("/conversation/start", async (req, res) => {
   const userId = parseUserId(req.body.user_id);
   if (!userId) return res.status(400).json({ error: "Valid user_id required" });
 
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [userId]);
   if (!user) return res.status(404).json({ error: "User not found" });
 
-  const { message, state, isReturning } = generateOpeningMessage(db, userId);
+  const { message, state, isReturning } = await generateOpeningMessage(db, userId);
   conversationStates.set(userId, state);
   const cov = isReturning ? computeCoverage(db, userId) : { coverage_pct: 0 } as any;
   console.log(`[conversation] ${isReturning ? "Returning" : "Started"} for user ${userId}, turns=${state.turn_count}`);
@@ -318,7 +334,7 @@ app.post("/conversation/message", async (req, res) => {
   // If no state exists (server restart) or state was paused,
   // rebuild it from DB — sending a message implicitly resumes the conversation.
   if (!state || state.phase === "paused") {
-    const { state: freshState } = generateOpeningMessage(db, userId);
+    const { state: freshState } = await generateOpeningMessage(db, userId);
     state = freshState;
     conversationStates.set(userId, state);
   }
@@ -363,20 +379,21 @@ app.post("/conversation/pause", async (req, res) => {
   if (userMsgCount >= 3) {
     console.log(`[conversation] Triggering background analysis for user ${userId} on pause...`);
     const transcript = buildAnalysisTranscript(db, userId);
-    const input = buildAnalysisInput(db, transcript);
-    runAnalysisAgent(input, userId, "analysis_pause")
-      .then((output: any) => {
-        const runData = output._run_data;
+    (async () => {
+      try {
+        const input = await buildAnalysisInput(db, transcript);
+        const output = await runAnalysisAgent(input, userId, "analysis_pause");
+        const runData = (output as any)._run_data;
         if (runData) {
-          saveAnalysisRun(db, userId, runData.generated_prompt, runData.stage_a_output, JSON.stringify(runData.stage_b_output), "analysis_pause");
+          await saveAnalysisRun(db, userId, runData.generated_prompt, runData.stage_a_output, JSON.stringify(runData.stage_b_output), "analysis_pause");
         }
-        delete output._run_data;
-        const saved = saveAnalysisToDb(db, userId, output);
+        delete (output as any)._run_data;
+        const saved = await saveAnalysisToDb(db, userId, output);
         console.log(`[conversation] Pause analysis DONE for user ${userId}: ${saved.internal_saved} internal, ${saved.external_saved} external`);
-      })
-      .catch((err: any) => {
+      } catch (err: any) {
         console.error(`[conversation] Pause analysis FAILED for user ${userId}:`, err.message);
-      });
+      }
+    })();
   }
 
   const cov = computeCoverage(db, userId);
@@ -404,14 +421,14 @@ app.post("/conversation/analyze", async (req, res) => {
   try {
     console.log(`[analyze] Explicit analysis for user ${userId} (${userMsgCount} messages)...`);
     const transcript = buildAnalysisTranscript(db, userId);
-    const input = buildAnalysisInput(db, transcript);
+    const input = await buildAnalysisInput(db, transcript);
     const output = await runAnalysisAgent(input, userId, "analysis_explicit");
     const runData = (output as any)._run_data;
     if (runData) {
-      saveAnalysisRun(db, userId, runData.generated_prompt, runData.stage_a_output, JSON.stringify(runData.stage_b_output), "analysis_explicit");
+      await saveAnalysisRun(db, userId, runData.generated_prompt, runData.stage_a_output, JSON.stringify(runData.stage_b_output), "analysis_explicit");
     }
     delete (output as any)._run_data;
-    const saved = saveAnalysisToDb(db, userId, output);
+    const saved = await saveAnalysisToDb(db, userId, output);
     console.log(`[analyze] DONE for user ${userId}: ${saved.internal_saved} internal, ${saved.external_saved} external`);
     return res.json({ analysis_ran: true, saved, traits_count: output.internal_traits?.length });
   } catch (err: any) {
@@ -427,11 +444,11 @@ app.post("/conversation/analyze", async (req, res) => {
 const psychologistStates = new Map<number, PsychologistState>();
 
 // POST /psychologist/start — Start or resume the psychologist chat
-app.post("/psychologist/start", (req, res) => {
+app.post("/psychologist/start", async (req, res) => {
   const userId = parseUserId(req.body.user_id);
   if (!userId) return res.status(400).json({ error: "Valid user_id required" });
 
-  const { message, state, isReturning } = generatePsychologistOpening(db, userId);
+  const { message, state, isReturning } = await generatePsychologistOpening(db, userId);
   psychologistStates.set(userId, state);
 
   console.log(`[psychologist] ${isReturning ? "Resuming" : "Starting"} for user ${userId}, turns=${state.turn_count}`);
@@ -451,7 +468,7 @@ app.post("/psychologist/message", async (req, res) => {
   let state = psychologistStates.get(userId);
   if (!state) {
     // Reconstruct state if missing (server restart)
-    const { state: newState } = generatePsychologistOpening(db, userId);
+    const { state: newState } = await generatePsychologistOpening(db, userId);
     state = newState;
     psychologistStates.set(userId, state);
   }
@@ -564,7 +581,7 @@ app.post("/analyze-profile", async (req, res) => {
     return res.status(400).json({ error: `Invalid user_id: ${rawUserId} (type: ${typeof rawUserId})` });
   }
 
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(user_id) as any;
+  const user = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [user_id]);
   if (!user) {
     return res.status(404).json({ error: "User not found" });
   }
@@ -572,10 +589,11 @@ app.post("/analyze-profile", async (req, res) => {
   console.log(`[analyze-profile] Start: user_id=${user_id} (original: ${typeof rawUserId} ${rawUserId})`);
 
   try {
-    // 1. Store the raw answer
-    db.prepare(
-      "INSERT INTO profiles (user_id, raw_answer, analysis_json) VALUES (?, ?, '{}')"
-    ).run(user_id, answer);
+    // 1. Store the raw answer (sqlite + mirror to pg)
+    const inserted = db.prepare(
+      "INSERT INTO profiles (user_id, raw_answer, analysis_json) VALUES (?, ?, '{}') RETURNING id"
+    ).get(user_id, answer) as { id: number };
+    await mirrorProfileToPg(db, inserted.id);
 
     // 2. Build cumulative transcript from all answers
     const allAnswers = db.prepare(
@@ -587,7 +605,7 @@ app.post("/analyze-profile", async (req, res) => {
       .join("\n\n");
 
     // 3. Run analysis agent
-    const input = buildAnalysisInput(db, transcript);
+    const input = await buildAnalysisInput(db, transcript);
     console.log(`[analyze-profile] User ${user_id}: ${allAnswers.length} answers, ${input.internal_trait_definitions.length} internal + ${input.external_trait_definitions.length} external trait defs`);
 
     const output = await runAnalysisAgent(input, user_id, "analysis");
@@ -596,15 +614,19 @@ app.post("/analyze-profile", async (req, res) => {
     console.log(`[analyze-profile] Agent returned ${output.internal_traits.length} internal, ${output.external_traits.length} external traits for user ${user_id}`);
 
     // 4. Save traits to DB (COALESCE preserves existing non-null values)
-    const saved = saveAnalysisToDb(db, user_id, output);
+    const saved = await saveAnalysisToDb(db, user_id, output);
     console.log(`[analyze-profile] User ${user_id}: saved ${saved.internal_saved} internal, ${saved.external_saved} external traits`);
     console.log(`[analyze-profile] User ${user_id}: coverage ${output.profiling_completeness.coverage_pct}%, ready: ${output.profiling_completeness.ready_for_matching}`);
 
-    // 5. Update the latest profile record with analysis JSON
-    db.prepare(`
-      UPDATE profiles SET analysis_json = ?
-      WHERE user_id = ? AND id = (SELECT MAX(id) FROM profiles WHERE user_id = ?)
-    `).run(JSON.stringify(output), user_id, user_id);
+    // 5. Update the latest profile record with analysis JSON (sqlite + mirror)
+    const latest = db.prepare(
+      "SELECT MAX(id) as id FROM profiles WHERE user_id = ?"
+    ).get(user_id) as { id: number };
+    if (latest?.id) {
+      db.prepare("UPDATE profiles SET analysis_json = ? WHERE id = ?")
+        .run(JSON.stringify(output), latest.id);
+      await mirrorProfileToPg(db, latest.id);
+    }
 
     return res.status(200).json({
       saved,
@@ -617,9 +639,9 @@ app.post("/analyze-profile", async (req, res) => {
 });
 
 // GET /users/:id/dashboard-progress — All progress data for the dashboard
-app.get("/users/:id/dashboard-progress", (req, res) => {
+app.get("/users/:id/dashboard-progress", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [userId]);
   if (!user) return res.status(404).json({ error: "User not found" });
 
   // Identity: count filled profile fields
@@ -629,23 +651,28 @@ app.get("/users/:id/dashboard-progress", (req, res) => {
   const identity_pct = Math.round((filled / profileFields.length) * 100);
 
   // Lab: progress = user turns out of 12 (max questions)
+  // conversation_messages still lives in SQLite until Phase 4b.
   const labTurns = (db.prepare(
     "SELECT COUNT(*) as c FROM conversation_messages WHERE user_id = ? AND role = 'user' AND (guide IS NULL OR guide != 'psychologist')"
   ).get(userId) as any).c;
   const lab_pct = Math.min(100, Math.round((labTurns / 12) * 100));
 
-  // Deep chat: user turns out of 12 for turn-based progress
   const depthTurns = (db.prepare(
     "SELECT COUNT(*) as c FROM conversation_messages WHERE user_id = ? AND role = 'user' AND guide = 'psychologist'"
   ).get(userId) as any).c;
 
-  // Trait coverage (readiness from analysis)
-  const assessed = (db.prepare(
-    "SELECT COUNT(*) as c FROM user_traits WHERE user_id = ? AND score IS NOT NULL"
-  ).get(userId) as any).c;
-  const total = (db.prepare(
-    "SELECT COUNT(*) as c FROM trait_definitions WHERE is_active = 1"
-  ).get() as any).c;
+  // Trait coverage (in pg)
+  const assessed = Number(
+    (await pgQueryOne<{ c: string }>(
+      "SELECT COUNT(*)::int AS c FROM user_traits WHERE user_id = $1 AND score IS NOT NULL",
+      [userId]
+    ))?.c ?? 0
+  );
+  const total = Number(
+    (await pgQueryOne<{ c: string }>(
+      "SELECT COUNT(*)::int AS c FROM trait_definitions WHERE is_active = TRUE"
+    ))?.c ?? 0
+  );
   const coverage_pct = total > 0 ? Math.round((assessed / total) * 100) : 0;
 
   // Deep chat progress: use coverage_pct when analysis has run,
@@ -662,33 +689,36 @@ app.get("/users/:id/dashboard-progress", (req, res) => {
   });
 });
 
-// GET /users/:id/profile-status — Get current trait coverage and readiness
-app.get("/users/:id/profile-status", (req, res) => {
+// GET /users/:id/profile-status — Get current trait coverage and readiness (from pg)
+app.get("/users/:id/profile-status", async (req, res) => {
   const userId = parseInt(req.params.id);
 
-  const internalCount = (db.prepare(`
-    SELECT COUNT(*) as c FROM user_traits WHERE user_id = ? AND score IS NOT NULL
-  `).get(userId) as any).c;
+  const internalCount = Number((await pgQueryOne<{ c: string }>(
+    "SELECT COUNT(*)::int AS c FROM user_traits WHERE user_id = $1 AND score IS NOT NULL",
+    [userId]
+  ))?.c ?? 0);
 
-  const internalTotal = (db.prepare(`
-    SELECT COUNT(*) as c FROM trait_definitions WHERE is_active = 1
-  `).get() as any).c;
+  const internalTotal = Number((await pgQueryOne<{ c: string }>(
+    "SELECT COUNT(*)::int AS c FROM trait_definitions WHERE is_active = TRUE"
+  ))?.c ?? 0);
 
-  const externalCount = (db.prepare(`
-    SELECT COUNT(*) as c FROM user_look_traits WHERE user_id = ? AND personal_value IS NOT NULL
-  `).get(userId) as any).c;
+  const externalCount = Number((await pgQueryOne<{ c: string }>(
+    "SELECT COUNT(*)::int AS c FROM user_look_traits WHERE user_id = $1 AND personal_value IS NOT NULL",
+    [userId]
+  ))?.c ?? 0);
 
-  const externalTotal = (db.prepare(`
-    SELECT COUNT(*) as c FROM look_trait_definitions WHERE is_active = 1
-  `).get() as any).c;
+  const externalTotal = Number((await pgQueryOne<{ c: string }>(
+    "SELECT COUNT(*)::int AS c FROM look_trait_definitions WHERE is_active = TRUE"
+  ))?.c ?? 0);
 
   const total = internalTotal + externalTotal;
   const assessed = internalCount + externalCount;
   const coverage_pct = total > 0 ? Math.round((assessed / total) * 100) : 0;
 
-  const answerCount = (db.prepare(
-    "SELECT COUNT(*) as c FROM profiles WHERE user_id = ?"
-  ).get(userId) as any).c;
+  const answerCount = Number((await pgQueryOne<{ c: string }>(
+    "SELECT COUNT(*)::int AS c FROM profiles WHERE user_id = $1",
+    [userId]
+  ))?.c ?? 0);
 
   return res.json({
     internal_assessed: internalCount,
@@ -706,9 +736,9 @@ app.get("/users/:id/profile-status", (req, res) => {
 // ════════════════════════════════════════════════════════════════
 
 // POST /admin/users/:id/freeze — Freeze/suspend a user
-app.post("/admin/users/:id/freeze", (req, res) => {
+app.post("/admin/users/:id/freeze", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
-  const user = db.prepare("SELECT id, user_status FROM users WHERE id = ?").get(userId) as any;
+  const user = await pgQueryOne<any>("SELECT id, user_status FROM users WHERE id = $1", [userId]);
   if (!user) return res.status(404).json({ error: "User not found" });
 
   if (user.user_status === "frozen") {
@@ -716,14 +746,15 @@ app.post("/admin/users/:id/freeze", (req, res) => {
   }
 
   db.prepare("UPDATE users SET user_status = 'frozen' WHERE id = ?").run(userId);
+  await mirrorUserToPg(db, userId);
   console.log(`[admin] Froze user ${userId}`);
   return res.json({ frozen: true, user_id: userId });
 });
 
 // POST /admin/users/:id/unfreeze — Unfreeze a user
-app.post("/admin/users/:id/unfreeze", (req, res) => {
+app.post("/admin/users/:id/unfreeze", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
-  const user = db.prepare("SELECT id, user_status FROM users WHERE id = ?").get(userId) as any;
+  const user = await pgQueryOne<any>("SELECT id, user_status FROM users WHERE id = $1", [userId]);
   if (!user) return res.status(404).json({ error: "User not found" });
 
   if (user.user_status !== "frozen") {
@@ -731,12 +762,13 @@ app.post("/admin/users/:id/unfreeze", (req, res) => {
   }
 
   db.prepare("UPDATE users SET user_status = 'waiting_match' WHERE id = ?").run(userId);
+  await mirrorUserToPg(db, userId);
   console.log(`[admin] Unfroze user ${userId}`);
   return res.json({ unfrozen: true, user_id: userId });
 });
 
 // DELETE /admin/users/:id — Permanently delete a user and all related data
-app.delete("/admin/users/:id", (req, res) => {
+app.delete("/admin/users/:id", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   if (!Number.isFinite(userId) || userId <= 0) {
     return res.status(400).json({ error: "Invalid user_id" });
@@ -757,6 +789,17 @@ app.delete("/admin/users/:id", (req, res) => {
     db.prepare("DELETE FROM users WHERE id = ?").run(userId);
     return { profiles, traits, lookTraits, matchScores, matches, candidates };
   })();
+
+  // Mirror deletes to pg (best effort — order matters due to FKs on trait_definitions)
+  try {
+    await pgQueryAll("DELETE FROM profiles WHERE user_id = $1", [userId]);
+    await pgQueryAll("DELETE FROM user_traits WHERE user_id = $1", [userId]);
+    await pgQueryAll("DELETE FROM user_look_traits WHERE user_id = $1", [userId]);
+    await pgQueryAll("DELETE FROM analysis_runs WHERE user_id = $1", [userId]);
+    await pgQueryAll("DELETE FROM users WHERE id = $1", [userId]);
+  } catch (err: any) {
+    console.warn(`[admin] Failed to delete user ${userId} from pg (sqlite delete succeeded):`, err.message);
+  }
 
   // Clear in-memory conversation state
   conversationStates.delete(userId);
@@ -824,47 +867,51 @@ app.get("/admin/users", (_req, res) => {
 });
 
 // GET /admin/users/:id/full — Complete user profile (user + traits + look traits + profile)
-app.get("/admin/users/:id/full", (req, res) => {
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.params.id) as any;
+app.get("/admin/users/:id/full", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const user = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [userId]);
   if (!user) return res.status(404).json({ error: "User not found" });
 
-  user.self_style = user.self_style ? JSON.parse(user.self_style) : null;
+  // pg returns JSONB parsed; no JSON.parse needed on self_style.
 
   // Compute waiting_days
   if (user.waiting_since) {
-    const ms = Date.now() - new Date(user.waiting_since + "Z").getTime();
+    const ms = Date.now() - new Date(user.waiting_since).getTime();
     user.waiting_days = Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
   } else {
     user.waiting_days = 0;
   }
 
-  const profile = db.prepare(`
-    SELECT raw_answer, analysis_json, created_at FROM profiles
-    WHERE user_id = ? ORDER BY created_at DESC LIMIT 1
-  `).get(req.params.id) as any;
+  const profile = await pgQueryOne<any>(
+    `SELECT raw_answer, analysis_json, created_at FROM profiles
+     WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
+    [userId]
+  );
 
   // LEFT JOIN: show ALL trait definitions, with user data overlaid where available
-  const traits = db.prepare(`
-    SELECT td.internal_name, td.display_name_he, td.display_name_en, td.weight as default_weight,
-           td.sensitivity, td.calc_type, td.trait_group, td.required_confidence,
-           ut.score, ut.confidence, ut.weight_for_match, ut.weight_confidence, ut.source
-    FROM trait_definitions td
-    LEFT JOIN user_traits ut ON ut.trait_definition_id = td.id AND ut.user_id = ?
-    WHERE td.is_active = 1
-    ORDER BY td.sort_order
-  `).all(req.params.id);
+  const traits = await pgQueryAll(
+    `SELECT td.internal_name, td.display_name_he, td.display_name_en, td.weight as default_weight,
+            td.sensitivity, td.calc_type, td.trait_group, td.required_confidence,
+            ut.score, ut.confidence, ut.weight_for_match, ut.weight_confidence, ut.source
+     FROM trait_definitions td
+     LEFT JOIN user_traits ut ON ut.trait_definition_id = td.id AND ut.user_id = $1
+     WHERE td.is_active = TRUE
+     ORDER BY td.sort_order`,
+    [userId]
+  );
 
-  const lookTraits = db.prepare(`
-    SELECT ltd.internal_name, ltd.display_name_he, ltd.display_name_en,
-           ltd.weight as default_weight, ltd.possible_values,
-           ult.personal_value, ult.personal_value_confidence,
-           ult.desired_value, ult.desired_value_confidence,
-           ult.weight_for_match, ult.weight_confidence, ult.source
-    FROM look_trait_definitions ltd
-    LEFT JOIN user_look_traits ult ON ult.look_trait_definition_id = ltd.id AND ult.user_id = ?
-    WHERE ltd.is_active = 1
-    ORDER BY ltd.sort_order
-  `).all(req.params.id);
+  const lookTraits = await pgQueryAll(
+    `SELECT ltd.internal_name, ltd.display_name_he, ltd.display_name_en,
+            ltd.weight as default_weight, ltd.possible_values,
+            ult.personal_value, ult.personal_value_confidence,
+            ult.desired_value, ult.desired_value_confidence,
+            ult.weight_for_match, ult.weight_confidence, ult.source
+     FROM look_trait_definitions ltd
+     LEFT JOIN user_look_traits ult ON ult.look_trait_definition_id = ltd.id AND ult.user_id = $1
+     WHERE ltd.is_active = TRUE
+     ORDER BY ltd.sort_order`,
+    [userId]
+  );
 
   // Compute effective_weight for personality traits:
   // effective_weight = system_weight * user_weight * weight_confidence
@@ -885,12 +932,11 @@ app.get("/admin/users/:id/full", (req, res) => {
   }));
 
   // Server-side coverage (based on per-trait required_confidence thresholds)
-  const userId = parseInt(req.params.id, 10);
   const serverCoverage = computeCoverage(db, userId);
 
   return res.json({
     user,
-    profile: profile ? { raw_answer: profile.raw_answer, analysis: JSON.parse(profile.analysis_json), created_at: profile.created_at } : null,
+    profile: profile ? { raw_answer: profile.raw_answer, analysis: profile.analysis_json, created_at: profile.created_at } : null,
     traits: traitsWithEW,
     lookTraits: lookTraitsWithEW,
     coverage: serverCoverage,
@@ -1040,9 +1086,9 @@ app.get("/admin/stats", (_req, res) => {
 });
 
 // GET /admin/users/:id/analysis-run — Latest analysis run debug data
-app.get("/admin/users/:id/analysis-run", (req, res) => {
+app.get("/admin/users/:id/analysis-run", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
-  const run = getLatestAnalysisRun(db, userId);
+  const run = await getLatestAnalysisRun(db, userId);
   if (!run) return res.json({ exists: false });
   return res.json({ exists: true, ...run });
 });
@@ -1162,7 +1208,7 @@ app.post("/admin/users/:id/reanalyze", async (req, res) => {
     return res.status(400).json({ error: `Invalid user_id: ${req.params.id}` });
   }
 
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(user_id) as any;
+  const user = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [user_id]);
   if (!user) return res.status(404).json({ error: "User not found" });
 
   // Use the same transcript builder as the normal analysis flow —
@@ -1174,11 +1220,11 @@ app.post("/admin/users/:id/reanalyze", async (req, res) => {
   }
 
   try {
-    // Clear existing traits for a truly fresh analysis
-    db.prepare("DELETE FROM user_traits WHERE user_id = ?").run(user_id);
-    db.prepare("DELETE FROM user_look_traits WHERE user_id = ?").run(user_id);
+    // Clear existing traits for a truly fresh analysis (pg — these tables live there now)
+    await pgQueryAll("DELETE FROM user_traits WHERE user_id = $1", [user_id]);
+    await pgQueryAll("DELETE FROM user_look_traits WHERE user_id = $1", [user_id]);
 
-    const input = buildAnalysisInput(db, transcript);
+    const input = await buildAnalysisInput(db, transcript);
     console.log(`[reanalyze] User ${user_id}: transcript=${transcript.length} chars, running FRESH analysis...`);
     console.log(`[reanalyze] Transcript preview: ${transcript.slice(0, 300)}...`);
 
@@ -1188,17 +1234,21 @@ app.post("/admin/users/:id/reanalyze", async (req, res) => {
     const runData = (output as any)._run_data;
     delete (output as any)._run_data;
 
-    const saved = saveAnalysisToDb(db, user_id, output);
+    const saved = await saveAnalysisToDb(db, user_id, output);
 
-    // Update latest profile with new analysis JSON (safe now — no circular ref)
-    db.prepare(`
-      UPDATE profiles SET analysis_json = ?
-      WHERE user_id = ? AND id = (SELECT MAX(id) FROM profiles WHERE user_id = ?)
-    `).run(JSON.stringify(output), user_id, user_id);
+    // Update latest profile with new analysis JSON (sqlite + mirror to pg)
+    const latest = db.prepare(
+      "SELECT MAX(id) as id FROM profiles WHERE user_id = ?"
+    ).get(user_id) as { id: number };
+    if (latest?.id) {
+      db.prepare("UPDATE profiles SET analysis_json = ? WHERE id = ?")
+        .run(JSON.stringify(output), latest.id);
+      await mirrorProfileToPg(db, latest.id);
+    }
 
     // Save analysis run data for debugging
     if (runData) {
-      saveAnalysisRun(db, user_id, runData.generated_prompt, runData.stage_a_output, JSON.stringify(runData.stage_b_output), "reanalyze");
+      await saveAnalysisRun(db, user_id, runData.generated_prompt, runData.stage_a_output, JSON.stringify(runData.stage_b_output), "reanalyze");
     }
 
     console.log(`[reanalyze] User ${user_id}: saved ${saved.internal_saved} internal, ${saved.external_saved} external traits`);
@@ -1222,28 +1272,38 @@ app.post("/admin/users/:id/reanalyze", async (req, res) => {
 //   - Any match data
 //
 // This gives a clean slate for re-analysis testing.
-app.post("/admin/users/:id/reset-analysis", (req, res) => {
+app.post("/admin/users/:id/reset-analysis", async (req, res) => {
   const user_id = parseInt(req.params.id, 10);
   if (!Number.isFinite(user_id) || user_id <= 0) {
     return res.status(400).json({ error: `Invalid user_id: ${req.params.id}` });
   }
 
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(user_id) as any;
+  const user = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [user_id]);
   if (!user) return res.status(404).json({ error: "User not found" });
 
-  const result = db.transaction(() => {
-    const deletedTraits = db.prepare("DELETE FROM user_traits WHERE user_id = ?").run(user_id);
-    const deletedLookTraits = db.prepare("DELETE FROM user_look_traits WHERE user_id = ?").run(user_id);
-    const clearedProfiles = db.prepare("UPDATE profiles SET analysis_json = '{}' WHERE user_id = ?").run(user_id);
-    return {
-      deleted_traits: deletedTraits.changes,
-      deleted_look_traits: deletedLookTraits.changes,
-      cleared_profiles: clearedProfiles.changes,
-    };
-  })();
+  // user_traits + user_look_traits are in pg (Phase 2). Profiles are dual-written.
+  const deletedTraits = (await pgQueryAll(
+    "DELETE FROM user_traits WHERE user_id = $1", [user_id]
+  )) as any[];
+  const deletedLookTraits = (await pgQueryAll(
+    "DELETE FROM user_look_traits WHERE user_id = $1", [user_id]
+  )) as any[];
 
-  console.log(`[reset-analysis] User ${user_id}: deleted ${result.deleted_traits} traits, ${result.deleted_look_traits} look traits, cleared ${result.cleared_profiles} profiles`);
-  return res.json(result);
+  // Clear profiles.analysis_json in BOTH dbs, then re-mirror so pg matches
+  db.prepare("UPDATE profiles SET analysis_json = '{}' WHERE user_id = ?").run(user_id);
+  const profileIds = db.prepare(
+    "SELECT id FROM profiles WHERE user_id = ?"
+  ).all(user_id) as { id: number }[];
+  for (const pr of profileIds) {
+    await mirrorProfileToPg(db, pr.id);
+  }
+
+  console.log(`[reset-analysis] User ${user_id}: cleared traits, ${profileIds.length} profiles reset`);
+  return res.json({
+    cleared_profiles: profileIds.length,
+    deleted_traits: deletedTraits.length,
+    deleted_look_traits: deletedLookTraits.length,
+  });
 });
 
 // GET /admin/users/:id/matches — Actual matches for a specific user (from matches table)
@@ -1500,10 +1560,16 @@ app.get("/users", (_req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 
-  // Warm up pg connection + create schema in background.
-  // Failures are logged but don't block the server — tokenTracker is
-  // the only pg user so far, and it already handles init failures.
-  initPgDb().catch((err) => {
-    console.error("[pg] init failed (token tracking will be disabled):", err.message);
-  });
+  // Warm up pg: create schema, then mirror config + users/profiles from sqlite.
+  // Failures are logged but don't block the server.
+  (async () => {
+    try {
+      await initPgDb();
+      await syncConfigFromSqlite(db);
+      await syncUsersAndProfilesFromSqlite(db);
+      console.log("[pg] ready (schema + config + users/profiles bridge)");
+    } catch (err: any) {
+      console.error("[pg] init failed (pg reads/writes will fail):", err.message);
+    }
+  })();
 });

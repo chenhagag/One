@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
 import { runPsychologistAgent } from "./agent";
+import { queryAll, queryOne as pgQueryOne } from "../../db.pg";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -79,13 +80,22 @@ function persistMessage(db: Database.Database, userId: number, role: string, con
 
 // ── Covered topics (from DB) ───────────────────────────────────
 
-function getCoveredTopics(db: Database.Database, userId: number): { covered: string[]; weak: string[] } {
-  const internalRows = db.prepare(`
-    SELECT td.internal_name, ut.confidence
-    FROM user_traits ut
-    JOIN trait_definitions td ON td.id = ut.trait_definition_id
-    WHERE ut.user_id = ? AND td.is_active = 1
-  `).all(userId) as { internal_name: string; confidence: number }[];
+/**
+ * Reads from pg (user_traits + trait_definitions were migrated in Phase 2).
+ * The `_db` sqlite handle is kept in the signature for caller compatibility
+ * but is not used here.
+ */
+async function getCoveredTopics(
+  _db: Database.Database,
+  userId: number
+): Promise<{ covered: string[]; weak: string[] }> {
+  const internalRows = await queryAll<{ internal_name: string; confidence: number }>(
+    `SELECT td.internal_name, ut.confidence
+     FROM user_traits ut
+     JOIN trait_definitions td ON td.id = ut.trait_definition_id
+     WHERE ut.user_id = $1 AND td.is_active = TRUE`,
+    [userId]
+  );
 
   const covered = internalRows
     .filter(r => r.confidence >= 0.4)
@@ -150,11 +160,11 @@ function isFemaleGender(g?: string | null): boolean {
 
 // ── Guidance builder ───────────────────────────────────────────
 
-function buildGuidance(
+async function buildGuidance(
   db: Database.Database,
   userId: number,
   state: PsychologistState
-): string {
+): Promise<string> {
   // Returning user: first turn after coming back
   const isReturnFirstTurn = state.returned_at_turn > 0 && state.turn_count === state.returned_at_turn + 1;
   if (isReturnFirstTurn) {
@@ -170,7 +180,7 @@ function buildGuidance(
   }
 
   const lines: string[] = [];
-  const topics = getCoveredTopics(db, userId);
+  const topics = await getCoveredTopics(db, userId);
 
   // Already covered
   if (topics.covered.length > 0) {
@@ -212,11 +222,11 @@ function buildGuidance(
 
 // ── Opening message ────────────────────────────────────────────
 
-export function generatePsychologistOpening(
+export async function generatePsychologistOpening(
   db: Database.Database,
   userId: number
-): { message: string; state: PsychologistState; isReturning: boolean } {
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+): Promise<{ message: string; state: PsychologistState; isReturning: boolean }> {
+  const user = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [userId]);
   const userName = user?.first_name || "there";
 
   const existingUserMessages = db.prepare(
@@ -374,15 +384,15 @@ export async function processPsychologistMessage(
   }
 
   // 6. Build guidance
-  const guidance = forcedGuidance || buildGuidance(db, userId, state);
+  const guidance = forcedGuidance || (await buildGuidance(db, userId, state));
 
   // 7. Build conversation history
   const history = state.turns
     .map(t => `${t.role === "user" ? "User" : "Assistant"}: ${t.content}`)
     .join("\n\n");
 
-  // 8. Load user data
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  // 8. Load user data (from pg)
+  const user = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [userId]);
 
   // 9. Call agent
   const assistantMessage = await runPsychologistAgent(

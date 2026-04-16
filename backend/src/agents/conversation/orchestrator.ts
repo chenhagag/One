@@ -1,4 +1,5 @@
 import type Database from "better-sqlite3";
+import { queryOne as pgQueryOne, mirrorUserToPg, mirrorProfileToPg } from "../../db.pg";
 import { runConversationAgent, type ConversationContext } from "./agent";
 import { runAnalysisAgent, runCoverageProbe, buildAnalysisInput, saveAnalysisToDb, saveAnalysisRun, loadInternalTraitDefs } from "../analysis";
 import type { AnalysisAgentOutput } from "../analysis";
@@ -150,11 +151,12 @@ export function computeCoverage(db: Database.Database, userId: number): Coverage
   };
 }
 
-/** Persist readiness_score and is_matchable on the user row */
-function updateUserReadiness(db: Database.Database, userId: number, cov: CoverageResult): void {
+/** Persist readiness_score and is_matchable on the user row (sqlite + mirror to pg) */
+async function updateUserReadiness(db: Database.Database, userId: number, cov: CoverageResult): Promise<void> {
   db.prepare(
     "UPDATE users SET readiness_score = ?, is_matchable = ? WHERE id = ?"
   ).run(cov.readiness_score, cov.ready_for_matching ? 1 : 0, userId);
+  await mirrorUserToPg(db, userId);
 }
 
 // Mandatory question detection removed — interviewer uses question bank only, no mandatory tracking.
@@ -392,10 +394,10 @@ function persistMessage(db: Database.Database, userId: number, role: string, con
 // Lightweight coverage probe — runs during conversation.
 // Fires non-blocking. Populates state.last_analysis with missing_traits + recommended_probes only
 // (no scoring). The NEXT turn's guidance uses this signal.
-function fireCoverageProbe(
+async function fireCoverageProbe(
   db: Database.Database,
   state: ConversationState,
-): void {
+): Promise<void> {
   const userId = state.user_id;
   const turn = state.turn_count;
 
@@ -405,7 +407,7 @@ function fireCoverageProbe(
   console.log(`[orchestrator] Coverage probe started at turn ${turn} for user ${userId}`);
 
   const transcript = buildAnalysisTranscript(db, userId);
-  const internalDefs = loadInternalTraitDefs(db);
+  const internalDefs = await loadInternalTraitDefs();
 
   runCoverageProbe(transcript, internalDefs, userId, "coverage_probe")
     .then((probe) => {
@@ -447,23 +449,28 @@ async function runFullAnalysisAtEnd(
   console.log(`[orchestrator] Running full grouped analysis at end for user ${userId} (turn ${state.turn_count})`);
 
   const transcript = buildAnalysisTranscript(db, userId);
-  const input = buildAnalysisInput(db, transcript);
+  const input = await buildAnalysisInput(db, transcript);
 
   const output = await runAnalysisAgent(input, userId, "analysis_final");
 
   // Save run data for admin debugging before stripping
   const runData = (output as any)._run_data;
   if (runData) {
-    saveAnalysisRun(db, userId, runData.generated_prompt, runData.stage_a_output, JSON.stringify(runData.stage_b_output), "analysis_final");
+    await saveAnalysisRun(db, userId, runData.generated_prompt, runData.stage_a_output, JSON.stringify(runData.stage_b_output), "analysis_final");
   }
   delete (output as any)._run_data;
 
-  saveAnalysisToDb(db, userId, output);
+  await saveAnalysisToDb(db, userId, output);
 
-  db.prepare(`
-    UPDATE profiles SET analysis_json = ?
-    WHERE user_id = ? AND id = (SELECT MAX(id) FROM profiles WHERE user_id = ?)
-  `).run(JSON.stringify(output), userId, userId);
+  // Update latest profile with analysis (sqlite + mirror to pg)
+  const latestProfile = db.prepare(
+    "SELECT MAX(id) as id FROM profiles WHERE user_id = ?"
+  ).get(userId) as { id: number };
+  if (latestProfile?.id) {
+    db.prepare("UPDATE profiles SET analysis_json = ? WHERE id = ?")
+      .run(JSON.stringify(output), latestProfile.id);
+    await mirrorProfileToPg(db, latestProfile.id);
+  }
 
   state.last_analysis = output;
   state.last_analysis_at_turn = state.turn_count;
@@ -489,20 +496,25 @@ export async function processUserMessage(
   state.turn_count++;
 
   // 2. Store in both profiles (legacy) and conversation_messages (full history)
-  db.prepare(
-    "INSERT INTO profiles (user_id, raw_answer, analysis_json) VALUES (?, ?, '{}')"
-  ).run(userId, userMessage);
+  // Profile insert goes to sqlite, then mirrors to pg so loader.ts reads see it.
+  const profileInsert = db.prepare(
+    "INSERT INTO profiles (user_id, raw_answer, analysis_json) VALUES (?, ?, '{}') RETURNING id"
+  ).get(userId, userMessage) as { id: number };
+  await mirrorProfileToPg(db, profileInsert.id);
   persistMessage(db, userId, "user", userMessage);
 
   // 3. If we're in summarizing phase, the user is responding to the summary → confirm
   if (state.phase === "summarizing") {
     state.phase = "confirmed";
-    const userRow = db.prepare("SELECT gender, looking_for_gender FROM users WHERE id = ?").get(userId) as any;
+    const userRow = await pgQueryOne<any>(
+      "SELECT gender, looking_for_gender FROM users WHERE id = $1",
+      [userId]
+    );
     const closing = getFixedClosing({ gender: userRow?.gender, lookingFor: userRow?.looking_for_gender });
     state.turns.push({ role: "assistant", content: closing });
     persistMessage(db, userId, "assistant", closing);
     const cov = computeCoverage(db, userId);
-    updateUserReadiness(db, userId, cov);
+    await updateUserReadiness(db, userId, cov);
 
     return {
       result: {
@@ -534,7 +546,7 @@ export async function processUserMessage(
   if (canEnd && state.phase === "chatting") {
     state.phase = "summarizing";
 
-    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+    const user = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [userId]);
 
     const ctx: ConversationContext = {
       user_name: user?.first_name || "there",
@@ -570,7 +582,7 @@ export async function processUserMessage(
   }
 
   // 5. Normal turn — generate assistant response from question bank
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [userId]);
   const stage = getStage(state.turn_count, false, state.phase);
   const guidance = buildGuidance(state);
 
@@ -694,11 +706,11 @@ function getThinkingMessage(ctx: GenderContext): string {
   return `${letMe} לי רגע להיזכר על מה דיברנו...`;
 }
 
-export function generateOpeningMessage(
+export async function generateOpeningMessage(
   db: Database.Database,
   userId: number
-): { message: string; state: ConversationState; isReturning: boolean } {
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+): Promise<{ message: string; state: ConversationState; isReturning: boolean }> {
+  const user = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [userId]);
   const userName = user?.first_name || "there";
   const gCtx: GenderContext = { gender: user?.gender, lookingFor: user?.looking_for_gender };
 

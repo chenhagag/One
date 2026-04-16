@@ -114,7 +114,7 @@ async function main() {
     console.log(`ROUND ${round}`);
     console.log(`${"=".repeat(60)}`);
 
-    const input = buildAnalysisInput(db, cumulativeTranscript, previousOutput);
+    const input = await buildAnalysisInput(db, cumulativeTranscript, previousOutput);
     const start = Date.now();
     const output = await runAnalysisAgent(input);
     const elapsed = ((Date.now() - start) / 1000).toFixed(1);
@@ -124,7 +124,7 @@ async function main() {
     printTraits(output);
 
     // Save to DB
-    const saved = saveAnalysisToDb(db, userId, output);
+    const saved = await saveAnalysisToDb(db, userId, output);
     console.log(`\n--- Saved to DB: ${saved.internal_saved} internal, ${saved.external_saved} external ---`);
 
     // Read back from DB
