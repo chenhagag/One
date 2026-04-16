@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import { runPsychologistAgent } from "./agent";
-import { queryAll, queryOne as pgQueryOne } from "../../db.pg";
+import { queryAll, queryOne as pgQueryOne, queryRun as pgQueryRun } from "../../db.pg";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -72,10 +72,11 @@ function traitToTopic(name: string): string {
 
 // ── Message persistence ────────────────────────────────────────
 
-function persistMessage(db: Database.Database, userId: number, role: string, content: string): void {
-  db.prepare(
-    "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES (?, ?, ?, ?)"
-  ).run(userId, role, content, PSYCH_GUIDE);
+async function persistMessage(_db: Database.Database, userId: number, role: string, content: string): Promise<void> {
+  await pgQueryRun(
+    "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES ($1, $2, $3, $4)",
+    [userId, role, content, PSYCH_GUIDE]
+  );
 }
 
 // ── Covered topics (from DB) ───────────────────────────────────
@@ -229,10 +230,12 @@ export async function generatePsychologistOpening(
   const user = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [userId]);
   const userName = user?.first_name || "there";
 
-  const existingUserMessages = db.prepare(
-    "SELECT COUNT(*) as c FROM conversation_messages WHERE user_id = ? AND role = 'user' AND guide = ?"
-  ).get(userId, PSYCH_GUIDE) as { c: number };
-  const isReturning = existingUserMessages.c > 0;
+  const existingCount = Number((await pgQueryOne<{ c: string }>(
+    `SELECT COUNT(*)::int AS c FROM conversation_messages
+     WHERE user_id = $1 AND role = 'user' AND guide = $2`,
+    [userId, PSYCH_GUIDE]
+  ))?.c ?? 0);
+  const isReturning = existingCount > 0;
 
   let introMessage: string;
   if (isReturning) {
@@ -259,23 +262,29 @@ export async function generatePsychologistOpening(
   }
 
   // Persist intro (skip duplicates)
-  const lastMsg = db.prepare(
-    "SELECT content FROM conversation_messages WHERE user_id = ? AND role = 'assistant' AND guide = ? ORDER BY created_at DESC, id DESC LIMIT 1"
-  ).get(userId, PSYCH_GUIDE) as { content: string } | undefined;
+  const lastMsg = await pgQueryOne<{ content: string }>(
+    `SELECT content FROM conversation_messages
+     WHERE user_id = $1 AND role = 'assistant' AND guide = $2
+     ORDER BY created_at DESC, id DESC LIMIT 1`,
+    [userId, PSYCH_GUIDE]
+  );
   const lastIsIntro = lastMsg && (
     lastMsg.content.includes("אני המלווה שלך") ||
     lastMsg.content.includes("כיף שחזרת")
   );
   if (!lastIsIntro) {
-    persistMessage(db, userId, "assistant", introMessage);
+    await persistMessage(db, userId, "assistant", introMessage);
   }
 
   // Load turns
   let turns: PsychologistTurn[] = [];
   if (isReturning) {
-    const dbMessages = db.prepare(
-      "SELECT role, content FROM conversation_messages WHERE user_id = ? AND guide = ? ORDER BY created_at ASC, id ASC"
-    ).all(userId, PSYCH_GUIDE) as { role: string; content: string }[];
+    const dbMessages = await queryAll<{ role: string; content: string }>(
+      `SELECT role, content FROM conversation_messages
+       WHERE user_id = $1 AND guide = $2
+       ORDER BY created_at ASC, id ASC`,
+      [userId, PSYCH_GUIDE]
+    );
     turns = dbMessages.map(m => ({
       role: m.role === "user" ? "user" as const : "assistant" as const,
       content: m.content,
@@ -284,7 +293,7 @@ export async function generatePsychologistOpening(
     turns = [{ role: "assistant", content: introMessage }];
   }
 
-  const turnCount = isReturning ? existingUserMessages.c : 0;
+  const turnCount = isReturning ? existingCount : 0;
 
   const state: PsychologistState = {
     user_id: userId,
@@ -299,9 +308,12 @@ export async function generatePsychologistOpening(
 
   // Scan existing turns
   if (isReturning) {
-    const allMsgs = db.prepare(
-      "SELECT content FROM conversation_messages WHERE user_id = ? AND role = 'assistant' AND guide = ? ORDER BY created_at ASC"
-    ).all(userId, PSYCH_GUIDE) as { content: string }[];
+    const allMsgs = await queryAll<{ content: string }>(
+      `SELECT content FROM conversation_messages
+       WHERE user_id = $1 AND role = 'assistant' AND guide = $2
+       ORDER BY created_at ASC`,
+      [userId, PSYCH_GUIDE]
+    );
     const scanState = { ...state, turns: allMsgs.map(m => ({ role: "assistant" as const, content: m.content })) };
     scanMandatoryQuestions(scanState);
     state.asked_appearance = scanState.asked_appearance;
@@ -324,7 +336,7 @@ export async function processPsychologistMessage(
   // 1. Record user message
   state.turns.push({ role: "user", content: userMessage });
   state.turn_count++;
-  persistMessage(db, userId, "user", userMessage);
+  await persistMessage(db, userId, "user", userMessage);
 
   // 2. Detect frustration
   const msgLower = userMessage.trim();
@@ -337,9 +349,12 @@ export async function processPsychologistMessage(
 
   // 3. Scan all psychologist messages for mandatory coverage
   {
-    const allMsgs = db.prepare(
-      "SELECT content FROM conversation_messages WHERE user_id = ? AND role = 'assistant' AND guide = ? ORDER BY created_at ASC"
-    ).all(userId, PSYCH_GUIDE) as { content: string }[];
+    const allMsgs = await queryAll<{ content: string }>(
+      `SELECT content FROM conversation_messages
+       WHERE user_id = $1 AND role = 'assistant' AND guide = $2
+       ORDER BY created_at ASC`,
+      [userId, PSYCH_GUIDE]
+    );
     const scanState = { ...state, turns: allMsgs.map(m => ({ role: "assistant" as const, content: m.content })) };
     scanMandatoryQuestions(scanState);
     state.asked_appearance = scanState.asked_appearance;
@@ -412,7 +427,7 @@ export async function processPsychologistMessage(
 
   // 10. Save assistant message
   state.turns.push({ role: "assistant", content: assistantMessage });
-  persistMessage(db, userId, "assistant", assistantMessage);
+  await persistMessage(db, userId, "assistant", assistantMessage);
 
   const missing = getMissingMandatory(state);
   console.log(`[psychologist] User ${userId} turn ${state.turn_count} (session=${turnsInSession}), missing=[${missing.join(",")}]`);

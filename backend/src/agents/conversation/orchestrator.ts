@@ -1,5 +1,5 @@
 import type Database from "better-sqlite3";
-import { queryOne as pgQueryOne, mirrorUserToPg, mirrorProfileToPg } from "../../db.pg";
+import { queryOne as pgQueryOne, queryAll as pgQueryAll, queryRun as pgQueryRun } from "../../db.pg";
 import { runConversationAgent, type ConversationContext } from "./agent";
 import { runAnalysisAgent, runCoverageProbe, buildAnalysisInput, saveAnalysisToDb, saveAnalysisRun, loadInternalTraitDefs } from "../analysis";
 import type { AnalysisAgentOutput } from "../analysis";
@@ -57,31 +57,33 @@ export interface CoverageResult {
   unmet_traits: string[];       // internal_names of traits not yet meeting their threshold
 }
 
-export function computeCoverage(db: Database.Database, userId: number): CoverageResult {
+export async function computeCoverage(_db: Database.Database, userId: number): Promise<CoverageResult> {
   const EXTERNAL_REQ_CONF = 0.5;
 
   // Internal traits
-  const internalDefs = db.prepare(
-    "SELECT id, internal_name, required_confidence, weight FROM trait_definitions WHERE is_active = 1"
-  ).all() as { id: number; internal_name: string; required_confidence: number; weight: number }[];
+  const internalDefs = await pgQueryAll<{ id: number; internal_name: string; required_confidence: number; weight: number }>(
+    "SELECT id, internal_name, required_confidence, weight FROM trait_definitions WHERE is_active = TRUE"
+  );
 
-  const userTraits = db.prepare(
-    "SELECT trait_definition_id, confidence FROM user_traits WHERE user_id = ?"
-  ).all(userId) as { trait_definition_id: number; confidence: number }[];
+  const userTraits = await pgQueryAll<{ trait_definition_id: number; confidence: number }>(
+    "SELECT trait_definition_id, confidence FROM user_traits WHERE user_id = $1",
+    [userId]
+  );
 
   const traitConfMap = new Map(userTraits.map(t => [t.trait_definition_id, t.confidence]));
 
   // External traits
-  const externalDefs = db.prepare(
-    "SELECT id, internal_name, weight FROM look_trait_definitions WHERE is_active = 1"
-  ).all() as { id: number; internal_name: string; weight: number }[];
+  const externalDefs = await pgQueryAll<{ id: number; internal_name: string; weight: number }>(
+    "SELECT id, internal_name, weight FROM look_trait_definitions WHERE is_active = TRUE"
+  );
 
-  const userLookTraits = db.prepare(`
-    SELECT look_trait_definition_id,
-      desired_value_confidence as d_conf,
-      personal_value_confidence as p_conf
-    FROM user_look_traits WHERE user_id = ?
-  `).all(userId) as { look_trait_definition_id: number; d_conf: number | null; p_conf: number | null }[];
+  const userLookTraits = await pgQueryAll<{ look_trait_definition_id: number; d_conf: number | null; p_conf: number | null }>(
+    `SELECT look_trait_definition_id,
+       desired_value_confidence as d_conf,
+       personal_value_confidence as p_conf
+     FROM user_look_traits WHERE user_id = $1`,
+    [userId]
+  );
 
   const lookConfMap = new Map(userLookTraits.map(t => [t.look_trait_definition_id, Math.max(t.d_conf ?? 0, t.p_conf ?? 0)]));
 
@@ -151,12 +153,12 @@ export function computeCoverage(db: Database.Database, userId: number): Coverage
   };
 }
 
-/** Persist readiness_score and is_matchable on the user row (sqlite + mirror to pg) */
-async function updateUserReadiness(db: Database.Database, userId: number, cov: CoverageResult): Promise<void> {
-  db.prepare(
-    "UPDATE users SET readiness_score = ?, is_matchable = ? WHERE id = ?"
-  ).run(cov.readiness_score, cov.ready_for_matching ? 1 : 0, userId);
-  await mirrorUserToPg(db, userId);
+/** Persist readiness_score and is_matchable on the user row (pg only) */
+async function updateUserReadiness(_db: Database.Database, userId: number, cov: CoverageResult): Promise<void> {
+  await pgQueryRun(
+    "UPDATE users SET readiness_score = $1, is_matchable = $2, updated_at = NOW() WHERE id = $3",
+    [cov.readiness_score, cov.ready_for_matching, userId]
+  );
 }
 
 // Mandatory question detection removed — interviewer uses question bank only, no mandatory tracking.
@@ -343,15 +345,24 @@ function formatHistory(turns: ConversationTurn[]): string {
 
 // Builds a unified transcript from all conversation messages for the analyzer.
 // Separates interviewer and psychologist histories with clear labels.
-export function buildAnalysisTranscript(db: Database.Database, userId: number): string {
+export async function buildAnalysisTranscript(
+  _db: Database.Database,
+  userId: number
+): Promise<string> {
   // Both interviewer AND psychologist messages go to the analyzer.
-  const interviewerMsgs = db.prepare(
-    "SELECT role, content FROM conversation_messages WHERE user_id = ? AND (guide IS NULL OR guide != 'psychologist') ORDER BY created_at ASC, id ASC"
-  ).all(userId) as { role: string; content: string }[];
+  const interviewerMsgs = await pgQueryAll<{ role: string; content: string }>(
+    `SELECT role, content FROM conversation_messages
+     WHERE user_id = $1 AND (guide IS NULL OR guide != 'psychologist')
+     ORDER BY created_at ASC, id ASC`,
+    [userId]
+  );
 
-  const psychMsgs = db.prepare(
-    "SELECT role, content FROM conversation_messages WHERE user_id = ? AND guide = 'psychologist' ORDER BY created_at ASC, id ASC"
-  ).all(userId) as { role: string; content: string }[];
+  const psychMsgs = await pgQueryAll<{ role: string; content: string }>(
+    `SELECT role, content FROM conversation_messages
+     WHERE user_id = $1 AND guide = 'psychologist'
+     ORDER BY created_at ASC, id ASC`,
+    [userId]
+  );
 
   const parts: string[] = [];
 
@@ -371,22 +382,30 @@ export function buildAnalysisTranscript(db: Database.Database, userId: number): 
 
   if (parts.length > 0) return parts.join("\n\n");
 
-  // Fallback: old profiles table
-  const allAnswers = db.prepare(
-    "SELECT raw_answer FROM profiles WHERE user_id = ? ORDER BY created_at ASC"
-  ).all(userId) as { raw_answer: string }[];
+  // Fallback: old profiles table (also in pg)
+  const allAnswers = await pgQueryAll<{ raw_answer: string }>(
+    "SELECT raw_answer FROM profiles WHERE user_id = $1 ORDER BY created_at ASC",
+    [userId]
+  );
 
   return allAnswers
     .map((a, i) => `[Round ${i + 1}]\nUser: ${a.raw_answer}`)
     .join("\n\n");
 }
 
-// ── Persist a message to conversation_messages ──────────────────
+// ── Persist a message to conversation_messages (pg) ──────────────
 
-function persistMessage(db: Database.Database, userId: number, role: string, content: string): void {
-  db.prepare(
-    "INSERT INTO conversation_messages (user_id, role, content) VALUES (?, ?, ?)"
-  ).run(userId, role, content);
+async function persistMessage(
+  _db: Database.Database,
+  userId: number,
+  role: string,
+  content: string,
+  guide: string | null = null
+): Promise<void> {
+  await pgQueryRun(
+    "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES ($1, $2, $3, $4)",
+    [userId, role, content, guide]
+  );
 }
 
 // ── Background runners ─────────────────────────────────────────
@@ -406,7 +425,7 @@ async function fireCoverageProbe(
 
   console.log(`[orchestrator] Coverage probe started at turn ${turn} for user ${userId}`);
 
-  const transcript = buildAnalysisTranscript(db, userId);
+  const transcript = await buildAnalysisTranscript(db, userId);
   const internalDefs = await loadInternalTraitDefs();
 
   runCoverageProbe(transcript, internalDefs, userId, "coverage_probe")
@@ -448,7 +467,7 @@ async function runFullAnalysisAtEnd(
   const userId = state.user_id;
   console.log(`[orchestrator] Running full grouped analysis at end for user ${userId} (turn ${state.turn_count})`);
 
-  const transcript = buildAnalysisTranscript(db, userId);
+  const transcript = await buildAnalysisTranscript(db, userId);
   const input = await buildAnalysisInput(db, transcript);
 
   const output = await runAnalysisAgent(input, userId, "analysis_final");
@@ -462,20 +481,22 @@ async function runFullAnalysisAtEnd(
 
   await saveAnalysisToDb(db, userId, output);
 
-  // Update latest profile with analysis (sqlite + mirror to pg)
-  const latestProfile = db.prepare(
-    "SELECT MAX(id) as id FROM profiles WHERE user_id = ?"
-  ).get(userId) as { id: number };
+  // Update latest profile with analysis (pg only)
+  const latestProfile = await pgQueryOne<{ id: number }>(
+    "SELECT MAX(id) as id FROM profiles WHERE user_id = $1",
+    [userId]
+  );
   if (latestProfile?.id) {
-    db.prepare("UPDATE profiles SET analysis_json = ? WHERE id = ?")
-      .run(JSON.stringify(output), latestProfile.id);
-    await mirrorProfileToPg(db, latestProfile.id);
+    await pgQueryRun(
+      "UPDATE profiles SET analysis_json = $1::jsonb WHERE id = $2",
+      [JSON.stringify(output), latestProfile.id]
+    );
   }
 
   state.last_analysis = output;
   state.last_analysis_at_turn = state.turn_count;
 
-  const cov = computeCoverage(db, userId);
+  const cov = await computeCoverage(db, userId);
   console.log(`[orchestrator] Full analysis done: coverage=${cov.coverage_pct}%, readiness=${cov.readiness_score}, complete=${cov.profile_complete}`);
 
   return output;
@@ -495,13 +516,12 @@ export async function processUserMessage(
   state.turns.push({ role: "user", content: userMessage });
   state.turn_count++;
 
-  // 2. Store in both profiles (legacy) and conversation_messages (full history)
-  // Profile insert goes to sqlite, then mirrors to pg so loader.ts reads see it.
-  const profileInsert = db.prepare(
-    "INSERT INTO profiles (user_id, raw_answer, analysis_json) VALUES (?, ?, '{}') RETURNING id"
-  ).get(userId, userMessage) as { id: number };
-  await mirrorProfileToPg(db, profileInsert.id);
-  persistMessage(db, userId, "user", userMessage);
+  // 2. Store in both profiles (legacy raw answer) and conversation_messages (full history)
+  await pgQueryRun(
+    "INSERT INTO profiles (user_id, raw_answer, analysis_json) VALUES ($1, $2, '{}'::jsonb)",
+    [userId, userMessage]
+  );
+  await persistMessage(db, userId, "user", userMessage);
 
   // 3. If we're in summarizing phase, the user is responding to the summary → confirm
   if (state.phase === "summarizing") {
@@ -512,8 +532,8 @@ export async function processUserMessage(
     );
     const closing = getFixedClosing({ gender: userRow?.gender, lookingFor: userRow?.looking_for_gender });
     state.turns.push({ role: "assistant", content: closing });
-    persistMessage(db, userId, "assistant", closing);
-    const cov = computeCoverage(db, userId);
+    await persistMessage(db, userId, "assistant", closing);
+    const cov = await computeCoverage(db, userId);
     await updateUserReadiness(db, userId, cov);
 
     return {
@@ -563,7 +583,7 @@ export async function processUserMessage(
 
     const assistantMessage = await runConversationAgent(ctx, userId, "conversation_summary");
     state.turns.push({ role: "assistant", content: assistantMessage });
-    persistMessage(db, userId, "assistant", assistantMessage);
+    await persistMessage(db, userId, "assistant", assistantMessage);
 
     console.log(`[orchestrator] Closing conversation at turn ${state.turn_count}`);
 
@@ -601,7 +621,7 @@ export async function processUserMessage(
 
   const assistantMessage = await runConversationAgent(ctx, userId, "conversation_turn");
   state.turns.push({ role: "assistant", content: assistantMessage });
-  persistMessage(db, userId, "assistant", assistantMessage);
+  await persistMessage(db, userId, "assistant", assistantMessage);
 
   return {
     result: {
@@ -715,19 +735,24 @@ export async function generateOpeningMessage(
   const gCtx: GenderContext = { gender: user?.gender, lookingFor: user?.looking_for_gender };
 
   // A user is "returning" to the INTERVIEWER only if they have interviewer messages.
-  const existingUserMessages = db.prepare(
-    "SELECT COUNT(*) as c FROM conversation_messages WHERE user_id = ? AND role = 'user' AND (guide IS NULL OR guide != 'psychologist')"
-  ).get(userId) as { c: number };
-  const isReturning = existingUserMessages.c > 0;
+  const existingCount = Number((await pgQueryOne<{ c: string }>(
+    `SELECT COUNT(*)::int AS c FROM conversation_messages
+     WHERE user_id = $1 AND role = 'user' AND (guide IS NULL OR guide != 'psychologist')`,
+    [userId]
+  ))?.c ?? 0);
+  const isReturning = existingCount > 0;
 
   const introMessage = isReturning
     ? getReturnIntro(userName, gCtx)
     : getFixedIntro(userName, gCtx);
 
   // Persist the intro only once (prevents duplicates on page refresh)
-  const lastMsg = db.prepare(
-    "SELECT content FROM conversation_messages WHERE user_id = ? AND role = 'assistant' ORDER BY created_at DESC, id DESC LIMIT 1"
-  ).get(userId) as { content: string } | undefined;
+  const lastMsg = await pgQueryOne<{ content: string }>(
+    `SELECT content FROM conversation_messages
+     WHERE user_id = $1 AND role = 'assistant'
+     ORDER BY created_at DESC, id DESC LIMIT 1`,
+    [userId]
+  );
   const lastIsIntro = lastMsg && (
     lastMsg.content.includes("איזה כיף שחזרת") ||
     lastMsg.content.includes("כיף לראות אותך") ||
@@ -737,23 +762,21 @@ export async function generateOpeningMessage(
     lastMsg.content.includes("התאמה של 10/10")
   );
   if (!lastIsIntro) {
-    persistMessage(db, userId, "assistant", introMessage);
+    await persistMessage(db, userId, "assistant", introMessage);
   }
 
   // Count interviewer turns only
-  let turnCount = 0;
-  if (isReturning) {
-    turnCount = (db.prepare(
-      "SELECT COUNT(*) as c FROM conversation_messages WHERE user_id = ? AND role = 'user' AND (guide IS NULL OR guide != 'psychologist')"
-    ).get(userId) as { c: number }).c;
-  }
+  const turnCount = isReturning ? existingCount : 0;
 
   // Load only INTERVIEWER messages (exclude psychologist chat)
   let turns: ConversationTurn[] = [];
   if (isReturning) {
-    const dbMessages = db.prepare(
-      "SELECT role, content FROM conversation_messages WHERE user_id = ? AND (guide IS NULL OR guide != 'psychologist') ORDER BY created_at ASC, id ASC"
-    ).all(userId) as { role: string; content: string }[];
+    const dbMessages = await pgQueryAll<{ role: string; content: string }>(
+      `SELECT role, content FROM conversation_messages
+       WHERE user_id = $1 AND (guide IS NULL OR guide != 'psychologist')
+       ORDER BY created_at ASC, id ASC`,
+      [userId]
+    );
     turns = dbMessages.map(m => ({
       role: m.role === "user" ? "user" as const : "assistant" as const,
       content: m.content,

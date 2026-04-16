@@ -7,9 +7,6 @@ import db from "./db";
 import {
   initDb as initPgDb,
   syncConfigFromSqlite,
-  syncUsersAndProfilesFromSqlite,
-  mirrorUserToPg,
-  mirrorProfileToPg,
   queryOne as pgQueryOne,
   queryAll as pgQueryAll,
 } from "./db.pg";
@@ -51,41 +48,38 @@ app.post("/register", async (req, res) => {
   }
 
   try {
-    // 1) Write to SQLite first (gets auto-id)
-    const stmt = db.prepare(`
-      INSERT INTO users (
-        first_name, email, age, gender, looking_for_gender,
-        city, height, self_style,
-        desired_age_min, desired_age_max, age_flexibility,
-        desired_height_min, desired_height_max, height_flexibility,
-        desired_location_range
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      RETURNING *
-    `);
-    const user = stmt.get(
-      first_name.trim(),
-      email.trim().toLowerCase(),
-      age || null,
-      gender || null,
-      looking_for_gender || null,
-      city || null,
-      height || null,
-      self_style ? JSON.stringify(self_style) : null,
-      desired_age_min || null,
-      desired_age_max || null,
-      age_flexibility || "slightly_flexible",
-      desired_height_min || null,
-      desired_height_max || null,
-      height_flexibility || "slightly_flexible",
-      desired_location_range || "my_area",
-    ) as any;
-
-    // 2) Mirror to pg (same id, upsert)
-    await mirrorUserToPg(db, user.id);
+    // Pg-only INSERT — pg is now sole source of truth for users.
+    const user = await pgQueryOne<any>(
+      `INSERT INTO users (
+         first_name, email, age, gender, looking_for_gender,
+         city, height, self_style,
+         desired_age_min, desired_age_max, age_flexibility,
+         desired_height_min, desired_height_max, height_flexibility,
+         desired_location_range
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, $15)
+       RETURNING *`,
+      [
+        first_name.trim(),
+        email.trim().toLowerCase(),
+        age || null,
+        gender || null,
+        looking_for_gender || null,
+        city || null,
+        height || null,
+        self_style ? JSON.stringify(self_style) : null,
+        desired_age_min || null,
+        desired_age_max || null,
+        age_flexibility || "slightly_flexible",
+        desired_height_min || null,
+        desired_height_max || null,
+        height_flexibility || "slightly_flexible",
+        desired_location_range || "my_area",
+      ]
+    );
 
     return res.status(201).json(user);
   } catch (err: any) {
-    if (err.message?.includes("UNIQUE")) {
+    if (err.message?.includes("duplicate key") || err.code === "23505") {
       return res.status(409).json({ error: "Email already registered" });
     }
     console.error(err);
@@ -101,9 +95,10 @@ app.patch("/users/:id/guide", async (req, res) => {
   if (!valid.includes(selected_guide)) {
     return res.status(400).json({ error: `selected_guide must be one of: ${valid.join(", ")}` });
   }
-  db.prepare("UPDATE users SET selected_guide = ?, updated_at = datetime('now') WHERE id = ?")
-    .run(selected_guide, userId);
-  await mirrorUserToPg(db, userId);
+  await pgQueryAll(
+    "UPDATE users SET selected_guide = $1, updated_at = NOW() WHERE id = $2",
+    [selected_guide, userId]
+  );
   return res.json({ ok: true, selected_guide });
 });
 
@@ -125,32 +120,43 @@ app.patch("/users/:id", async (req, res) => {
     desired_height_min, desired_height_max, height_flexibility,
     desired_location_range,
   } = req.body;
-  const fields: string[] = [];
+  // Build pg UPDATE with dynamic $N placeholders
+  const assignments: string[] = [];
   const values: any[] = [];
+  let p = 1;
+  const push = (col: string, val: any) => {
+    assignments.push(`${col} = $${p++}`);
+    values.push(val);
+  };
 
-  if (first_name !== undefined) { fields.push("first_name = ?"); values.push(first_name); }
-  if (age !== undefined) { fields.push("age = ?"); values.push(age); }
-  if (gender !== undefined) { fields.push("gender = ?"); values.push(gender); }
-  if (looking_for_gender !== undefined) { fields.push("looking_for_gender = ?"); values.push(looking_for_gender); }
-  if (city !== undefined) { fields.push("city = ?"); values.push(city); }
-  if (height !== undefined) { fields.push("height = ?"); values.push(height); }
-  if (self_style !== undefined) { fields.push("self_style = ?"); values.push(self_style ? JSON.stringify(self_style) : null); }
-  if (desired_age_min !== undefined) { fields.push("desired_age_min = ?"); values.push(desired_age_min); }
-  if (desired_age_max !== undefined) { fields.push("desired_age_max = ?"); values.push(desired_age_max); }
-  if (age_flexibility !== undefined) { fields.push("age_flexibility = ?"); values.push(age_flexibility); }
-  if (desired_height_min !== undefined) { fields.push("desired_height_min = ?"); values.push(desired_height_min); }
-  if (desired_height_max !== undefined) { fields.push("desired_height_max = ?"); values.push(desired_height_max); }
-  if (height_flexibility !== undefined) { fields.push("height_flexibility = ?"); values.push(height_flexibility); }
-  if (desired_location_range !== undefined) { fields.push("desired_location_range = ?"); values.push(desired_location_range); }
+  if (first_name !== undefined)             push("first_name", first_name);
+  if (age !== undefined)                    push("age", age);
+  if (gender !== undefined)                 push("gender", gender);
+  if (looking_for_gender !== undefined)     push("looking_for_gender", looking_for_gender);
+  if (city !== undefined)                   push("city", city);
+  if (height !== undefined)                 push("height", height);
+  if (self_style !== undefined) {
+    // JSONB column — pass as JSON string with ::jsonb cast
+    assignments.push(`self_style = $${p++}::jsonb`);
+    values.push(self_style ? JSON.stringify(self_style) : null);
+  }
+  if (desired_age_min !== undefined)        push("desired_age_min", desired_age_min);
+  if (desired_age_max !== undefined)        push("desired_age_max", desired_age_max);
+  if (age_flexibility !== undefined)        push("age_flexibility", age_flexibility);
+  if (desired_height_min !== undefined)     push("desired_height_min", desired_height_min);
+  if (desired_height_max !== undefined)     push("desired_height_max", desired_height_max);
+  if (height_flexibility !== undefined)     push("height_flexibility", height_flexibility);
+  if (desired_location_range !== undefined) push("desired_location_range", desired_location_range);
 
-  if (fields.length === 0) return res.status(400).json({ error: "No fields to update" });
+  if (assignments.length === 0) return res.status(400).json({ error: "No fields to update" });
 
-  fields.push("updated_at = datetime('now')");
+  assignments.push("updated_at = NOW()");
   values.push(userId);
 
-  db.prepare(`UPDATE users SET ${fields.join(", ")} WHERE id = ?`).run(...values);
-  await mirrorUserToPg(db, userId);
-  const updated = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [userId]);
+  const updated = await pgQueryOne<any>(
+    `UPDATE users SET ${assignments.join(", ")} WHERE id = $${p} RETURNING *`,
+    values
+  );
   return res.json(updated);
 });
 
@@ -196,11 +202,11 @@ app.post("/analyze", async (req, res) => {
 
   try {
     const analysis = await analyzeAnswer(answer);
-    const stmt = db.prepare(
-      "INSERT INTO profiles (user_id, raw_answer, analysis_json) VALUES (?, ?, ?) RETURNING *"
+    const profile = await pgQueryOne<any>(
+      `INSERT INTO profiles (user_id, raw_answer, analysis_json)
+       VALUES ($1, $2, $3::jsonb) RETURNING *`,
+      [user_id, answer, JSON.stringify(analysis)]
     );
-    const profile = stmt.get(user_id, answer, JSON.stringify(analysis)) as any;
-    await mirrorProfileToPg(db, profile.id);
     return res.status(201).json({ profile, analysis });
   } catch (err: any) {
     console.error(err);
@@ -233,11 +239,11 @@ const upload = multer({
 app.use("/uploads", express.static(uploadsDir));
 
 // POST /users/:id/photos — Upload a photo
-app.post("/users/:id/photos", upload.single("photo"), (req, res) => {
+app.post("/users/:id/photos", upload.single("photo"), async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
-  const user = db.prepare("SELECT id FROM users WHERE id = ?").get(userId) as any;
+  const user = await pgQueryOne<any>("SELECT id FROM users WHERE id = $1", [userId]);
   if (!user) return res.status(404).json({ error: "User not found" });
 
   db.prepare(
@@ -311,7 +317,7 @@ app.post("/conversation/start", async (req, res) => {
 
   const { message, state, isReturning } = await generateOpeningMessage(db, userId);
   conversationStates.set(userId, state);
-  const cov = isReturning ? computeCoverage(db, userId) : { coverage_pct: 0 } as any;
+  const cov = isReturning ? await computeCoverage(db, userId) : { coverage_pct: 0 } as any;
   console.log(`[conversation] ${isReturning ? "Returning" : "Started"} for user ${userId}, turns=${state.turn_count}`);
   return res.json({
     assistant_message: message,
@@ -368,17 +374,18 @@ app.post("/conversation/pause", async (req, res) => {
     conversationStates.set(userId, state);
   }
 
-  // Count user messages directly from DB — don't rely on in-memory state
-  const userMsgCount = (db.prepare(
-    "SELECT COUNT(*) as c FROM conversation_messages WHERE user_id = ? AND role = 'user'"
-  ).get(userId) as any).c;
+  // Count user messages directly from pg
+  const userMsgCount = Number((await pgQueryOne<{ c: string }>(
+    "SELECT COUNT(*)::int AS c FROM conversation_messages WHERE user_id = $1 AND role = 'user'",
+    [userId]
+  ))?.c ?? 0);
 
   console.log(`[conversation] Paused for user ${userId} (${userMsgCount} user messages in DB)`);
 
   // Fire analysis in background — do NOT block the pause response
   if (userMsgCount >= 3) {
     console.log(`[conversation] Triggering background analysis for user ${userId} on pause...`);
-    const transcript = buildAnalysisTranscript(db, userId);
+    const transcript = await buildAnalysisTranscript(db, userId);
     (async () => {
       try {
         const input = await buildAnalysisInput(db, transcript);
@@ -396,7 +403,7 @@ app.post("/conversation/pause", async (req, res) => {
     })();
   }
 
-  const cov = computeCoverage(db, userId);
+  const cov = await computeCoverage(db, userId);
   return res.json({
     phase: "paused",
     analysis_ran: false, // analysis runs in background
@@ -410,9 +417,10 @@ app.post("/conversation/analyze", async (req, res) => {
   const userId = parseUserId(req.body.user_id);
   if (!userId) return res.status(400).json({ error: "Valid user_id required" });
 
-  const userMsgCount = (db.prepare(
-    "SELECT COUNT(*) as c FROM conversation_messages WHERE user_id = ? AND role = 'user'"
-  ).get(userId) as any).c;
+  const userMsgCount = Number((await pgQueryOne<{ c: string }>(
+    "SELECT COUNT(*)::int AS c FROM conversation_messages WHERE user_id = $1 AND role = 'user'",
+    [userId]
+  ))?.c ?? 0);
 
   if (userMsgCount < 3) {
     return res.json({ analysis_ran: false, reason: "not_enough_messages", user_messages: userMsgCount });
@@ -420,7 +428,7 @@ app.post("/conversation/analyze", async (req, res) => {
 
   try {
     console.log(`[analyze] Explicit analysis for user ${userId} (${userMsgCount} messages)...`);
-    const transcript = buildAnalysisTranscript(db, userId);
+    const transcript = await buildAnalysisTranscript(db, userId);
     const input = await buildAnalysisInput(db, transcript);
     const output = await runAnalysisAgent(input, userId, "analysis_explicit");
     const runData = (output as any)._run_data;
@@ -484,12 +492,12 @@ app.post("/psychologist/message", async (req, res) => {
 });
 
 // GET /conversation/state/:id — Current conversation state
-app.get("/conversation/state/:id", (req, res) => {
+app.get("/conversation/state/:id", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const state = conversationStates.get(userId);
   if (!state) return res.status(404).json({ error: "No active conversation" });
 
-  const cov = computeCoverage(db, userId);
+  const cov = await computeCoverage(db, userId);
   return res.json({
     user_id: state.user_id,
     turn_count: state.turn_count,
@@ -501,13 +509,14 @@ app.get("/conversation/state/:id", (req, res) => {
 });
 
 // GET /admin/users/:id/full-transcript — Full conversation history (both roles)
-app.get("/admin/users/:id/full-transcript", (req, res) => {
+app.get("/admin/users/:id/full-transcript", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
 
   // Primary: read from conversation_messages (persisted, both roles) — include guide field
-  const dbMessages = db.prepare(
-    "SELECT role, content, created_at, guide FROM conversation_messages WHERE user_id = ? ORDER BY created_at ASC, id ASC"
-  ).all(userId) as { role: string; content: string; created_at: string; guide: string | null }[];
+  const dbMessages = await pgQueryAll<{ role: string; content: string; created_at: string; guide: string | null }>(
+    "SELECT role, content, created_at, guide FROM conversation_messages WHERE user_id = $1 ORDER BY created_at ASC, id ASC",
+    [userId]
+  );
 
   if (dbMessages.length > 0) {
     return res.json({
@@ -589,16 +598,17 @@ app.post("/analyze-profile", async (req, res) => {
   console.log(`[analyze-profile] Start: user_id=${user_id} (original: ${typeof rawUserId} ${rawUserId})`);
 
   try {
-    // 1. Store the raw answer (sqlite + mirror to pg)
-    const inserted = db.prepare(
-      "INSERT INTO profiles (user_id, raw_answer, analysis_json) VALUES (?, ?, '{}') RETURNING id"
-    ).get(user_id, answer) as { id: number };
-    await mirrorProfileToPg(db, inserted.id);
+    // 1. Store the raw answer (pg)
+    await pgQueryAll(
+      "INSERT INTO profiles (user_id, raw_answer, analysis_json) VALUES ($1, $2, '{}'::jsonb)",
+      [user_id, answer]
+    );
 
     // 2. Build cumulative transcript from all answers
-    const allAnswers = db.prepare(
-      "SELECT raw_answer, created_at FROM profiles WHERE user_id = ? ORDER BY created_at ASC"
-    ).all(user_id) as { raw_answer: string; created_at: string }[];
+    const allAnswers = await pgQueryAll<{ raw_answer: string; created_at: string }>(
+      "SELECT raw_answer, created_at FROM profiles WHERE user_id = $1 ORDER BY created_at ASC",
+      [user_id]
+    );
 
     const transcript = allAnswers
       .map((a, i) => `[Round ${i + 1}]\nUser: ${a.raw_answer}`)
@@ -618,14 +628,16 @@ app.post("/analyze-profile", async (req, res) => {
     console.log(`[analyze-profile] User ${user_id}: saved ${saved.internal_saved} internal, ${saved.external_saved} external traits`);
     console.log(`[analyze-profile] User ${user_id}: coverage ${output.profiling_completeness.coverage_pct}%, ready: ${output.profiling_completeness.ready_for_matching}`);
 
-    // 5. Update the latest profile record with analysis JSON (sqlite + mirror)
-    const latest = db.prepare(
-      "SELECT MAX(id) as id FROM profiles WHERE user_id = ?"
-    ).get(user_id) as { id: number };
+    // 5. Update the latest profile record with analysis JSON (pg)
+    const latest = await pgQueryOne<{ id: number }>(
+      "SELECT MAX(id) as id FROM profiles WHERE user_id = $1",
+      [user_id]
+    );
     if (latest?.id) {
-      db.prepare("UPDATE profiles SET analysis_json = ? WHERE id = ?")
-        .run(JSON.stringify(output), latest.id);
-      await mirrorProfileToPg(db, latest.id);
+      await pgQueryAll(
+        "UPDATE profiles SET analysis_json = $1::jsonb WHERE id = $2",
+        [JSON.stringify(output), latest.id]
+      );
     }
 
     return res.status(200).json({
@@ -650,16 +662,19 @@ app.get("/users/:id/dashboard-progress", async (req, res) => {
   const filled = profileFields.filter(f => user[f] != null && user[f] !== "").length;
   const identity_pct = Math.round((filled / profileFields.length) * 100);
 
-  // Lab: progress = user turns out of 12 (max questions)
-  // conversation_messages still lives in SQLite until Phase 4b.
-  const labTurns = (db.prepare(
-    "SELECT COUNT(*) as c FROM conversation_messages WHERE user_id = ? AND role = 'user' AND (guide IS NULL OR guide != 'psychologist')"
-  ).get(userId) as any).c;
+  // Lab: progress = user turns out of 12 (max questions) — from pg
+  const labTurns = Number((await pgQueryOne<{ c: string }>(
+    `SELECT COUNT(*)::int AS c FROM conversation_messages
+     WHERE user_id = $1 AND role = 'user' AND (guide IS NULL OR guide != 'psychologist')`,
+    [userId]
+  ))?.c ?? 0);
   const lab_pct = Math.min(100, Math.round((labTurns / 12) * 100));
 
-  const depthTurns = (db.prepare(
-    "SELECT COUNT(*) as c FROM conversation_messages WHERE user_id = ? AND role = 'user' AND guide = 'psychologist'"
-  ).get(userId) as any).c;
+  const depthTurns = Number((await pgQueryOne<{ c: string }>(
+    `SELECT COUNT(*)::int AS c FROM conversation_messages
+     WHERE user_id = $1 AND role = 'user' AND guide = 'psychologist'`,
+    [userId]
+  ))?.c ?? 0);
 
   // Trait coverage (in pg)
   const assessed = Number(
@@ -745,8 +760,10 @@ app.post("/admin/users/:id/freeze", async (req, res) => {
     return res.status(400).json({ error: "User is already frozen" });
   }
 
-  db.prepare("UPDATE users SET user_status = 'frozen' WHERE id = ?").run(userId);
-  await mirrorUserToPg(db, userId);
+  await pgQueryAll(
+    "UPDATE users SET user_status = 'frozen', updated_at = NOW() WHERE id = $1",
+    [userId]
+  );
   console.log(`[admin] Froze user ${userId}`);
   return res.json({ frozen: true, user_id: userId });
 });
@@ -761,8 +778,10 @@ app.post("/admin/users/:id/unfreeze", async (req, res) => {
     return res.status(400).json({ error: "User is not frozen" });
   }
 
-  db.prepare("UPDATE users SET user_status = 'waiting_match' WHERE id = ?").run(userId);
-  await mirrorUserToPg(db, userId);
+  await pgQueryAll(
+    "UPDATE users SET user_status = 'waiting_match', updated_at = NOW() WHERE id = $1",
+    [userId]
+  );
   console.log(`[admin] Unfroze user ${userId}`);
   return res.json({ unfrozen: true, user_id: userId });
 });
@@ -774,31 +793,27 @@ app.delete("/admin/users/:id", async (req, res) => {
     return res.status(400).json({ error: "Invalid user_id" });
   }
 
-  const user = db.prepare("SELECT id, first_name, email FROM users WHERE id = ?").get(userId) as any;
+  const user = await pgQueryOne<any>("SELECT id, first_name, email FROM users WHERE id = $1", [userId]);
   if (!user) return res.status(404).json({ error: "User not found" });
 
-  const result = db.transaction(() => {
-    const profiles = db.prepare("DELETE FROM profiles WHERE user_id = ?").run(userId).changes;
-    db.prepare("DELETE FROM conversation_messages WHERE user_id = ?").run(userId);
-    db.prepare("DELETE FROM user_photos WHERE user_id = ?").run(userId);
-    const traits = db.prepare("DELETE FROM user_traits WHERE user_id = ?").run(userId).changes;
-    const lookTraits = db.prepare("DELETE FROM user_look_traits WHERE user_id = ?").run(userId).changes;
-    const matchScores = db.prepare("DELETE FROM match_scores WHERE match_id IN (SELECT id FROM matches WHERE user1_id = ? OR user2_id = ?)").run(userId, userId).changes;
-    const matches = db.prepare("DELETE FROM matches WHERE user1_id = ? OR user2_id = ?").run(userId, userId).changes;
-    const candidates = db.prepare("DELETE FROM candidate_matches WHERE user_id = ? OR candidate_user_id = ?").run(userId, userId).changes;
-    db.prepare("DELETE FROM users WHERE id = ?").run(userId);
-    return { profiles, traits, lookTraits, matchScores, matches, candidates };
-  })();
+  // Delete from pg (order matters due to FKs)
+  const result = { profiles: 0, messages: 0, photos: 0, traits: 0, lookTraits: 0, analysisRuns: 0 };
+  result.profiles   = (await pgQueryAll("DELETE FROM profiles WHERE user_id = $1", [userId])).length;
+  result.messages   = (await pgQueryAll("DELETE FROM conversation_messages WHERE user_id = $1", [userId])).length;
+  result.traits     = (await pgQueryAll("DELETE FROM user_traits WHERE user_id = $1", [userId])).length;
+  result.lookTraits = (await pgQueryAll("DELETE FROM user_look_traits WHERE user_id = $1", [userId])).length;
+  result.analysisRuns = (await pgQueryAll("DELETE FROM analysis_runs WHERE user_id = $1", [userId])).length;
+  await pgQueryAll("DELETE FROM users WHERE id = $1", [userId]);
 
-  // Mirror deletes to pg (best effort — order matters due to FKs on trait_definitions)
+  // Also delete sqlite-only data: user_photos, matches, match_scores, candidate_matches
+  // (these tables haven't been migrated to pg yet — Phase 4c)
   try {
-    await pgQueryAll("DELETE FROM profiles WHERE user_id = $1", [userId]);
-    await pgQueryAll("DELETE FROM user_traits WHERE user_id = $1", [userId]);
-    await pgQueryAll("DELETE FROM user_look_traits WHERE user_id = $1", [userId]);
-    await pgQueryAll("DELETE FROM analysis_runs WHERE user_id = $1", [userId]);
-    await pgQueryAll("DELETE FROM users WHERE id = $1", [userId]);
+    db.prepare("DELETE FROM user_photos WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM match_scores WHERE match_id IN (SELECT id FROM matches WHERE user1_id = ? OR user2_id = ?)").run(userId, userId);
+    db.prepare("DELETE FROM matches WHERE user1_id = ? OR user2_id = ?").run(userId, userId);
+    db.prepare("DELETE FROM candidate_matches WHERE user_id = ? OR candidate_user_id = ?").run(userId, userId);
   } catch (err: any) {
-    console.warn(`[admin] Failed to delete user ${userId} from pg (sqlite delete succeeded):`, err.message);
+    console.warn(`[admin] sqlite cleanup partial for user ${userId}: ${err.message}`);
   }
 
   // Clear in-memory conversation state
@@ -932,7 +947,7 @@ app.get("/admin/users/:id/full", async (req, res) => {
   }));
 
   // Server-side coverage (based on per-trait required_confidence thresholds)
-  const serverCoverage = computeCoverage(db, userId);
+  const serverCoverage = await computeCoverage(db, userId);
 
   return res.json({
     user,
@@ -1058,29 +1073,35 @@ app.get("/admin/matches", (_req, res) => {
 });
 
 // GET /admin/stats — Quick overview stats
-app.get("/admin/stats", (_req, res) => {
-  const tokenStats = db.prepare(`
-    SELECT COUNT(*) as total_calls,
-           SUM(total_tokens) as total_tokens,
-           SUM(estimated_cost_usd) as total_cost_usd
+app.get("/admin/stats", async (_req, res) => {
+  const tokenStats = await pgQueryOne<any>(`
+    SELECT COUNT(*)::int as total_calls,
+           COALESCE(SUM(total_tokens), 0)::bigint as total_tokens,
+           COALESCE(SUM(estimated_cost_usd), 0)::float as total_cost_usd
     FROM token_usage
-  `).get() as any;
+  `);
 
-  const userCount = (db.prepare("SELECT COUNT(*) as c FROM users").get() as any).c;
+  const cnt = async (sql: string): Promise<number> => {
+    const row = await pgQueryOne<{ c: string }>(sql);
+    return Number(row?.c ?? 0);
+  };
+
+  const userCount = await cnt("SELECT COUNT(*)::int AS c FROM users");
 
   const stats = {
     total_users: userCount,
-    users_with_profiles: (db.prepare("SELECT COUNT(DISTINCT user_id) as c FROM profiles").get() as any).c,
-    users_with_traits: (db.prepare("SELECT COUNT(DISTINCT user_id) as c FROM user_traits").get() as any).c,
-    total_trait_definitions: (db.prepare("SELECT COUNT(*) as c FROM trait_definitions").get() as any).c,
-    total_look_trait_definitions: (db.prepare("SELECT COUNT(*) as c FROM look_trait_definitions").get() as any).c,
+    users_with_profiles: await cnt("SELECT COUNT(DISTINCT user_id)::int AS c FROM profiles"),
+    users_with_traits: await cnt("SELECT COUNT(DISTINCT user_id)::int AS c FROM user_traits"),
+    total_trait_definitions: await cnt("SELECT COUNT(*)::int AS c FROM trait_definitions"),
+    total_look_trait_definitions: await cnt("SELECT COUNT(*)::int AS c FROM look_trait_definitions"),
+    // matches is still sqlite until Phase 4c
     total_matches: (db.prepare("SELECT COUNT(*) as c FROM matches").get() as any).c,
-    total_config_keys: (db.prepare("SELECT COUNT(*) as c FROM config").get() as any).c,
-    total_ai_calls: tokenStats.total_calls || 0,
-    total_tokens: tokenStats.total_tokens || 0,
-    total_cost_usd: Math.round((tokenStats.total_cost_usd || 0) * 1000000) / 1000000,
-    avg_tokens_per_user: userCount > 0 ? Math.round((tokenStats.total_tokens || 0) / userCount) : 0,
-    avg_cost_per_user: userCount > 0 ? Math.round(((tokenStats.total_cost_usd || 0) / userCount) * 1000000) / 1000000 : 0,
+    total_config_keys: await cnt("SELECT COUNT(*)::int AS c FROM config"),
+    total_ai_calls: Number(tokenStats?.total_calls ?? 0),
+    total_tokens: Number(tokenStats?.total_tokens ?? 0),
+    total_cost_usd: Math.round(Number(tokenStats?.total_cost_usd ?? 0) * 1000000) / 1000000,
+    avg_tokens_per_user: userCount > 0 ? Math.round(Number(tokenStats?.total_tokens ?? 0) / userCount) : 0,
+    avg_cost_per_user: userCount > 0 ? Math.round((Number(tokenStats?.total_cost_usd ?? 0) / userCount) * 1000000) / 1000000 : 0,
   };
   return res.json(stats);
 });
@@ -1213,7 +1234,7 @@ app.post("/admin/users/:id/reanalyze", async (req, res) => {
 
   // Use the same transcript builder as the normal analysis flow —
   // properly separates interviewer (Personality Lab) and psychologist (Depth Chat)
-  const transcript = buildAnalysisTranscript(db, user_id);
+  const transcript = await buildAnalysisTranscript(db, user_id);
 
   if (!transcript || transcript.trim().length === 0) {
     return res.status(400).json({ error: "No conversation data found for this user" });
@@ -1236,14 +1257,16 @@ app.post("/admin/users/:id/reanalyze", async (req, res) => {
 
     const saved = await saveAnalysisToDb(db, user_id, output);
 
-    // Update latest profile with new analysis JSON (sqlite + mirror to pg)
-    const latest = db.prepare(
-      "SELECT MAX(id) as id FROM profiles WHERE user_id = ?"
-    ).get(user_id) as { id: number };
+    // Update latest profile with new analysis JSON (pg)
+    const latest = await pgQueryOne<{ id: number }>(
+      "SELECT MAX(id) as id FROM profiles WHERE user_id = $1",
+      [user_id]
+    );
     if (latest?.id) {
-      db.prepare("UPDATE profiles SET analysis_json = ? WHERE id = ?")
-        .run(JSON.stringify(output), latest.id);
-      await mirrorProfileToPg(db, latest.id);
+      await pgQueryAll(
+        "UPDATE profiles SET analysis_json = $1::jsonb WHERE id = $2",
+        [JSON.stringify(output), latest.id]
+      );
     }
 
     // Save analysis run data for debugging
@@ -1289,18 +1312,15 @@ app.post("/admin/users/:id/reset-analysis", async (req, res) => {
     "DELETE FROM user_look_traits WHERE user_id = $1", [user_id]
   )) as any[];
 
-  // Clear profiles.analysis_json in BOTH dbs, then re-mirror so pg matches
-  db.prepare("UPDATE profiles SET analysis_json = '{}' WHERE user_id = ?").run(user_id);
-  const profileIds = db.prepare(
-    "SELECT id FROM profiles WHERE user_id = ?"
-  ).all(user_id) as { id: number }[];
-  for (const pr of profileIds) {
-    await mirrorProfileToPg(db, pr.id);
-  }
+  // Clear profiles.analysis_json in pg
+  const cleared = await pgQueryAll(
+    "UPDATE profiles SET analysis_json = '{}'::jsonb WHERE user_id = $1 RETURNING id",
+    [user_id]
+  );
 
-  console.log(`[reset-analysis] User ${user_id}: cleared traits, ${profileIds.length} profiles reset`);
+  console.log(`[reset-analysis] User ${user_id}: cleared traits, ${cleared.length} profiles reset`);
   return res.json({
-    cleared_profiles: profileIds.length,
+    cleared_profiles: cleared.length,
     deleted_traits: deletedTraits.length,
     deleted_look_traits: deletedLookTraits.length,
   });
@@ -1357,7 +1377,7 @@ app.get("/admin/users/:id/candidate-matches", (req, res) => {
 
 const VALID_RATINGS = new Set(["miss", "possible", "bullseye"]);
 
-app.post("/matches/:id/rate", (req, res) => {
+app.post("/matches/:id/rate", async (req, res) => {
   const { user_id, rating } = req.body;
 
   if (!user_id || !rating) {
@@ -1380,8 +1400,8 @@ app.post("/matches/:id/rate", (req, res) => {
 
   // Determine first and second rater based on pickiness_score.
   // Higher pickiness = rates first. Tie or nulls → user1 goes first.
-  const u1 = db.prepare("SELECT id, pickiness_score FROM users WHERE id = ?").get(match.user1_id) as any;
-  const u2 = db.prepare("SELECT id, pickiness_score FROM users WHERE id = ?").get(match.user2_id) as any;
+  const u1 = await pgQueryOne<any>("SELECT id, pickiness_score FROM users WHERE id = $1", [match.user1_id]);
+  const u2 = await pgQueryOne<any>("SELECT id, pickiness_score FROM users WHERE id = $1", [match.user2_id]);
   const p1 = u1.pickiness_score ?? 0;
   const p2 = u2.pickiness_score ?? 0;
   const firstRaterId = p2 > p1 ? match.user2_id : match.user1_id;
@@ -1521,8 +1541,9 @@ app.post("/admin/matches/:id/cancel", (req, res) => {
 });
 
 // GET /admin/users/:id/waiting — Get waiting days for a specific user
-app.get("/admin/users/:id/waiting", (req, res) => {
-  const user = db.prepare("SELECT waiting_since, user_status FROM users WHERE id = ?").get(req.params.id) as any;
+app.get("/admin/users/:id/waiting", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const user = await pgQueryOne<any>("SELECT waiting_since, user_status FROM users WHERE id = $1", [userId]);
   if (!user) return res.status(404).json({ error: "User not found" });
 
   let waiting_days = 0;
@@ -1560,16 +1581,15 @@ app.get("/users", (_req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 
-  // Warm up pg: create schema, then mirror config + users/profiles from sqlite.
-  // Failures are logged but don't block the server.
+  // Warm up pg: create schema, seed trait definitions if empty.
+  // Users/profiles/conversation_messages live in pg only (Phase 4b complete).
   (async () => {
     try {
       await initPgDb();
-      await syncConfigFromSqlite(db);
-      await syncUsersAndProfilesFromSqlite(db);
-      console.log("[pg] ready (schema + config + users/profiles bridge)");
+      await syncConfigFromSqlite(db); // idempotent: seeds trait defs if pg is empty, else no-op
+      console.log("[pg] ready");
     } catch (err: any) {
-      console.error("[pg] init failed (pg reads/writes will fail):", err.message);
+      console.error("[pg] init failed:", err.message);
     }
   })();
 });

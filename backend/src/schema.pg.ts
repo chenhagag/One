@@ -323,17 +323,35 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
   `);
 
   // ────────────────────────────────────────────────────────────────
-  // Migrations for databases created BEFORE the FKs were removed.
-  // CREATE TABLE IF NOT EXISTS won't drop constraints from existing
-  // tables, so we explicitly drop them here. These are idempotent
-  // (IF EXISTS) and safe to run on every boot.
-  //
-  // Re-add these FKs once `users` is fully migrated from SQLite to pg.
+  // Phase 4b: users is now authoritative in pg. Restore FKs on
+  // dependent tables. Idempotent — only added if not already present.
   // ────────────────────────────────────────────────────────────────
   await pool.query(`
-    ALTER TABLE user_traits       DROP CONSTRAINT IF EXISTS user_traits_user_id_fkey;
-    ALTER TABLE user_look_traits  DROP CONSTRAINT IF EXISTS user_look_traits_user_id_fkey;
-    ALTER TABLE analysis_runs     DROP CONSTRAINT IF EXISTS analysis_runs_user_id_fkey;
-    ALTER TABLE token_usage       DROP CONSTRAINT IF EXISTS token_usage_user_id_fkey;
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'user_traits_user_id_fkey') THEN
+        ALTER TABLE user_traits
+          ADD CONSTRAINT user_traits_user_id_fkey
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+      END IF;
+
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'user_look_traits_user_id_fkey') THEN
+        ALTER TABLE user_look_traits
+          ADD CONSTRAINT user_look_traits_user_id_fkey
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+      END IF;
+
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'analysis_runs_user_id_fkey') THEN
+        ALTER TABLE analysis_runs
+          ADD CONSTRAINT analysis_runs_user_id_fkey
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+      END IF;
+
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'token_usage_user_id_fkey') THEN
+        ALTER TABLE token_usage
+          ADD CONSTRAINT token_usage_user_id_fkey
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
+      END IF;
+    END $$;
   `);
 }
