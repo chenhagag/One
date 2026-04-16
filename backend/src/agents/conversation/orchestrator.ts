@@ -225,15 +225,16 @@ function traitToTopic(name: string): string {
   return TRAIT_TO_TOPIC[name] || name.replace(/_/g, " ");
 }
 
-// Read "already covered" topics from the DB (user_traits + user_look_traits)
-// This replaces the previous reliance on analysis.internal_traits.
-function getCoveredTopics(db: Database.Database, userId: number): { covered: string[]; weak: string[]; hasPersonalLook: boolean; hasDesiredLook: boolean } {
-  const internalRows = db.prepare(`
-    SELECT td.internal_name, ut.confidence
-    FROM user_traits ut
-    JOIN trait_definitions td ON td.id = ut.trait_definition_id
-    WHERE ut.user_id = ? AND td.is_active = 1
-  `).all(userId) as { internal_name: string; confidence: number }[];
+// Read "already covered" topics from pg (user_traits + user_look_traits).
+// NOTE: currently unused, kept for future use. All reads are pg-only.
+async function getCoveredTopics(_db: Database.Database, userId: number): Promise<{ covered: string[]; weak: string[]; hasPersonalLook: boolean; hasDesiredLook: boolean }> {
+  const internalRows = await pgQueryAll<{ internal_name: string; confidence: number }>(
+    `SELECT td.internal_name, ut.confidence
+     FROM user_traits ut
+     JOIN trait_definitions td ON td.id = ut.trait_definition_id
+     WHERE ut.user_id = $1 AND td.is_active = TRUE`,
+    [userId]
+  );
 
   const covered = internalRows
     .filter(r => r.confidence >= 0.4)
@@ -246,18 +247,19 @@ function getCoveredTopics(db: Database.Database, userId: number): { covered: str
     .slice(0, 4)
     .map(r => traitToTopic(r.internal_name));
 
-  const lookRow = db.prepare(`
-    SELECT
-      SUM(CASE WHEN personal_value IS NOT NULL THEN 1 ELSE 0 END) as has_personal,
-      SUM(CASE WHEN desired_value IS NOT NULL THEN 1 ELSE 0 END) as has_desired
-    FROM user_look_traits WHERE user_id = ?
-  `).get(userId) as { has_personal: number; has_desired: number } | undefined;
+  const lookRow = await pgQueryOne<{ has_personal: string; has_desired: string }>(
+    `SELECT
+       SUM(CASE WHEN personal_value IS NOT NULL THEN 1 ELSE 0 END) as has_personal,
+       SUM(CASE WHEN desired_value IS NOT NULL THEN 1 ELSE 0 END) as has_desired
+     FROM user_look_traits WHERE user_id = $1`,
+    [userId]
+  );
 
   return {
     covered,
     weak,
-    hasPersonalLook: (lookRow?.has_personal ?? 0) > 0,
-    hasDesiredLook: (lookRow?.has_desired ?? 0) > 0,
+    hasPersonalLook: Number(lookRow?.has_personal ?? 0) > 0,
+    hasDesiredLook: Number(lookRow?.has_desired ?? 0) > 0,
   };
 }
 

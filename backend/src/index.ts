@@ -9,6 +9,7 @@ import {
   syncConfigFromSqlite,
   queryOne as pgQueryOne,
   queryAll as pgQueryAll,
+  withTransaction,
 } from "./db.pg";
 import { analyzeAnswer } from "./openai";
 import { runStage1 } from "./matchStage1";
@@ -161,19 +162,19 @@ app.patch("/users/:id", async (req, res) => {
 });
 
 // Keep old POST /users for backward compatibility
-app.post("/users", (req, res) => {
+app.post("/users", async (req, res) => {
   const { name, email } = req.body;
   if (!name || !email) {
     return res.status(400).json({ error: "name and email are required" });
   }
   try {
-    const stmt = db.prepare(
-      "INSERT INTO users (first_name, email) VALUES (?, ?) RETURNING *"
+    const user = await pgQueryOne<any>(
+      "INSERT INTO users (first_name, email) VALUES ($1, $2) RETURNING *",
+      [name.trim(), email.trim().toLowerCase()]
     );
-    const user = stmt.get(name.trim(), email.trim().toLowerCase());
     return res.status(201).json(user);
   } catch (err: any) {
-    if (err.message?.includes("UNIQUE")) {
+    if (err.code === "23505" || err.message?.includes("duplicate key")) {
       return res.status(409).json({ error: "Email already registered" });
     }
     console.error(err);
@@ -246,25 +247,29 @@ app.post("/users/:id/photos", upload.single("photo"), async (req, res) => {
   const user = await pgQueryOne<any>("SELECT id FROM users WHERE id = $1", [userId]);
   if (!user) return res.status(404).json({ error: "User not found" });
 
-  db.prepare(
-    "INSERT INTO user_photos (user_id, filename, original_name, mime_type, size_bytes) VALUES (?, ?, ?, ?, ?)"
-  ).run(userId, req.file.filename, req.file.originalname, req.file.mimetype, req.file.size);
+  await pgQueryAll(
+    "INSERT INTO user_photos (user_id, filename, original_name, mime_type, size_bytes) VALUES ($1, $2, $3, $4, $5)",
+    [userId, req.file.filename, req.file.originalname, req.file.mimetype, req.file.size]
+  );
 
-  const count = (db.prepare("SELECT COUNT(*) as c FROM user_photos WHERE user_id = ?").get(userId) as any).c;
+  const countRow = await pgQueryOne<{ c: string }>(
+    "SELECT COUNT(*)::int AS c FROM user_photos WHERE user_id = $1", [userId]
+  );
 
   return res.json({
     filename: req.file.filename,
     url: `/uploads/${req.file.filename}`,
-    photo_count: count,
+    photo_count: Number(countRow?.c ?? 0),
   });
 });
 
 // GET /users/:id/photos — List user's photos
-app.get("/users/:id/photos", (req, res) => {
+app.get("/users/:id/photos", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
-  const photos = db.prepare(
-    "SELECT id, filename, original_name, created_at FROM user_photos WHERE user_id = ? ORDER BY created_at ASC"
-  ).all(userId) as any[];
+  const photos = await pgQueryAll<any>(
+    "SELECT id, filename, original_name, created_at FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC",
+    [userId]
+  );
 
   return res.json({
     photos: photos.map(p => ({
@@ -279,20 +284,25 @@ app.get("/users/:id/photos", (req, res) => {
 });
 
 // DELETE /users/:id/photos/:photoId — Delete a specific photo
-app.delete("/users/:id/photos/:photoId", (req, res) => {
+app.delete("/users/:id/photos/:photoId", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const photoId = parseInt(req.params.photoId, 10);
 
-  const photo = db.prepare("SELECT id, filename FROM user_photos WHERE id = ? AND user_id = ?").get(photoId, userId) as any;
+  const photo = await pgQueryOne<any>(
+    "SELECT id, filename FROM user_photos WHERE id = $1 AND user_id = $2",
+    [photoId, userId]
+  );
   if (!photo) return res.status(404).json({ error: "Photo not found" });
 
-  db.prepare("DELETE FROM user_photos WHERE id = ?").run(photoId);
+  await pgQueryAll("DELETE FROM user_photos WHERE id = $1", [photoId]);
 
-  // Try to delete file (non-critical if it fails)
+  // Try to delete file from disk (non-critical if it fails)
   try { require("fs").unlinkSync(path.join(uploadsDir, photo.filename)); } catch {}
 
-  const count = (db.prepare("SELECT COUNT(*) as c FROM user_photos WHERE user_id = ?").get(userId) as any).c;
-  return res.json({ deleted: true, photo_count: count });
+  const countRow = await pgQueryOne<{ c: string }>(
+    "SELECT COUNT(*)::int AS c FROM user_photos WHERE user_id = $1", [userId]
+  );
+  return res.json({ deleted: true, photo_count: Number(countRow?.c ?? 0) });
 });
 
 // ════════════════════════════════════════════════════════════════
@@ -546,10 +556,11 @@ app.get("/admin/users/:id/full-transcript", async (req, res) => {
     });
   }
 
-  // Last fallback: old profiles table (user messages only)
-  const profiles = db.prepare(
-    "SELECT raw_answer, created_at FROM profiles WHERE user_id = ? ORDER BY created_at ASC"
-  ).all(userId) as { raw_answer: string; created_at: string }[];
+  // Last fallback: profiles table (user messages only)
+  const profiles = await pgQueryAll<{ raw_answer: string; created_at: string }>(
+    "SELECT raw_answer, created_at FROM profiles WHERE user_id = $1 ORDER BY created_at ASC",
+    [userId]
+  );
 
   if (profiles.length === 0) {
     return res.json({ source: "none", turn_count: 0, messages: [] });
@@ -797,24 +808,31 @@ app.delete("/admin/users/:id", async (req, res) => {
   if (!user) return res.status(404).json({ error: "User not found" });
 
   // Delete from pg (order matters due to FKs)
-  const result = { profiles: 0, messages: 0, photos: 0, traits: 0, lookTraits: 0, analysisRuns: 0 };
-  result.profiles   = (await pgQueryAll("DELETE FROM profiles WHERE user_id = $1", [userId])).length;
-  result.messages   = (await pgQueryAll("DELETE FROM conversation_messages WHERE user_id = $1", [userId])).length;
-  result.traits     = (await pgQueryAll("DELETE FROM user_traits WHERE user_id = $1", [userId])).length;
-  result.lookTraits = (await pgQueryAll("DELETE FROM user_look_traits WHERE user_id = $1", [userId])).length;
+  const result = {
+    profiles: 0, messages: 0, traits: 0, lookTraits: 0, analysisRuns: 0,
+    matchScores: 0, matches: 0, candidates: 0,
+  };
+  result.profiles     = (await pgQueryAll("DELETE FROM profiles WHERE user_id = $1", [userId])).length;
+  result.messages     = (await pgQueryAll("DELETE FROM conversation_messages WHERE user_id = $1", [userId])).length;
+  result.traits       = (await pgQueryAll("DELETE FROM user_traits WHERE user_id = $1", [userId])).length;
+  result.lookTraits   = (await pgQueryAll("DELETE FROM user_look_traits WHERE user_id = $1", [userId])).length;
   result.analysisRuns = (await pgQueryAll("DELETE FROM analysis_runs WHERE user_id = $1", [userId])).length;
+  result.matchScores  = (await pgQueryAll(
+    `DELETE FROM match_scores WHERE match_id IN
+     (SELECT id FROM matches WHERE user1_id = $1 OR user2_id = $1)`,
+    [userId]
+  )).length;
+  result.matches      = (await pgQueryAll(
+    "DELETE FROM matches WHERE user1_id = $1 OR user2_id = $1", [userId]
+  )).length;
+  result.candidates   = (await pgQueryAll(
+    "DELETE FROM candidate_matches WHERE user_id = $1 OR candidate_user_id = $1", [userId]
+  )).length;
   await pgQueryAll("DELETE FROM users WHERE id = $1", [userId]);
 
-  // Also delete sqlite-only data: user_photos, matches, match_scores, candidate_matches
-  // (these tables haven't been migrated to pg yet — Phase 4c)
-  try {
-    db.prepare("DELETE FROM user_photos WHERE user_id = ?").run(userId);
-    db.prepare("DELETE FROM match_scores WHERE match_id IN (SELECT id FROM matches WHERE user1_id = ? OR user2_id = ?)").run(userId, userId);
-    db.prepare("DELETE FROM matches WHERE user1_id = ? OR user2_id = ?").run(userId, userId);
-    db.prepare("DELETE FROM candidate_matches WHERE user_id = ? OR candidate_user_id = ?").run(userId, userId);
-  } catch (err: any) {
-    console.warn(`[admin] sqlite cleanup partial for user ${userId}: ${err.message}`);
-  }
+  // user_photos is now in pg too (FK cascades via users delete above would also work,
+  // but we do it explicitly to match other deletes and collect count).
+  await pgQueryAll("DELETE FROM user_photos WHERE user_id = $1", [userId]);
 
   // Clear in-memory conversation state
   conversationStates.delete(userId);
@@ -824,9 +842,9 @@ app.delete("/admin/users/:id", async (req, res) => {
 });
 
 // GET /admin/users — All users with registration data
-app.get("/admin/users", (_req, res) => {
-  // Use a subquery to get only the LATEST profile per user (avoids duplicate rows)
-  const users = db.prepare(`
+app.get("/admin/users", async (_req, res) => {
+  // Latest profile per user via DISTINCT ON (pg idiom)
+  const users = await pgQueryAll<any>(`
     SELECT u.*,
       lp.raw_answer,
       lp.analysis_json,
@@ -834,24 +852,28 @@ app.get("/admin/users", (_req, res) => {
       COALESCE(tu.total_tokens, 0) as total_tokens,
       COALESCE(tu.total_cost_usd, 0) as total_cost_usd
     FROM users u
-    LEFT JOIN profiles lp ON lp.user_id = u.id
-      AND lp.id = (SELECT MAX(p2.id) FROM profiles p2 WHERE p2.user_id = u.id)
+    LEFT JOIN LATERAL (
+      SELECT raw_answer, analysis_json, created_at
+      FROM profiles p2
+      WHERE p2.user_id = u.id
+      ORDER BY p2.id DESC
+      LIMIT 1
+    ) lp ON TRUE
     LEFT JOIN (
       SELECT user_id, SUM(total_tokens) as total_tokens, SUM(estimated_cost_usd) as total_cost_usd
       FROM token_usage GROUP BY user_id
     ) tu ON tu.user_id = u.id
     ORDER BY u.created_at DESC
-  `).all();
+  `);
 
   // Load moderation trait data for all users in one query
-  const moderationTraits = db.prepare(`
+  const moderationTraits = await pgQueryAll<{ user_id: number; internal_name: string; score: number; confidence: number }>(`
     SELECT ut.user_id, td.internal_name, ut.score, ut.confidence
     FROM user_traits ut
     JOIN trait_definitions td ON td.id = ut.trait_definition_id
     WHERE td.internal_name IN ('toxicity_score', 'trollness', 'sexual_identity')
-  `).all() as { user_id: number; internal_name: string; score: number; confidence: number }[];
+  `);
 
-  // Build lookup: user_id → { toxic, troll, identity_flag }
   const flagMap = new Map<number, { flag_toxic: boolean; flag_troll: boolean; flag_identity: boolean }>();
   for (const t of moderationTraits) {
     if (!flagMap.has(t.user_id)) flagMap.set(t.user_id, { flag_toxic: false, flag_troll: false, flag_identity: false });
@@ -862,17 +884,17 @@ app.get("/admin/users", (_req, res) => {
   }
 
   const now = Date.now();
-  const result = (users as any[]).map((u) => {
+  const result = users.map((u) => {
     let waiting_days = 0;
     if (u.waiting_since) {
-      const ms = now - new Date(u.waiting_since + "Z").getTime();
+      // pg returns Date objects for TIMESTAMPTZ columns
+      const ms = now - new Date(u.waiting_since).getTime();
       waiting_days = Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
     }
     const flags = flagMap.get(u.id) || { flag_toxic: false, flag_troll: false, flag_identity: false };
     return {
       ...u,
-      self_style: u.self_style ? JSON.parse(u.self_style) : null,
-      analysis: u.analysis_json ? JSON.parse(u.analysis_json) : null,
+      // JSONB columns come back already parsed
       waiting_days,
       ...flags,
     };
@@ -959,108 +981,105 @@ app.get("/admin/users/:id/full", async (req, res) => {
 });
 
 // GET /admin/users/:id/traits — All traits for a specific user
-app.get("/admin/users/:id/traits", (req, res) => {
-  const traits = db.prepare(`
+app.get("/admin/users/:id/traits", async (req, res) => {
+  const traits = await pgQueryAll(`
     SELECT ut.*, td.internal_name, td.display_name_he, td.display_name_en
     FROM user_traits ut
     JOIN trait_definitions td ON td.id = ut.trait_definition_id
-    WHERE ut.user_id = ?
+    WHERE ut.user_id = $1
     ORDER BY td.sort_order
-  `).all(req.params.id);
-
+  `, [parseInt(req.params.id, 10)]);
   return res.json(traits);
 });
 
 // GET /admin/users/:id/look-traits — Look traits for a specific user
-app.get("/admin/users/:id/look-traits", (req, res) => {
-  const traits = db.prepare(`
+app.get("/admin/users/:id/look-traits", async (req, res) => {
+  const traits = await pgQueryAll(`
     SELECT ult.*, ltd.internal_name, ltd.display_name_he, ltd.display_name_en
     FROM user_look_traits ult
     JOIN look_trait_definitions ltd ON ltd.id = ult.look_trait_definition_id
-    WHERE ult.user_id = ?
+    WHERE ult.user_id = $1
     ORDER BY ltd.sort_order
-  `).all(req.params.id);
-
+  `, [parseInt(req.params.id, 10)]);
   return res.json(traits);
 });
 
 // GET /admin/trait-definitions — All trait definitions
-app.get("/admin/trait-definitions", (_req, res) => {
-  const traits = db.prepare("SELECT * FROM trait_definitions ORDER BY sort_order").all();
+app.get("/admin/trait-definitions", async (_req, res) => {
+  const traits = await pgQueryAll("SELECT * FROM trait_definitions ORDER BY sort_order");
   return res.json(traits);
 });
 
 // GET /admin/look-trait-definitions — All look trait definitions
-app.get("/admin/look-trait-definitions", (_req, res) => {
-  const traits = db.prepare("SELECT * FROM look_trait_definitions ORDER BY sort_order").all();
+app.get("/admin/look-trait-definitions", async (_req, res) => {
+  const traits = await pgQueryAll("SELECT * FROM look_trait_definitions ORDER BY sort_order");
   return res.json(traits);
 });
 
 // PUT /admin/trait-definitions/:id — Update editable fields
-app.put("/admin/trait-definitions/:id", (req, res) => {
+app.put("/admin/trait-definitions/:id", async (req, res) => {
   const { weight, is_filter, filter_type, min_value, max_value } = req.body;
-  const stmt = db.prepare(`
-    UPDATE trait_definitions
-    SET weight = ?, is_filter = ?, filter_type = ?, min_value = ?, max_value = ?
-    WHERE id = ?
-  `);
-  const result = stmt.run(weight, is_filter, filter_type ?? null, min_value ?? null, max_value ?? null, req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: "Not found" });
+  const result = await pgQueryAll(
+    `UPDATE trait_definitions
+     SET weight = $1, is_filter = $2, filter_type = $3, min_value = $4, max_value = $5
+     WHERE id = $6 RETURNING id`,
+    [weight, is_filter, filter_type ?? null, min_value ?? null, max_value ?? null, parseInt(req.params.id, 10)]
+  );
+  if (result.length === 0) return res.status(404).json({ error: "Not found" });
   return res.json({ success: true });
 });
 
 // PUT /admin/look-trait-definitions/:id — Update editable fields
-app.put("/admin/look-trait-definitions/:id", (req, res) => {
+app.put("/admin/look-trait-definitions/:id", async (req, res) => {
   const { weight, is_filter, filter_type, min_value, max_value } = req.body;
-  const stmt = db.prepare(`
-    UPDATE look_trait_definitions
-    SET weight = ?, is_filter = ?, filter_type = ?, min_value = ?, max_value = ?
-    WHERE id = ?
-  `);
-  const result = stmt.run(weight, is_filter, filter_type ?? null, min_value ?? null, max_value ?? null, req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: "Not found" });
+  const result = await pgQueryAll(
+    `UPDATE look_trait_definitions
+     SET weight = $1, is_filter = $2, filter_type = $3, min_value = $4, max_value = $5
+     WHERE id = $6 RETURNING id`,
+    [weight, is_filter, filter_type ?? null, min_value ?? null, max_value ?? null, parseInt(req.params.id, 10)]
+  );
+  if (result.length === 0) return res.status(404).json({ error: "Not found" });
   return res.json({ success: true });
 });
 
 // GET /admin/enum-options — All enums, optionally filtered by category
-app.get("/admin/enum-options", (req, res) => {
-  const category = req.query.category;
-  if (category) {
-    const options = db.prepare("SELECT * FROM enum_options WHERE category = ? ORDER BY sort_order").all(category);
-    return res.json(options);
-  }
-  const options = db.prepare("SELECT * FROM enum_options ORDER BY category, sort_order").all();
+app.get("/admin/enum-options", async (req, res) => {
+  const category = req.query.category as string | undefined;
+  const options = category
+    ? await pgQueryAll("SELECT * FROM enum_options WHERE category = $1 ORDER BY sort_order", [category])
+    : await pgQueryAll("SELECT * FROM enum_options ORDER BY category, sort_order");
   return res.json(options);
 });
 
 // GET /admin/config — All config values, optionally filtered by category
-app.get("/admin/config", (req, res) => {
-  const category = req.query.category;
-  if (category) {
-    const configs = db.prepare("SELECT * FROM config WHERE category = ? ORDER BY key").all(category);
-    return res.json(configs);
-  }
-  const configs = db.prepare("SELECT * FROM config ORDER BY category, key").all();
+app.get("/admin/config", async (req, res) => {
+  const category = req.query.category as string | undefined;
+  const configs = category
+    ? await pgQueryAll("SELECT * FROM config WHERE category = $1 ORDER BY key", [category])
+    : await pgQueryAll("SELECT * FROM config ORDER BY category, key");
   return res.json(configs);
 });
 
 // PUT /admin/config/:key — Update a config value
-app.put("/admin/config/:key", (req, res) => {
+app.put("/admin/config/:key", async (req, res) => {
   const { value } = req.body;
   if (value === undefined) {
     return res.status(400).json({ error: "value is required" });
   }
-  const stmt = db.prepare("UPDATE config SET value = ?, updated_at = datetime('now') WHERE key = ?");
-  const result = stmt.run(String(value), req.params.key);
-  if (result.changes === 0) {
+  // pg config.value is JSONB; accept a stringified value or JSON-compatible object.
+  const result = await pgQueryAll(
+    "UPDATE config SET value = $1::jsonb, updated_at = NOW() WHERE key = $2 RETURNING key",
+    [JSON.stringify(value), req.params.key]
+  );
+  if (result.length === 0) {
     return res.status(404).json({ error: "Config key not found" });
   }
   return res.json({ success: true });
 });
 
 // GET /admin/matches — All matches
-app.get("/admin/matches", (_req, res) => {
-  const matches = db.prepare(`
+app.get("/admin/matches", async (_req, res) => {
+  const matches = await pgQueryAll(`
     SELECT m.*,
       u1.first_name as user1_name,
       u2.first_name as user2_name
@@ -1068,7 +1087,7 @@ app.get("/admin/matches", (_req, res) => {
     JOIN users u1 ON u1.id = m.user1_id
     JOIN users u2 ON u2.id = m.user2_id
     ORDER BY m.created_at DESC
-  `).all();
+  `);
   return res.json(matches);
 });
 
@@ -1094,8 +1113,7 @@ app.get("/admin/stats", async (_req, res) => {
     users_with_traits: await cnt("SELECT COUNT(DISTINCT user_id)::int AS c FROM user_traits"),
     total_trait_definitions: await cnt("SELECT COUNT(*)::int AS c FROM trait_definitions"),
     total_look_trait_definitions: await cnt("SELECT COUNT(*)::int AS c FROM look_trait_definitions"),
-    // matches is still sqlite until Phase 4c
-    total_matches: (db.prepare("SELECT COUNT(*) as c FROM matches").get() as any).c,
+    total_matches: await cnt("SELECT COUNT(*)::int AS c FROM matches"),
     total_config_keys: await cnt("SELECT COUNT(*)::int AS c FROM config"),
     total_ai_calls: Number(tokenStats?.total_calls ?? 0),
     total_tokens: Number(tokenStats?.total_tokens ?? 0),
@@ -1115,35 +1133,35 @@ app.get("/admin/users/:id/analysis-run", async (req, res) => {
 });
 
 // GET /admin/users/:id/token-usage — Per-user token usage breakdown
-app.get("/admin/users/:id/token-usage", (req, res) => {
+app.get("/admin/users/:id/token-usage", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
 
-  const byAction = db.prepare(`
+  const byAction = await pgQueryAll<any>(`
     SELECT action_type,
-           COUNT(*) as calls,
-           SUM(input_tokens) as input_tokens,
-           SUM(output_tokens) as output_tokens,
-           SUM(total_tokens) as total_tokens,
-           SUM(estimated_cost_usd) as cost_usd
+           COUNT(*)::int as calls,
+           COALESCE(SUM(input_tokens), 0)::int as input_tokens,
+           COALESCE(SUM(output_tokens), 0)::int as output_tokens,
+           COALESCE(SUM(total_tokens), 0)::int as total_tokens,
+           COALESCE(SUM(estimated_cost_usd), 0)::float as cost_usd
     FROM token_usage
-    WHERE user_id = ?
+    WHERE user_id = $1
     GROUP BY action_type
     ORDER BY total_tokens DESC
-  `).all(userId) as any[];
+  `, [userId]);
 
-  const totals = db.prepare(`
-    SELECT SUM(total_tokens) as total_tokens,
-           SUM(estimated_cost_usd) as total_cost_usd,
-           COUNT(*) as total_calls
+  const totals = await pgQueryOne<any>(`
+    SELECT COALESCE(SUM(total_tokens), 0)::int as total_tokens,
+           COALESCE(SUM(estimated_cost_usd), 0)::float as total_cost_usd,
+           COUNT(*)::int as total_calls
     FROM token_usage
-    WHERE user_id = ?
-  `).get(userId) as any;
+    WHERE user_id = $1
+  `, [userId]);
 
   return res.json({
     user_id: userId,
-    total_tokens: totals.total_tokens || 0,
-    total_cost_usd: Math.round((totals.total_cost_usd || 0) * 1000000) / 1000000,
-    total_calls: totals.total_calls || 0,
+    total_tokens: totals?.total_tokens || 0,
+    total_cost_usd: Math.round((totals?.total_cost_usd || 0) * 1000000) / 1000000,
+    total_calls: totals?.total_calls || 0,
     by_action: byAction.map((r: any) => ({
       action_type: r.action_type,
       calls: r.calls,
@@ -1157,10 +1175,10 @@ app.get("/admin/users/:id/token-usage", (req, res) => {
 
 // POST /admin/run-matching — Matching algorithm: filter + score + promote to rating flow
 // Does NOT select pre_match or freeze matches.
-app.post("/admin/run-matching", (_req, res) => {
+app.post("/admin/run-matching", async (_req, res) => {
   try {
-    const stage1 = runStage1(db);
-    const stage2 = runStage2(db);
+    const stage1 = await runStage1(db);
+    const stage2 = await runStage2(db);
     return res.json({ stage1, stage2 });
   } catch (err: any) {
     console.error(err);
@@ -1170,9 +1188,9 @@ app.post("/admin/run-matching", (_req, res) => {
 
 // POST /admin/run-matchmaking — Matchmaking selection: prioritize + select + freeze
 // Works on existing approved_by_both matches only. Does NOT regenerate candidates.
-app.post("/admin/run-matchmaking", (_req, res) => {
+app.post("/admin/run-matchmaking", async (_req, res) => {
   try {
-    const result = runMatchmaking(db);
+    const result = await runMatchmaking(db);
     return res.json(result);
   } catch (err: any) {
     console.error(err);
@@ -1181,13 +1199,14 @@ app.post("/admin/run-matchmaking", (_req, res) => {
 });
 
 // POST /admin/approve-all-ratings — Testing shortcut: bulk-approve all pending ratings
-app.post("/admin/approve-all-ratings", (_req, res) => {
+app.post("/admin/approve-all-ratings", async (_req, res) => {
   try {
-    const result = db.prepare(`
-      UPDATE matches SET status = 'approved_by_both', updated_at = datetime('now')
+    const result = await pgQueryAll(`
+      UPDATE matches SET status = 'approved_by_both', updated_at = NOW()
       WHERE status IN ('waiting_first_rating', 'waiting_second_rating')
-    `).run();
-    return res.json({ approved: result.changes });
+      RETURNING id
+    `);
+    return res.json({ approved: result.length });
   } catch (err: any) {
     console.error(err);
     return res.status(500).json({ error: err.message });
@@ -1195,18 +1214,18 @@ app.post("/admin/approve-all-ratings", (_req, res) => {
 });
 
 // POST /admin/reset-matches — Full reset of all matching data
-app.post("/admin/reset-matches", (_req, res) => {
+app.post("/admin/reset-matches", async (_req, res) => {
   try {
-    const deletedCandidates = db.prepare("DELETE FROM candidate_matches").run().changes;
-    const deletedMatches = db.prepare("DELETE FROM matches").run().changes;
-    db.prepare(`
+    const deletedCandidates = (await pgQueryAll("DELETE FROM candidate_matches RETURNING id")).length;
+    const deletedMatches = (await pgQueryAll("DELETE FROM matches RETURNING id")).length;
+    await pgQueryAll(`
       UPDATE users SET
         user_status = 'waiting_match',
         waiting_since = COALESCE(waiting_since, created_at),
         total_matches = 0,
         good_matches = 0,
         system_match_priority = 0
-    `).run();
+    `);
     return res.json({ deleted_candidates: deletedCandidates, deleted_matches: deletedMatches });
   } catch (err: any) {
     console.error(err);
@@ -1327,35 +1346,37 @@ app.post("/admin/users/:id/reset-analysis", async (req, res) => {
 });
 
 // GET /admin/users/:id/matches — Actual matches for a specific user (from matches table)
-app.get("/admin/users/:id/matches", (req, res) => {
-  const rows = db.prepare(`
+app.get("/admin/users/:id/matches", async (req, res) => {
+  const uid = parseInt(req.params.id, 10);
+  const rows = await pgQueryAll(`
     SELECT m.id, m.match_score, m.status, m.user1_id, m.user2_id,
       m.user1_rating, m.user2_rating,
       u.id as other_id, u.first_name as other_name,
       u1.pickiness_score as user1_pickiness,
       u2.pickiness_score as user2_pickiness
     FROM matches m
-    JOIN users u ON u.id = CASE WHEN m.user1_id = ? THEN m.user2_id ELSE m.user1_id END
+    JOIN users u ON u.id = CASE WHEN m.user1_id = $1 THEN m.user2_id ELSE m.user1_id END
     JOIN users u1 ON u1.id = m.user1_id
     JOIN users u2 ON u2.id = m.user2_id
-    WHERE m.user1_id = ? OR m.user2_id = ?
-    ORDER BY m.final_match_priority DESC
-  `).all(req.params.id, req.params.id, req.params.id);
+    WHERE m.user1_id = $1 OR m.user2_id = $1
+    ORDER BY m.final_match_priority DESC NULLS LAST
+  `, [uid]);
   return res.json(rows);
 });
 
 // GET /admin/users/:id/candidate-matches — Matches for a specific user
-app.get("/admin/users/:id/candidate-matches", (req, res) => {
-  const rows = db.prepare(`
+app.get("/admin/users/:id/candidate-matches", async (req, res) => {
+  const uid = parseInt(req.params.id, 10);
+  const rows = await pgQueryAll(`
     SELECT cm.*, u.id as other_id, u.first_name as other_name, u.age as other_age, u.city as other_city,
       m.status as match_status, m.pair_priority, m.final_match_priority
     FROM candidate_matches cm
-    JOIN users u ON u.id = CASE WHEN cm.user_id = ? THEN cm.candidate_user_id ELSE cm.user_id END
+    JOIN users u ON u.id = CASE WHEN cm.user_id = $1 THEN cm.candidate_user_id ELSE cm.user_id END
     LEFT JOIN matches m ON (m.user1_id = cm.user_id AND m.user2_id = cm.candidate_user_id)
                         OR (m.user1_id = cm.candidate_user_id AND m.user2_id = cm.user_id)
-    WHERE cm.user_id = ? OR cm.candidate_user_id = ?
-    ORDER BY cm.final_score DESC
-  `).all(req.params.id, req.params.id, req.params.id);
+    WHERE cm.user_id = $1 OR cm.candidate_user_id = $1
+    ORDER BY cm.final_score DESC NULLS LAST
+  `, [uid]);
   return res.json(rows);
 });
 
@@ -1387,7 +1408,7 @@ app.post("/matches/:id/rate", async (req, res) => {
     return res.status(400).json({ error: "rating must be miss, possible, or bullseye" });
   }
 
-  const match = db.prepare("SELECT * FROM matches WHERE id = ?").get(req.params.id) as any;
+  const match = await pgQueryOne<any>("SELECT * FROM matches WHERE id = $1", [parseInt(req.params.id, 10)]);
   if (!match) return res.status(404).json({ error: "Match not found" });
 
   if (match.user1_id !== user_id && match.user2_id !== user_id) {
@@ -1399,15 +1420,13 @@ app.post("/matches/:id/rate", async (req, res) => {
   }
 
   // Determine first and second rater based on pickiness_score.
-  // Higher pickiness = rates first. Tie or nulls → user1 goes first.
   const u1 = await pgQueryOne<any>("SELECT id, pickiness_score FROM users WHERE id = $1", [match.user1_id]);
   const u2 = await pgQueryOne<any>("SELECT id, pickiness_score FROM users WHERE id = $1", [match.user2_id]);
-  const p1 = u1.pickiness_score ?? 0;
-  const p2 = u2.pickiness_score ?? 0;
+  const p1 = u1?.pickiness_score ?? 0;
+  const p2 = u2?.pickiness_score ?? 0;
   const firstRaterId = p2 > p1 ? match.user2_id : match.user1_id;
   const secondRaterId = firstRaterId === match.user1_id ? match.user2_id : match.user1_id;
 
-  // Column to store this rating (user1_rating or user2_rating)
   const ratingCol = user_id === match.user1_id ? "user1_rating" : "user2_rating";
 
   if (match.status === "waiting_first_rating") {
@@ -1416,9 +1435,10 @@ app.post("/matches/:id/rate", async (req, res) => {
     }
 
     const newStatus = rating === "miss" ? "rejected_by_users" : "waiting_second_rating";
-    db.prepare(`
-      UPDATE matches SET status = ?, ${ratingCol} = ?, updated_at = datetime('now') WHERE id = ?
-    `).run(newStatus, rating, match.id);
+    await pgQueryAll(
+      `UPDATE matches SET status = $1, ${ratingCol} = $2, updated_at = NOW() WHERE id = $3`,
+      [newStatus, rating, match.id]
+    );
 
     return res.json({ match_id: match.id, new_status: newStatus, rated_by: user_id });
   }
@@ -1429,16 +1449,17 @@ app.post("/matches/:id/rate", async (req, res) => {
   }
 
   const newStatus = rating === "miss" ? "rejected_by_users" : "approved_by_both";
-  db.prepare(`
-    UPDATE matches SET status = ?, ${ratingCol} = ?, updated_at = datetime('now') WHERE id = ?
-  `).run(newStatus, rating, match.id);
+  await pgQueryAll(
+    `UPDATE matches SET status = $1, ${ratingCol} = $2, updated_at = NOW() WHERE id = $3`,
+    [newStatus, rating, match.id]
+  );
 
   return res.json({ match_id: match.id, new_status: newStatus, rated_by: user_id });
 });
 
 // GET /admin/candidate-matches — View candidate match array with priority data
-app.get("/admin/candidate-matches", (_req, res) => {
-  const rows = db.prepare(`
+app.get("/admin/candidate-matches", async (_req, res) => {
+  const rows = await pgQueryAll(`
     SELECT cm.*,
       u1.first_name as user1_name, u1.age as user1_age, u1.city as user1_city,
       u1.system_match_priority as user1_priority,
@@ -1452,8 +1473,8 @@ app.get("/admin/candidate-matches", (_req, res) => {
     JOIN users u2 ON u2.id = cm.candidate_user_id
     LEFT JOIN matches m ON (m.user1_id = cm.user_id AND m.user2_id = cm.candidate_user_id)
                         OR (m.user1_id = cm.candidate_user_id AND m.user2_id = cm.user_id)
-    ORDER BY cm.final_score DESC
-  `).all();
+    ORDER BY cm.final_score DESC NULLS LAST
+  `);
   return res.json(rows);
 });
 
@@ -1463,26 +1484,26 @@ app.get("/admin/candidate-matches", (_req, res) => {
 
 // POST /admin/matches/:id/send — Mark a match as sent/revealed to both users
 // This is the ONLY action that stops the waiting counter.
-app.post("/admin/matches/:id/send", (req, res) => {
-  const match = db.prepare("SELECT * FROM matches WHERE id = ?").get(req.params.id) as any;
+app.post("/admin/matches/:id/send", async (req, res) => {
+  const matchId = parseInt(req.params.id, 10);
+  const match = await pgQueryOne<any>("SELECT * FROM matches WHERE id = $1", [matchId]);
   if (!match) return res.status(404).json({ error: "Match not found" });
 
   if (match.status === "in_match") {
     return res.status(400).json({ error: "Match is already active" });
   }
 
-  db.transaction(() => {
-    // Transition match to in_match
-    db.prepare(`
-      UPDATE matches SET status = 'in_match', updated_at = datetime('now') WHERE id = ?
-    `).run(match.id);
-
-    // Both users: stop waiting (waiting_since = NULL), set user_status = in_match
-    db.prepare(`
-      UPDATE users SET waiting_since = NULL, user_status = 'in_match', updated_at = datetime('now')
-      WHERE id IN (?, ?)
-    `).run(match.user1_id, match.user2_id);
-  })();
+  await withTransaction(async (client) => {
+    await client.query(
+      "UPDATE matches SET status = 'in_match', updated_at = NOW() WHERE id = $1",
+      [match.id]
+    );
+    await client.query(
+      `UPDATE users SET waiting_since = NULL, user_status = 'in_match', updated_at = NOW()
+       WHERE id IN ($1, $2)`,
+      [match.user1_id, match.user2_id]
+    );
+  });
 
   return res.json({ success: true, match_id: match.id, status: "in_match" });
 });
@@ -1495,8 +1516,9 @@ app.post("/admin/matches/:id/send", (req, res) => {
 //   3. Frozen matches involving either user are restored to their previous_status
 //      (the status they had before being frozen by this match's selection run)
 
-app.post("/admin/matches/:id/cancel", (req, res) => {
-  const match = db.prepare("SELECT * FROM matches WHERE id = ?").get(req.params.id) as any;
+app.post("/admin/matches/:id/cancel", async (req, res) => {
+  const matchId = parseInt(req.params.id, 10);
+  const match = await pgQueryOne<any>("SELECT * FROM matches WHERE id = $1", [matchId]);
   if (!match) return res.status(404).json({ error: "Match not found" });
 
   if (match.status !== "pre_match" && match.status !== "in_match") {
@@ -1505,37 +1527,33 @@ app.post("/admin/matches/:id/cancel", (req, res) => {
 
   let unfrozen = 0;
 
-  db.transaction(() => {
-    // 1. Cancel the match
-    db.prepare(`
-      UPDATE matches SET status = 'cancelled', updated_at = datetime('now') WHERE id = ?
-    `).run(match.id);
+  await withTransaction(async (client) => {
+    await client.query(
+      "UPDATE matches SET status = 'cancelled', updated_at = NOW() WHERE id = $1",
+      [match.id]
+    );
+    await client.query(
+      `UPDATE users SET user_status = 'waiting_match', waiting_since = NOW(), updated_at = NOW()
+       WHERE id IN ($1, $2)`,
+      [match.user1_id, match.user2_id]
+    );
 
-    // 2. Restore both users to waiting state
-    db.prepare(`
-      UPDATE users SET user_status = 'waiting_match', waiting_since = datetime('now'), updated_at = datetime('now')
-      WHERE id IN (?, ?)
-    `).run(match.user1_id, match.user2_id);
+    const frozenMatches = await client.query<{ id: number; previous_status: string }>(
+      `SELECT id, previous_status FROM matches
+       WHERE status = 'frozen'
+         AND previous_status IS NOT NULL
+         AND (user1_id = ANY($1::int[]) OR user2_id = ANY($1::int[]))`,
+      [[match.user1_id, match.user2_id]]
+    );
 
-    // 3. Unfreeze competing matches for both users.
-    //    Restore frozen matches where either cancelled user is involved
-    //    and previous_status was saved.
-    const frozenMatches = db.prepare(`
-      SELECT id, previous_status FROM matches
-      WHERE status = 'frozen'
-        AND previous_status IS NOT NULL
-        AND (user1_id IN (?, ?) OR user2_id IN (?, ?))
-    `).all(match.user1_id, match.user2_id, match.user1_id, match.user2_id) as { id: number; previous_status: string }[];
-
-    const restoreStmt = db.prepare(`
-      UPDATE matches SET status = ?, previous_status = NULL, updated_at = datetime('now') WHERE id = ?
-    `);
-
-    for (const fm of frozenMatches) {
-      restoreStmt.run(fm.previous_status, fm.id);
+    for (const fm of frozenMatches.rows) {
+      await client.query(
+        "UPDATE matches SET status = $1, previous_status = NULL, updated_at = NOW() WHERE id = $2",
+        [fm.previous_status, fm.id]
+      );
       unfrozen++;
     }
-  })();
+  });
 
   return res.json({ success: true, match_id: match.id, status: "cancelled", unfrozen });
 });
@@ -1548,7 +1566,7 @@ app.get("/admin/users/:id/waiting", async (req, res) => {
 
   let waiting_days = 0;
   if (user.waiting_since) {
-    const ms = Date.now() - new Date(user.waiting_since + "Z").getTime();
+    const ms = Date.now() - new Date(user.waiting_since).getTime();
     waiting_days = Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
   }
 
@@ -1561,21 +1579,19 @@ app.get("/admin/users/:id/waiting", async (req, res) => {
 });
 
 // Keep old GET /users for backward compatibility
-app.get("/users", (_req, res) => {
-  const users = db.prepare(`
+app.get("/users", async (_req, res) => {
+  const users = await pgQueryAll<any>(`
     SELECT u.id, u.first_name as name, u.email, u.created_at,
       p.raw_answer, p.analysis_json, p.created_at as profile_created_at
     FROM users u
-    LEFT JOIN profiles p ON p.user_id = u.id
+    LEFT JOIN LATERAL (
+      SELECT raw_answer, analysis_json, created_at
+      FROM profiles p2 WHERE p2.user_id = u.id ORDER BY p2.id DESC LIMIT 1
+    ) p ON TRUE
     ORDER BY u.created_at DESC
-  `).all();
-
-  const result = (users as any[]).map((u) => ({
-    ...u,
-    analysis: u.analysis_json ? JSON.parse(u.analysis_json) : null,
-  }));
-
-  return res.json(result);
+  `);
+  // analysis_json is JSONB — already parsed by pg
+  return res.json(users.map(u => ({ ...u, analysis: u.analysis_json })));
 });
 
 app.listen(PORT, () => {

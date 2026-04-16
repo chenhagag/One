@@ -32,6 +32,7 @@
  */
 
 import Database from "better-sqlite3";
+import { queryAll, withTransaction } from "./db.pg";
 
 // ══════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -178,163 +179,166 @@ function hasSpecialSexualIdentity(
 // FRESHNESS — getUserLastMatchRelevantUpdate
 // ══════════════════════════════════════════════════════════════════
 
-/**
- * Returns the latest timestamp across all data sources used by stage 1 filtering
- * for a given user. This is the MAX of:
- *   - users.updated_at          (age, gender, preferences, city, height, etc.)
- *   - MAX(user_traits.updated_at)  (personality trait scores used in filtering)
- *   - MAX(user_look_traits.updated_at) (look trait values used in filtering)
- *   - MAX(profiles.created_at)  (profiles table has no updated_at; created_at is best available)
- *
- * All timestamps are ISO strings (datetime format), so MAX via string comparison works.
- */
-function makeGetUserLastMatchRelevantUpdate(db: Database.Database): (userId: number) => string {
-  const stmt = db.prepare(`
-    SELECT MAX(ts) as latest FROM (
-      SELECT updated_at as ts FROM users WHERE id = ?
-      UNION ALL
-      SELECT MAX(updated_at) as ts FROM user_traits WHERE user_id = ?
-      UNION ALL
-      SELECT MAX(updated_at) as ts FROM user_look_traits WHERE user_id = ?
-      UNION ALL
-      SELECT MAX(created_at) as ts FROM profiles WHERE user_id = ?
-    )
-  `);
-
-  // Cache results within a single stage 1 run
-  const cache = new Map<number, string>();
-
-  return (userId: number): string => {
-    const cached = cache.get(userId);
-    if (cached) return cached;
-    const row = stmt.get(userId, userId, userId, userId) as { latest: string | null };
-    const result = row.latest ?? "1970-01-01 00:00:00";
-    cache.set(userId, result);
-    return result;
-  };
-}
-
 // ══════════════════════════════════════════════════════════════════
-// MAIN ENTRY POINT
+// MAIN ENTRY POINT (pg-only, async)
 // ══════════════════════════════════════════════════════════════════
 
-export function runStage1(db: Database.Database): { pairs: number; skipped: number; users: number } {
+export async function runStage1(_db: Database.Database): Promise<{ pairs: number; skipped: number; users: number }> {
 
-  // 1. Load eligible users
-  //    - is_matchable = 1 (INTEGER boolean; spec "ready_for_match > 0.8" → must be 1)
-  //    - valid_person = 1 (INTEGER boolean)
-  //    - user_status = 'waiting_match' (TEXT enum)
-  //    - toxicity / trollness checked separately below (score 0–100, threshold 60)
-  const allCandidateUsers = db.prepare(`
+  // 1. Load eligible users from pg
+  const allCandidateUsers = await queryAll<User>(`
     SELECT u.id, u.age, u.gender, u.looking_for_gender, u.city, u.height,
            u.desired_age_min, u.desired_age_max, u.age_flexibility,
            u.desired_height_min, u.desired_height_max, u.height_flexibility,
            u.desired_location_range, u.initial_attraction_signal, u.updated_at
     FROM users u
-    WHERE u.is_matchable = 1
-      AND u.valid_person = 1
+    WHERE u.is_matchable = TRUE
+      AND u.valid_person = TRUE
       AND u.user_status = 'waiting_match'
-  `).all() as User[];
+  `);
 
-  // 2. Pre-load trait/look-trait accessors
-  const traitStmt = db.prepare(
-    "SELECT score, confidence, weight_for_match, weight_confidence FROM user_traits WHERE user_id = ? AND trait_definition_id = ?"
-  );
-  const lookTraitStmt = db.prepare(
-    "SELECT personal_value, personal_value_confidence, desired_value, desired_value_confidence, weight_for_match, weight_confidence FROM user_look_traits WHERE user_id = ? AND look_trait_definition_id = ?"
-  );
-
-  function getUserTrait(userId: number, traitId: number): TraitScore | null {
-    return (traitStmt.get(userId, traitId) as TraitScore) || null;
+  // 2. Load ALL user_traits into a keyed map — avoids N*M per-pair queries
+  const traitRows = await queryAll<{
+    user_id: number; trait_definition_id: number;
+    score: number; confidence: number; weight_for_match: number; weight_confidence: number;
+  }>(`SELECT user_id, trait_definition_id, score, confidence, weight_for_match, weight_confidence FROM user_traits`);
+  const traitMap = new Map<string, TraitScore>();
+  for (const t of traitRows) {
+    traitMap.set(`${t.user_id}:${t.trait_definition_id}`, {
+      score: t.score, confidence: t.confidence,
+      weight_for_match: t.weight_for_match, weight_confidence: t.weight_confidence,
+    });
   }
-  function getUserLookTrait(userId: number, lookTraitId: number): LookTrait | null {
-    return (lookTraitStmt.get(userId, lookTraitId) as LookTrait) || null;
-  }
+  const getUserTrait = (uid: number, tid: number): TraitScore | null =>
+    traitMap.get(`${uid}:${tid}`) ?? null;
 
-  // 3. Filter out users with high toxicity or trollness (score 0–100, threshold 60)
+  const lookRows = await queryAll<{
+    user_id: number; look_trait_definition_id: number;
+    personal_value: string | null; personal_value_confidence: number | null;
+    desired_value: string | null; desired_value_confidence: number | null;
+    weight_for_match: number | null; weight_confidence: number | null;
+  }>(`SELECT user_id, look_trait_definition_id, personal_value, personal_value_confidence,
+             desired_value, desired_value_confidence, weight_for_match, weight_confidence
+      FROM user_look_traits`);
+  const lookMap = new Map<string, LookTrait>();
+  for (const l of lookRows) {
+    lookMap.set(`${l.user_id}:${l.look_trait_definition_id}`, {
+      personal_value: l.personal_value, personal_value_confidence: l.personal_value_confidence,
+      desired_value: l.desired_value, desired_value_confidence: l.desired_value_confidence,
+      weight_for_match: l.weight_for_match, weight_confidence: l.weight_confidence,
+    });
+  }
+  const getUserLookTrait = (uid: number, lid: number): LookTrait | null =>
+    lookMap.get(`${uid}:${lid}`) ?? null;
+
+  // 3. Filter out toxic / trollish users
   const users = allCandidateUsers.filter((u) => passesToxicityCheck(u.id, getUserTrait));
 
-  // 4. Pre-load geography lookups
-  const cityRegionStmt = db.prepare("SELECT region FROM cities WHERE city_name = ?");
-  const adjacencyStmt = db.prepare("SELECT nearby_region FROM region_adjacency WHERE region = ?");
-
-  function getRegion(city: string | null): string | null {
-    if (!city) return null;
-    const row = cityRegionStmt.get(city) as { region: string } | undefined;
-    return row?.region ?? null;
-  }
-  function getNearbyRegions(region: string): Set<string> {
-    const rows = adjacencyStmt.all(region) as { nearby_region: string }[];
-    const set = new Set(rows.map((r) => r.nearby_region));
-    set.add(region);
-    return set;
-  }
-
-  // 5. Freshness helper
-  const getUserLastUpdate = makeGetUserLastMatchRelevantUpdate(db);
-
-  // 6. Check existing candidate_matches
-  const existingStmt = db.prepare(
-    "SELECT id, updated_at FROM candidate_matches WHERE user_id = ? AND candidate_user_id = ?"
+  // 4. Load cities + region_adjacency into maps
+  const cityRows = await queryAll<{ city_name: string; region: string }>(
+    `SELECT city_name, region FROM cities`
   );
-
-  // 7. Prepare insert/update/delete statements
-  const insertStmt = db.prepare(`
-    INSERT INTO candidate_matches (user_id, candidate_user_id, status, filtering_passed, last_evaluated_at, user1_last_source_update, user2_last_source_update)
-    VALUES (?, ?, 'pending_score', 1, datetime('now'), ?, ?)
-  `);
-  const updateStmt = db.prepare(`
-    UPDATE candidate_matches
-    SET status = 'pending_score', filtering_passed = 1, last_evaluated_at = datetime('now'),
-        user1_last_source_update = ?, user2_last_source_update = ?, updated_at = datetime('now')
-    WHERE id = ?
-  `);
-  const deleteStaleStmt = db.prepare(
-    "DELETE FROM candidate_matches WHERE user_id = ? AND candidate_user_id = ? AND filtering_passed = 1 AND status = 'pending_score'"
+  const cityRegionMap = new Map(cityRows.map(c => [c.city_name, c.region]));
+  const adjRows = await queryAll<{ region: string; nearby_region: string }>(
+    `SELECT region, nearby_region FROM region_adjacency`
   );
+  const nearbyMap = new Map<string, Set<string>>();
+  for (const a of adjRows) {
+    if (!nearbyMap.has(a.region)) nearbyMap.set(a.region, new Set<string>([a.region]));
+    nearbyMap.get(a.region)!.add(a.nearby_region);
+  }
+  const getRegion = (city: string | null): string | null =>
+    city ? (cityRegionMap.get(city) ?? null) : null;
+  const getNearbyRegions = (region: string): Set<string> =>
+    nearbyMap.get(region) ?? new Set([region]);
 
-  // 8. Run filtering for all pairs
+  // 5. Freshness map — one pg query, pre-grouped per user
+  const tsRows = await queryAll<{ user_id: number; latest: string }>(`
+    SELECT user_id, MAX(ts)::text AS latest FROM (
+      SELECT id AS user_id, updated_at AS ts FROM users
+      UNION ALL
+      SELECT user_id, updated_at FROM user_traits
+      UNION ALL
+      SELECT user_id, updated_at FROM user_look_traits
+      UNION ALL
+      SELECT user_id, created_at FROM profiles
+    ) x
+    GROUP BY user_id
+  `);
+  const lastUpdateMap = new Map(tsRows.map(r => [r.user_id, r.latest ?? "1970-01-01 00:00:00"]));
+  const getUserLastUpdate = (uid: number) => lastUpdateMap.get(uid) ?? "1970-01-01 00:00:00";
+
+  // 6. Load existing candidate_matches for all pairs we care about
+  const existingRows = await queryAll<{ id: number; user_id: number; candidate_user_id: number; updated_at: string }>(
+    `SELECT id, user_id, candidate_user_id, updated_at FROM candidate_matches`
+  );
+  const existingMap = new Map<string, { id: number; updated_at: string }>();
+  for (const e of existingRows) {
+    existingMap.set(`${e.user_id}:${e.candidate_user_id}`, { id: e.id, updated_at: e.updated_at });
+  }
+
+  // 7. Compute filter results in-memory
+  type Action =
+    | { kind: "insert"; aId: number; bId: number; aTs: string; bTs: string }
+    | { kind: "update"; id: number; aTs: string; bTs: string }
+    | { kind: "delete"; id: number };
+  const actions: Action[] = [];
   let pairsCreated = 0;
   let pairsSkipped = 0;
 
-  db.transaction(() => {
-    for (const a of users) {
-      for (const b of users) {
-        if (a.id >= b.id) continue; // avoid duplicates and self-match
+  for (const a of users) {
+    for (const b of users) {
+      if (a.id >= b.id) continue;
 
-        // Freshness check: is the existing row newer than both users' latest relevant updates?
-        const existing = existingStmt.get(a.id, b.id) as { id: number; updated_at: string } | undefined;
-        if (existing) {
-          const aLastUpdate = getUserLastUpdate(a.id);
-          const bLastUpdate = getUserLastUpdate(b.id);
-          if (existing.updated_at >= aLastUpdate && existing.updated_at >= bLastUpdate) {
-            pairsSkipped++;
-            continue; // existing row is still fresh
-          }
-        }
+      const existing = existingMap.get(`${a.id}:${b.id}`);
+      const aTs = getUserLastUpdate(a.id);
+      const bTs = getUserLastUpdate(b.id);
 
-        // Apply all filters (bidirectional)
-        const passes = passesAllFilters(a, b, getUserTrait, getUserLookTrait, getRegion, getNearbyRegions);
+      if (existing && existing.updated_at >= aTs && existing.updated_at >= bTs) {
+        pairsSkipped++;
+        continue;
+      }
 
-        const aLastUpdate = getUserLastUpdate(a.id);
-        const bLastUpdate = getUserLastUpdate(b.id);
+      const passes = passesAllFilters(a, b, getUserTrait, getUserLookTrait, getRegion, getNearbyRegions);
 
-        if (passes) {
-          if (existing) {
-            updateStmt.run(aLastUpdate, bLastUpdate, existing.id);
-          } else {
-            insertStmt.run(a.id, b.id, aLastUpdate, bLastUpdate);
-          }
-          pairsCreated++;
-        } else {
-          // Remove stale passing row that no longer passes filters
-          if (existing) {
-            deleteStaleStmt.run(a.id, b.id);
-          }
-        }
+      if (passes) {
+        if (existing) actions.push({ kind: "update", id: existing.id, aTs, bTs });
+        else actions.push({ kind: "insert", aId: a.id, bId: b.id, aTs, bTs });
+        pairsCreated++;
+      } else if (existing) {
+        actions.push({ kind: "delete", id: existing.id });
       }
     }
-  })();
+  }
+
+  // 8. Apply writes in a single pg transaction
+  await withTransaction(async (client) => {
+    for (const act of actions) {
+      if (act.kind === "insert") {
+        await client.query(
+          `INSERT INTO candidate_matches
+             (user_id, candidate_user_id, status, filtering_passed, last_evaluated_at,
+              user1_last_source_update, user2_last_source_update)
+           VALUES ($1, $2, 'pending_score', TRUE, NOW(), $3, $4)`,
+          [act.aId, act.bId, act.aTs, act.bTs]
+        );
+      } else if (act.kind === "update") {
+        await client.query(
+          `UPDATE candidate_matches
+           SET status = 'pending_score', filtering_passed = TRUE, last_evaluated_at = NOW(),
+               user1_last_source_update = $1, user2_last_source_update = $2, updated_at = NOW()
+           WHERE id = $3`,
+          [act.aTs, act.bTs, act.id]
+        );
+      } else {
+        await client.query(
+          `DELETE FROM candidate_matches
+           WHERE id = $1 AND filtering_passed = TRUE AND status = 'pending_score'`,
+          [act.id]
+        );
+      }
+    }
+  });
 
   return { pairs: pairsCreated, skipped: pairsSkipped, users: users.length };
 }

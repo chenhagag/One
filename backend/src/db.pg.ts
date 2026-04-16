@@ -229,7 +229,37 @@ export async function syncConfigFromSqlite(sqliteDb: Database.Database): Promise
        COALESCE((SELECT MAX(id) FROM look_trait_definitions), 0) + 1, false)`
   );
 
-  console.log(`[db] Config mirror: ${traits.length} traits + ${looks.length} look_traits synced to pg`);
+  // ── cities ──
+  const cities = sqliteDb.prepare("SELECT * FROM cities").all() as any[];
+  for (const c of cities) {
+    try {
+      await p.query(
+        `INSERT INTO cities (id, city_name, region) VALUES ($1, $2, $3)
+         ON CONFLICT (city_name) DO NOTHING`,
+        [c.id, c.city_name, c.region]
+      );
+    } catch { /* ignore */ }
+  }
+  try {
+    await p.query(`SELECT setval('cities_id_seq', GREATEST((SELECT COALESCE(MAX(id),0) FROM cities), 1))`);
+  } catch { /* ignore */ }
+
+  // ── region_adjacency ──
+  const adj = sqliteDb.prepare("SELECT * FROM region_adjacency").all() as any[];
+  for (const a of adj) {
+    try {
+      await p.query(
+        `INSERT INTO region_adjacency (id, region, nearby_region) VALUES ($1, $2, $3)
+         ON CONFLICT (region, nearby_region) DO NOTHING`,
+        [a.id, a.region, a.nearby_region]
+      );
+    } catch { /* ignore */ }
+  }
+  try {
+    await p.query(`SELECT setval('region_adjacency_id_seq', GREATEST((SELECT COALESCE(MAX(id),0) FROM region_adjacency), 1))`);
+  } catch { /* ignore */ }
+
+  console.log(`[db] Config mirror: ${traits.length} traits + ${looks.length} look_traits + ${cities.length} cities + ${adj.length} adjacencies synced to pg`);
 }
 
 // ── Users + profiles bridge (Phase 4a) ────────────────────────────
