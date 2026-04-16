@@ -313,20 +313,17 @@ app.post("/conversation/message", async (req, res) => {
   if (!userId || !message) return res.status(400).json({ error: "user_id and message required" });
 
   let state = conversationStates.get(userId);
-  if (!state) {
-    state = {
-      user_id: userId, turns: [], turn_count: 0,
-      last_analysis: null, last_analysis_at_turn: 0, phase: "chatting",
-      analysis_in_flight: false, analysis_scheduled_at: 0,
-      returned_at_turn: 0,
-    };
+
+  // If no state exists (server restart) or state was paused,
+  // rebuild it from DB — sending a message implicitly resumes the conversation.
+  if (!state || state.phase === "paused") {
+    const { state: freshState } = generateOpeningMessage(db, userId);
+    state = freshState;
+    conversationStates.set(userId, state);
   }
 
   if (state.phase === "confirmed") {
     return res.status(400).json({ error: "Conversation already confirmed. Navigate to results." });
-  }
-  if (state.phase === "paused") {
-    return res.status(400).json({ error: "Conversation is paused. Call /conversation/start to resume." });
   }
 
   try {
