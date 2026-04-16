@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import path from "path";
 import multer from "multer";
 import db from "./db";
+import { initDb as initPgDb } from "./db.pg";
 import { analyzeAnswer } from "./openai";
 import { runStage1 } from "./matchStage1";
 import { runStage2, runMatchmaking } from "./matchStage2";
@@ -1498,4 +1499,11 @@ app.get("/users", (_req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
+
+  // Warm up pg connection + create schema in background.
+  // Failures are logged but don't block the server — tokenTracker is
+  // the only pg user so far, and it already handles init failures.
+  initPgDb().catch((err) => {
+    console.error("[pg] init failed (token tracking will be disabled):", err.message);
+  });
 });

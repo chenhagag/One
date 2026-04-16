@@ -1,5 +1,15 @@
 {
+  "name": "matchme",
+  "private": true,
+  "scripts": {
+    "build": "cd backend && npm install && npm run build",
+    "start": "cd backend && npm run start",
+    "dev": "cd backend && npm run dev"
+  },
   "dependencies": {
     "xlsx": "^0.18.5"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
