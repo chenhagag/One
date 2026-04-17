@@ -163,11 +163,13 @@ export default function Register({ onSuccess }: { onSuccess: (u: User) => void }
         return;
       }
 
-      // Parse self_style back from JSON string
-      const user: User = {
-        ...data,
-        self_style: data.self_style ? JSON.parse(data.self_style) : null,
-      };
+      // self_style comes back from pg as JSONB (already parsed).
+      // Handle legacy string form too, just in case.
+      let self_style = data.self_style;
+      if (typeof self_style === "string") {
+        try { self_style = JSON.parse(self_style); } catch { self_style = null; }
+      }
+      const user: User = { ...data, self_style };
       onSuccess(user);
     } catch {
       setError("Could not reach the server");

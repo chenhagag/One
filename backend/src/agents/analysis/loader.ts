@@ -228,13 +228,23 @@ export async function saveAnalysisRun(
 
 /**
  * Get the latest analysis run for a user.
+ *
+ * Stage A/B are stored as JSONB and returned by pg as parsed JS values.
+ * The admin panel expects them as strings (pre-migration contract when the
+ * columns were TEXT). We pretty-print them here so the frontend can render
+ * and copy them directly without needing to know about the pg type.
+ *
+ * Legacy wrap: if a row was stored via toJsonbParam's fallback as
+ * `{ raw: "..." }` (when the input was a non-JSON plain string), we unwrap
+ * back to the raw string for a clean display.
+ *
  * @param _db Deprecated — ignored.
  */
 export async function getLatestAnalysisRun(
   _db: Database.Database | undefined,
   userId: number
 ): Promise<
-  | { generated_prompt: string; stage_a_output: any; stage_b_output: any; created_at: string }
+  | { generated_prompt: string; stage_a_output: string | null; stage_b_output: string | null; created_at: string }
   | null
 > {
   const row = await queryOne<any>(
@@ -245,5 +255,25 @@ export async function getLatestAnalysisRun(
      LIMIT 1`,
     [userId]
   );
-  return row ?? null;
+  if (!row) return null;
+
+  const normalize = (v: unknown): string | null => {
+    if (v === null || v === undefined) return null;
+    // Unwrap the { raw: "..." } fallback produced by toJsonbParam
+    // when the original input was a non-JSON plain string.
+    if (typeof v === "object" && v !== null
+        && Object.keys(v).length === 1
+        && typeof (v as any).raw === "string") {
+      return (v as any).raw;
+    }
+    if (typeof v === "string") return v;
+    try { return JSON.stringify(v, null, 2); } catch { return String(v); }
+  };
+
+  return {
+    generated_prompt: row.generated_prompt,
+    stage_a_output: normalize(row.stage_a_output),
+    stage_b_output: normalize(row.stage_b_output),
+    created_at: row.created_at,
+  };
 }

@@ -1219,7 +1219,17 @@ function LookTraitDefsTab() {
                 <td style={s.td}>
                   {e ? <input style={{ ...s.configInput, width: 60 }} value={e.max_value} onChange={(ev) => updateField(t.id, "max_value", ev.target.value)} /> : (t.max_value ?? "-")}
                 </td>
-                <td style={s.td}>{t.possible_values ? JSON.parse(t.possible_values).join(", ") : "-"}</td>
+                <td style={s.td}>{
+                  // possible_values is JSONB (pg auto-parses) — accept both
+                  // a pre-parsed array (current) and a JSON string (legacy).
+                  (() => {
+                    if (!t.possible_values) return "-";
+                    const v = typeof t.possible_values === "string"
+                      ? (() => { try { return JSON.parse(t.possible_values); } catch { return null; } })()
+                      : t.possible_values;
+                    return Array.isArray(v) ? v.join(", ") : "-";
+                  })()
+                }</td>
                 <td style={s.td}>
                   {e ? (
                     <>

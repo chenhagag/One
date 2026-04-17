@@ -138,7 +138,7 @@ export async function computeCoverage(_db: Database.Database, userId: number): P
     : 0;
 
   const profileComplete = met === total && total > 0;
-  const readyForMatching = readinessScore >= 0.9;
+  const readyForMatching = readinessScore >= 0.1; //Temp, supposed to be 0.9
 
   return {
     coverage_pct: coverage,
