@@ -86,7 +86,7 @@ export default function Dashboard({ userId, userName, onNavigate }: Props) {
       <div style={s.header}>
         <h1 style={s.title}>המסע שלך מתחיל כאן</h1>
         <p style={s.subtitle}>
-          היי {userName}, כל שלב מקרב אותך להתאמה המושלמת
+          היי {userName}, מתחילים לבנות את ההתאמה שלך
         </p>
       </div>
 
