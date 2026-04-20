@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "ts-node src/index.ts",
-    "build": "tsc",
+    "copy-prompts": "node -e \"const fs=require('fs');fs.cpSync('src/agents/conversation/prompts','dist/agents/conversation/prompts',{recursive:true});fs.cpSync('src/agents/analysis/prompts','dist/agents/analysis/prompts',{recursive:true});console.log('[build] prompts copied to dist')\"",
+    "build": "tsc && npm run copy-prompts",
     "start": "node dist/index.js",
     "postinstall": "npm run build",
     "reset-users": "ts-node src/resetUserData.ts"

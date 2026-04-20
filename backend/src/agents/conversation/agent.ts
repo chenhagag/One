@@ -80,7 +80,7 @@ export async function runPsychologistAgent(
   userId?: number | null,
   actionType: string = "psychologist_turn"
 ): Promise<string> {
-  const systemPrompt = loadPrompt("Psyhcologist.txt");
+  const systemPrompt = loadPrompt("Psychologist.txt");
   let userMsg = loadPrompt("psychologist-user-template.txt");
 
   userMsg = userMsg.replace("{{user_name}}", ctx.user_name || "there");
