@@ -74,7 +74,14 @@ function calculateInternalScore(
 
     const match = 100 - Math.abs(t1.score - t2.score);
     const sharedConf = Math.sqrt(t1.confidence * t2.confidence);
-    const avgWeight = (t1.weight_for_match + t2.weight_for_match) / 2;
+
+    // Fall back to the trait definition's default weight when the AI
+    // didn't produce a per-user weight_for_match (common — it's optional).
+    const defWeight = def?.weight ?? 5;
+    const w1 = t1.weight_for_match ?? defWeight;
+    const w2 = t2.weight_for_match ?? defWeight;
+    const avgWeight = (w1 + w2) / 2;
+
     const weightedWeight = avgWeight * sharedConf;
     const weightedScore = weightedWeight * match;
 

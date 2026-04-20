@@ -458,7 +458,43 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
       <p style={{ ...s.sub, marginBottom: 8 }}>
         Status: <strong>{user.user_status}</strong> |
         Readiness: <strong>{coverage?.readiness_score != null ? `${Math.round(coverage.readiness_score * 100)}%` : "-"}</strong> |
-        Matchable: <strong style={{ color: user.is_matchable ? "#28a745" : "#dc3545" }}>{user.is_matchable ? "Yes" : "No"}</strong> |
+        Matchable: <strong style={{ color: user.is_matchable ? "#28a745" : "#dc3545" }}>{user.is_matchable ? "Yes" : "No"}</strong>
+        <button
+          style={{
+            marginLeft: 6,
+            padding: "1px 8px",
+            fontSize: 10,
+            fontWeight: 600,
+            cursor: "pointer",
+            border: "1px solid",
+            borderRadius: 4,
+            background: user.is_matchable ? "#fff3cd" : "#d4edda",
+            borderColor: user.is_matchable ? "#ffc107" : "#28a745",
+            color: user.is_matchable ? "#856404" : "#155724",
+          }}
+          onClick={async () => {
+            try {
+              const res = await fetch(`/api/admin/users/${user.id}/toggle-matchable`, { method: "POST" });
+              const data = await res.json();
+              if (!res.ok) {
+                alert(`Error: ${data.error || res.statusText}`);
+                return;
+              }
+              // Refresh user data
+              setUser((prev: any) => prev ? { ...prev, is_matchable: data.is_matchable } : prev);
+              if (data.forced) {
+                alert(`Forced matchable = TRUE for user ${user.id}`);
+              } else {
+                alert(`Recalculated: matchable = ${data.is_matchable} (readiness: ${Math.round((data.readiness_score ?? 0) * 100)}%)`);
+              }
+            } catch (err: any) {
+              alert("Failed to toggle matchable: " + (err?.message || "network error"));
+            }
+          }}
+        >
+          {user.is_matchable ? "Recalculate" : "Force Matchable"}
+        </button>
+         |
         Profile complete: <strong>{coverage?.profile_complete ? "Yes" : "No"}</strong> |
         Traits complete: <strong>{coverage ? `${coverage.met_count}/${coverage.total_count}` : "-"}</strong>
       </p>

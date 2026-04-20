@@ -2,8 +2,8 @@
   "name": "matchme",
   "private": true,
   "scripts": {
-    "build": "cd backend && npm install && npm run build",
-    "start": "cd backend && npm run start",
+    "build": "cd frontend && npm install && npm run build && cd ../backend && npm install && npm run build",
+    "start": "cd backend && node dist/index.js",
     "dev": "cd backend && npm run dev"
   },
   "dependencies": {

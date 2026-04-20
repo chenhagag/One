@@ -135,6 +135,7 @@ export default function App() {
         <ProfileEdit
           user={user}
           onBack={() => setView("dashboard")}
+          onUserUpdate={(u) => setUser(u)}
         />
       )}
 

@@ -138,7 +138,7 @@ export async function computeCoverage(_db: Database.Database, userId: number): P
     : 0;
 
   const profileComplete = met === total && total > 0;
-  const readyForMatching = readinessScore >= 0.1; //Temp, supposed to be 0.9
+  const readyForMatching = readinessScore >= 0.9; 
 
   return {
     coverage_pct: coverage,
@@ -402,7 +402,7 @@ async function persistMessage(
   userId: number,
   role: string,
   content: string,
-  guide: string | null = null
+  guide: string | null = "interviewer"
 ): Promise<void> {
   await pgQueryRun(
     "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES ($1, $2, $3, $4)",
@@ -499,7 +499,8 @@ async function runFullAnalysisAtEnd(
   state.last_analysis_at_turn = state.turn_count;
 
   const cov = await computeCoverage(db, userId);
-  console.log(`[orchestrator] Full analysis done: coverage=${cov.coverage_pct}%, readiness=${cov.readiness_score}, complete=${cov.profile_complete}`);
+  await updateUserReadiness(db, userId, cov);
+  console.log(`[orchestrator] Full analysis done: coverage=${cov.coverage_pct}%, readiness=${cov.readiness_score}, matchable=${cov.ready_for_matching}`);
 
   return output;
 }

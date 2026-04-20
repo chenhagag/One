@@ -33,11 +33,16 @@ export function getPool(): Pool {
     ssl: needsSsl ? { rejectUnauthorized: false } : false,
     max: 10,
     idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 5_000,
+    // Keep TCP connections alive — prevents cloud NAT/firewalls from
+    // dropping idle sockets, which causes "connection terminated" errors.
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10_000,
   });
 
+  // Log pool-level errors (idle client disconnect, etc.) without crashing.
   _pool.on("error", (err) => {
-    console.error("[pg pool] unexpected error on idle client:", err);
+    console.error("[pg pool] idle client error (non-fatal):", err.message);
   });
 
   return _pool;

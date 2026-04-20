@@ -25,10 +25,27 @@ function round2(n: number): number {
 }
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+
+// ── /api prefix rewrite ─────────────────────────────────────────
+// In dev, Vite's proxy strips "/api" before forwarding to the backend.
+// In production (single server, no proxy), the frontend still calls
+// "/api/register", "/api/users/:id", etc. This middleware strips the
+// prefix so the existing routes (registered as "/register", "/users/:id")
+// continue to match.
+app.use((req, _res, next) => {
+  if (req.path.startsWith("/api/")) {
+    req.url = req.url.replace(/^\/api/, "");
+  }
+  next();
+});
+
+// ── Serve frontend static build ──────────────────────────────────
+const frontendDist = path.join(__dirname, "../../frontend/dist");
+app.use(express.static(frontendDist));
 
 // ════════════════════════════════════════════════════════════════
 // REGISTRATION
@@ -407,6 +424,14 @@ app.post("/conversation/pause", async (req, res) => {
         delete (output as any)._run_data;
         const saved = await saveAnalysisToDb(db, userId, output);
         console.log(`[conversation] Pause analysis DONE for user ${userId}: ${saved.internal_saved} internal, ${saved.external_saved} external`);
+
+        // Recompute readiness NOW that traits are saved — this sets is_matchable
+        const covAfter = await computeCoverage(db, userId);
+        await pgQueryAll(
+          "UPDATE users SET readiness_score = $1, is_matchable = $2, updated_at = NOW() WHERE id = $3",
+          [covAfter.readiness_score, covAfter.ready_for_matching, userId]
+        );
+        console.log(`[conversation] Readiness updated for user ${userId}: score=${covAfter.readiness_score}, matchable=${covAfter.ready_for_matching}`);
       } catch (err: any) {
         console.error(`[conversation] Pause analysis FAILED for user ${userId}:`, err.message);
       }
@@ -447,7 +472,15 @@ app.post("/conversation/analyze", async (req, res) => {
     }
     delete (output as any)._run_data;
     const saved = await saveAnalysisToDb(db, userId, output);
-    console.log(`[analyze] DONE for user ${userId}: ${saved.internal_saved} internal, ${saved.external_saved} external`);
+
+    // Recompute readiness now that traits are saved — sets is_matchable
+    const cov = await computeCoverage(db, userId);
+    await pgQueryAll(
+      "UPDATE users SET readiness_score = $1, is_matchable = $2, updated_at = NOW() WHERE id = $3",
+      [cov.readiness_score, cov.ready_for_matching, userId]
+    );
+
+    console.log(`[analyze] DONE for user ${userId}: ${saved.internal_saved} internal, ${saved.external_saved} external, matchable=${cov.ready_for_matching}`);
     return res.json({ analysis_ran: true, saved, traits_count: output.internal_traits?.length });
   } catch (err: any) {
     console.error(`[analyze] FAILED for user ${userId}:`, err.message);
@@ -636,8 +669,15 @@ app.post("/analyze-profile", async (req, res) => {
 
     // 4. Save traits to DB (COALESCE preserves existing non-null values)
     const saved = await saveAnalysisToDb(db, user_id, output);
-    console.log(`[analyze-profile] User ${user_id}: saved ${saved.internal_saved} internal, ${saved.external_saved} external traits`);
-    console.log(`[analyze-profile] User ${user_id}: coverage ${output.profiling_completeness.coverage_pct}%, ready: ${output.profiling_completeness.ready_for_matching}`);
+
+    // Recompute readiness — sets is_matchable
+    const cov = await computeCoverage(db, user_id);
+    await pgQueryAll(
+      "UPDATE users SET readiness_score = $1, is_matchable = $2, updated_at = NOW() WHERE id = $3",
+      [cov.readiness_score, cov.ready_for_matching, user_id]
+    );
+
+    console.log(`[analyze-profile] User ${user_id}: saved ${saved.internal_saved} internal, ${saved.external_saved} external traits, matchable=${cov.ready_for_matching}`);
 
     // 5. Update the latest profile record with analysis JSON (pg)
     const latest = await pgQueryOne<{ id: number }>(
@@ -1293,11 +1333,57 @@ app.post("/admin/users/:id/reanalyze", async (req, res) => {
       await saveAnalysisRun(db, user_id, runData.generated_prompt, runData.stage_a_output, JSON.stringify(runData.stage_b_output), "reanalyze");
     }
 
-    console.log(`[reanalyze] User ${user_id}: saved ${saved.internal_saved} internal, ${saved.external_saved} external traits`);
+    // Recompute readiness after fresh analysis
+    const cov = await computeCoverage(db, user_id);
+    await pgQueryAll(
+      "UPDATE users SET readiness_score = $1, is_matchable = $2, updated_at = NOW() WHERE id = $3",
+      [cov.readiness_score, cov.ready_for_matching, user_id]
+    );
+
+    console.log(`[reanalyze] User ${user_id}: saved ${saved.internal_saved} internal, ${saved.external_saved} external traits, matchable=${cov.ready_for_matching}`);
     return res.json({ saved, analysis: output });
   } catch (err: any) {
     console.error(`[reanalyze] Error for user ${user_id}:`, err);
     return res.status(500).json({ error: "Re-analysis failed: " + err.message });
+  }
+});
+
+// POST /admin/users/:id/toggle-matchable — Force-toggle is_matchable for testing
+//
+// If currently FALSE → force to TRUE (manual override).
+// If currently TRUE  → recalculate from actual readiness score (natural state).
+app.post("/admin/users/:id/toggle-matchable", async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const user = await pgQueryOne<any>("SELECT id, is_matchable FROM users WHERE id = $1", [userId]);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    if (!user.is_matchable) {
+      // Force to TRUE — manual override
+      await pgQueryAll(
+        "UPDATE users SET is_matchable = TRUE, updated_at = NOW() WHERE id = $1",
+        [userId]
+      );
+      console.log(`[admin] Force-enabled matchable for user ${userId}`);
+      return res.json({ user_id: userId, is_matchable: true, forced: true });
+    } else {
+      // Recalculate from actual readiness — return to natural state
+      const cov = await computeCoverage(db, userId);
+      await pgQueryAll(
+        "UPDATE users SET readiness_score = $1, is_matchable = $2, updated_at = NOW() WHERE id = $3",
+        [cov.readiness_score, cov.ready_for_matching, userId]
+      );
+      console.log(`[admin] Recalculated matchable for user ${userId}: score=${cov.readiness_score}, matchable=${cov.ready_for_matching}`);
+      return res.json({
+        user_id: userId,
+        is_matchable: cov.ready_for_matching,
+        forced: false,
+        readiness_score: cov.readiness_score,
+      });
+    }
+  } catch (err: any) {
+    console.error(`[admin] toggle-matchable failed:`, err);
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -1592,6 +1678,18 @@ app.get("/users", async (_req, res) => {
   `);
   // analysis_json is JSONB — already parsed by pg
   return res.json(users.map(u => ({ ...u, analysis: u.analysis_json })));
+});
+
+// ── SPA catch-all ────────────────────────────────────────────────
+// Any GET request that didn't match an API route or static file gets
+// the frontend's index.html — lets React Router handle client-side routing.
+app.get("*", (_req, res) => {
+  const indexPath = path.join(frontendDist, "index.html");
+  res.sendFile(indexPath, (err) => {
+    if (err) {
+      res.status(404).send("Frontend not built. Run: cd frontend && npm run build");
+    }
+  });
 });
 
 app.listen(PORT, () => {

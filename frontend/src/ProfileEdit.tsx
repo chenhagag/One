@@ -4,7 +4,7 @@ import { ArrowRight } from "lucide-react";
 
 interface EnumOption { value: string; label_he: string; label_en: string; }
 
-export default function ProfileEdit({ user, onBack }: { user: User; onBack: () => void }) {
+export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User; onBack: () => void; onUserUpdate?: (u: User) => void }) {
   // About me
   const [firstName, setFirstName] = useState(user.first_name || "");
   const [age, setAge] = useState(user.age ? String(user.age) : "");
@@ -25,6 +25,29 @@ export default function ProfileEdit({ user, onBack }: { user: User; onBack: () =
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+
+  // Fetch fresh user data from pg on mount — don't rely on the stale
+  // `user` prop from App.tsx (which was set at registration time).
+  useEffect(() => {
+    fetch(`/api/users/${user.id}`)
+      .then(r => r.json())
+      .then((u: any) => {
+        if (u.first_name) setFirstName(u.first_name);
+        if (u.age != null) setAge(String(u.age));
+        if (u.gender) setGender(u.gender);
+        if (u.city) setCity(u.city);
+        if (u.height != null) setHeight(String(u.height));
+        if (u.looking_for_gender) setLookingForGender(u.looking_for_gender);
+        if (u.desired_age_min != null) setDesiredAgeMin(String(u.desired_age_min));
+        if (u.desired_age_max != null) setDesiredAgeMax(String(u.desired_age_max));
+        if (u.age_flexibility) setAgeFlex(u.age_flexibility);
+        if (u.desired_height_min != null) setDesiredHeightMin(String(u.desired_height_min));
+        if (u.desired_height_max != null) setDesiredHeightMax(String(u.desired_height_max));
+        if (u.height_flexibility) setHeightFlex(u.height_flexibility);
+        if (u.desired_location_range) setLocationRange(u.desired_location_range);
+      })
+      .catch(() => {});
+  }, [user.id]);
 
   useEffect(() => {
     fetch("/api/admin/enum-options")
@@ -64,6 +87,8 @@ export default function ProfileEdit({ user, onBack }: { user: User; onBack: () =
         }),
       });
       if (!res.ok) { const data = await res.json(); setError(data.error || "שגיאה בשמירה"); return; }
+      const updatedUser = await res.json();
+      if (onUserUpdate && updatedUser) onUserUpdate(updatedUser);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch { setError("לא ניתן להתחבר לשרת"); }
