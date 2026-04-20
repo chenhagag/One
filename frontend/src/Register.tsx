@@ -95,6 +95,7 @@ export default function Register({ onSuccess }: { onSuccess: (u: User) => void }
   const [desiredHeightMax, setDesiredHeightMax] = useState("");
   const [heightFlex, setHeightFlex] = useState("slightly_flexible");
   const [locationRange, setLocationRange] = useState("my_area");
+  const [testUserType, setTestUserType] = useState("");
 
   // Enum options from server
   const [enums, setEnums] = useState<Record<string, EnumOption[]>>({});
@@ -153,6 +154,7 @@ export default function Register({ onSuccess }: { onSuccess: (u: User) => void }
           desired_height_max: desiredHeightMax ? parseInt(desiredHeightMax) : null,
           height_flexibility: heightFlex,
           desired_location_range: locationRange,
+          test_user_type: testUserType || null,
         }),
       });
 
@@ -229,6 +231,13 @@ export default function Register({ onSuccess }: { onSuccess: (u: User) => void }
           ]).map((o) => (
             <option key={o.value} value={o.value}>{o.label_he}</option>
           ))}
+        </select>
+
+        <label style={s.label}>סוג משתמש לבדיקות</label>
+        <select style={s.select} value={testUserType} onChange={(e) => setTestUserType(e.target.value)}>
+          <option value="">בחר/י</option>
+          <option value="Couple Tester">אני בזוגיות ועוזר/ת בבדיקות שידוך</option>
+          <option value="User Experience Tester">אני רווק/ה ועוזר/ת בבדיקות מערכת</option>
         </select>
       </div>
 

@@ -123,6 +123,7 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       total_matches             INTEGER DEFAULT 0,
       good_matches              INTEGER DEFAULT 0,
       selected_guide            TEXT,
+      test_user_type            TEXT,
       created_at                TIMESTAMPTZ DEFAULT NOW(),
       updated_at                TIMESTAMPTZ DEFAULT NOW()
     );
@@ -305,6 +306,19 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
     );
 
     -- ================================================================
+    -- BUG REPORTS
+    -- ================================================================
+
+    CREATE TABLE IF NOT EXISTS bug_reports (
+      id          SERIAL PRIMARY KEY,
+      user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      report_text TEXT NOT NULL,
+      created_at  TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_bug_reports_user ON bug_reports(user_id);
+
+    -- ================================================================
     -- INDEXES
     -- ================================================================
     CREATE INDEX IF NOT EXISTS idx_user_traits_user           ON user_traits(user_id);
@@ -351,6 +365,19 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
         ALTER TABLE token_usage
           ADD CONSTRAINT token_usage_user_id_fkey
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
+      END IF;
+    END $$;
+  `);
+
+  // ── Column migrations for existing databases ───────────────────
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'test_user_type'
+      ) THEN
+        ALTER TABLE users ADD COLUMN test_user_type TEXT;
       END IF;
     END $$;
   `);

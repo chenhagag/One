@@ -11,6 +11,7 @@ type View =
   | "landing"
   | "register"
   | "login"
+  | "welcome"
   | "dashboard"
   | "profile_edit"
   | "chat"
@@ -37,6 +38,7 @@ export interface User {
   desired_height_max?: number;
   height_flexibility?: string;
   desired_location_range?: string;
+  test_user_type?: string;
 }
 
 // Simplified user type for Chat/Result (legacy components use .name)
@@ -227,7 +229,7 @@ export default function App() {
   function handleRegisterSuccess(u: User) {
     saveSession(u);
     setUser(u);
-    setView("dashboard");
+    setView("welcome"); // Show onboarding — only after fresh registration
   }
 
   // ── Logout ─────────────────────────────────────────────────────
@@ -247,8 +249,27 @@ export default function App() {
     );
   }
 
+  // Bug report state
+  const [showBugReport, setShowBugReport] = useState(false);
+  const [bugText, setBugText] = useState("");
+  const [bugSent, setBugSent] = useState(false);
+
+  async function handleBugSubmit() {
+    if (!bugText.trim()) return;
+    try {
+      await fetch("/api/report-bug", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: user?.id, report_text: bugText.trim() }),
+      });
+      setBugSent(true);
+      setBugText("");
+      setTimeout(() => { setBugSent(false); setShowBugReport(false); }, 2000);
+    } catch {}
+  }
+
   // Dashboard uses a dark theme — hide the default light header
-  const showHeader = view !== "dashboard" && view !== "landing" && view !== "admin";
+  const showHeader = view !== "dashboard" && view !== "landing" && view !== "admin" && view !== "welcome";
 
   return (
     <div style={view === "admin" ? { ...styles.app, maxWidth: "100%" } : view === "dashboard" ? { ...styles.app, padding: "20px" } : styles.app}>
@@ -327,15 +348,80 @@ export default function App() {
         <Register onSuccess={handleRegisterSuccess} />
       )}
 
+      {/* Welcome / Onboarding — only after fresh registration */}
+      {view === "welcome" && user && (
+        <div dir="rtl" style={{ maxWidth: 520, margin: "0 auto", padding: "40px 20px" }}>
+          <h2 style={{ fontSize: 26, marginBottom: 16, textAlign: "center" }}>
+            {user.first_name}, !ברוך/ה הבא/ה ל-MatchMe
+          </h2>
+          <div style={{ background: "#f8f9fa", borderRadius: 12, padding: 24, marginBottom: 20, lineHeight: 1.8, fontSize: 15, color: "#333" }}>
+            <p style={{ marginTop: 0 }}>
+              <strong>MatchMe</strong> הוא מערכת שידוכים חכמה שמתאימה בין אנשים ברמה עמוקה — בלי החלקות, בלי שיפוטיות חיצונית.
+            </p>
+            <p>
+              המערכת תכיר אותך דרך שתי שיחות קצרות: <strong>מעבדת אישיות</strong> (סימולציות ודילמות) ו<strong>שיחת עומק</strong> (שיחה חופשית עם פסיכולוג AI).
+            </p>
+            <p>
+              כל מה שתספר/י נשאר חסוי לחלוטין ולא מופיע בפרופיל. ככל שתהיה יותר כנ/ה ופתוח/ה, כך ההתאמה תהיה מדויקת יותר.
+            </p>
+            <p style={{ color: "#888", fontSize: 13 }}>
+              המערכת בשלבי בנייה ובדיקות — ייתכנו באגים קטנים. נשמח לשמוע אם נתקלת בבעיה.
+            </p>
+          </div>
+
+          {user.test_user_type === "Couple Tester" && (
+            <div style={{ background: "#fff3cd", borderRadius: 10, padding: 16, marginBottom: 20, fontSize: 14, lineHeight: 1.7, border: "1px solid #ffc107" }}>
+              <strong>הערה לזוגות:</strong> המטרה היא לבדוק אם המערכת מצליחה לזהות את ההתאמה בין בני זוג קיימים.
+              אנא ענה/י בכנות, כאילו את/ה רווק/ה ומחפש/ת — בדיוק כפי שהיית עונה אילו היית באמת מחפש/ת מישהו חדש.
+            </div>
+          )}
+
+          <button
+            style={{ width: "100%", padding: 16, fontSize: 17, fontWeight: 600, background: "#6C63FF", color: "#fff", border: "none", borderRadius: 30, cursor: "pointer" }}
+            onClick={() => setView("dashboard")}
+          >
+            להמשיך לאפליקציה
+          </button>
+        </div>
+      )}
+
       {/* Dashboard */}
       {view === "dashboard" && user && (
         <>
-          {/* Logout button overlay on dashboard */}
-          <div style={{ display: "flex", justifyContent: "flex-end", padding: "8px 16px 0" }}>
+          {/* Top bar: logout + bug report */}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "8px 16px 0" }}>
+            <button
+              style={{ ...styles.logoutBtn, background: showBugReport ? "#fff3cd" : undefined, borderColor: showBugReport ? "#ffc107" : undefined }}
+              onClick={() => { setShowBugReport(!showBugReport); setBugSent(false); }}
+            >
+              {showBugReport ? "סגור" : "דווח על באג"}
+            </button>
             <button style={styles.logoutBtn} onClick={handleLogout}>
               Logout
             </button>
           </div>
+
+          {/* Bug report form (inline, above dashboard) */}
+          {showBugReport && (
+            <div dir="rtl" style={{ maxWidth: 420, margin: "12px auto", padding: 16, background: "#fffde7", borderRadius: 10, border: "1px solid #ffe082" }}>
+              <textarea
+                style={{ width: "100%", minHeight: 80, padding: 10, fontSize: 14, borderRadius: 8, border: "1px solid #ddd", resize: "vertical", boxSizing: "border-box", direction: "rtl" }}
+                placeholder="תאר/י את הבאג שנתקלת בו..."
+                value={bugText}
+                onChange={e => setBugText(e.target.value)}
+              />
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+                <button
+                  style={{ padding: "8px 20px", fontSize: 14, fontWeight: 600, background: bugSent ? "#28a745" : "#6C63FF", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer" }}
+                  onClick={handleBugSubmit}
+                  disabled={bugSent}
+                >
+                  {bugSent ? "נשלח בהצלחה!" : "שלח דיווח"}
+                </button>
+              </div>
+            </div>
+          )}
+
           <Dashboard
             userId={user.id}
             userName={user.first_name}

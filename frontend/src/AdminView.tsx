@@ -150,6 +150,7 @@ function UsersTab({ onStartChat, onViewDashboard }: { onStartChat?: (user: { id:
       <th style={s.th}>Gender</th>
       <th style={s.th}>Status</th>
       <th style={s.th}>Matchable</th>
+      <th style={s.th}>Test Type</th>
       <th style={s.th}>Flags</th>
       <th style={s.th}>Tokens</th>
     </tr>
@@ -175,6 +176,7 @@ function UsersTab({ onStartChat, onViewDashboard }: { onStartChat?: (user: { id:
         <td style={s.td}><span style={s.badge}>{u.gender || "-"}</span></td>
         <td style={s.td}><span style={{ ...s.badge, background: u.user_status === "frozen" ? "#f8d7da" : "" }}>{u.user_status || "-"}</span></td>
         <td style={s.td}>{u.is_matchable ? "Yes" : "No"}</td>
+        <td style={s.td}><span style={{ ...s.badge, fontSize: 10, background: u.test_user_type === "Couple Tester" ? "#d4edda" : u.test_user_type ? "#cfe2ff" : "" }}>{u.test_user_type || "-"}</span></td>
         <td style={s.td}>
           {flags.map(f => (
             <span key={f} style={{

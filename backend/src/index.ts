@@ -80,7 +80,7 @@ app.post("/register", async (req, res) => {
     city, height, self_style,
     desired_age_min, desired_age_max, age_flexibility,
     desired_height_min, desired_height_max, height_flexibility,
-    desired_location_range,
+    desired_location_range, test_user_type,
   } = req.body;
 
   if (!first_name || !email) {
@@ -95,8 +95,8 @@ app.post("/register", async (req, res) => {
          city, height, self_style,
          desired_age_min, desired_age_max, age_flexibility,
          desired_height_min, desired_height_max, height_flexibility,
-         desired_location_range
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, $15)
+         desired_location_range, test_user_type
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, $15, $16)
        RETURNING *`,
       [
         first_name.trim(),
@@ -114,6 +114,7 @@ app.post("/register", async (req, res) => {
         desired_height_max || null,
         height_flexibility || "slightly_flexible",
         desired_location_range || "my_area",
+        test_user_type || null,
       ]
     );
 
@@ -1700,6 +1701,39 @@ app.get("/users", async (_req, res) => {
   `);
   // analysis_json is JSONB — already parsed by pg
   return res.json(users.map(u => ({ ...u, analysis: u.analysis_json })));
+});
+
+// ════════════════════════════════════════════════════════════════
+// BUG REPORTS
+// ════════════════════════════════════════════════════════════════
+
+app.post("/report-bug", async (req, res) => {
+  const { user_id, report_text } = req.body;
+  if (!report_text?.trim()) {
+    return res.status(400).json({ error: "report_text is required" });
+  }
+  try {
+    const report = await pgQueryOne<any>(
+      `INSERT INTO bug_reports (user_id, report_text) VALUES ($1, $2) RETURNING *`,
+      [user_id || null, report_text.trim()]
+    );
+    console.log(`[bug] Report #${report.id} from user ${user_id || "anon"}: ${report_text.slice(0, 80)}`);
+    return res.json({ success: true, report_id: report.id });
+  } catch (err: any) {
+    console.error("[bug] Failed to save report:", err.message);
+    return res.status(500).json({ error: "Failed to save report" });
+  }
+});
+
+// GET /admin/bug-reports — All bug reports (admin only)
+app.get("/admin/bug-reports", async (_req, res) => {
+  const reports = await pgQueryAll<any>(`
+    SELECT br.*, u.first_name, u.email
+    FROM bug_reports br
+    LEFT JOIN users u ON u.id = br.user_id
+    ORDER BY br.created_at DESC
+  `);
+  return res.json(reports);
 });
 
 // ── SPA catch-all ────────────────────────────────────────────────

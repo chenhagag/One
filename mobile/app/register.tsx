@@ -91,7 +91,7 @@ export default function RegisterScreen() {
 
         <View style={st.section}>
           <Text style={st.label}>שם *</Text>
-          <TextInput style={[st.input, errors.firstName && st.inputErr]} value={firstName} onChangeText={onChangeFirstName} placeholder="השם שלך" />
+          <TextInput style={[st.input, errors.firstName && st.inputErr]} value={firstName} onChangeText={onChangeFirstName} placeholder="שם מלא" />
           {errors.firstName && <Text style={st.err}>{errors.firstName}</Text>}
 
           <Text style={st.label}>אימייל *</Text>
