@@ -367,6 +367,9 @@ export default function App() {
             <p style={{ color: "#888", fontSize: 13 }}>
               המערכת בשלבי בנייה ובדיקות — ייתכנו באגים קטנים. נשמח לשמוע אם נתקלת בבעיה.
             </p>
+            <p style={{ fontWeight: 600, color: "#6C63FF", marginBottom: 0 }}>
+              תודה רבה על שיתוף הפעולה והעזרה!
+            </p>
           </div>
 
           {user.test_user_type === "Couple Tester" && (
@@ -375,6 +378,27 @@ export default function App() {
               אנא ענה/י בכנות, כאילו את/ה רווק/ה ומחפש/ת — בדיוק כפי שהיית עונה אילו היית באמת מחפש/ת מישהו חדש.
             </div>
           )}
+
+          {/* הנחיות התקנה כאפליקציה */}
+          <div style={{ background: "#e8f4fd", borderRadius: 10, padding: 16, marginBottom: 20, fontSize: 13, lineHeight: 1.8, border: "1px solid #bee5eb" }}>
+            <strong style={{ fontSize: 14 }}>להתקין כאפליקציה על הטלפון:</strong>
+
+            <p style={{ marginBottom: 4, marginTop: 10 }}><strong>באייפון (Safari):</strong></p>
+            <ol style={{ margin: 0, paddingRight: 20, paddingLeft: 0 }}>
+              <li>פתחו את הלינק בדפדפן Safari.</li>
+              <li>לחצו על כפתור השיתוף (הריבוע עם החץ כלפי מעלה בתחתית המסך).</li>
+              <li>גללו מעט למטה ובחרו "הוספה למסך הבית" (Add to Home Screen).</li>
+              <li>לחצו על "הוספה" (Add) בפינה העליונה.</li>
+            </ol>
+
+            <p style={{ marginBottom: 4, marginTop: 12 }}><strong>באנדרואיד (Chrome):</strong></p>
+            <ol style={{ margin: 0, paddingRight: 20, paddingLeft: 0 }}>
+              <li>פתחו את הלינק בדפדפן Chrome.</li>
+              <li>לחצו על שלוש הנקודות בפינה העליונה (או התחתונה).</li>
+              <li>בחרו "התקנת אפליקציה" (Install app) או "הוספה למסך הבית".</li>
+              <li>אשרו את הפעולה בחלונית שתיפתח.</li>
+            </ol>
+          </div>
 
           <button
             style={{ width: "100%", padding: 16, fontSize: 17, fontWeight: 600, background: "#6C63FF", color: "#fff", border: "none", borderRadius: 30, cursor: "pointer" }}

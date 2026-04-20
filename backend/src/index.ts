@@ -764,11 +764,8 @@ app.get("/users/:id/dashboard-progress", async (req, res) => {
   );
   const coverage_pct = total > 0 ? Math.round((assessed / total) * 100) : 0;
 
-  // Deep chat progress: use coverage_pct when analysis has run,
-  // otherwise show turn-based progress (turns / 12) so bar moves immediately
-  const depth_pct = coverage_pct > 0
-    ? coverage_pct
-    : Math.min(100, Math.round((depthTurns / 12) * 100));
+  // Deep chat progress: turns / 20 (needs 20 user messages to complete)
+  const depth_pct = Math.min(100, Math.round((depthTurns / 20) * 100));
 
   return res.json({
     identity_pct,
@@ -1734,6 +1731,27 @@ app.get("/admin/bug-reports", async (_req, res) => {
     ORDER BY br.created_at DESC
   `);
   return res.json(reports);
+});
+
+// PATCH /admin/bug-reports/:id — Edit a bug report
+app.patch("/admin/bug-reports/:id", async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { report_text } = req.body;
+  if (!report_text?.trim()) return res.status(400).json({ error: "report_text is required" });
+  const updated = await pgQueryOne<any>(
+    "UPDATE bug_reports SET report_text = $1 WHERE id = $2 RETURNING *",
+    [report_text.trim(), id]
+  );
+  if (!updated) return res.status(404).json({ error: "Report not found" });
+  return res.json(updated);
+});
+
+// DELETE /admin/bug-reports/:id — Delete a bug report
+app.delete("/admin/bug-reports/:id", async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const result = await pgQueryAll("DELETE FROM bug_reports WHERE id = $1 RETURNING id", [id]);
+  if (result.length === 0) return res.status(404).json({ error: "Report not found" });
+  return res.json({ deleted: true });
 });
 
 // ── SPA catch-all ────────────────────────────────────────────────

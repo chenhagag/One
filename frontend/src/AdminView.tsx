@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
  * - Matches
  */
 
-type Tab = "overview" | "users" | "traits" | "look_traits" | "enums" | "config" | "matches" | "candidates";
+type Tab = "overview" | "users" | "traits" | "look_traits" | "enums" | "config" | "matches" | "candidates" | "bugs";
 
 const s: Record<string, React.CSSProperties> = {
   heading: { marginTop: 0, marginBottom: 8, fontSize: 22 },
@@ -68,6 +68,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard }: { on
           ["config", "Config"],
           ["candidates", "Candidate Matches"],
           ["matches", "Matched"],
+          ["bugs", "Bug Reports"],
         ] as [Tab, string][]).map(([key, label]) => (
           <button
             key={key}
@@ -87,6 +88,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard }: { on
       {tab === "config" && <ConfigTab />}
       {tab === "matches" && <MatchesTab />}
       {tab === "candidates" && <CandidateMatchesTab />}
+      {tab === "bugs" && <BugReportsTab />}
     </div>
   );
 }
@@ -1696,6 +1698,135 @@ function CandidateMatchesTab() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// BUG REPORTS TAB
+// ════════════════════════════════════════════════════════════════
+
+function BugReportsTab() {
+  const [reports, setReports] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editText, setEditText] = useState("");
+
+  useEffect(() => {
+    loadReports();
+  }, []);
+
+  function loadReports() {
+    setLoading(true);
+    fetch("/api/admin/bug-reports")
+      .then(r => r.json())
+      .then(data => { setReports(Array.isArray(data) ? data : []); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }
+
+  async function handleDelete(id: number) {
+    if (!confirm("למחוק את הדיווח?")) return;
+    await fetch(`/api/admin/bug-reports/${id}`, { method: "DELETE" });
+    setReports(prev => prev.filter(r => r.id !== id));
+  }
+
+  function startEdit(report: any) {
+    setEditingId(report.id);
+    setEditText(report.report_text);
+  }
+
+  async function saveEdit(id: number) {
+    const res = await fetch(`/api/admin/bug-reports/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ report_text: editText }),
+    });
+    if (res.ok) {
+      setReports(prev => prev.map(r => r.id === id ? { ...r, report_text: editText } : r));
+      setEditingId(null);
+    }
+  }
+
+  if (loading) return <p>Loading...</p>;
+
+  return (
+    <div>
+      <h3 style={{ margin: "0 0 16px" }}>Bug Reports ({reports.length})</h3>
+      {reports.length === 0 ? (
+        <p style={{ color: "#888" }}>No bug reports yet.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {reports.map(r => (
+            <div key={r.id} style={{
+              background: "#fff", border: "1px solid #e5e5e5", borderRadius: 8,
+              padding: 16, position: "relative",
+            }}>
+              {/* Header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <div>
+                  <strong style={{ fontSize: 13 }}>{r.first_name || "Anonymous"}</strong>
+                  {r.email && <span style={{ fontSize: 11, color: "#888", marginLeft: 8 }}>{r.email}</span>}
+                </div>
+                <span style={{ fontSize: 11, color: "#aaa" }}>
+                  {r.created_at ? new Date(r.created_at).toLocaleString("he-IL") : ""}
+                </span>
+              </div>
+
+              {/* Body — edit mode or display mode */}
+              {editingId === r.id ? (
+                <div>
+                  <textarea
+                    value={editText}
+                    onChange={e => setEditText(e.target.value)}
+                    style={{
+                      width: "100%", minHeight: 60, padding: 8, fontSize: 13,
+                      border: "1px solid #ddd", borderRadius: 6, resize: "vertical",
+                      boxSizing: "border-box", direction: "rtl",
+                    }}
+                  />
+                  <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                    <button
+                      style={{ padding: "4px 12px", fontSize: 12, background: "#28a745", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer" }}
+                      onClick={() => saveEdit(r.id)}
+                    >
+                      Save
+                    </button>
+                    <button
+                      style={{ padding: "4px 12px", fontSize: 12, background: "#888", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer" }}
+                      onClick={() => setEditingId(null)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap", direction: "rtl" }}>
+                  {r.report_text}
+                </p>
+              )}
+
+              {/* Actions */}
+              {editingId !== r.id && (
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <button
+                    style={{ padding: "3px 10px", fontSize: 11, background: "#f0f4ff", border: "1px solid #ccc", borderRadius: 4, cursor: "pointer" }}
+                    onClick={() => startEdit(r)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    style={{ padding: "3px 10px", fontSize: 11, background: "#fff0f0", border: "1px solid #f5c6cb", borderRadius: 4, cursor: "pointer", color: "#dc3545" }}
+                    onClick={() => handleDelete(r.id)}
+                  >
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>
