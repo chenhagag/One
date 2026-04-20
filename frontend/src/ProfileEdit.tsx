@@ -22,6 +22,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
   const [locationRange, setLocationRange] = useState(user.desired_location_range || "my_area");
 
   const [enums, setEnums] = useState<Record<string, EnumOption[]>>({});
+  const [cities, setCities] = useState<{ city_name: string; region: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
@@ -48,6 +49,10 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
       })
       .catch(() => {});
   }, [user.id]);
+
+  useEffect(() => {
+    fetch("/api/cities").then(r => r.json()).then(setCities).catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch("/api/admin/enum-options")
@@ -89,8 +94,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
       if (!res.ok) { const data = await res.json(); setError(data.error || "שגיאה בשמירה"); return; }
       const updatedUser = await res.json();
       if (onUserUpdate && updatedUser) onUserUpdate(updatedUser);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      onBack();
     } catch { setError("לא ניתן להתחבר לשרת"); }
     finally { setLoading(false); }
   }
@@ -147,7 +151,10 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
           </select>
 
           <label style={s.label}>עיר</label>
-          <input style={s.input} value={city} onChange={(e) => setCity(e.target.value)} />
+          <input style={s.input} value={city} onChange={(e) => setCity(e.target.value)} list="city-list" autoComplete="off" />
+          <datalist id="city-list">
+            {cities.map(c => <option key={c.city_name} value={c.city_name} />)}
+          </datalist>
         </div>
 
         {/* ── Looking For ── */}

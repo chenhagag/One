@@ -7,6 +7,8 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { getUser, updateUser, uploadPhoto, getUserPhotos, deletePhoto, API_BASE_URL, type UserPhoto } from "../src/api";
 
+interface CityOption { city_name: string; region: string; }
+
 const GENDER_OPTIONS = [
   { value: "man", label: "גבר" },
   { value: "woman", label: "אישה" },
@@ -52,14 +54,22 @@ export default function ProfileEditScreen() {
   const [heightFlex, setHeightFlex] = useState("slightly_flexible");
   const [locationRange, setLocationRange] = useState("my_area");
 
+  // Cities for autocomplete
+  const [allCities, setAllCities] = useState<CityOption[]>([]);
+  const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
+  const filteredCities = city.trim()
+    ? allCities.filter(c => c.city_name.includes(city.trim()))
+    : allCities;
+
   // Photos
   const [photos, setPhotos] = useState<UserPhoto[]>([]);
   const [uploading, setUploading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
 
-  // Load existing user data + photos on mount
+  // Load existing user data + photos + cities on mount
   useEffect(() => {
     if (!userId) return;
+    fetch(`${API_BASE_URL}/cities`).then(r => r.json()).then(setAllCities).catch(() => {});
     Promise.all([
       getUser(userId).then((u: any) => {
         if (u.first_name) setFirstName(u.first_name);
@@ -198,7 +208,28 @@ export default function ProfileEditScreen() {
           <OptionButtons options={GENDER_OPTIONS} value={gender} onChange={setGender} />
 
           <Text style={st.label}>עיר</Text>
-          <TextInput style={st.input} value={city} onChangeText={setCity} placeholder="העיר שלך" />
+          <TextInput
+            style={st.input}
+            value={city}
+            onChangeText={(v) => { setCity(v); setCityDropdownOpen(true); }}
+            onFocus={() => setCityDropdownOpen(true)}
+            placeholder="הקלידו שם עיר"
+          />
+          {cityDropdownOpen && filteredCities.length > 0 && (
+            <View style={{ backgroundColor: "#fff", borderWidth: 1, borderColor: "#ddd", borderRadius: 8, maxHeight: 150, marginBottom: 8 }}>
+              <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                {filteredCities.map(c => (
+                  <Pressable
+                    key={c.city_name}
+                    style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "#f0f0f0" }}
+                    onPress={() => { setCity(c.city_name); setCityDropdownOpen(false); }}
+                  >
+                    <Text style={{ fontSize: 14, textAlign: "right" }}>{c.city_name} <Text style={{ color: "#aaa", fontSize: 11 }}>({c.region})</Text></Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          )}
         </View>
 
         {/* Looking for */}

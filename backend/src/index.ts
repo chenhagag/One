@@ -51,6 +51,14 @@ app.use(express.static(frontendDist));
 // LOGIN
 // ════════════════════════════════════════════════════════════════
 
+// GET /cities — List of cities for autocomplete
+app.get("/cities", async (_req, res) => {
+  const rows = await pgQueryAll<{ city_name: string; region: string }>(
+    "SELECT city_name, region FROM cities ORDER BY city_name"
+  );
+  return res.json(rows);
+});
+
 // POST /login — Simple email-based login (no password)
 app.post("/login", async (req, res) => {
   const { email } = req.body;
