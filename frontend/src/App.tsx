@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Register from "./Register";
 import Dashboard from "./Dashboard";
 import ProfileEdit from "./ProfileEdit";
@@ -7,7 +7,17 @@ import PsychologistChat from "./PsychologistChat";
 import Result from "./Result";
 import AdminView from "./AdminView";
 
-type View = "register" | "dashboard" | "profile_edit" | "chat" | "psychologist_chat" | "result" | "done" | "admin";
+type View =
+  | "landing"
+  | "register"
+  | "login"
+  | "dashboard"
+  | "profile_edit"
+  | "chat"
+  | "psychologist_chat"
+  | "result"
+  | "done"
+  | "admin";
 
 // Full user type matching the expanded DB schema
 export interface User {
@@ -47,6 +57,29 @@ export interface AnalysisResult {
   };
 }
 
+// ── Secret admin path ───────────────────────────────────────────
+const ADMIN_SECRET_PATH = "admin-secure-access-2026-chen";
+
+// ── localStorage helpers ────────────────────────────────────────
+function saveSession(user: User) {
+  localStorage.setItem("matchme_user_id", String(user.id));
+  localStorage.setItem("matchme_user_email", user.email);
+}
+
+function clearSession() {
+  localStorage.removeItem("matchme_user_id");
+  localStorage.removeItem("matchme_user_email");
+}
+
+function getSavedSession(): { id: number; email: string } | null {
+  const id = localStorage.getItem("matchme_user_id");
+  const email = localStorage.getItem("matchme_user_email");
+  if (id && email) return { id: parseInt(id, 10), email };
+  return null;
+}
+
+// ── Styles ──────────────────────────────────────────────────────
+
 const styles: Record<string, React.CSSProperties> = {
   app: {
     fontFamily: "system-ui, sans-serif",
@@ -64,26 +97,158 @@ const styles: Record<string, React.CSSProperties> = {
     paddingBottom: 16,
   },
   title: { margin: 0, fontSize: 20, fontWeight: 600 },
-  adminLink: {
-    fontSize: 13,
+  logoutBtn: {
+    fontSize: 12,
     color: "#888",
     cursor: "pointer",
     background: "none",
-    border: "none",
-    padding: 0,
-    textDecoration: "underline",
+    border: "1px solid #ddd",
+    borderRadius: 4,
+    padding: "4px 10px",
   },
   readyContainer: { textAlign: "center" as const, padding: "40px 0" },
+  landingContainer: {
+    textAlign: "center" as const,
+    padding: "80px 20px",
+  },
+  landingTitle: {
+    fontSize: 42,
+    fontWeight: "bold" as const,
+    color: "#6C63FF",
+    marginBottom: 8,
+  },
+  landingSubtitle: {
+    fontSize: 18,
+    color: "#666",
+    marginBottom: 48,
+  },
+  landingBtnRow: {
+    display: "flex",
+    gap: 16,
+    justifyContent: "center",
+  },
+  landingBtn: {
+    padding: "14px 36px",
+    fontSize: 16,
+    fontWeight: 600,
+    borderRadius: 30,
+    cursor: "pointer",
+    border: "none",
+  },
+  loginForm: {
+    maxWidth: 360,
+    margin: "0 auto",
+    textAlign: "right" as const,
+  },
+  loginInput: {
+    width: "100%",
+    padding: "12px 14px",
+    fontSize: 15,
+    border: "1px solid #ddd",
+    borderRadius: 8,
+    boxSizing: "border-box" as const,
+    marginBottom: 12,
+    direction: "ltr" as const,
+  },
 };
 
+// ── App ─────────────────────────────────────────────────────────
+
 export default function App() {
-  const [view, setView] = useState<View>("register");
+  const [view, setView] = useState<View>("landing");
   const [user, setUser] = useState<User | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [chatSessionKey, setChatSessionKey] = useState(0);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [autoLoginDone, setAutoLoginDone] = useState(false);
+
+  // ── Auto-login on mount ────────────────────────────────────────
+  useEffect(() => {
+    // Check for secret admin path in URL hash
+    if (window.location.hash === `#${ADMIN_SECRET_PATH}`) {
+      setView("admin");
+      setAutoLoginDone(true);
+      return;
+    }
+
+    const saved = getSavedSession();
+    if (!saved) {
+      setAutoLoginDone(true);
+      return;
+    }
+
+    // Try to restore session from saved email
+    fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: saved.email }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.id) {
+          setUser(data);
+          setView("dashboard");
+        }
+      })
+      .catch(() => {})
+      .finally(() => setAutoLoginDone(true));
+  }, []);
+
+  // ── Login handler ──────────────────────────────────────────────
+  async function handleLogin() {
+    if (!loginEmail.trim()) { setLoginError("Please enter your email"); return; }
+    setLoginLoading(true);
+    setLoginError("");
+
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: loginEmail.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setLoginError(data.error || "Login failed");
+        return;
+      }
+      saveSession(data);
+      setUser(data);
+      setView("dashboard");
+    } catch {
+      setLoginError("Could not reach the server");
+    } finally {
+      setLoginLoading(false);
+    }
+  }
+
+  // ── Successful registration ────────────────────────────────────
+  function handleRegisterSuccess(u: User) {
+    saveSession(u);
+    setUser(u);
+    setView("dashboard");
+  }
+
+  // ── Logout ─────────────────────────────────────────────────────
+  function handleLogout() {
+    clearSession();
+    setUser(null);
+    setAnalysis(null);
+    setView("landing");
+  }
+
+  // ── Don't render until auto-login check completes ──────────────
+  if (!autoLoginDone) {
+    return (
+      <div style={{ ...styles.app, textAlign: "center", paddingTop: 100 }}>
+        <p style={{ color: "#aaa" }}>Loading...</p>
+      </div>
+    );
+  }
 
   // Dashboard uses a dark theme — hide the default light header
-  const showHeader = view !== "dashboard";
+  const showHeader = view !== "dashboard" && view !== "landing" && view !== "admin";
 
   return (
     <div style={view === "admin" ? { ...styles.app, maxWidth: "100%" } : view === "dashboard" ? { ...styles.app, padding: "20px" } : styles.app}>
@@ -91,43 +256,101 @@ export default function App() {
         <div style={styles.header}>
           <h1
             style={{ ...styles.title, cursor: "pointer" }}
-            onClick={() => { if (user) setView("dashboard"); else { setView("register"); setUser(null); setAnalysis(null); } }}
+            onClick={() => { if (user) setView("dashboard"); }}
           >
             MatchMe
           </h1>
-          <button style={styles.adminLink} onClick={() => setView("admin")}>
-            Admin
-          </button>
+          {user && (
+            <button style={styles.logoutBtn} onClick={handleLogout}>
+              Logout
+            </button>
+          )}
         </div>
       )}
 
-      {/* Step 1: Registration form */}
-      {view === "register" && (
-        <Register
-          onSuccess={(u) => {
-            setUser(u);
-            setView("dashboard");
-          }}
-        />
+      {/* Landing — choose Register or Login */}
+      {view === "landing" && (
+        <div style={styles.landingContainer}>
+          <h1 style={styles.landingTitle}>MatchMe</h1>
+          <p style={styles.landingSubtitle}>Find your perfect match</p>
+          <div style={styles.landingBtnRow}>
+            <button
+              style={{ ...styles.landingBtn, background: "#6C63FF", color: "#fff" }}
+              onClick={() => setView("register")}
+            >
+              Register
+            </button>
+            <button
+              style={{ ...styles.landingBtn, background: "#fff", color: "#6C63FF", border: "2px solid #6C63FF" }}
+              onClick={() => setView("login")}
+            >
+              Login
+            </button>
+          </div>
+        </div>
       )}
 
-      {/* Step 2: Dashboard */}
+      {/* Login form */}
+      {view === "login" && (
+        <div>
+          <h2 style={{ textAlign: "center", marginBottom: 24 }}>Login</h2>
+          <div style={styles.loginForm}>
+            <input
+              style={styles.loginInput}
+              type="email"
+              placeholder="Enter your email"
+              value={loginEmail}
+              onChange={e => setLoginEmail(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleLogin()}
+              autoFocus
+            />
+            {loginError && <p style={{ color: "#E53935", fontSize: 13, marginBottom: 8 }}>{loginError}</p>}
+            <button
+              style={{ ...styles.landingBtn, background: "#6C63FF", color: "#fff", width: "100%" }}
+              onClick={handleLogin}
+              disabled={loginLoading}
+            >
+              {loginLoading ? "..." : "Login"}
+            </button>
+            <p style={{ textAlign: "center", marginTop: 16, fontSize: 13, color: "#888" }}>
+              Don't have an account?{" "}
+              <span style={{ color: "#6C63FF", cursor: "pointer" }} onClick={() => { setView("register"); setLoginError(""); }}>
+                Register
+              </span>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Registration form */}
+      {view === "register" && (
+        <Register onSuccess={handleRegisterSuccess} />
+      )}
+
+      {/* Dashboard */}
       {view === "dashboard" && user && (
-        <Dashboard
-          userId={user.id}
-          userName={user.first_name}
-          onNavigate={(key) => {
-            if (key === "identity") {
-              setView("profile_edit");
-            } else if (key === "personality_lab") {
-              setChatSessionKey(k => k + 1);
-              setView("chat");
-            } else if (key === "deep_chat") {
-              setView("psychologist_chat");
-            }
-            // partner_compass is locked — no action
-          }}
-        />
+        <>
+          {/* Logout button overlay on dashboard */}
+          <div style={{ display: "flex", justifyContent: "flex-end", padding: "8px 16px 0" }}>
+            <button style={styles.logoutBtn} onClick={handleLogout}>
+              Logout
+            </button>
+          </div>
+          <Dashboard
+            userId={user.id}
+            userName={user.first_name}
+            onNavigate={(key) => {
+              if (key === "identity") {
+                setView("profile_edit");
+              } else if (key === "personality_lab") {
+                setChatSessionKey(k => k + 1);
+                setView("chat");
+              } else if (key === "deep_chat") {
+                setView("psychologist_chat");
+              }
+            }}
+          />
+        </>
       )}
 
       {/* Profile edit */}
@@ -172,9 +395,7 @@ export default function App() {
           user={{ id: user.id, name: user.first_name, email: user.email }}
           analysis={analysis}
           onReset={() => {
-            setUser(null);
-            setAnalysis(null);
-            setView("register");
+            handleLogout();
           }}
         />
       )}
@@ -189,20 +410,31 @@ export default function App() {
           <p style={{ color: "#999", fontSize: 14 }}>
             נעדכן אותך ברגע שנמצא מישהו מתאים
           </p>
+          <button
+            style={{ ...styles.logoutBtn, marginTop: 24 }}
+            onClick={() => setView("dashboard")}
+          >
+            חזרה לדשבורד
+          </button>
         </div>
       )}
 
-      {/* Admin view */}
+      {/* Admin view — only accessible via secret hash URL */}
       {view === "admin" && (
         <AdminView
-          onBack={() => user ? setView("dashboard") : setView("register")}
+          onBack={() => {
+            window.location.hash = "";
+            user ? setView("dashboard") : setView("landing");
+          }}
           onStartChat={(u) => {
             setUser({ id: u.id, first_name: u.first_name, email: u.email } as User);
+            saveSession({ id: u.id, first_name: u.first_name, email: u.email } as User);
             setChatSessionKey(k => k + 1);
             setView("chat");
           }}
           onViewDashboard={(u) => {
             setUser({ id: u.id, first_name: u.first_name, email: u.email } as User);
+            saveSession({ id: u.id, first_name: u.first_name, email: u.email } as User);
             setView("dashboard");
           }}
         />

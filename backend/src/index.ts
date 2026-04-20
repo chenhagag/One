@@ -48,6 +48,28 @@ const frontendDist = path.join(__dirname, "../../frontend/dist");
 app.use(express.static(frontendDist));
 
 // ════════════════════════════════════════════════════════════════
+// LOGIN
+// ════════════════════════════════════════════════════════════════
+
+// POST /login — Simple email-based login (no password)
+app.post("/login", async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: "email is required" });
+
+  try {
+    const user = await pgQueryOne<any>(
+      "SELECT * FROM users WHERE email = $1",
+      [email.trim().toLowerCase()]
+    );
+    if (!user) return res.status(404).json({ error: "Email not found" });
+    return res.json(user);
+  } catch (err: any) {
+    console.error("[login]", err.message);
+    return res.status(500).json({ error: "Login failed" });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
 // REGISTRATION
 // ════════════════════════════════════════════════════════════════
 
