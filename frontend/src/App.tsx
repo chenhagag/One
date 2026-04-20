@@ -166,6 +166,11 @@ export default function App() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [autoLoginDone, setAutoLoginDone] = useState(false);
 
+  // Bug report state (must be before any early return — Rules of Hooks)
+  const [showBugReport, setShowBugReport] = useState(false);
+  const [bugText, setBugText] = useState("");
+  const [bugSent, setBugSent] = useState(false);
+
   // ── Auto-login on mount ────────────────────────────────────────
   useEffect(() => {
     // Check for secret admin path in URL hash
@@ -248,11 +253,6 @@ export default function App() {
       </div>
     );
   }
-
-  // Bug report state
-  const [showBugReport, setShowBugReport] = useState(false);
-  const [bugText, setBugText] = useState("");
-  const [bugSent, setBugSent] = useState(false);
 
   async function handleBugSubmit() {
     if (!bugText.trim()) return;
