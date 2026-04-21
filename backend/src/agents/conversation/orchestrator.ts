@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 import { queryOne as pgQueryOne, queryAll as pgQueryAll, queryRun as pgQueryRun } from "../../db.pg";
 import { runConversationAgent, type ConversationContext } from "./agent";
-import { runAnalysisAgent, runCoverageProbe, buildAnalysisInput, saveAnalysisToDb, saveAnalysisRun, loadInternalTraitDefs } from "../analysis";
+import { runAnalysisAgent, buildAnalysisInput, saveAnalysisToDb, saveAnalysisRun } from "../analysis";
 import type { AnalysisAgentOutput } from "../analysis";
 // Guide system removed — single unified conversation
 
@@ -411,54 +411,6 @@ async function persistMessage(
 }
 
 // ── Background runners ─────────────────────────────────────────
-
-// Lightweight coverage probe — runs during conversation.
-// Fires non-blocking. Populates state.last_analysis with missing_traits + recommended_probes only
-// (no scoring). The NEXT turn's guidance uses this signal.
-async function fireCoverageProbe(
-  db: Database.Database,
-  state: ConversationState,
-): Promise<void> {
-  const userId = state.user_id;
-  const turn = state.turn_count;
-
-  state.analysis_in_flight = true;
-  state.analysis_scheduled_at = turn;
-
-  console.log(`[orchestrator] Coverage probe started at turn ${turn} for user ${userId}`);
-
-  const transcript = await buildAnalysisTranscript(db, userId);
-  const internalDefs = await loadInternalTraitDefs();
-
-  runCoverageProbe(transcript, internalDefs, userId, "coverage_probe")
-    .then((probe) => {
-      // Build a minimal AnalysisAgentOutput shape so the rest of the orchestrator works unchanged
-      const minimal: AnalysisAgentOutput = {
-        internal_traits: [],
-        external_traits: [],
-        missing_traits: probe.missing_traits,
-        recommended_probes: probe.recommended_probes,
-        profiling_completeness: {
-          internal_assessed: 0,
-          internal_total: internalDefs.length,
-          external_assessed: 0,
-          external_total: 0,
-          coverage_pct: 0,
-          ready_for_matching: false,
-          notes: `Coverage probe at turn ${turn}: ${probe.covered_traits.length} covered, ${probe.missing_traits.length} missing`,
-        },
-      };
-      state.last_analysis = minimal;
-      state.last_analysis_at_turn = turn;
-      state.analysis_in_flight = false;
-
-      console.log(`[orchestrator] Coverage probe done for user ${userId}: covered=${probe.covered_traits.length}, missing=${probe.missing_traits.length}, probes=${probe.recommended_probes.length}`);
-    })
-    .catch((err) => {
-      console.error(`[orchestrator] Coverage probe failed for user ${userId}:`, err);
-      state.analysis_in_flight = false;
-    });
-}
 
 // Full grouped analysis — runs once at the end of the conversation (phase → summarizing).
 // AWAITED, not background — the summary message generation depends on it.

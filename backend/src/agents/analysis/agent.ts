@@ -82,8 +82,16 @@ function groupTraitsByCategory(
   return groups;
 }
 
-// Hebrew → English label for token tracking action_type (avoids mangled names)
+// Group name → short English label for token tracking action_type
 const GROUP_LABEL_EN: Record<string, string> = {
+  "Cognitive Profile": "cognitive",
+  "Communication Tone": "communication",
+  "Big Five": "big_five",
+  "Schwartz Values": "values",
+  "Emotional Profile": "emotional",
+  "Personal Style": "style",
+  "General Info": "general",
+  // Legacy Hebrew names (in case sqlite bridge still feeds them)
   "כללי": "general",
   "אורח חיים": "lifestyle",
   "וייב": "vibe",
@@ -298,7 +306,7 @@ async function runOneGroupCall(
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ],
-    temperature: 0.2,
+    temperature: 0.05,
     max_tokens: 4000,
     response_format: { type: "json_object" },
   });
@@ -357,7 +365,7 @@ ${traitList}
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ],
-    temperature: 0.2,
+    temperature: 0.05,
     max_tokens: 1500,
     response_format: { type: "json_object" },
   });
@@ -402,7 +410,7 @@ async function runExternalCall(
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ],
-    temperature: 0.2,
+    temperature: 0.05,
     max_tokens: 2000,
     response_format: { type: "json_object" },
   });
@@ -420,71 +428,6 @@ async function runExternalCall(
 
   console.log(`[analysis] External (${externalDefs.length} traits) done in ${durationMs}ms`);
   return { promptSent: userPrompt, rawOutput, parsed, durationMs };
-}
-
-// ── Coverage probe (lightweight, mid-conversation) ──────────────
-
-export interface CoverageProbeResult {
-  covered_traits: string[];
-  missing_traits: string[];
-  recommended_probes: string[];
-}
-
-export async function runCoverageProbe(
-  transcript: string,
-  internalDefs: TraitDefinitionInput[],
-  userId: number | null = null,
-  actionType: string = "coverage_probe"
-): Promise<CoverageProbeResult> {
-  const systemPrompt = loadPrompt("coverage-system.txt");
-
-  // Compact trait list — just internal_name and display name (no full descriptions)
-  const traitList = internalDefs
-    .filter(t => t.calc_type !== "text") // skip text traits (deal_breakers/advantages handled separately)
-    .map(t => `- ${t.internal_name} (${t.display_name_he || ""})`)
-    .join("\n");
-
-  const userPrompt = `## תמליל שיחה
-${transcript}
-
-## רשימת תכונות לבדיקה
-${traitList}
-
-## משימה
-לכל תכונה — האם יש לה אינדיקציה כלשהי בשיחה? החזר JSON.`;
-
-  const start = Date.now();
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-    temperature: 0.1,
-    max_tokens: 1500,
-    response_format: { type: "json_object" },
-  });
-
-  const durationMs = Date.now() - start;
-  trackTokens(userId, actionType, "gpt-4o-mini", response.usage);
-
-  const raw = response.choices[0].message.content || "{}";
-  let parsed: any = {};
-  try {
-    parsed = JSON.parse(raw);
-  } catch (err: any) {
-    console.error(`[analysis] Coverage probe JSON parse failed:`, err.message);
-  }
-
-  console.log(`[analysis] Coverage probe done in ${durationMs}ms`);
-
-  return {
-    covered_traits: Array.isArray(parsed.covered_traits) ? parsed.covered_traits : [],
-    missing_traits: Array.isArray(parsed.missing_traits) ? parsed.missing_traits : [],
-    recommended_probes: Array.isArray(parsed.recommended_probes)
-      ? parsed.recommended_probes.slice(0, 5)
-      : [],
-  };
 }
 
 // ── Main analysis function (grouped + parallel + JSON mode) ─────

@@ -24,7 +24,8 @@ import { queryAll, queryOne, withTransaction } from "./db.pg";
 
 // ── Constants ────────────────────────────────────────────────────
 
-const APPEARANCE_SENSITIVITY_TRAIT_ID = 30;
+// Resolved dynamically in runStage2 from trait_definitions
+let APPEARANCE_SENSITIVITY_TRAIT_ID = -1;
 const APPEARANCE_SENSITIVITY_THRESHOLD = 0.7;
 
 const DEFAULT_INTERNAL_RATIO = 0.80;
@@ -103,6 +104,12 @@ function isAppearanceSensitive(traits: Map<number, TraitRow>): boolean {
 // ── Main entry point ─────────────────────────────────────────────
 
 export async function runStage2(_db: Database.Database): Promise<{ scored: number; skipped: number; promoted_to_matches: number }> {
+
+  // Resolve appearance_sensitivity trait ID dynamically
+  const asTrait = await queryOne<{ id: number }>(
+    "SELECT id FROM trait_definitions WHERE internal_name = 'appearance_sensitivity'"
+  );
+  APPEARANCE_SENSITIVITY_TRAIT_ID = asTrait?.id ?? -1;
 
   // Load trait definitions
   const traitDefRows = await queryAll<TraitDef>(

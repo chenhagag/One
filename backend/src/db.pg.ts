@@ -182,8 +182,11 @@ export function toJsonbParam(v: unknown): string | null {
 export async function syncConfigFromSqlite(sqliteDb: Database.Database): Promise<void> {
   const p = getPool();
 
-  // ── trait_definitions (no JSONB columns) ──
-  const traits = sqliteDb.prepare("SELECT * FROM trait_definitions").all() as any[];
+  // ── trait_definitions — only sync if pg is empty (new traits are seeded via seedNewTraits.ts)
+  const existingTraitCount = Number((await p.query("SELECT COUNT(*)::int AS c FROM trait_definitions")).rows[0]?.c ?? 0);
+  const traits = existingTraitCount === 0
+    ? sqliteDb.prepare("SELECT * FROM trait_definitions").all() as any[]
+    : [];
   for (const t of traits) {
     await p.query(
       `INSERT INTO trait_definitions
@@ -202,8 +205,11 @@ export async function syncConfigFromSqlite(sqliteDb: Database.Database): Promise
     );
   }
 
-  // ── look_trait_definitions (possible_values is JSONB) ──
-  const looks = sqliteDb.prepare("SELECT * FROM look_trait_definitions").all() as any[];
+  // ── look_trait_definitions — only sync if pg is empty
+  const existingLookCount = Number((await p.query("SELECT COUNT(*)::int AS c FROM look_trait_definitions")).rows[0]?.c ?? 0);
+  const looks = existingLookCount === 0
+    ? sqliteDb.prepare("SELECT * FROM look_trait_definitions").all() as any[]
+    : [];
   for (const t of looks) {
     await p.query(
       `INSERT INTO look_trait_definitions

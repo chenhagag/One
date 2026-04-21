@@ -38,24 +38,10 @@ import { queryAll, withTransaction } from "./db.pg";
 // CONSTANTS
 // ══════════════════════════════════════════════════════════════════
 
-// Trait definition IDs (from sort_order / seedDefinitions)
-const TRAIT_IDS = {
-  cognitive_profile: 1,
-  vibe: 2,
-  emotional_stability: 3,
-  family_orientation: 6,
-  party_orientation: 7,
-  religiosity: 14,
-  value_rigidity: 23,
-  toxicity_score: 32,
-  trollness: 33,
-  sexual_identity: 34,
-} as const;
-
-const LOOK_TRAIT_IDS = {
-  body_type: 4,
-  gender_expression: 10,
-} as const;
+// Trait IDs are resolved dynamically at runtime from pg (no more hardcoded IDs).
+// These are populated at the start of runStage1 from trait_definitions / look_trait_definitions.
+let TRAIT_IDS: Record<string, number> = {};
+let LOOK_TRAIT_IDS: Record<string, number> = {};
 
 // ── Thresholds ───────────────────────────────────────────────────
 // All thresholds are documented with their storage scale.
@@ -91,15 +77,9 @@ const APPROVAL_RATE_TOLERANCE = 30;
 // Score is 0–100, tolerance ±20.
 const COGNITIVE_PROFILE_TOLERANCE = 20;
 
-// Personal filter traits: [trait_definition_id, allowed_score_range on 0–100 scale]
-const PERSONAL_FILTER_TRAITS: [number, number][] = [
-  [TRAIT_IDS.vibe, 30],
-  [TRAIT_IDS.emotional_stability, 15],
-  [TRAIT_IDS.family_orientation, 20],
-  [TRAIT_IDS.party_orientation, 20],
-  [TRAIT_IDS.religiosity, 20],
-  [TRAIT_IDS.value_rigidity, 20],
-];
+// Personal filter traits — resolved dynamically in runStage1.
+// Format: [trait_definition_id, allowed_score_range on 0–100 scale]
+let PERSONAL_FILTER_TRAITS: [number, number][] = [];
 
 // Acceptable body types when user desires slim/toned/muscular
 const ACCEPTABLE_BODY_TYPES = new Set(["slim", "toned", "muscular"]);
@@ -154,7 +134,7 @@ function passesToxicityCheck(
   userId: number,
   getTrait: (uid: number, tid: number) => TraitScore | null,
 ): boolean {
-  const tox = getTrait(userId, TRAIT_IDS.toxicity_score);
+  const tox = getTrait(userId, TRAIT_IDS.toxicity);
   if (tox && tox.score >= TOXICITY_THRESHOLD) return false;
 
   const troll = getTrait(userId, TRAIT_IDS.trollness);
@@ -171,7 +151,7 @@ function hasSpecialSexualIdentity(
   userId: number,
   getTrait: (uid: number, tid: number) => TraitScore | null,
 ): boolean {
-  const t = getTrait(userId, TRAIT_IDS.sexual_identity);
+  const t = getTrait(userId, TRAIT_IDS.trans);
   return !!(t && t.score > SEXUAL_IDENTITY_SCORE_THRESHOLD && t.confidence >= SEXUAL_IDENTITY_CONF_THRESHOLD);
 }
 
@@ -183,18 +163,57 @@ function hasSpecialSexualIdentity(
 // MAIN ENTRY POINT (pg-only, async)
 // ══════════════════════════════════════════════════════════════════
 
-export async function runStage1(_db: Database.Database): Promise<{ pairs: number; skipped: number; users: number }> {
+export async function runStage1(_db: Database.Database, options?: { skipMatchableFilter?: boolean; skipAllFilters?: boolean }): Promise<{ pairs: number; skipped: number; users: number }> {
 
   // 1. Load eligible users from pg
+  const whereClause = (options?.skipAllFilters || options?.skipMatchableFilter)
+    ? "WHERE u.valid_person = TRUE"
+    : "WHERE u.is_matchable = TRUE AND u.valid_person = TRUE AND u.user_status = 'waiting_match'";
+
+  // 0. Resolve trait IDs dynamically from pg (no hardcoded IDs)
+  const traitDefs = await queryAll<{ id: number; internal_name: string }>(
+    "SELECT id, internal_name FROM trait_definitions"
+  );
+  const nameToId = new Map(traitDefs.map(t => [t.internal_name, t.id]));
+  const tid = (name: string) => nameToId.get(name) ?? -1;
+
+  TRAIT_IDS = {
+    toxicity: tid("toxicity"),
+    trollness: tid("trollness"),
+    trans: tid("trans"),
+    cognitive_profile: tid("analytical_thinking"), // used as cognitive proxy
+    party_orientation: tid("party_orientation"),
+    religiosity: tid("religiosity"),
+    value_rigidity: tid("value_rigidity"),
+    family_of_origin_closeness: tid("family_of_origin_closeness"),
+    extraversion: tid("extraversion"),
+  };
+
+  const lookTraitDefs = await queryAll<{ id: number; internal_name: string }>(
+    "SELECT id, internal_name FROM look_trait_definitions"
+  );
+  const lookNameToId = new Map(lookTraitDefs.map(t => [t.internal_name, t.id]));
+  LOOK_TRAIT_IDS = {
+    body_type: lookNameToId.get("body_type") ?? -1,
+    gender_expression: lookNameToId.get("gender_expression") ?? -1,
+  };
+
+  // Personal filter traits — [trait_id, allowed_score_range]
+  PERSONAL_FILTER_TRAITS = ([
+    [tid("extraversion"), 30],
+    [tid("family_of_origin_closeness"), 20],
+    [tid("party_orientation"), 20],
+    [tid("religiosity"), 20],
+    [tid("value_rigidity"), 20],
+  ] as [number, number][]).filter(([id]) => id !== -1);
+
   const allCandidateUsers = await queryAll<User>(`
     SELECT u.id, u.age, u.gender, u.looking_for_gender, u.city, u.height,
            u.desired_age_min, u.desired_age_max, u.age_flexibility,
            u.desired_height_min, u.desired_height_max, u.height_flexibility,
            u.desired_location_range, u.initial_attraction_signal, u.updated_at
     FROM users u
-    WHERE u.is_matchable = TRUE
-      AND u.valid_person = TRUE
-      AND u.user_status = 'waiting_match'
+    ${whereClause}
   `);
 
   // 2. Load ALL user_traits into a keyed map — avoids N*M per-pair queries
@@ -299,7 +318,9 @@ export async function runStage1(_db: Database.Database): Promise<{ pairs: number
         continue;
       }
 
-      const passes = passesAllFilters(a, b, getUserTrait, getUserLookTrait, getRegion, getNearbyRegions);
+      const passes = options?.skipAllFilters
+        ? true
+        : passesAllFilters(a, b, getUserTrait, getUserLookTrait, getRegion, getNearbyRegions);
 
       if (passes) {
         if (existing) actions.push({ kind: "update", id: existing.id, aTs, bTs });

@@ -249,7 +249,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
   const [transcript, setTranscript] = useState<any>(null);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [transcriptTab, setTranscriptTab] = useState<"all" | "interviewer" | "psychologist">("all");
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<string | false>(false);
   const [analysisRun, setAnalysisRun] = useState<any>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [showStageA, setShowStageA] = useState(false);
@@ -390,6 +390,52 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
   const internalTraits = traits.filter((t: any) => t.calc_type === "internal_use");
   const dealBreakers = traits.find((t: any) => t.internal_name === "deal_breakers");
   const advantages = traits.find((t: any) => t.internal_name === "advantages");
+  const specialInfo = traits.find((t: any) => t.internal_name === "special_info");
+
+  // ── Computed profiles (confidence-weighted averages) ──────────
+  function traitData(name: string): { score: number; confidence: number } | null {
+    const t = traits.find((t: any) => t.internal_name === name);
+    if (t?.score == null || t?.confidence == null) return null;
+    return { score: t.score, confidence: t.confidence };
+  }
+
+  function weightedAvg(names: string[]): { score: number; count: number; total: number } | null {
+    const items = names.map(traitData).filter((d): d is { score: number; confidence: number } => d != null);
+    if (items.length === 0) return null;
+    const sumWeighted = items.reduce((s, d) => s + d.score * d.confidence, 0);
+    const sumConf = items.reduce((s, d) => s + d.confidence, 0);
+    if (sumConf === 0) return null;
+    return { score: Math.round(sumWeighted / sumConf), count: items.length, total: names.length };
+  }
+
+  const cognitiveProfileTraits = [
+    "analytical_thinking", "abstract_thinking", "cognitive_flexibility", "verbal_reasoning",
+    "depth_of_thought", "intellectual_openness", "conceptual_clarity", "pattern_recognition",
+    "intellectualism", "verbal_expression_ability", "communication_clarity", "career_prestige",
+    "self_awareness", "eq",
+  ];
+
+  const vibeProfile = (() => {
+    const items = [
+      traitData("mainstreamness"),
+      traitData("conformity"),
+      // openness_to_experience is inverted (high openness = low vibe)
+      (() => { const d = traitData("openness_to_experience"); return d ? { score: 100 - d.score, confidence: d.confidence } : null; })(),
+    ].filter((d): d is { score: number; confidence: number } => d != null);
+    if (items.length === 0) return null;
+    const sumW = items.reduce((s, d) => s + d.score * d.confidence, 0);
+    const sumC = items.reduce((s, d) => s + d.confidence, 0);
+    if (sumC === 0) return null;
+    return { score: Math.round(sumW / sumC), count: items.length, total: 3 };
+  })();
+
+  const popularityProfile = weightedAvg(["oriental", "mainstreamness", "broad_appeal"]);
+
+  const computedProfiles = [
+    { name: "פרופיל קוגניטיבי", nameEn: "Cognitive Profile", color: "#6366F1", ...(weightedAvg(cognitiveProfileTraits) || { score: null, count: 0, total: cognitiveProfileTraits.length }) },
+    { name: "סחיות (Vibe)", nameEn: "Vibe", color: "#f59e0b", ...(vibeProfile || { score: null, count: 0, total: 3 }) },
+    { name: "עממיות", nameEn: "Popularity", color: "#10b981", ...(popularityProfile || { score: null, count: 0, total: 3 }) },
+  ];
 
   return (
     <div>
@@ -561,6 +607,36 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
 
         {/* Right column: Traits + Look Traits */}
         <div style={{ flex: 1, minWidth: 400 }}>
+
+          {/* Computed Profiles — derived from trait scores */}
+          {computedProfiles.some(p => p.score != null) && (
+            <>
+              <SectionHeading title="Computed Profiles" />
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+                {computedProfiles.map(p => (
+                  <div key={p.nameEn} style={{
+                    flex: "1 1 140px", padding: "14px 16px", borderRadius: 12,
+                    background: p.score != null ? "#f8fafc" : "#fafafa",
+                    border: `2px solid ${p.score != null ? p.color + "40" : "#e5e5e5"}`,
+                    textAlign: "center", minWidth: 140,
+                  }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#333", marginBottom: 6 }}>{p.name}</div>
+                    {p.score != null ? (
+                      <>
+                        <div style={{ fontSize: 28, fontWeight: 700, color: p.color }}>{p.score}</div>
+                        <div style={{ background: "#eee", borderRadius: 4, height: 6, marginTop: 8, overflow: "hidden" }}>
+                          <div style={{ background: p.color, height: "100%", width: `${p.score}%`, borderRadius: 4 }} />
+                        </div>
+                        <div style={{ fontSize: 10, color: "#999", marginTop: 4 }}>{p.count}/{p.total} traits</div>
+                      </>
+                    ) : (
+                      <div style={{ fontSize: 14, color: "#bbb" }}>—</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
           {/* Personality Traits */}
           <SectionHeading title={`Personality Traits (${visibleTraits.length})`} />
@@ -738,15 +814,37 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
               {transcriptOpen ? "Hide" : "Show"}
             </button>
             <button
-              style={{ padding: "3px 10px", fontSize: 11, cursor: "pointer", background: copied ? "#d4edda" : "#fff", border: "1px solid #ddd", borderRadius: 4 }}
+              style={{ padding: "3px 10px", fontSize: 11, cursor: "pointer", background: copied === "lab" ? "#d4edda" : "#f0f4ff", border: "1px solid #ddd", borderRadius: 4 }}
               onClick={() => {
-                const text = filteredMsgs
-                  .map((m: any) => `${m.role === "user" ? "User" : m.role === "assistant" ? "Assistant" : "System"}: ${m.content}`)
+                const text = interviewerMsgs
+                  .map((m: any) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
                   .join("\n\n");
-                navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+                navigator.clipboard.writeText(text).then(() => { setCopied("lab"); setTimeout(() => setCopied(false), 2000); });
               }}
             >
-              {copied ? "Copied!" : "Copy"}
+              {copied === "lab" ? "Copied!" : `Copy Lab (${interviewerMsgs.length})`}
+            </button>
+            <button
+              style={{ padding: "3px 10px", fontSize: 11, cursor: "pointer", background: copied === "psych" ? "#d4edda" : "#f0f4ff", border: "1px solid #ddd", borderRadius: 4 }}
+              onClick={() => {
+                const text = psychMsgs
+                  .map((m: any) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+                  .join("\n\n");
+                navigator.clipboard.writeText(text).then(() => { setCopied("psych"); setTimeout(() => setCopied(false), 2000); });
+              }}
+            >
+              {copied === "psych" ? "Copied!" : `Copy Depth (${psychMsgs.length})`}
+            </button>
+            <button
+              style={{ padding: "3px 10px", fontSize: 11, cursor: "pointer", background: copied === "all" ? "#d4edda" : "#fff", border: "1px solid #ddd", borderRadius: 4 }}
+              onClick={() => {
+                const text = transcript.messages
+                  .map((m: any) => `[${m.chat_type === "psychologist" ? "Depth" : "Lab"}] ${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+                  .join("\n\n");
+                navigator.clipboard.writeText(text).then(() => { setCopied("all"); setTimeout(() => setCopied(false), 2000); });
+              }}
+            >
+              {copied === "all" ? "Copied!" : "Copy All"}
             </button>
           </div>
           {transcriptOpen && (
@@ -1102,26 +1200,39 @@ function TraitDefsTab() {
 
   if (loading) return <p style={s.loading}>Loading...</p>;
 
+  // Group traits by trait_group for visual organization
+  const groups: Record<string, any[]> = {};
+  for (const t of data) {
+    const g = t.trait_group || "Ungrouped";
+    if (!groups[g]) groups[g] = [];
+    groups[g].push(t);
+  }
+  const groupEntries = Object.entries(groups);
+
   return (
     <div style={s.scrollWrap}>
-      <p style={s.sub}>{data.length} trait definitions</p>
+      <p style={s.sub}>{data.length} trait definitions in {groupEntries.length} groups</p>
+      {groupEntries.map(([groupName, traits]) => (
+        <div key={groupName} style={{ marginBottom: 24 }}>
+          <h4 style={{ margin: "12px 0 6px", fontSize: 14, color: "#6C63FF" }}>
+            {groupName} ({traits.length})
+          </h4>
       <table style={s.table}>
         <thead>
           <tr>
             <th style={s.th}>#</th>
             <th style={s.th}>Internal Name</th>
             <th style={s.th}>Hebrew</th>
-            <th style={s.th}>Group</th>
             <th style={s.th}>Weight</th>
             <th style={s.th}>Req. Conf.</th>
             <th style={s.th}>Calc Type</th>
-            <th style={s.th}>AI Guidance</th>
+            <th style={s.th}>AI Desc</th>
             <th style={s.th}>Active</th>
             <th style={s.th}>Edit</th>
           </tr>
         </thead>
         <tbody>
-          {data.map((t) => {
+          {traits.map((t) => {
             const e = editing[t.id];
             return (
               <tr key={t.id}>
@@ -1155,6 +1266,8 @@ function TraitDefsTab() {
           })}
         </tbody>
       </table>
+        </div>
+      ))}
     </div>
   );
 }
@@ -1546,6 +1659,22 @@ function CandidateMatchesTab() {
     }
   }
 
+  // Run Algorithm (Force) = same as runAlgorithm but skips is_matchable filter.
+  async function runAlgorithmForce() {
+    setRunning("algorithm-force");
+    setResult(null);
+    try {
+      const r = await fetch("/api/admin/run-matching-force", { method: "POST" });
+      const json = await r.json();
+      setResult(json);
+      load();
+    } catch (e: any) {
+      setResult({ error: e.message });
+    } finally {
+      setRunning(null);
+    }
+  }
+
   // Run Matchmaking = prioritize + select + freeze on existing approved matches.
   // Does NOT regenerate candidates or re-score.
   async function runMatchmaking() {
@@ -1615,6 +1744,13 @@ function CandidateMatchesTab() {
           style={{ padding: "8px 16px", fontSize: 14, background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 6, cursor: running ? "wait" : "pointer", fontWeight: 600 }}
         >
           {running === "algorithm" ? "Running..." : "Run Algorithm"}
+        </button>
+        <button
+          onClick={runAlgorithmForce}
+          disabled={running !== null}
+          style={{ padding: "8px 16px", fontSize: 14, background: "#fd7e14", color: "#fff", border: "none", borderRadius: 6, cursor: running ? "wait" : "pointer", fontWeight: 600 }}
+        >
+          {running === "algorithm-force" ? "Running..." : "Run Algorithm (Force All)"}
         </button>
         <button
           onClick={runMatchmaking}
