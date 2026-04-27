@@ -46,9 +46,10 @@ let LOOK_TRAIT_IDS: Record<string, number> = {};
 // ── Thresholds ───────────────────────────────────────────────────
 // All thresholds are documented with their storage scale.
 
-// user_traits.score is 0–100. Spec "< 0.6" means < 60 on this scale.
-const TOXICITY_THRESHOLD = 60;   // score 0–100; users with score >= 60 are excluded
-const TROLLNESS_THRESHOLD = 60;  // score 0–100; users with score >= 60 are excluded
+// Aligned with admin flag thresholds (index.ts): score >= 70 AND confidence >= 0.6
+const TOXICITY_THRESHOLD = 70;   // score 0–100; users with score >= 70 are excluded
+const TROLLNESS_THRESHOLD = 70;  // score 0–100; users with score >= 70 are excluded
+const TOXICITY_CONFIDENCE_THRESHOLD = 0.6;  // confidence 0–1; must also meet this
 
 // sexual_identity: score 0–100, "special" if > 50; confidence is 0–1, threshold 0.6
 const SEXUAL_IDENTITY_SCORE_THRESHOLD = 50;  // score 0–100
@@ -135,10 +136,10 @@ function passesToxicityCheck(
   getTrait: (uid: number, tid: number) => TraitScore | null,
 ): boolean {
   const tox = getTrait(userId, TRAIT_IDS.toxicity);
-  if (tox && tox.score >= TOXICITY_THRESHOLD) return false;
+  if (tox && tox.score >= TOXICITY_THRESHOLD && tox.confidence >= TOXICITY_CONFIDENCE_THRESHOLD) return false;
 
   const troll = getTrait(userId, TRAIT_IDS.trollness);
-  if (troll && troll.score >= TROLLNESS_THRESHOLD) return false;
+  if (troll && troll.score >= TROLLNESS_THRESHOLD && troll.confidence >= TOXICITY_CONFIDENCE_THRESHOLD) return false;
 
   return true;
 }
