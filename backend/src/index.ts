@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
+import fs from "fs";
 import multer from "multer";
 import db from "./db";
 import {
@@ -13,6 +14,7 @@ import {
 } from "./db.pg";
 import { analyzeAnswer } from "./openai";
 import { runStage1 } from "./matchStage1";
+import { updateCognitiveScore } from "./cognitiveScore";
 import { runStage2, runMatchmaking } from "./matchStage2";
 import { runAnalysisAgent, buildAnalysisInput, saveAnalysisToDb, saveAnalysisRun, getLatestAnalysisRun } from "./agents/analysis";
 import { generateOpeningMessage, processUserMessage, computeCoverage, buildAnalysisTranscript, type ConversationState } from "./agents/conversation";
@@ -928,7 +930,11 @@ app.get("/admin/users", async (_req, res) => {
       LIMIT 1
     ) lp ON TRUE
     LEFT JOIN (
-      SELECT user_id, SUM(total_tokens) as total_tokens, SUM(estimated_cost_usd) as total_cost_usd
+      SELECT user_id,
+        SUM(total_tokens) as total_tokens,
+        SUM(estimated_cost_usd) as total_cost_usd,
+        SUM(CASE WHEN action_type LIKE 'analysis%' OR action_type LIKE 'reanalyze%' THEN estimated_cost_usd ELSE 0 END) as analysis_cost_usd,
+        SUM(CASE WHEN action_type NOT LIKE 'analysis%' AND action_type NOT LIKE 'reanalyze%' THEN estimated_cost_usd ELSE 0 END) as conversation_cost_usd
       FROM token_usage GROUP BY user_id
     ) tu ON tu.user_id = u.id
     ORDER BY u.created_at DESC
@@ -965,6 +971,67 @@ app.get("/admin/users", async (_req, res) => {
       // JSONB columns come back already parsed
       waiting_days,
       ...flags,
+    };
+  });
+
+  return res.json(result);
+});
+
+// GET /admin/user-profiles — All users with computed profile scores
+app.get("/admin/user-profiles", async (_req, res) => {
+  const users = await pgQueryAll<any>(
+    "SELECT id, first_name, cognitive_score FROM users ORDER BY id"
+  );
+
+  // Load traits needed for non-cognitive profiles
+  const allTraits = await pgQueryAll<{ user_id: number; internal_name: string; score: number; confidence: number }>(`
+    SELECT ut.user_id, td.internal_name, ut.score, ut.confidence
+    FROM user_traits ut
+    JOIN trait_definitions td ON td.id = ut.trait_definition_id
+    WHERE td.internal_name IN ('social_intuitive_intelligence', 'mainstreamness', 'conformity', 'openness_to_experience', 'oriental', 'broad_appeal')
+  `);
+
+  const userTraitsMap = new Map<number, Map<string, { score: number; confidence: number }>>();
+  for (const t of allTraits) {
+    if (!userTraitsMap.has(t.user_id)) userTraitsMap.set(t.user_id, new Map());
+    userTraitsMap.get(t.user_id)!.set(t.internal_name, { score: t.score, confidence: t.confidence });
+  }
+
+  function weightedAvg(traits: Map<string, { score: number; confidence: number }>, names: string[]): number | null {
+    let sumW = 0, sumC = 0;
+    for (const n of names) {
+      const t = traits.get(n);
+      if (!t) continue;
+      sumW += t.score * t.confidence;
+      sumC += t.confidence;
+    }
+    return sumC > 0 ? Math.round(sumW / sumC) : null;
+  }
+
+  const result = users.map(u => {
+    const traits = userTraitsMap.get(u.id) || new Map();
+
+    // Vibe: openness inverted
+    let vibeScore: number | null = null;
+    const vibeItems: { score: number; confidence: number }[] = [];
+    const ms = traits.get("mainstreamness"); if (ms) vibeItems.push(ms);
+    const conf = traits.get("conformity"); if (conf) vibeItems.push(conf);
+    const ote = traits.get("openness_to_experience");
+    if (ote) vibeItems.push({ score: 100 - ote.score, confidence: ote.confidence });
+    if (vibeItems.length > 0) {
+      const sw = vibeItems.reduce((s, d) => s + d.score * d.confidence, 0);
+      const sc = vibeItems.reduce((s, d) => s + d.confidence, 0);
+      if (sc > 0) vibeScore = Math.round(sw / sc);
+    }
+
+    const sii = traits.get("social_intuitive_intelligence");
+
+    return {
+      ...u,
+      cognitive_profile: u.cognitive_score,
+      intuitive_intelligence: sii ? Math.round(sii.score) : null,
+      vibe: vibeScore,
+      popularity: weightedAvg(traits, ["oriental", "mainstreamness", "broad_appeal"]),
     };
   });
 
@@ -1373,18 +1440,60 @@ app.post("/admin/users/:id/reanalyze", async (req, res) => {
       await saveAnalysisRun(db, user_id, runData.generated_prompt, runData.stage_a_output, JSON.stringify(runData.stage_b_output), "reanalyze");
     }
 
-    // Recompute readiness after fresh analysis
+    // Recompute readiness and cognitive score after fresh analysis
     const cov = await computeCoverage(db, user_id);
+    const cogScore = await updateCognitiveScore(user_id);
     await pgQueryAll(
       "UPDATE users SET readiness_score = $1, is_matchable = $2, updated_at = NOW() WHERE id = $3",
       [cov.readiness_score, cov.ready_for_matching, user_id]
     );
 
-    console.log(`[reanalyze] User ${user_id}: saved ${saved.internal_saved} internal, ${saved.external_saved} external traits, matchable=${cov.ready_for_matching}`);
+    console.log(`[reanalyze] User ${user_id}: saved ${saved.internal_saved} internal, ${saved.external_saved} external traits, matchable=${cov.ready_for_matching}, cognitive=${cogScore}`);
     return res.json({ saved, analysis: output });
   } catch (err: any) {
     console.error(`[reanalyze] Error for user ${user_id}:`, err);
     return res.status(500).json({ error: "Re-analysis failed: " + err.message });
+  }
+});
+
+// POST /admin/users/:id/cognitive-test — Run experimental cognitive test prompt (display only)
+app.post("/admin/users/:id/cognitive-test", async (req, res) => {
+  const user_id = parseInt(req.params.id, 10);
+  if (!Number.isFinite(user_id) || user_id <= 0) {
+    return res.status(400).json({ error: `Invalid user_id: ${req.params.id}` });
+  }
+
+  const transcript = await buildAnalysisTranscript(db, user_id);
+  if (!transcript || transcript.trim().length === 0) {
+    return res.status(400).json({ error: "No conversation data found for this user" });
+  }
+
+  try {
+    const promptPath = path.join(__dirname, "agents/analysis/prompts/coginitive-test.txt");
+    const systemPrompt = fs.readFileSync(promptPath, "utf-8");
+
+    const OpenAI = (await import("openai")).default;
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `## תמליל שיחה\n${transcript}` },
+      ],
+      temperature: 0.1,
+      top_p: 1,
+      seed: 123,
+      max_tokens: 8000,
+      response_format: { type: "json_object" },
+    });
+
+    const output = response.choices[0].message.content || "";
+    console.log(`[cognitive-test] User ${user_id}: done, ${output.length} chars`);
+    return res.json({ output });
+  } catch (err: any) {
+    console.error(`[cognitive-test] Error for user ${user_id}:`, err);
+    return res.status(500).json({ error: "Cognitive test failed: " + err.message });
   }
 });
 

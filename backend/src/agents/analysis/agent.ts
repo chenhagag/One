@@ -220,7 +220,7 @@ function validateInternalTrait(t: any): InternalTraitAssessment | null {
 
 // Traits that explicitly allow weight_for_match output (per trait definition instruction)
 const WEIGHT_ALLOWED_TRAITS = new Set([
-  "cognitive_profile",
+  "analytical_reasoning",
   "career_prestige",
 ]);
 
@@ -295,13 +295,14 @@ async function runOneGroupCall(
   transcript: string,
   systemPrompt: string,
   userId: number | null,
-  actionType: string
+  actionType: string,
+  model: string = "gpt-4o"
 ): Promise<GroupCallResult> {
   const userPrompt = buildGroupUserMessage(transcript, groupName, traits);
   const start = Date.now();
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
@@ -312,7 +313,7 @@ async function runOneGroupCall(
   });
 
   const durationMs = Date.now() - start;
-  trackTokens(userId, `${actionType}_${groupActionLabel(groupName)}`, "gpt-4o-mini", response.usage);
+  trackTokens(userId, `${actionType}_${groupActionLabel(groupName)}`, model, response.usage);
 
   const rawOutput = response.choices[0].message.content || "{}";
   let parsed: any = {};
@@ -360,7 +361,7 @@ ${traitList}
 
   const start = Date.now();
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-4o",
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
@@ -371,7 +372,7 @@ ${traitList}
   });
 
   const durationMs = Date.now() - start;
-  trackTokens(userId, `${actionType}_text`, "gpt-4o-mini", response.usage);
+  trackTokens(userId, `${actionType}_text`, "gpt-4o", response.usage);
 
   const rawOutput = response.choices[0].message.content || "{}";
   let parsed: any = {};
@@ -405,7 +406,7 @@ async function runExternalCall(
   const start = Date.now();
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-4o",
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
@@ -416,7 +417,7 @@ async function runExternalCall(
   });
 
   const durationMs = Date.now() - start;
-  trackTokens(userId, `${actionType}_external`, "gpt-4o-mini", response.usage);
+  trackTokens(userId, `${actionType}_external`, "gpt-4o", response.usage);
 
   const rawOutput = response.choices[0].message.content || "{}";
   let parsed: any = {};
@@ -448,9 +449,25 @@ export async function runAnalysisAgent(
   setTextTypeTraits(input.internal_trait_definitions as any[]);
 
   const systemPrompt = loadPrompt("group-system.txt");
+  const cognitiveSystemPrompt = loadPrompt("cognitive-system.txt");
 
   // Group internal traits by trait_group field (data-driven, excludes text traits)
   const groupedMap = groupTraitsByCategory(input.internal_trait_definitions);
+
+  // Split Cognitive Profile: cognitive traits (excl. career_prestige) use dedicated prompt,
+  // career_prestige stays with the generic group prompt.
+  const cognitiveGroup = groupedMap.get("Cognitive Profile");
+  if (cognitiveGroup) {
+    const cognitiveTraits = cognitiveGroup.filter(t => t.internal_name !== "career_prestige");
+    const careerTrait = cognitiveGroup.filter(t => t.internal_name === "career_prestige");
+    groupedMap.delete("Cognitive Profile");
+    if (cognitiveTraits.length > 0) groupedMap.set("Cognitive Profile", cognitiveTraits);
+    if (careerTrait.length > 0) {
+      const generalGroup = groupedMap.get("General Info") || [];
+      groupedMap.set("General Info", [...generalGroup, ...careerTrait]);
+    }
+  }
+
   const groupList = Array.from(groupedMap.entries()).map(([name, traits]) => ({ name, traits }));
 
   // Text traits get their own dedicated call (different prompt structure)
@@ -464,26 +481,25 @@ export async function runAnalysisAgent(
 
   const overallStart = Date.now();
 
-  // Fire all internal group calls + text + external in parallel
-  const internalPromises = groupList.map(g =>
-    runOneGroupCall(g.name, g.traits, input.transcript, systemPrompt, userId ?? null, actionType)
-  );
+  // Run group calls sequentially for gpt-4o (rate limit), parallel for gpt-4o-mini
+  const groupResults: GroupCallResult[] = [];
+  for (const g of groupList) {
+    const prompt = g.name === "Cognitive Profile" ? cognitiveSystemPrompt : systemPrompt;
+    const result = await runOneGroupCall(g.name, g.traits, input.transcript,
+      prompt, userId ?? null, actionType, "gpt-4o");
+    groupResults.push(result);
+  }
 
-  const externalPromise: Promise<ExternalCallResult | null> =
+  // External and text calls run after groups are done
+  const externalResult: ExternalCallResult | null =
     input.external_trait_definitions.length > 0
-      ? runExternalCall(input.external_trait_definitions, input.transcript, userId ?? null, actionType)
-      : Promise.resolve(null);
+      ? await runExternalCall(input.external_trait_definitions, input.transcript, userId ?? null, actionType)
+      : null;
 
-  const textPromise: Promise<TextCallResult | null> =
+  const textResult: TextCallResult | null =
     textTraits.length > 0
-      ? runTextTraitsCall(textTraits, input.transcript, userId ?? null, actionType)
-      : Promise.resolve(null);
-
-  const [groupResults, externalResult, textResult] = await Promise.all([
-    Promise.all(internalPromises),
-    externalPromise,
-    textPromise,
-  ]);
+      ? await runTextTraitsCall(textTraits, input.transcript, userId ?? null, actionType)
+      : null;
 
   const totalDuration = Date.now() - overallStart;
   console.log(`[analysis] All parallel calls done in ${totalDuration}ms (wall time)`);

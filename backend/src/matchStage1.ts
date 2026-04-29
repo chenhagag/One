@@ -33,6 +33,7 @@
 
 import Database from "better-sqlite3";
 import { queryAll, withTransaction } from "./db.pg";
+import { COGNITIVE_TRAIT_WEIGHTS } from "./cognitiveScore";
 
 // ══════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -74,9 +75,12 @@ const HEIGHT_TOL: Record<string, number> = { not_flexible: 2, slightly_flexible:
 // Approval rate tolerance (on 0–100 scale, same as initial_attraction_signal)
 const APPROVAL_RATE_TOLERANCE = 30;
 
-// cognitive_profile is a FIXED filter — always applied, no effective_weight gate.
-// Score is 0–100, tolerance ±20.
-const COGNITIVE_PROFILE_TOLERANCE = 20;
+// Cognitive profile is a FIXED filter — always applied, no effective_weight gate.
+// Weighted average of cognitive traits (analytical_reasoning x2); tolerance ±7.
+const COGNITIVE_PROFILE_TOLERANCE = 7;
+
+// Resolved at runtime from COGNITIVE_TRAIT_WEIGHTS (imported from cognitiveScore.ts)
+let COGNITIVE_TRAIT_WEIGHT_IDS: [number, number][] = [];
 
 // Personal filter traits — resolved dynamically in runStage1.
 // Format: [trait_definition_id, allowed_score_range on 0–100 scale]
@@ -172,8 +176,8 @@ export async function runStage1(_db: Database.Database, options?: { skipMatchabl
     : "WHERE u.is_matchable = TRUE AND u.valid_person = TRUE AND u.user_status = 'waiting_match'";
 
   // 0. Resolve trait IDs dynamically from pg (no hardcoded IDs)
-  const traitDefs = await queryAll<{ id: number; internal_name: string }>(
-    "SELECT id, internal_name FROM trait_definitions"
+  const traitDefs = await queryAll<{ id: number; internal_name: string; trait_group: string | null }>(
+    "SELECT id, internal_name, trait_group FROM trait_definitions"
   );
   const nameToId = new Map(traitDefs.map(t => [t.internal_name, t.id]));
   const tid = (name: string) => nameToId.get(name) ?? -1;
@@ -182,13 +186,17 @@ export async function runStage1(_db: Database.Database, options?: { skipMatchabl
     toxicity: tid("toxicity"),
     trollness: tid("trollness"),
     trans: tid("trans"),
-    cognitive_profile: tid("analytical_thinking"), // used as cognitive proxy
     party_orientation: tid("party_orientation"),
     religiosity: tid("religiosity"),
     value_rigidity: tid("value_rigidity"),
     family_of_origin_closeness: tid("family_of_origin_closeness"),
     extraversion: tid("extraversion"),
   };
+
+  // Cognitive profile: resolve weighted trait IDs from names
+  COGNITIVE_TRAIT_WEIGHT_IDS = COGNITIVE_TRAIT_WEIGHTS
+    .map(([name, weight]) => [tid(name), weight] as [number, number])
+    .filter(([id]) => id !== -1);
 
   const lookTraitDefs = await queryAll<{ id: number; internal_name: string }>(
     "SELECT id, internal_name FROM look_trait_definitions"
@@ -320,7 +328,7 @@ export async function runStage1(_db: Database.Database, options?: { skipMatchabl
       }
 
       const passes = options?.skipAllFilters
-        ? true
+        ? passesCognitiveFilter(a, b, getUserTrait)
         : passesAllFilters(a, b, getUserTrait, getUserLookTrait, getRegion, getNearbyRegions);
 
       if (passes) {
@@ -391,7 +399,7 @@ function passesAllFilters(
 
   if (!passesApprovalFilter(a, b)) return false;
 
-  // Fixed filter: cognitive_profile ±20 (always applied, no effective_weight gate)
+  // Fixed filter: cognitive profile weighted avg ±20 (always applied, no effective_weight gate)
   if (!passesCognitiveFilter(a, b, getTrait)) return false;
 
   if (!passesSexualIdentityFilter(a, b, getTrait)) return false;
@@ -462,16 +470,33 @@ function passesApprovalFilter(a: User, b: User): boolean {
 }
 
 // ── 5b. Cognitive profile (FIXED filter — always applied) ────────
-// Score is 0–100. Candidates must be within ±20 of each other.
+// Computes a weighted cognitive profile score (analytical_reasoning x2)
+// for each user, then checks if the scores are within ±7.
 // This is a fixed compatibility filter, not gated by effective_weight.
 function passesCognitiveFilter(
   a: User, b: User,
   getTrait: (uid: number, tid: number) => TraitScore | null,
 ): boolean {
-  const aT = getTrait(a.id, TRAIT_IDS.cognitive_profile);
-  const bT = getTrait(b.id, TRAIT_IDS.cognitive_profile);
-  if (!aT || !bT) return true; // no data → don't filter out
-  return Math.abs(aT.score - bT.score) <= COGNITIVE_PROFILE_TOLERANCE;
+  const avgA = cognitiveWeightedAvg(a.id, getTrait);
+  const avgB = cognitiveWeightedAvg(b.id, getTrait);
+  if (avgA == null || avgB == null) return true; // no data → don't filter out
+  return Math.abs(avgA - avgB) <= COGNITIVE_PROFILE_TOLERANCE;
+}
+
+function cognitiveWeightedAvg(
+  userId: number,
+  getTrait: (uid: number, tid: number) => TraitScore | null,
+): number | null {
+  let sumW = 0;
+  let sumC = 0;
+  for (const [traitId, weight] of COGNITIVE_TRAIT_WEIGHT_IDS) {
+    const t = getTrait(userId, traitId);
+    if (!t) continue;
+    sumW += t.score * t.confidence * weight;
+    sumC += t.confidence * weight;
+  }
+  if (sumC === 0) return null;
+  return sumW / sumC;
 }
 
 // ── 6. Sexual identity ──────────────────────────────────────────

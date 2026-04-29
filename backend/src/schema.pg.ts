@@ -379,6 +379,13 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       ) THEN
         ALTER TABLE users ADD COLUMN test_user_type TEXT;
       END IF;
+
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'cognitive_score'
+      ) THEN
+        ALTER TABLE users ADD COLUMN cognitive_score DOUBLE PRECISION;
+      END IF;
     END $$;
   `);
 }

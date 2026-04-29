@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
  * - Matches
  */
 
-type Tab = "overview" | "users" | "traits" | "look_traits" | "enums" | "config" | "matches" | "candidates" | "bugs";
+type Tab = "overview" | "users" | "profiles" | "traits" | "look_traits" | "enums" | "config" | "matches" | "candidates" | "bugs";
 
 const s: Record<string, React.CSSProperties> = {
   heading: { marginTop: 0, marginBottom: 8, fontSize: 22 },
@@ -62,6 +62,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard }: { on
         {([
           ["overview", "Overview"],
           ["users", "Users"],
+          ["profiles", "User Profiles"],
           ["traits", "Trait Defs"],
           ["look_traits", "Look Trait Defs"],
           ["enums", "Enum Options"],
@@ -82,6 +83,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard }: { on
 
       {tab === "overview" && <OverviewTab />}
       {tab === "users" && <UsersTab onStartChat={onStartChat} onViewDashboard={onViewDashboard} />}
+      {tab === "profiles" && <UserProfilesTab />}
       {tab === "traits" && <TraitDefsTab />}
       {tab === "look_traits" && <LookTraitDefsTab />}
       {tab === "enums" && <EnumsTab />}
@@ -154,7 +156,9 @@ function UsersTab({ onStartChat, onViewDashboard }: { onStartChat?: (user: { id:
       <th style={s.th}>Matchable</th>
       <th style={s.th}>Test Type</th>
       <th style={s.th}>Flags</th>
-      <th style={s.th}>Tokens</th>
+      <th style={s.th}>Total Cost</th>
+      <th style={s.th}>Conversation</th>
+      <th style={s.th}>Analysis</th>
     </tr>
   );
 
@@ -189,7 +193,9 @@ function UsersTab({ onStartChat, onViewDashboard }: { onStartChat?: (user: { id:
           ))}
           {flags.length === 0 && "-"}
         </td>
-        <td style={s.td}>{u.total_tokens ? u.total_tokens.toLocaleString() : "-"}</td>
+        <td style={s.td}>{u.total_cost_usd > 0 ? `$${Number(u.total_cost_usd).toFixed(4)}` : "-"}</td>
+        <td style={s.td}>{u.conversation_cost_usd > 0 ? `$${Number(u.conversation_cost_usd).toFixed(4)}` : "-"}</td>
+        <td style={s.td}>{u.analysis_cost_usd > 0 ? `$${Number(u.analysis_cost_usd).toFixed(4)}` : "-"}</td>
       </tr>
     );
   }
@@ -235,6 +241,9 @@ function UsersTab({ onStartChat, onViewDashboard }: { onStartChat?: (user: { id:
 
 // ── User Detail View ────────────────────────────────────────────
 
+// Cache cognitive test results per user so they persist when navigating in/out
+const cognitiveTestCache = new Map<number, string>();
+
 function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: number; onBack: () => void; onStartChat?: (user: { id: number; first_name: string; email: string }) => void; onViewDashboard?: (user: { id: number; first_name: string; email: string }) => void }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -252,8 +261,14 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
   const [copied, setCopied] = useState<string | false>(false);
   const [analysisRun, setAnalysisRun] = useState<any>(null);
   const [showPrompt, setShowPrompt] = useState(false);
+  const [showCognitivePrompt, setShowCognitivePrompt] = useState(false);
+  const [showCognitiveOutput, setShowCognitiveOutput] = useState(false);
   const [showStageA, setShowStageA] = useState(false);
   const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
+  const [cognitiveTestOutput, setCognitiveTestOutput] = useState<string | null>(cognitiveTestCache.get(userId) ?? null);
+  const [showCognitiveTest, setShowCognitiveTest] = useState(false);
+  const [runningCognitiveTest, setRunningCognitiveTest] = useState(false);
+  const [showEvidenceScores, setShowEvidenceScores] = useState(false);
 
   function loadMatches() {
     fetch(`/api/admin/users/${userId}/matches`)
@@ -320,6 +335,20 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
       fetch(`/api/admin/users/${userId}/analysis-run`).then(r => r.json()).then(setAnalysisRun).catch(() => {});
     } catch { alert("Network error"); }
     finally { setReanalyzing(false); }
+  }
+
+  async function handleCognitiveTest() {
+    setRunningCognitiveTest(true);
+    setCognitiveTestOutput(null);
+    try {
+      const r = await fetch(`/api/admin/users/${userId}/cognitive-test`, { method: "POST" });
+      const json = await r.json();
+      if (!r.ok) { alert(json.error || "Cognitive test failed"); return; }
+      setCognitiveTestOutput(json.output);
+      cognitiveTestCache.set(userId, json.output);
+      setShowCognitiveTest(true);
+    } catch { alert("Network error"); }
+    finally { setRunningCognitiveTest(false); }
   }
 
   async function handleResetAnalysis() {
@@ -408,12 +437,110 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
     return { score: Math.round(sumWeighted / sumConf), count: items.length, total: names.length };
   }
 
-  const cognitiveProfileTraits = [
-    "analytical_thinking", "abstract_thinking", "cognitive_flexibility", "verbal_reasoning",
-    "depth_of_thought", "intellectual_openness", "conceptual_clarity", "pattern_recognition",
-    "intellectualism", "verbal_expression_ability", "communication_clarity", "career_prestige",
-    "self_awareness", "eq",
-  ];
+  function computeCognitiveProfile() {
+    // Use pre-computed score from DB (updated on reanalyze)
+    if (user.cognitive_score != null) return { score: Math.round(user.cognitive_score), count: 1, total: 1 };
+    // Fallback: compute locally from traits
+    const traitWeights: [string, number][] = [
+      ["analytical_reasoning", 3],
+      ["abstract_thinking", 1], ["cognitive_flexibility", 1], ["conceptual_precision", 1],
+      ["verbal_articulation", 1], ["verbal_reasoning", 1], ["depth_of_thought", 1],
+      ["intellectualism", 1], ["career_prestige", 1], ["eq", 1],
+    ];
+    let sumW = 0, sumC = 0, count = 0;
+    for (const [name, weight] of traitWeights) {
+      const t = traitData(name);
+      if (!t) continue;
+      sumW += t.score * t.confidence * weight;
+      sumC += t.confidence * weight;
+      count++;
+    }
+    if (sumC === 0) return null;
+    return { score: Math.round(sumW / sumC), count, total: traitWeights.length };
+  }
+
+  function computeIntuitiveIntelligence() {
+    const sii = traitData("social_intuitive_intelligence");
+    if (!sii) return null;
+    return { score: Math.round(sii.score), count: 1, total: 1 };
+  }
+
+  // Evidence-based cognitive profile from cognitive test output
+  type EvidenceTraitScore = { score: number; confidence: number; positiveCount: number; negativeCount: number };
+  type EvidenceProfile = { overallScore: number; traits: Record<string, EvidenceTraitScore> };
+
+  function computeEvidenceBasedProfile(): EvidenceProfile | null {
+
+    if (!cognitiveTestOutput) return null;
+    let parsed: any;
+    try { parsed = JSON.parse(cognitiveTestOutput); } catch { return null; }
+    if (!parsed?.traits) return null;
+
+    const traitScores: Record<string, EvidenceTraitScore> = {};
+
+
+    for (const [name, data] of Object.entries(parsed.traits) as [string, any][]) {
+      const evidence = data?.evidence || [];
+      // Filter out placeholders (strength 0)
+      const realEvidence = evidence.filter((e: any) => (Number(e.strength) || 0) > 0);
+
+      if (realEvidence.length === 0) {
+        traitScores[name] = { score: 30, confidence: 0.3, positiveCount: 0, negativeCount: 0 };
+        continue;
+      }
+
+      // Exponential weight mapping: strong evidence dominates weak evidence.
+      // Negative evidence gets 2.5x penalty multiplier.
+      const strengthToPoints: Record<number, number> = {
+        1: 2, 2: 5, 3: 8, 4: 10, 5: 20, 6: 40, 7: 80, 8: 160, 9: 320, 10: 640,
+      };
+      let rawWeight = 0, posCount = 0, negCount = 0;
+      for (const e of realEvidence) {
+        const raw = Math.max(1, Math.min(10, Number(e.strength) || 1));
+        const points = strengthToPoints[raw] || raw;
+        if (e.direction === "positive") {
+          rawWeight += points; posCount++;
+        } else {
+          rawWeight -= points * 2.5; negCount++;
+        }
+      }
+
+      // No positive evidence at all → pull score down significantly
+      // (absence of positive signal is itself a negative signal)
+      if (posCount === 0) rawWeight -= 200;
+
+      // tanh maps rawWeight to [-1, 1] smoothly. Sensitivity controls how much
+      // evidence is needed to reach the extremes (lower = more evidence needed).
+      const sensitivity = 0.003;
+      const score = Math.round(Math.max(0, Math.min(100, 50 + 50 * Math.tanh(rawWeight * sensitivity))));
+
+      // Confidence: based on total evidence volume
+      const totalStrength = evidence.reduce((s: number, e: any) => s + (Number(e.strength) || 0), 0);
+      const confidence = Math.round(Math.min(totalStrength / 20, 1.0) * 100) / 100;
+
+      traitScores[name] = { score, confidence, positiveCount: posCount, negativeCount: negCount };
+    }
+
+    // Overall: weighted avg excluding social_intuitive_intelligence, analytical_reasoning x3
+    const weights: Record<string, number> = {
+      analytical_reasoning: 3,
+      abstract_thinking: 1, cognitive_flexibility: 1, conceptual_precision: 1,
+      verbal_articulation: 1, verbal_reasoning: 1, depth_of_thought: 1,
+      intellectualism: 1,
+    };
+    let sumW = 0, sumC = 0;
+    for (const [name, weight] of Object.entries(weights)) {
+      const t = traitScores[name];
+      if (!t || t.confidence === 0) continue;
+      sumW += t.score * t.confidence * weight;
+      sumC += t.confidence * weight;
+    }
+
+    const overallScore = sumC > 0 ? Math.round(sumW / sumC) : 50;
+    return { overallScore, traits: traitScores };
+  }
+
+  const evidenceProfile = computeEvidenceBasedProfile();
 
   const vibeProfile = (() => {
     const items = [
@@ -431,8 +558,40 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
 
   const popularityProfile = weightedAvg(["oriental", "mainstreamness", "broad_appeal"]);
 
+  // Extract estimated_psychometric and intelligence_type from cognitive AI output
+  const cognitiveExtras = (() => {
+    const outputText = analysisRun?.stage_a_output || "";
+    const cogMarker = "=== Cognitive Profile";
+    const startIdx = outputText.indexOf(cogMarker);
+    if (startIdx === -1) return null;
+    const nextSection = outputText.indexOf("\n===", startIdx + cogMarker.length);
+    const cogSection = outputText.substring(startIdx, nextSection === -1 ? undefined : nextSection);
+    const psychMatch = cogSection.match(/"estimated_psychometric"\s*:\s*(\d+)/);
+    const typeMatch = cogSection.match(/"intelligence_type"\s*:\s*"(analytical|intuitive|balanced)"/i);
+    const psychometric = psychMatch ? parseInt(psychMatch[1], 10) : null;
+    const intelligenceType = typeMatch ? typeMatch[1].toLowerCase() : null;
+    return {
+      psychometric: (psychometric && psychometric >= 200 && psychometric <= 800) ? psychometric : null,
+      intelligenceType,
+    };
+  })();
+  const estimatedPsychometric = cognitiveExtras?.psychometric ?? null;
+  const intelligenceType = cognitiveExtras?.intelligenceType ?? null;
+  const intelligenceTypeHe: Record<string, string> = { analytical: "אנליטי", intuitive: "אינטואיטיבי", balanced: "מאוזן" };
+
+  // Extract estimated_general_intelligence from any group output (generic prompt)
+  const estimatedGeneralIntelligence = (() => {
+    const outputText = analysisRun?.stage_a_output || "";
+    const match = outputText.match(/"estimated_general_intelligence"\s*:\s*(\d+)/);
+    if (!match) return null;
+    const val = parseInt(match[1], 10);
+    return (val >= 0 && val <= 100) ? val : null;
+  })();
+
   const computedProfiles = [
-    { name: "פרופיל קוגניטיבי", nameEn: "Cognitive Profile", color: "#6366F1", ...(weightedAvg(cognitiveProfileTraits) || { score: null, count: 0, total: cognitiveProfileTraits.length }) },
+    { name: "פרופיל קוגניטיבי", nameEn: "Cognitive Profile", color: "#6366F1", ...(computeCognitiveProfile() || { score: null, count: 0, total: 8 }) },
+    { name: "אינטליגנציה אינטואיטיבית", nameEn: "Intuitive Intelligence", color: "#8b5cf6", ...(computeIntuitiveIntelligence() || { score: null, count: 0, total: 2 }) },
+    ...(evidenceProfile ? [{ name: "קוגניטיבי (ראיות)", nameEn: "Evidence Cognitive", color: "#7c3aed", score: evidenceProfile.overallScore, count: Object.values(evidenceProfile.traits).filter(t => t.confidence > 0).length, total: Object.keys(evidenceProfile.traits).length }] : []),
     { name: "סחיות (Vibe)", nameEn: "Vibe", color: "#f59e0b", ...(vibeProfile || { score: null, count: 0, total: 3 }) },
     { name: "עממיות", nameEn: "Popularity", color: "#10b981", ...(popularityProfile || { score: null, count: 0, total: 3 }) },
   ];
@@ -621,13 +780,21 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
                     textAlign: "center", minWidth: 140,
                   }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: "#333", marginBottom: 6 }}>{p.name}</div>
-                    {p.score != null ? (
+                    {p.nameEn === "Intelligence Type" ? (
+                      <div style={{ fontSize: 20, fontWeight: 700, color: p.color, marginTop: 4 }}>
+                        {intelligenceType === "analytical" ? "🧠" : intelligenceType === "intuitive" ? "🌊" : "⚖️"}
+                      </div>
+                    ) : p.score != null ? (
                       <>
                         <div style={{ fontSize: 28, fontWeight: 700, color: p.color }}>{p.score}</div>
                         <div style={{ background: "#eee", borderRadius: 4, height: 6, marginTop: 8, overflow: "hidden" }}>
-                          <div style={{ background: p.color, height: "100%", width: `${p.score}%`, borderRadius: 4 }} />
+                          <div style={{ background: p.color, height: "100%", width: `${p.nameEn === "Est. Psychometric" ? Math.round((p.score - 200) * 100 / 600) : p.score}%`, borderRadius: 4 }} />
                         </div>
-                        <div style={{ fontSize: 10, color: "#999", marginTop: 4 }}>{p.count}/{p.total} traits</div>
+                        <div style={{ fontSize: 10, color: "#999", marginTop: 4 }}>
+                          {p.nameEn === "Est. Psychometric" || p.nameEn === "General Intelligence"
+                            ? "AI estimate"
+                            : `${p.count}/${p.total} traits`}
+                        </div>
                       </>
                     ) : (
                       <div style={{ fontSize: 14, color: "#bbb" }}>—</div>
@@ -635,6 +802,67 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
                   </div>
                 ))}
               </div>
+            </>
+          )}
+
+          {/* Evidence-based cognitive scores detail */}
+          {evidenceProfile && (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <button
+                  style={{ padding: "4px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: showEvidenceScores ? "#7c3aed" : "#f3e8ff", color: showEvidenceScores ? "#fff" : "#7c3aed", border: "1px solid #7c3aed", borderRadius: 4 }}
+                  onClick={() => setShowEvidenceScores(!showEvidenceScores)}
+                >{showEvidenceScores ? "Hide Evidence Scores" : "Show Evidence Scores"}</button>
+              </div>
+              {showEvidenceScores && (() => {
+                const traitLabels: Record<string, string> = {
+                  analytical_reasoning: "חשיבה אנליטית (x3)",
+                  abstract_thinking: "חשיבה מופשטת",
+                  cognitive_flexibility: "גמישות מחשבתית",
+                  conceptual_precision: "בהירות מושגית",
+                  verbal_articulation: "יכולת ניסוח",
+                  verbal_reasoning: "הסקה מילולית",
+                  depth_of_thought: "עומק מחשבתי",
+                  social_intuitive_intelligence: "אינטליגנציה אינטואיטיבית",
+                  intellectualism: "אינטלקטואליות",
+                };
+                return (
+                  <table style={{ ...s.table, marginBottom: 16, maxWidth: 700 }}>
+                    <thead>
+                      <tr>
+                        <th style={s.th}>Trait</th>
+                        <th style={{ ...s.th, textAlign: "center" }}>Score</th>
+                        <th style={{ ...s.th, textAlign: "center" }}>Confidence</th>
+                        <th style={{ ...s.th, textAlign: "center" }}>+ Evidence</th>
+                        <th style={{ ...s.th, textAlign: "center" }}>- Evidence</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(evidenceProfile.traits).map(([name, t]) => (
+                        <tr key={name} style={{ background: name === "social_intuitive_intelligence" ? "#f5f3ff" : undefined }}>
+                          <td style={s.td}>{traitLabels[name] || name}</td>
+                          <td style={{ ...s.td, textAlign: "center", fontWeight: 600, color: t.score >= 60 ? "#22c55e" : t.score <= 40 ? "#ef4444" : "#666" }}>{t.score}</td>
+                          <td style={{ ...s.td, textAlign: "center" }}>
+                            <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                              <div style={{ width: 40, background: "#eee", borderRadius: 3, height: 5, overflow: "hidden" }}>
+                                <div style={{ background: "#7c3aed", height: "100%", width: `${t.confidence * 100}%`, borderRadius: 3 }} />
+                              </div>
+                              <span style={{ fontSize: 11, color: "#888" }}>{(t.confidence * 100).toFixed(0)}%</span>
+                            </div>
+                          </td>
+                          <td style={{ ...s.td, textAlign: "center", color: "#22c55e", fontWeight: 600 }}>{t.positiveCount || "—"}</td>
+                          <td style={{ ...s.td, textAlign: "center", color: "#ef4444", fontWeight: 600 }}>{t.negativeCount || "—"}</td>
+                        </tr>
+                      ))}
+                      <tr style={{ background: "#f8fafc", fontWeight: 700 }}>
+                        <td style={s.td}>Overall Score</td>
+                        <td style={{ ...s.td, textAlign: "center", color: "#7c3aed", fontSize: 16 }}>{evidenceProfile.overallScore}</td>
+                        <td colSpan={3} style={s.td}></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                );
+              })()}
             </>
           )}
 
@@ -659,6 +887,13 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
                 disabled={resetting || reanalyzing}
               >
                 {resetting ? "Resetting..." : "Reset analysis"}
+              </button>
+              <button
+                style={{ padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#7c3aed", color: "#fff", border: "none", borderRadius: 4 }}
+                onClick={handleCognitiveTest}
+                disabled={runningCognitiveTest}
+              >
+                {runningCognitiveTest ? "Running..." : "Cognitive Test"}
               </button>
               {traits.length === 0 && lookTraits.length === 0 && (
                 <span style={{ fontSize: 12, color: "#856404", background: "#fff3cd", padding: "4px 10px", borderRadius: 4 }}>
@@ -893,6 +1128,125 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
             <div style={{ background: "#fafafa", borderRadius: 6, padding: 12, marginBottom: 12, maxHeight: 400, overflowY: "auto", fontSize: 11, lineHeight: 1.6, whiteSpace: "pre-wrap", fontFamily: "monospace" }}>
               {analysisRun.generated_prompt}
             </div>
+          )}
+
+          {/* Cognitive Profile Prompt & Output */}
+          {(() => {
+            const promptText = analysisRun.generated_prompt || "";
+            const outputText = analysisRun.stage_a_output || "";
+            const extractSection = (text: string, sectionName: string) => {
+              const marker = `=== ${sectionName}`;
+              const startIdx = text.indexOf(marker);
+              if (startIdx === -1) return null;
+              const nextSection = text.indexOf("\n===", startIdx + marker.length);
+              return text.substring(startIdx, nextSection === -1 ? undefined : nextSection).trim();
+            };
+            const cogPrompt = extractSection(promptText, "Cognitive Profile");
+            const cogOutput = extractSection(outputText, "Cognitive Profile");
+            if (!cogPrompt && !cogOutput) return null;
+            return (
+              <>
+                {cogPrompt && (
+                  <>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <SectionHeading title="Cognitive Profile — Prompt" />
+                      <button style={{ padding: "2px 8px", fontSize: 11, cursor: "pointer", background: showCognitivePrompt ? "#eee" : "#ede9fe", border: "1px solid #ddd", borderRadius: 4 }}
+                        onClick={() => setShowCognitivePrompt(!showCognitivePrompt)}>{showCognitivePrompt ? "Hide" : "Show"}</button>
+                      <button style={{ padding: "2px 8px", fontSize: 11, cursor: "pointer", background: copiedLabel === "cog-p" ? "#d4edda" : "#ede9fe", border: "1px solid #ddd", borderRadius: 4 }}
+                        onClick={() => { navigator.clipboard.writeText(cogPrompt); setCopiedLabel("cog-p"); setTimeout(() => setCopiedLabel(l => l === "cog-p" ? null : l), 1500); }}>{copiedLabel === "cog-p" ? "Copied ✓" : "Copy"}</button>
+                    </div>
+                    {showCognitivePrompt && (
+                      <div style={{ background: "#f5f3ff", borderRadius: 6, padding: 12, marginBottom: 12, maxHeight: 400, overflowY: "auto", fontSize: 11, lineHeight: 1.6, whiteSpace: "pre-wrap", fontFamily: "monospace", borderLeft: "3px solid #6366F1" }}>
+                        {cogPrompt}
+                      </div>
+                    )}
+                  </>
+                )}
+                {cogOutput && (
+                  <>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <SectionHeading title="Cognitive Profile — AI Output" />
+                      <button style={{ padding: "2px 8px", fontSize: 11, cursor: "pointer", background: showCognitiveOutput ? "#eee" : "#ede9fe", border: "1px solid #ddd", borderRadius: 4 }}
+                        onClick={() => setShowCognitiveOutput(!showCognitiveOutput)}>{showCognitiveOutput ? "Hide" : "Show"}</button>
+                      <button style={{ padding: "2px 8px", fontSize: 11, cursor: "pointer", background: copiedLabel === "cog-o" ? "#d4edda" : "#ede9fe", border: "1px solid #ddd", borderRadius: 4 }}
+                        onClick={() => { navigator.clipboard.writeText(cogOutput); setCopiedLabel("cog-o"); setTimeout(() => setCopiedLabel(l => l === "cog-o" ? null : l), 1500); }}>{copiedLabel === "cog-o" ? "Copied ✓" : "Copy"}</button>
+                    </div>
+                    {showCognitiveOutput && (
+                      <div style={{ background: "#faf5ff", borderRadius: 6, padding: 12, marginBottom: 12, maxHeight: 500, overflowY: "auto", fontSize: 12, lineHeight: 1.7, whiteSpace: "pre-wrap", borderLeft: "3px solid #8b5cf6" }}>
+                        {cogOutput}
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
+            );
+          })()}
+
+          {/* Cognitive Test Output */}
+          {cognitiveTestOutput && (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <SectionHeading title="Cognitive Test (Experimental)" />
+                <button style={{ padding: "2px 8px", fontSize: 11, cursor: "pointer", background: showCognitiveTest ? "#eee" : "#f3e8ff", border: "1px solid #ddd", borderRadius: 4 }}
+                  onClick={() => setShowCognitiveTest(!showCognitiveTest)}>{showCognitiveTest ? "Hide" : "Show"}</button>
+                <button style={{ padding: "2px 8px", fontSize: 11, cursor: "pointer", background: copiedLabel === "cog-test" ? "#d4edda" : "#f3e8ff", border: "1px solid #ddd", borderRadius: 4 }}
+                  onClick={() => { navigator.clipboard.writeText(cognitiveTestOutput); setCopiedLabel("cog-test"); setTimeout(() => setCopiedLabel(l => l === "cog-test" ? null : l), 1500); }}>{copiedLabel === "cog-test" ? "Copied ✓" : "Copy"}</button>
+              </div>
+              {showCognitiveTest && (() => {
+                const traitLabels: Record<string, string> = {
+                  analytical_reasoning: "חשיבה אנליטית",
+                  abstract_thinking: "חשיבה מופשטת",
+                  cognitive_flexibility: "גמישות מחשבתית",
+                  conceptual_precision: "בהירות מושגית",
+                  verbal_articulation: "יכולת ניסוח",
+                  verbal_reasoning: "הסקה מילולית",
+                  depth_of_thought: "עומק מחשבתי",
+                  social_intuitive_intelligence: "אינטליגנציה חברתית-אינטואיטיבית",
+                  intellectualism: "אינטלקטואליות",
+                };
+                let parsed: any = null;
+                try { parsed = JSON.parse(cognitiveTestOutput!); } catch {}
+                if (!parsed?.traits) {
+                  return (
+                    <div style={{ background: "#faf5ff", borderRadius: 6, padding: 12, marginBottom: 12, maxHeight: 600, overflowY: "auto", fontSize: 13, lineHeight: 1.8, whiteSpace: "pre-wrap", borderLeft: "3px solid #7c3aed" }}>
+                      {cognitiveTestOutput}
+                    </div>
+                  );
+                }
+                return (
+                  <div style={{ background: "#faf5ff", borderRadius: 6, padding: 16, marginBottom: 12, maxHeight: 700, overflowY: "auto", borderLeft: "3px solid #7c3aed" }}>
+                    {Object.entries(parsed.traits).map(([traitName, traitData]: [string, any]) => {
+                      const evidence = traitData?.evidence || [];
+                      return (
+                        <div key={traitName} style={{ marginBottom: 16 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: "#4c1d95", marginBottom: 6 }}>
+                            {traitLabels[traitName] || traitName}
+                            <span style={{ fontWeight: 400, fontSize: 11, color: "#888", marginLeft: 8 }}>({evidence.length} evidence)</span>
+                          </div>
+                          {evidence.length === 0 ? (
+                            <div style={{ fontSize: 12, color: "#aaa", marginLeft: 12 }}>אין ראיות</div>
+                          ) : (
+                            evidence.map((e: any, i: number) => (
+                              <div key={i} style={{ marginLeft: 12, marginBottom: 8, fontSize: 12, lineHeight: 1.6, display: "flex", gap: 8, alignItems: "flex-start" }}>
+                                <span style={{
+                                  flexShrink: 0, width: 20, height: 20, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                                  fontSize: 10, fontWeight: 700, color: "#fff",
+                                  background: e.direction === "positive" ? "#22c55e" : "#ef4444",
+                                }}>{e.strength}</span>
+                                <div>
+                                  <div style={{ color: "#333" }}>"{e.quote}"</div>
+                                  <div style={{ color: "#666", fontSize: 11 }}>{e.explanation}</div>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </>
           )}
 
           {/* Stage A Analysis */}
@@ -1153,6 +1507,77 @@ function barColor(score: number): string {
   if (score >= 70) return "#28a745";
   if (score >= 40) return "#ffc107";
   return "#dc3545";
+}
+
+// ── User Profiles Tab ────────────────────────────────────────────
+
+function UserProfilesTab() {
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sortCol, setSortCol] = useState<string | null>(null);
+  const [sortAsc, setSortAsc] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/admin/user-profiles")
+      .then(r => r.json())
+      .then(d => { setData(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading) return <p style={s.loading}>Loading profiles...</p>;
+
+  const handleSort = (col: string) => {
+    if (sortCol === col) setSortAsc(!sortAsc);
+    else { setSortCol(col); setSortAsc(false); }
+  };
+
+  const sorted = [...data].sort((a, b) => {
+    if (!sortCol) return 0;
+    const av = a[sortCol] ?? -1;
+    const bv = b[sortCol] ?? -1;
+    return sortAsc ? av - bv : bv - av;
+  });
+
+  const profileCols = [
+    { key: "cognitive_profile", label: "פרופיל קוגניטיבי", color: "#6366F1" },
+    { key: "intuitive_intelligence", label: "אינטליגנציה אינטואיטיבית", color: "#8b5cf6" },
+    { key: "vibe", label: "סחיות", color: "#f59e0b" },
+    { key: "popularity", label: "עממיות", color: "#10b981" },
+  ];
+
+  const scoreCell = (val: number | null, color: string) => {
+    if (val == null) return <td style={{ ...s.td, textAlign: "center" }}><span style={s.none}>—</span></td>;
+    return (
+      <td style={{ ...s.td, textAlign: "center" }}>
+        <span style={{ fontWeight: 600, color, fontSize: 13 }}>{val}</span>
+      </td>
+    );
+  };
+
+  return (
+    <div style={s.scrollWrap}>
+      <table style={s.table}>
+        <thead>
+          <tr>
+            <th style={s.th}>Name</th>
+            {profileCols.map(c => (
+              <th key={c.key} style={{ ...s.th, cursor: "pointer", textAlign: "center" }} onClick={() => handleSort(c.key)}>
+                {c.label} {sortCol === c.key ? (sortAsc ? "▲" : "▼") : ""}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map(u => (
+            <tr key={u.id}>
+              <td style={s.td}>{u.first_name}</td>
+              {profileCols.map(c => scoreCell(u[c.key], c.color))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 // ── Trait Definitions Tab ────────────────────────────────────────
