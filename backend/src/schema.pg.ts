@@ -411,6 +411,12 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
         ALTER TABLE candidate_matches ADD COLUMN score_big_five DOUBLE PRECISION;
         ALTER TABLE candidate_matches ADD COLUMN score_schwartz DOUBLE PRECISION;
         ALTER TABLE candidate_matches ADD COLUMN score_style DOUBLE PRECISION;
+      END IF;
+
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'candidate_matches' AND column_name = 'score_mbti'
+      ) THEN
         ALTER TABLE candidate_matches ADD COLUMN score_mbti DOUBLE PRECISION;
       END IF;
     END $$;
