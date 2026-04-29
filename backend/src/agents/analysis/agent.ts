@@ -91,6 +91,8 @@ const GROUP_LABEL_EN: Record<string, string> = {
   "Emotional Profile": "emotional",
   "Personal Style": "style",
   "General Info": "general",
+  "MBTI": "mbti",
+  "MBTI Test": "mbti",
   // Legacy Hebrew names (in case sqlite bridge still feeds them)
   "כללי": "general",
   "אורח חיים": "lifestyle",
@@ -450,6 +452,12 @@ export async function runAnalysisAgent(
 
   const systemPrompt = loadPrompt("group-system.txt");
   const cognitiveSystemPrompt = loadPrompt("cognitive-system.txt");
+  const personalitySystemPrompt = loadPrompt("bigfive-schwartz-system.txt");
+  const communicationTonePrompt = loadPrompt("communication-tone-system.txt");
+  const personalStylePrompt = loadPrompt("personal-style-system.txt");
+  const emotionalProfilePrompt = loadPrompt("emotional-profile-system.txt");
+  const generalInfoPrompt = loadPrompt("general-info-system.txt");
+  const mbtiPrompt = loadPrompt("mbti-system.txt");
 
   // Group internal traits by trait_group field (data-driven, excludes text traits)
   const groupedMap = groupTraitsByCategory(input.internal_trait_definitions);
@@ -468,10 +476,22 @@ export async function runAnalysisAgent(
     }
   }
 
-  const groupList = Array.from(groupedMap.entries()).map(([name, traits]) => ({ name, traits }));
+  // Merge Big Five + Schwartz Values into a single "Personality" group with dedicated prompt
+  const bigFive = groupedMap.get("Big Five") || [];
+  const schwartz = groupedMap.get("Schwartz Values") || [];
+  groupedMap.delete("Big Five");
+  groupedMap.delete("Schwartz Values");
+  const personalityTraits = [...bigFive, ...schwartz];
+  if (personalityTraits.length > 0) groupedMap.set("Personality", personalityTraits);
 
-  // Text traits get their own dedicated call (different prompt structure)
+  // Include text traits in General Info group (they share a prompt now)
   const textTraits = input.internal_trait_definitions.filter(t => t.calc_type === "text");
+  if (textTraits.length > 0) {
+    const generalGroup = groupedMap.get("General Info") || [];
+    groupedMap.set("General Info", [...generalGroup, ...textTraits]);
+  }
+
+  const groupList = Array.from(groupedMap.entries()).map(([name, traits]) => ({ name, traits }));
 
   console.log(
     `[analysis] Starting grouped analysis: transcript=${input.transcript.length}chars, ` +
@@ -484,21 +504,23 @@ export async function runAnalysisAgent(
   // Run group calls sequentially for gpt-4o (rate limit), parallel for gpt-4o-mini
   const groupResults: GroupCallResult[] = [];
   for (const g of groupList) {
-    const prompt = g.name === "Cognitive Profile" ? cognitiveSystemPrompt : systemPrompt;
+    const prompt = g.name === "Cognitive Profile" ? cognitiveSystemPrompt
+      : g.name === "Personality" ? personalitySystemPrompt
+      : g.name === "Communication Tone" ? communicationTonePrompt
+      : g.name === "Personal Style" ? personalStylePrompt
+      : g.name === "Emotional Profile" ? emotionalProfilePrompt
+      : g.name === "General Info" ? generalInfoPrompt
+      : g.name === "MBTI" || g.name === "MBTI Test" ? mbtiPrompt
+      : systemPrompt;
     const result = await runOneGroupCall(g.name, g.traits, input.transcript,
       prompt, userId ?? null, actionType, "gpt-4o");
     groupResults.push(result);
   }
 
-  // External and text calls run after groups are done
+  // External call runs after groups are done (text traits are now part of General Info)
   const externalResult: ExternalCallResult | null =
     input.external_trait_definitions.length > 0
       ? await runExternalCall(input.external_trait_definitions, input.transcript, userId ?? null, actionType)
-      : null;
-
-  const textResult: TextCallResult | null =
-    textTraits.length > 0
-      ? await runTextTraitsCall(textTraits, input.transcript, userId ?? null, actionType)
       : null;
 
   const totalDuration = Date.now() - overallStart;
@@ -524,16 +546,18 @@ export async function runAnalysisAgent(
     }
   }
 
-  // Merge text traits into internal_traits
-  if (textResult && Array.isArray(textResult.parsed.text_traits)) {
-    for (const t of textResult.parsed.text_traits) {
-      if (!t.text_value) continue; // skip null text values
-      const valid = validateInternalTrait({
-        internal_name: t.internal_name,
-        text_value: t.text_value,
-        confidence: t.confidence ?? 0.5,
-      });
-      if (valid) internal_traits.push(valid);
+  // Merge text traits from group results (General Info now includes text traits)
+  for (const gr of groupResults) {
+    if (Array.isArray(gr.parsed.text_traits)) {
+      for (const t of gr.parsed.text_traits) {
+        if (!t.text_value) continue;
+        const valid = validateInternalTrait({
+          internal_name: t.internal_name,
+          text_value: t.text_value,
+          confidence: t.confidence ?? 0.5,
+        });
+        if (valid) internal_traits.push(valid);
+      }
     }
   }
 
@@ -574,22 +598,132 @@ export async function runAnalysisAgent(
 
   // ── Build run data for persistence (admin debug view) ──────────
   const promptParts = groupResults.map(gr => `=== ${gr.groupName} ===\n${gr.promptSent}`).join("\n\n");
-  const textPromptPart = textResult ? `\n\n=== text ===\n${textResult.promptSent}` : "";
   const externalPromptPart = externalResult ? `\n\n=== external ===\n${externalResult.promptSent}` : "";
   const outputParts = groupResults
     .map(gr => `=== ${gr.groupName} (${gr.durationMs}ms) ===\n${gr.rawOutput}`)
     .join("\n\n");
-  const textOutputPart = textResult ? `\n\n=== text (${textResult.durationMs}ms) ===\n${textResult.rawOutput}` : "";
   const externalOutputPart = externalResult
     ? `\n\n=== external (${externalResult.durationMs}ms) ===\n${externalResult.rawOutput}`
     : "";
 
   const runData: AnalysisRunData = {
-    generated_prompt: promptParts + textPromptPart + externalPromptPart,
-    stage_a_output: outputParts + textOutputPart + externalOutputPart,
+    generated_prompt: promptParts + externalPromptPart,
+    stage_a_output: outputParts + externalOutputPart,
     // Use a plain copy to avoid circular reference (result._run_data.stage_b_output → result)
     stage_b_output: JSON.parse(JSON.stringify(result)),
   };
 
   return Object.assign(result, { _run_data: runData });
+}
+
+// ── Single group analysis (for per-group reanalyze buttons) ─────
+
+// Map of group keys to their prompt files and which trait_groups they include
+const GROUP_PROMPT_MAP: Record<string, { promptFile: string; traitGroups: string[]; excludeTraits?: string[] }> = {
+  "cognitive": { promptFile: "cognitive-system.txt", traitGroups: ["Cognitive Profile"], excludeTraits: ["career_prestige"] },
+  "personality": { promptFile: "bigfive-schwartz-system.txt", traitGroups: ["Big Five", "Schwartz Values"] },
+  "communication": { promptFile: "communication-tone-system.txt", traitGroups: ["Communication Tone"] },
+  "style": { promptFile: "personal-style-system.txt", traitGroups: ["Personal Style"] },
+  "emotional": { promptFile: "emotional-profile-system.txt", traitGroups: ["Emotional Profile"] },
+  "general": { promptFile: "general-info-system.txt", traitGroups: ["General Info"] },
+  "mbti": { promptFile: "mbti-system.txt", traitGroups: ["MBTI", "MBTI Test"] },
+  "external": { promptFile: "external-system.txt", traitGroups: [] }, // special handling
+};
+
+export function getAvailableGroups(): { key: string; label: string }[] {
+  return [
+    { key: "cognitive", label: "Cognitive Profile" },
+    { key: "personality", label: "Big Five + Schwartz" },
+    { key: "communication", label: "Communication Tone" },
+    { key: "style", label: "Personal Style" },
+    { key: "emotional", label: "Emotional Profile" },
+    { key: "general", label: "General Info" },
+    { key: "mbti", label: "MBTI" },
+    { key: "external", label: "External (Look)" },
+  ];
+}
+
+export async function runSingleGroupAnalysis(
+  groupKey: string,
+  transcript: string,
+  userId: number,
+): Promise<{ internal_saved: number; external_saved: number; raw_output: string }> {
+  const config = GROUP_PROMPT_MAP[groupKey];
+  if (!config) throw new Error(`Unknown group key: ${groupKey}`);
+
+  const { loadInternalTraitDefs, loadExternalTraitDefs, saveAnalysisToDb } = await import("./loader");
+
+  if (groupKey === "external") {
+    // External traits use a different flow
+    const externalDefs = await loadExternalTraitDefs();
+    const systemPrompt = loadPrompt("external-system.txt");
+    const userPrompt = buildExternalUserMessage(transcript, externalDefs);
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+      temperature: 0.05, max_tokens: 2000, response_format: { type: "json_object" },
+    });
+    trackTokens(userId, `single_external`, "gpt-4o", response.usage);
+
+    const rawOutput = response.choices[0].message.content || "{}";
+    let parsed: any = {};
+    try { parsed = JSON.parse(rawOutput); } catch {}
+
+    const external_traits: ExternalTraitAssessment[] = [];
+    if (Array.isArray(parsed.external_traits)) {
+      setExternalPossibleValues(externalDefs as any[]);
+      const seen = new Set<number>();
+      for (const t of parsed.external_traits) {
+        const valid = validateExternalTrait(t);
+        if (valid && !seen.has(valid.trait_id)) { seen.add(valid.trait_id); external_traits.push(valid); }
+      }
+    }
+
+    const saved = await saveAnalysisToDb(undefined as any, userId, { internal_traits: [], external_traits, missing_traits: [], recommended_probes: [], profiling_completeness: { internal_assessed: 0, internal_total: 0, external_assessed: external_traits.length, external_total: externalDefs.length, coverage_pct: 0, ready_for_matching: false, notes: "single group" } });
+    return { ...saved, raw_output: rawOutput };
+  }
+
+  // Internal group flow
+  const allDefs = await loadInternalTraitDefs();
+  const groupTraits = allDefs.filter(t => {
+    if (!config.traitGroups.includes(t.trait_group || "")) return false;
+    if (config.excludeTraits?.includes(t.internal_name)) return false;
+    return true;
+  });
+
+  // For general group: also include career_prestige and text traits
+  if (groupKey === "general") {
+    const career = allDefs.find(t => t.internal_name === "career_prestige");
+    if (career) groupTraits.push(career);
+    const textTraits = allDefs.filter(t => t.calc_type === "text");
+    groupTraits.push(...textTraits);
+  }
+
+  setTraitLookups(allDefs, []);
+  setTextTypeTraits(allDefs as any[]);
+
+  const systemPrompt = loadPrompt(config.promptFile);
+  const displayGroupName = groupKey === "personality" ? "Personality" : config.traitGroups[0] || groupKey;
+  const result = await runOneGroupCall(displayGroupName, groupTraits, transcript, systemPrompt, userId, "single", "gpt-4o");
+
+  // Validate and collect traits
+  const internal_traits: InternalTraitAssessment[] = [];
+  if (Array.isArray(result.parsed.internal_traits)) {
+    for (const t of result.parsed.internal_traits) {
+      const valid = validateInternalTrait(t);
+      if (valid) internal_traits.push(valid);
+    }
+  }
+  // Handle text_traits from General Info
+  if (Array.isArray(result.parsed.text_traits)) {
+    for (const t of result.parsed.text_traits) {
+      if (!t.text_value) continue;
+      const valid = validateInternalTrait({ internal_name: t.internal_name, text_value: t.text_value, confidence: t.confidence ?? 0.5 });
+      if (valid) internal_traits.push(valid);
+    }
+  }
+
+  const saved = await saveAnalysisToDb(undefined as any, userId, { internal_traits, external_traits: [], missing_traits: [], recommended_probes: [], profiling_completeness: { internal_assessed: internal_traits.length, internal_total: groupTraits.length, external_assessed: 0, external_total: 0, coverage_pct: 0, ready_for_matching: false, notes: "single group" } });
+  return { ...saved, raw_output: result.rawOutput };
 }

@@ -7,6 +7,9 @@
 
 import { queryAll, queryRun } from "./db.pg";
 
+// תכונות: analytical_reasoning (x3), abstract_thinking, cognitive_flexibility,
+// conceptual_precision, verbal_articulation, verbal_reasoning,
+// depth_of_thought, intellectualism, career_prestige, eq
 export const COGNITIVE_TRAIT_WEIGHTS: [string, number][] = [
   ["analytical_reasoning", 3],
   ["abstract_thinking", 1], ["cognitive_flexibility", 1], ["conceptual_precision", 1],
@@ -27,7 +30,11 @@ export function computeCognitiveScore(
     sumW += t.score * t.confidence * weight;
     sumC += t.confidence * weight;
   }
-  return sumC > 0 ? Math.round(sumW / sumC) : null;
+  if (sumC === 0) return null;
+  const raw = sumW / sumC;
+  // Normalize from observed range (10-90) to 0-100
+  const normalized = Math.max(0, Math.min(100, ((raw - 10) / 80) * 100));
+  return Math.round(normalized);
 }
 
 /**

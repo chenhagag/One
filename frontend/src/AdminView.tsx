@@ -269,6 +269,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
   const [showCognitiveTest, setShowCognitiveTest] = useState(false);
   const [runningCognitiveTest, setRunningCognitiveTest] = useState(false);
   const [showEvidenceScores, setShowEvidenceScores] = useState(false);
+  const [runningGroup, setRunningGroup] = useState<string | null>(null);
 
   function loadMatches() {
     fetch(`/api/admin/users/${userId}/matches`)
@@ -349,6 +350,21 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
       setShowCognitiveTest(true);
     } catch { alert("Network error"); }
     finally { setRunningCognitiveTest(false); }
+  }
+
+  async function handleGroupReanalyze(groupKey: string) {
+    setRunningGroup(groupKey);
+    try {
+      const r = await fetch(`/api/admin/users/${userId}/reanalyze-group`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ group: groupKey }),
+      });
+      const json = await r.json();
+      if (!r.ok) { alert(json.error || "Group analysis failed"); return; }
+      alert(`${groupKey}: ${json.internal_saved} internal + ${json.external_saved} external traits saved`);
+      loadUserData();
+    } catch { alert("Network error"); }
+    finally { setRunningGroup(null); }
   }
 
   async function handleResetAnalysis() {
@@ -437,32 +453,27 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
     return { score: Math.round(sumWeighted / sumConf), count: items.length, total: names.length };
   }
 
+  // פרופיל קוגניטיבי — מחושב ב-cognitiveScore.ts ונשמר ב-users.cognitive_score
+  // תכונות: analytical_reasoning (x3), abstract_thinking, cognitive_flexibility,
+  // conceptual_precision, verbal_articulation, verbal_reasoning,
+  // depth_of_thought, intellectualism, career_prestige, eq
   function computeCognitiveProfile() {
-    // Use pre-computed score from DB (updated on reanalyze)
     if (user.cognitive_score != null) return { score: Math.round(user.cognitive_score), count: 1, total: 1 };
-    // Fallback: compute locally from traits
-    const traitWeights: [string, number][] = [
-      ["analytical_reasoning", 3],
-      ["abstract_thinking", 1], ["cognitive_flexibility", 1], ["conceptual_precision", 1],
-      ["verbal_articulation", 1], ["verbal_reasoning", 1], ["depth_of_thought", 1],
-      ["intellectualism", 1], ["career_prestige", 1], ["eq", 1],
-    ];
-    let sumW = 0, sumC = 0, count = 0;
-    for (const [name, weight] of traitWeights) {
-      const t = traitData(name);
-      if (!t) continue;
-      sumW += t.score * t.confidence * weight;
-      sumC += t.confidence * weight;
-      count++;
-    }
-    if (sumC === 0) return null;
-    return { score: Math.round(sumW / sumC), count, total: traitWeights.length };
+    return null;
   }
 
-  function computeIntuitiveIntelligence() {
-    const sii = traitData("social_intuitive_intelligence");
-    if (!sii) return null;
-    return { score: Math.round(sii.score), count: 1, total: 1 };
+  // תכונות: social_intuitive_intelligence, eq, self_awareness, positivity, warmth
+  function computeEmotionalSocialIntelligence() {
+    return weightedAvg([
+      "social_intuitive_intelligence", "eq", "self_awareness", "positivity", "warmth",
+    ]);
+  }
+
+  // תכונות: neuroticism, emotional_intensity, emotional_expressiveness
+  function computeEmotionality() {
+    return weightedAvg([
+      "neuroticism", "emotional_intensity", "emotional_expressiveness",
+    ]);
   }
 
   // Evidence-based cognitive profile from cognitive test output
@@ -542,6 +553,31 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
 
   const evidenceProfile = computeEvidenceBasedProfile();
 
+  // תכונות: communication_softness, harsh_talk (inverted), directness, tonal_balance,
+  // authenticity, dramatic_intensity (inverted), theatricality (inverted), energy_level
+  function computeCommunicationTone() {
+    const invertedTraits = new Set(["harsh_talk", "dramatic_intensity", "theatricality"]);
+    const toneTraits = [
+      "communication_softness", "harsh_talk", "directness", "tonal_balance",
+      "authenticity", "dramatic_intensity", "theatricality", "energy_level",
+    ];
+    const items: { score: number; confidence: number }[] = [];
+    for (const name of toneTraits) {
+      const d = traitData(name);
+      if (!d) continue;
+      items.push({
+        score: invertedTraits.has(name) ? 100 - d.score : d.score,
+        confidence: d.confidence,
+      });
+    }
+    if (items.length === 0) return null;
+    const sumW = items.reduce((s, d) => s + d.score * d.confidence, 0);
+    const sumC = items.reduce((s, d) => s + d.confidence, 0);
+    if (sumC === 0) return null;
+    return { score: Math.round(sumW / sumC), count: items.length, total: toneTraits.length };
+  }
+
+  // סחיות — תכונות: mainstreamness, conformity, openness_to_experience (inverted)
   const vibeProfile = (() => {
     const items = [
       traitData("mainstreamness"),
@@ -556,6 +592,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
     return { score: Math.round(sumW / sumC), count: items.length, total: 3 };
   })();
 
+  // עממיות — תכונות: oriental, mainstreamness, broad_appeal
   const popularityProfile = weightedAvg(["oriental", "mainstreamness", "broad_appeal"]);
 
   // Extract estimated_psychometric and intelligence_type from cognitive AI output
@@ -590,11 +627,124 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
 
   const computedProfiles = [
     { name: "פרופיל קוגניטיבי", nameEn: "Cognitive Profile", color: "#6366F1", ...(computeCognitiveProfile() || { score: null, count: 0, total: 8 }) },
-    { name: "אינטליגנציה אינטואיטיבית", nameEn: "Intuitive Intelligence", color: "#8b5cf6", ...(computeIntuitiveIntelligence() || { score: null, count: 0, total: 2 }) },
+    { name: "אינטליגנציה רגשית-חברתית", nameEn: "Emotional-Social Intelligence", color: "#8b5cf6", ...(computeEmotionalSocialIntelligence() || { score: null, count: 0, total: 5 }) },
+    { name: "מידת רגשנות", nameEn: "Emotionality", color: "#ec4899", ...(computeEmotionality() || { score: null, count: 0, total: 3 }) },
     ...(evidenceProfile ? [{ name: "קוגניטיבי (ראיות)", nameEn: "Evidence Cognitive", color: "#7c3aed", score: evidenceProfile.overallScore, count: Object.values(evidenceProfile.traits).filter(t => t.confidence > 0).length, total: Object.keys(evidenceProfile.traits).length }] : []),
+    { name: "טון תקשורת", nameEn: "Communication Tone", color: "#14b8a6", ...(computeCommunicationTone() || { score: null, count: 0, total: 8 }) },
     { name: "סחיות (Vibe)", nameEn: "Vibe", color: "#f59e0b", ...(vibeProfile || { score: null, count: 0, total: 3 }) },
     { name: "עממיות", nameEn: "Popularity", color: "#10b981", ...(popularityProfile || { score: null, count: 0, total: 3 }) },
   ];
+
+  // Big Five extreme traits (score >= 65 or <= 45)
+  const bigFiveExtremes = (() => {
+    const bigFiveTraits: { name: string; he: string; heHigh: string; heLow: string }[] = [
+      { name: "extraversion", he: "מוחצנות", heHigh: "מוחצנות", heLow: "מוחצנות" },
+      { name: "conscientiousness", he: "מצפוניות", heHigh: "מצפוניות", heLow: "מצפוניות" },
+      { name: "agreeableness", he: "נעימות", heHigh: "נעימות", heLow: "נעימות" },
+      { name: "neuroticism", he: "נוירוטיות", heHigh: "נוירוטיות", heLow: "נוירוטיות" },
+      { name: "openness_to_experience", he: "פתיחות", heHigh: "פתיחות", heLow: "פתיחות" },
+    ];
+    const items: { label: string; score: number; direction: "high" | "low" | "mid" }[] = [];
+    for (const t of bigFiveTraits) {
+      const d = traitData(t.name);
+      if (!d) continue;
+      if (d.score >= 65) items.push({ label: t.heHigh, score: d.score, direction: "high" });
+      else if (d.score <= 45) items.push({ label: t.heLow, score: d.score, direction: "low" });
+      else items.push({ label: t.he, score: d.score, direction: "mid" });
+    }
+    return items;
+  })();
+
+  // MBTI type — computed from extraversion (Big Five) + sensing/intuition/thinking/feeling/judging/perceiving
+  const mbtiTypes = (() => {
+    const ext = traitData("extraversion");
+    const sen = traitData("sensing");
+    const int_ = traitData("intuition");
+    const thi = traitData("thinking");
+    const fee = traitData("feeling");
+    const jud = traitData("judging");
+    const per = traitData("perceiving");
+
+    // Need at least the MBTI traits to compute
+    if (!sen && !int_ && !thi && !fee && !jud && !per) return null;
+
+    // Each axis produces one or two letters
+    const axis1 = !ext ? ["X"] : ext.score > 50 ? ["E"] : ext.score < 50 ? ["I"] : ["E", "I"];
+    const axis2 = (!sen && !int_) ? ["X"] :
+      !sen ? ["N"] : !int_ ? ["S"] :
+      sen.score > int_.score ? ["S"] : sen.score < int_.score ? ["N"] : ["S", "N"];
+    // T gets +20 bonus because conversational tone biases F scores upward
+    const axis3 = (!thi && !fee) ? ["X"] :
+      !thi ? ["F"] : !fee ? ["T"] :
+      (() => { const adjT = thi.score + 20; return adjT > fee.score ? ["T"] : adjT < fee.score ? ["F"] : ["T", "F"]; })();
+    const axis4 = (!jud && !per) ? ["X"] :
+      !jud ? ["P"] : !per ? ["J"] :
+      jud.score > per.score ? ["J"] : jud.score < per.score ? ["P"] : ["J", "P"];
+
+    // Generate all combinations
+    const types: string[] = [];
+    for (const a of axis1) for (const b of axis2) for (const c of axis3) for (const d of axis4)
+      types.push(a + b + c + d);
+    return types;
+  })();
+
+  // Personal Style highlights (score >= 65)
+  const styleHighlights = (() => {
+    const styleTraits: { name: string; he: string }[] = [
+      { name: "mainstreamness", he: "מיינסטרימי" },
+      { name: "oriental", he: "מזרחי" },
+      { name: "broad_appeal", he: "נורמטיבי רחב" },
+      { name: "value_rigidity", he: "שמרן ערכית" },
+      { name: "family_of_origin_closeness", he: "קרוב למשפחה" },
+      { name: "childishness", he: "ילדותי" },
+      { name: "humor", he: "הומוריסטי" },
+      { name: "right_wing", he: "ימני" },
+      { name: "left_wing", he: "שמאלני" },
+      { name: "social_activism", he: "אקטיביסט" },
+      { name: "party_orientation", he: "מסיבתי" },
+      { name: "religiosity", he: "דתי" },
+      { name: "secularity", he: "חילוני" },
+      { name: "hipsterishness", he: "היפסטר" },
+      { name: "geekiness", he: "גיקי" },
+      { name: "hippie_style", he: "היפי" },
+      { name: "soviet_style", he: "סובייטי" },
+    ];
+    const highlights: { label: string; score: number }[] = [];
+    for (const t of styleTraits) {
+      const d = traitData(t.name);
+      if (!d || d.score < 65) continue;
+      highlights.push({ label: t.he, score: d.score });
+    }
+    highlights.sort((a, b) => b.score - a.score);
+    return highlights;
+  })();
+
+  // Schwartz Values extreme traits (top 4 most extreme: >= 70 or <= 40)
+  const schwartzExtremes = (() => {
+    const schwartzTraits: { name: string; he: string }[] = [
+      { name: "hedonism", he: "נהנתנות" },
+      { name: "achievement", he: "הישגיות" },
+      { name: "power", he: "כוח" },
+      { name: "self_direction", he: "עצמאות" },
+      { name: "stimulation", he: "גירוי" },
+      { name: "security", he: "ביטחון" },
+      { name: "conformity", he: "ציות" },
+      { name: "tradition", he: "מסורת" },
+      { name: "benevolence", he: "נדיבות" },
+      { name: "universalism", he: "אוניברסליות" },
+      { name: "spirituality", he: "רוחניות" },
+    ];
+    const all: { label: string; score: number; direction: "high" | "low"; distance: number }[] = [];
+    for (const t of schwartzTraits) {
+      const d = traitData(t.name);
+      if (!d) continue;
+      if (d.score >= 70) all.push({ label: t.he, score: d.score, direction: "high", distance: d.score - 50 });
+      else if (d.score <= 40) all.push({ label: t.he, score: d.score, direction: "low", distance: 50 - d.score });
+    }
+    // Sort by distance from center (most extreme first)
+    all.sort((a, b) => b.distance - a.distance);
+    return all;
+  })();
 
   return (
     <div>
@@ -801,6 +951,63 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
                     )}
                   </div>
                 ))}
+                {bigFiveExtremes.length > 0 && (/* always show if any Big Five data */
+                  <div style={{
+                    flex: "1 1 180px", padding: "14px 16px", borderRadius: 12,
+                    background: "#f8fafc", border: "2px solid #3b82f640",
+                    minWidth: 180,
+                  }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#333", marginBottom: 8 }}>Big Five — תכונות בולטות</div>
+                    {bigFiveExtremes.map((e, i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                        <span style={{ fontSize: 12, color: e.direction === "high" ? "#3b82f6" : e.direction === "low" ? "#f59e0b" : "#888" }}>{e.label}</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: e.direction === "high" ? "#3b82f6" : e.direction === "low" ? "#f59e0b" : "#888" }}>{e.score}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {schwartzExtremes.length > 0 && (
+                  <div style={{
+                    flex: "1 1 180px", padding: "14px 16px", borderRadius: 12,
+                    background: "#f8fafc", border: "2px solid #8b5cf640",
+                    minWidth: 180,
+                  }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#333", marginBottom: 8 }}>ערכים בולטים (שוורץ)</div>
+                    {schwartzExtremes.map((e, i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                        <span style={{ fontSize: 12, color: e.direction === "high" ? "#8b5cf6" : "#f59e0b" }}>{e.label}</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: e.direction === "high" ? "#8b5cf6" : "#f59e0b" }}>{e.score}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {styleHighlights.length > 0 && (
+                  <div style={{
+                    flex: "1 1 180px", padding: "14px 16px", borderRadius: 12,
+                    background: "#f8fafc", border: "2px solid #f9731640",
+                    minWidth: 180,
+                  }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#333", marginBottom: 8 }}>סגנון בולט</div>
+                    {styleHighlights.map((e, i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                        <span style={{ fontSize: 12, color: "#f97316" }}>{e.label}</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "#f97316" }}>{e.score}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {mbtiTypes && (
+                  <div style={{
+                    flex: "1 1 140px", padding: "14px 16px", borderRadius: 12,
+                    background: "#f8fafc", border: "2px solid #0ea5e940",
+                    textAlign: "center", minWidth: 140,
+                  }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#333", marginBottom: 6 }}>MBTI</div>
+                    <div style={{ fontSize: mbtiTypes.length > 2 ? 18 : 28, fontWeight: 700, color: "#0ea5e9" }}>
+                      {mbtiTypes.join(" / ")}
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -900,6 +1107,27 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
                   No trait data — click Re-analyze to generate
                 </span>
               )}
+            </div>
+          )}
+          {profile && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 12 }}>
+              <span style={{ fontSize: 11, color: "#888", alignSelf: "center", marginRight: 4 }}>Run single group:</span>
+              {[
+                { key: "cognitive", label: "Cognitive", color: "#6366F1" },
+                { key: "personality", label: "Big Five + Schwartz", color: "#3b82f6" },
+                { key: "communication", label: "Comm. Tone", color: "#14b8a6" },
+                { key: "style", label: "Personal Style", color: "#f97316" },
+                { key: "emotional", label: "Emotional", color: "#ec4899" },
+                { key: "general", label: "General Info", color: "#6b7280" },
+                { key: "mbti", label: "MBTI", color: "#0ea5e9" },
+                { key: "external", label: "External", color: "#8b5cf6" },
+              ].map(g => (
+                <button key={g.key}
+                  style={{ padding: "3px 10px", fontSize: 11, fontWeight: 500, cursor: "pointer", background: runningGroup === g.key ? g.color : "#fff", color: runningGroup === g.key ? "#fff" : g.color, border: `1px solid ${g.color}`, borderRadius: 4, opacity: runningGroup && runningGroup !== g.key ? 0.5 : 1 }}
+                  onClick={() => handleGroupReanalyze(g.key)}
+                  disabled={!!runningGroup}
+                >{runningGroup === g.key ? "Running..." : g.label}</button>
+              ))}
             </div>
           )}
           <table style={{ ...s.table, marginBottom: 24 }}>
@@ -1539,10 +1767,15 @@ function UserProfilesTab() {
   });
 
   const profileCols = [
-    { key: "cognitive_profile", label: "פרופיל קוגניטיבי", color: "#6366F1" },
-    { key: "intuitive_intelligence", label: "אינטליגנציה אינטואיטיבית", color: "#8b5cf6" },
+    { key: "cognitive", label: "קוגניטיבי", color: "#6366F1" },
+    { key: "emotional_social", label: "רגשית-חברתית", color: "#8b5cf6" },
+    { key: "emotionality", label: "רגשנות", color: "#ec4899" },
+    { key: "communication", label: "תקשורת", color: "#14b8a6" },
     { key: "vibe", label: "סחיות", color: "#f59e0b" },
     { key: "popularity", label: "עממיות", color: "#10b981" },
+    { key: "big_five", label: "ביג פייב", color: "#3b82f6" },
+    { key: "schwartz", label: "שוורץ", color: "#f97316" },
+    { key: "style", label: "סגנון", color: "#a855f7" },
   ];
 
   const scoreCell = (val: number | null, color: string) => {
@@ -2242,6 +2475,16 @@ function CandidateMatchesTab() {
                 <th style={s.th}>Match Priority</th>
                 <th style={s.th}>Internal</th>
                 <th style={s.th}>External</th>
+                <th style={s.th}>קוגניטיבי</th>
+                <th style={s.th}>רגשית-חברתית</th>
+                <th style={s.th}>רגשנות</th>
+                <th style={s.th}>תקשורת</th>
+                <th style={s.th}>סחיות</th>
+                <th style={s.th}>עממיות</th>
+                <th style={s.th}>ביג פייב</th>
+                <th style={s.th}>שוורץ</th>
+                <th style={s.th}>סגנון</th>
+                <th style={s.th}>MBTI</th>
               </tr>
             </thead>
             <tbody>
@@ -2255,6 +2498,16 @@ function CandidateMatchesTab() {
                   <td style={s.td}>{cm.final_match_priority != null ? <strong>{cm.final_match_priority}</strong> : "-"}</td>
                   <td style={s.td}>{cm.internal_score ?? "-"}</td>
                   <td style={s.td}>{cm.external_score ?? "-"}</td>
+                  <td style={s.td}>{cm.score_cognitive ?? "-"}</td>
+                  <td style={s.td}>{cm.score_emotional_social ?? "-"}</td>
+                  <td style={s.td}>{cm.score_emotionality ?? "-"}</td>
+                  <td style={s.td}>{cm.score_communication ?? "-"}</td>
+                  <td style={s.td}>{cm.score_vibe ?? "-"}</td>
+                  <td style={s.td}>{cm.score_popularity ?? "-"}</td>
+                  <td style={s.td}>{cm.score_big_five ?? "-"}</td>
+                  <td style={s.td}>{cm.score_schwartz ?? "-"}</td>
+                  <td style={s.td}>{cm.score_style ?? "-"}</td>
+                  <td style={s.td}>{cm.score_mbti ?? "-"}</td>
                 </tr>
               ))}
             </tbody>

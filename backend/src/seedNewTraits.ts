@@ -81,7 +81,7 @@ const NEW_TRAITS: NewTrait[] = [
   { internal_name: "warmth", display_name_he: "חום", display_name_en: "Warmth", ai_description: null, trait_group: "Emotional Profile", sensitivity: "normal", calc_type: "normal" },
   { internal_name: "emotional_intensity", display_name_he: "עוצמה רגשית", display_name_en: "Emotional Intensity", ai_description: null, trait_group: "Emotional Profile", sensitivity: "normal", calc_type: "normal" },
 
-  // ── Personal Style (12) ──
+  // ── Personal Style (17) ──
   { internal_name: "mainstreamness", display_name_he: "מיינסטרימיות", display_name_en: "Mainstreamness", ai_description: null, trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
   { internal_name: "oriental", display_name_he: "מזרחיות", display_name_en: "Oriental", ai_description: null, trait_group: "Personal Style", sensitivity: "sensitive", calc_type: "normal" },
   { internal_name: "broad_appeal", display_name_he: "נורמטיביות רחבה", display_name_en: "Broad Appeal", ai_description: null, trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
@@ -94,6 +94,21 @@ const NEW_TRAITS: NewTrait[] = [
   { internal_name: "social_activism", display_name_he: "אקטיביזם חברתי", display_name_en: "Social Activism", ai_description: null, trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
   { internal_name: "party_orientation", display_name_he: "נטיית מסיבות", display_name_en: "Party Orientation", ai_description: null, trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
   { internal_name: "religiosity", display_name_he: "דתיות", display_name_en: "Religiosity", ai_description: null, trait_group: "Personal Style", sensitivity: "sensitive", calc_type: "normal" },
+  { internal_name: "secularity", display_name_he: "חילוניות", display_name_en: "Secularity", ai_description: null, trait_group: "Personal Style", sensitivity: "sensitive", calc_type: "normal" },
+  { internal_name: "hipsterishness", display_name_he: "היפסטריות", display_name_en: "Hipsterishness", ai_description: null, trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
+  { internal_name: "geekiness", display_name_he: "גיקיות", display_name_en: "Geekiness", ai_description: null, trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
+  { internal_name: "hippie_style", display_name_he: "היפיות", display_name_en: "Hippie Style", ai_description: null, trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
+  { internal_name: "soviet_style", display_name_he: "סגנון סובייטי", display_name_en: "Soviet Style", ai_description: null, trait_group: "Personal Style", sensitivity: "sensitive", calc_type: "normal" },
+
+  // ── MBTI (6) ──
+  // ציר E/I לא כלול — משתמשים ב-extraversion מ-Big Five
+  // 3 צירים חדשים × 2 קטבים = 6 תכונות
+  { internal_name: "sensing", display_name_he: "חושים", display_name_en: "Sensing", ai_description: "Sensing (S): התמקדות בעובדות, פרטים ומציאות קונקרטית. מעדיף מידע ישיר מהחושים, פרקטי ומעשי.", trait_group: "MBTI", sensitivity: "normal", calc_type: "normal" },
+  { internal_name: "intuition", display_name_he: "אינטואיציה", display_name_en: "Intuition", ai_description: "Intuition (N): התמקדות באפשרויות, דפוסים ורעיונות מופשטים. מעדיף לראות את התמונה הגדולה ולחשוב על העתיד.", trait_group: "MBTI", sensitivity: "normal", calc_type: "normal" },
+  { internal_name: "thinking", display_name_he: "חשיבה", display_name_en: "Thinking", ai_description: "Thinking (T): קבלת החלטות על בסיס לוגיקה, ראיות אובייקטיביות ועקרונות. מעדיף ניתוח רציונלי.", trait_group: "MBTI", sensitivity: "normal", calc_type: "normal" },
+  { internal_name: "feeling", display_name_he: "רגשות", display_name_en: "Feeling", ai_description: "Feeling (F): קבלת החלטות תוך התחשבות ברגשות, ערכים והשפעה על אחרים. מעדיף הרמוניה ואמפתיה.", trait_group: "MBTI", sensitivity: "normal", calc_type: "normal" },
+  { internal_name: "judging", display_name_he: "שיפוט", display_name_en: "Judging", ai_description: "Judging (J): מעדיף מבנה, תכנון וסגירת עניינים. אוהב סדר, שגרה ולוחות זמנים ברורים.", trait_group: "MBTI", sensitivity: "normal", calc_type: "normal" },
+  { internal_name: "perceiving", display_name_he: "תפיסה", display_name_en: "Perceiving", ai_description: "Perceiving (P): מעדיף גמישות, ספונטניות והשארת אפשרויות פתוחות. אוהב להישאר פתוח ולהתאים תוך כדי תנועה.", trait_group: "MBTI", sensitivity: "normal", calc_type: "normal" },
 
   // ── General Info (8) ──
   { internal_name: "loves_animals", display_name_he: "אוהב בעלי חיים", display_name_en: "Loves Animals", ai_description: null, trait_group: "General Info", sensitivity: "normal", calc_type: "normal" },

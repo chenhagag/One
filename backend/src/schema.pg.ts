@@ -222,6 +222,16 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       internal_score            DOUBLE PRECISION,
       external_score            DOUBLE PRECISION,
       final_score               DOUBLE PRECISION,
+      score_cognitive           DOUBLE PRECISION,
+      score_emotional_social    DOUBLE PRECISION,
+      score_emotionality        DOUBLE PRECISION,
+      score_communication       DOUBLE PRECISION,
+      score_vibe                DOUBLE PRECISION,
+      score_popularity          DOUBLE PRECISION,
+      score_big_five            DOUBLE PRECISION,
+      score_schwartz            DOUBLE PRECISION,
+      score_style               DOUBLE PRECISION,
+      score_mbti                DOUBLE PRECISION,
       created_at                TIMESTAMPTZ DEFAULT NOW(),
       updated_at                TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(user_id, candidate_user_id)
@@ -385,6 +395,23 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
         WHERE table_name = 'users' AND column_name = 'cognitive_score'
       ) THEN
         ALTER TABLE users ADD COLUMN cognitive_score DOUBLE PRECISION;
+      END IF;
+
+      -- Category match scores on candidate_matches
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'candidate_matches' AND column_name = 'score_cognitive'
+      ) THEN
+        ALTER TABLE candidate_matches ADD COLUMN score_cognitive DOUBLE PRECISION;
+        ALTER TABLE candidate_matches ADD COLUMN score_emotional_social DOUBLE PRECISION;
+        ALTER TABLE candidate_matches ADD COLUMN score_emotionality DOUBLE PRECISION;
+        ALTER TABLE candidate_matches ADD COLUMN score_communication DOUBLE PRECISION;
+        ALTER TABLE candidate_matches ADD COLUMN score_vibe DOUBLE PRECISION;
+        ALTER TABLE candidate_matches ADD COLUMN score_popularity DOUBLE PRECISION;
+        ALTER TABLE candidate_matches ADD COLUMN score_big_five DOUBLE PRECISION;
+        ALTER TABLE candidate_matches ADD COLUMN score_schwartz DOUBLE PRECISION;
+        ALTER TABLE candidate_matches ADD COLUMN score_style DOUBLE PRECISION;
+        ALTER TABLE candidate_matches ADD COLUMN score_mbti DOUBLE PRECISION;
       END IF;
     END $$;
   `);

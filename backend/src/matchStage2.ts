@@ -46,6 +46,7 @@ interface TraitRow {
 
 interface TraitDef {
   id: number;
+  internal_name: string;
   calc_type: string;
   weight: number;
 }
@@ -101,6 +102,178 @@ function isAppearanceSensitive(traits: Map<number, TraitRow>): boolean {
   return weighted > APPEARANCE_SENSITIVITY_THRESHOLD;
 }
 
+// ── Category match score definitions ────────────────────────────
+// Each category lists the traits used and maps to the same traits
+// shown in the user's profile display (AdminView computed profiles).
+// A trait may appear in more than one category.
+
+interface CategoryDef {
+  key: string;
+  traitNames: string[];
+}
+
+const MATCH_CATEGORIES: CategoryDef[] = [
+  // פרופיל קוגניטיבי — Cognitive Profile
+  // Traits: analytical_reasoning, abstract_thinking, cognitive_flexibility,
+  //         conceptual_precision, verbal_articulation, verbal_reasoning,
+  //         depth_of_thought, intellectualism, career_prestige, eq
+  { key: "cognitive", traitNames: [
+    "analytical_reasoning", "abstract_thinking", "cognitive_flexibility",
+    "conceptual_precision", "verbal_articulation", "verbal_reasoning",
+    "depth_of_thought", "intellectualism", "career_prestige", "eq",
+  ]},
+
+  // אינטליגנציה רגשית-חברתית — Emotional-Social Intelligence
+  // Traits: social_intuitive_intelligence, eq, self_awareness, positivity, warmth
+  { key: "emotional_social", traitNames: [
+    "social_intuitive_intelligence", "eq", "self_awareness", "positivity", "warmth",
+  ]},
+
+  // מידת רגשנות — Emotionality
+  // Traits: neuroticism, emotional_intensity, emotional_expressiveness
+  { key: "emotionality", traitNames: [
+    "neuroticism", "emotional_intensity", "emotional_expressiveness",
+  ]},
+
+  // טון תקשורת — Communication Tone
+  // Traits: communication_softness, harsh_talk, directness, tonal_balance,
+  //         authenticity, dramatic_intensity, theatricality, energy_level
+  { key: "communication", traitNames: [
+    "communication_softness", "harsh_talk", "directness", "tonal_balance",
+    "authenticity", "dramatic_intensity", "theatricality", "energy_level",
+  ]},
+
+  // סחיות — Vibe
+  // Traits: mainstreamness, conformity, openness_to_experience
+  { key: "vibe", traitNames: [
+    "mainstreamness", "conformity", "openness_to_experience",
+  ]},
+
+  // עממיות — Popularity
+  // Traits: oriental, mainstreamness, broad_appeal
+  { key: "popularity", traitNames: [
+    "oriental", "mainstreamness", "broad_appeal",
+  ]},
+
+  // ביג פייב — Big Five
+  // Traits: extraversion, conscientiousness, agreeableness, neuroticism, openness_to_experience
+  { key: "big_five", traitNames: [
+    "extraversion", "conscientiousness", "agreeableness", "neuroticism", "openness_to_experience",
+  ]},
+
+  // ערכי שוורץ — Schwartz Values
+  // Traits: hedonism, achievement, power, self_direction, stimulation,
+  //         security, conformity, tradition, benevolence, universalism, spirituality
+  { key: "schwartz", traitNames: [
+    "hedonism", "achievement", "power", "self_direction", "stimulation",
+    "security", "conformity", "tradition", "benevolence", "universalism", "spirituality",
+  ]},
+
+  // סגנון אישי — Personal Style
+  // Traits: mainstreamness, oriental, broad_appeal, value_rigidity, family_of_origin_closeness,
+  //         childishness, humor, right_wing, left_wing, social_activism, party_orientation,
+  //         religiosity, secularity, hipsterishness, geekiness, hippie_style, soviet_style
+  { key: "style", traitNames: [
+    "mainstreamness", "oriental", "broad_appeal", "value_rigidity", "family_of_origin_closeness",
+    "childishness", "humor", "right_wing", "left_wing", "social_activism", "party_orientation",
+    "religiosity", "secularity", "hipsterishness", "geekiness", "hippie_style", "soviet_style",
+  ]},
+
+  // MBTI — כולל extraversion מביג פייב + 6 תכונות MBTI
+  // Traits: extraversion, sensing, intuition, thinking, feeling, judging, perceiving
+  { key: "mbti", traitNames: [
+    "extraversion", "sensing", "intuition", "thinking", "feeling", "judging", "perceiving",
+  ]},
+];
+
+// Build name→id set for each category (populated once in runStage2)
+let categoryTraitIds: Map<string, Set<number>> = new Map();
+
+function buildCategoryTraitIds(traitDefs: Map<number, TraitDef>): void {
+  categoryTraitIds = new Map();
+  const nameToId = new Map<string, number>();
+  for (const [id, def] of traitDefs) {
+    nameToId.set(def.internal_name, id);
+  }
+  for (const cat of MATCH_CATEGORIES) {
+    const ids = new Set<number>();
+    for (const name of cat.traitNames) {
+      const id = nameToId.get(name);
+      if (id != null) ids.add(id);
+    }
+    categoryTraitIds.set(cat.key, ids);
+  }
+}
+
+// Calculate match score for a single category (same formula as overall internal score,
+// but restricted to traits in the category)
+function calculateCategoryScore(
+  user1Traits: Map<number, TraitRow>,
+  user2Traits: Map<number, TraitRow>,
+  traitDefs: Map<number, TraitDef>,
+  allowedTraitIds: Set<number>,
+): number | null {
+  let sumWeightedScore = 0;
+  let sumWeightedWeight = 0;
+
+  for (const traitId of allowedTraitIds) {
+    const t1 = user1Traits.get(traitId);
+    const t2 = user2Traits.get(traitId);
+    if (!t1 || !t2) continue;
+
+    const def = traitDefs.get(traitId);
+    if (def && (EXCLUDED_CALC_TYPES.has(def.calc_type) || def.weight === 0)) continue;
+
+    const match = 100 - Math.abs(t1.score - t2.score);
+    const sharedConf = Math.sqrt(t1.confidence * t2.confidence);
+
+    const defWeight = def?.weight ?? 5;
+    const w1 = t1.weight_for_match ?? defWeight;
+    const w2 = t2.weight_for_match ?? defWeight;
+    const avgWeight = (w1 + w2) / 2;
+
+    const weightedWeight = avgWeight * sharedConf;
+    const weightedScore = weightedWeight * match;
+
+    sumWeightedScore += weightedScore;
+    sumWeightedWeight += weightedWeight;
+  }
+
+  if (sumWeightedWeight === 0) return null;
+  return sumWeightedScore / sumWeightedWeight;
+}
+
+interface CategoryScores {
+  score_cognitive: number | null;
+  score_emotional_social: number | null;
+  score_emotionality: number | null;
+  score_communication: number | null;
+  score_vibe: number | null;
+  score_popularity: number | null;
+  score_big_five: number | null;
+  score_schwartz: number | null;
+  score_style: number | null;
+  score_mbti: number | null;
+}
+
+function calculateAllCategoryScores(
+  user1Traits: Map<number, TraitRow>,
+  user2Traits: Map<number, TraitRow>,
+  traitDefs: Map<number, TraitDef>,
+): CategoryScores {
+  const scores: any = {};
+  for (const cat of MATCH_CATEGORIES) {
+    const ids = categoryTraitIds.get(cat.key);
+    if (!ids || ids.size === 0) {
+      scores[`score_${cat.key}`] = null;
+      continue;
+    }
+    const raw = calculateCategoryScore(user1Traits, user2Traits, traitDefs, ids);
+    scores[`score_${cat.key}`] = raw != null ? Math.round(raw * 100) / 100 : null;
+  }
+  return scores as CategoryScores;
+}
+
 // ── Main entry point ─────────────────────────────────────────────
 
 export async function runStage2(_db: Database.Database): Promise<{ scored: number; skipped: number; promoted_to_matches: number }> {
@@ -113,10 +286,13 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
 
   // Load trait definitions
   const traitDefRows = await queryAll<TraitDef>(
-    "SELECT id, calc_type, weight FROM trait_definitions"
+    "SELECT id, internal_name, calc_type, weight FROM trait_definitions"
   );
   const traitDefs = new Map<number, TraitDef>();
   for (const td of traitDefRows) traitDefs.set(td.id, td);
+
+  // Build category trait ID sets for per-category scoring
+  buildCategoryTraitIds(traitDefs);
 
   // Get all pending candidates
   const pending = await queryAll<{ id: number; user_id: number; candidate_user_id: number }>(
@@ -155,10 +331,19 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
     traitCache.get(uid) ?? new Map();
 
   // Compute scores in memory
-  type Update = { id: number; internal: number | null; external: number | null; final: number | null };
+  type Update = {
+    id: number; internal: number | null; external: number | null; final: number | null;
+    categories: CategoryScores;
+  };
   const updates: Update[] = [];
   let scored = 0;
   let skipped = 0;
+
+  const emptyCategories: CategoryScores = {
+    score_cognitive: null, score_emotional_social: null, score_emotionality: null,
+    score_communication: null, score_vibe: null, score_popularity: null,
+    score_big_five: null, score_schwartz: null, score_style: null, score_mbti: null,
+  };
 
   for (const row of pending) {
     const u1Traits = getUserTraits(row.user_id);
@@ -167,7 +352,7 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
     const internalScore = calculateInternalScore(u1Traits, u2Traits, traitDefs);
 
     if (internalScore == null) {
-      updates.push({ id: row.id, internal: null, external: null, final: null });
+      updates.push({ id: row.id, internal: null, external: null, final: null, categories: emptyCategories });
       skipped++;
       continue;
     }
@@ -178,11 +363,14 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
     const eRatio = sensitive ? SENSITIVE_EXTERNAL_RATIO : DEFAULT_EXTERNAL_RATIO;
     const finalScore = internalScore * iRatio + externalScore * eRatio;
 
+    const categories = calculateAllCategoryScores(u1Traits, u2Traits, traitDefs);
+
     updates.push({
       id: row.id,
       internal: Math.round(internalScore * 100) / 100,
       external: Math.round(externalScore * 100) / 100,
       final: Math.round(finalScore * 100) / 100,
+      categories,
     });
     scored++;
   }
@@ -193,9 +381,18 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
       await client.query(
         `UPDATE candidate_matches
          SET internal_score = $1, external_score = $2, final_score = $3,
+             score_cognitive = $5, score_emotional_social = $6, score_emotionality = $7,
+             score_communication = $8, score_vibe = $9, score_popularity = $10,
+             score_big_five = $11, score_schwartz = $12, score_style = $13,
+             score_mbti = $14,
              status = 'scored', last_evaluated_at = NOW(), updated_at = NOW()
          WHERE id = $4`,
-        [u.internal, u.external, u.final, u.id]
+        [u.internal, u.external, u.final, u.id,
+         u.categories.score_cognitive, u.categories.score_emotional_social,
+         u.categories.score_emotionality, u.categories.score_communication,
+         u.categories.score_vibe, u.categories.score_popularity,
+         u.categories.score_big_five, u.categories.score_schwartz,
+         u.categories.score_style, u.categories.score_mbti]
       );
     }
   });

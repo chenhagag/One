@@ -16,7 +16,7 @@ import { analyzeAnswer } from "./openai";
 import { runStage1 } from "./matchStage1";
 import { updateCognitiveScore } from "./cognitiveScore";
 import { runStage2, runMatchmaking } from "./matchStage2";
-import { runAnalysisAgent, buildAnalysisInput, saveAnalysisToDb, saveAnalysisRun, getLatestAnalysisRun } from "./agents/analysis";
+import { runAnalysisAgent, runSingleGroupAnalysis, getAvailableGroups, buildAnalysisInput, saveAnalysisToDb, saveAnalysisRun, getLatestAnalysisRun } from "./agents/analysis";
 import { generateOpeningMessage, processUserMessage, computeCoverage, buildAnalysisTranscript, type ConversationState } from "./agents/conversation";
 import { generatePsychologistOpening, processPsychologistMessage, type PsychologistState } from "./agents/conversation";
 
@@ -978,17 +978,19 @@ app.get("/admin/users", async (_req, res) => {
 });
 
 // GET /admin/user-profiles — All users with computed profile scores
+// 9 categories matching the profile display:
+// פרופיל קוגניטיבי, אינטליגנציה רגשית-חברתית, מידת רגשנות,
+// טון תקשורת, סחיות, עממיות, ביג פייב, ערכי שוורץ, סגנון אישי
 app.get("/admin/user-profiles", async (_req, res) => {
   const users = await pgQueryAll<any>(
     "SELECT id, first_name, cognitive_score FROM users ORDER BY id"
   );
 
-  // Load traits needed for non-cognitive profiles
+  // Load all traits needed for profile categories
   const allTraits = await pgQueryAll<{ user_id: number; internal_name: string; score: number; confidence: number }>(`
     SELECT ut.user_id, td.internal_name, ut.score, ut.confidence
     FROM user_traits ut
     JOIN trait_definitions td ON td.id = ut.trait_definition_id
-    WHERE td.internal_name IN ('social_intuitive_intelligence', 'mainstreamness', 'conformity', 'openness_to_experience', 'oriental', 'broad_appeal')
   `);
 
   const userTraitsMap = new Map<number, Map<string, { score: number; confidence: number }>>();
@@ -1008,30 +1010,74 @@ app.get("/admin/user-profiles", async (_req, res) => {
     return sumC > 0 ? Math.round(sumW / sumC) : null;
   }
 
+  function invertedAvg(traits: Map<string, { score: number; confidence: number }>, names: string[], invertSet: Set<string>): number | null {
+    let sumW = 0, sumC = 0;
+    for (const n of names) {
+      const t = traits.get(n);
+      if (!t) continue;
+      const sc = invertSet.has(n) ? 100 - t.score : t.score;
+      sumW += sc * t.confidence;
+      sumC += t.confidence;
+    }
+    return sumC > 0 ? Math.round(sumW / sumC) : null;
+  }
+
   const result = users.map(u => {
     const traits = userTraitsMap.get(u.id) || new Map();
 
-    // Vibe: openness inverted
-    let vibeScore: number | null = null;
-    const vibeItems: { score: number; confidence: number }[] = [];
-    const ms = traits.get("mainstreamness"); if (ms) vibeItems.push(ms);
-    const conf = traits.get("conformity"); if (conf) vibeItems.push(conf);
-    const ote = traits.get("openness_to_experience");
-    if (ote) vibeItems.push({ score: 100 - ote.score, confidence: ote.confidence });
-    if (vibeItems.length > 0) {
-      const sw = vibeItems.reduce((s, d) => s + d.score * d.confidence, 0);
-      const sc = vibeItems.reduce((s, d) => s + d.confidence, 0);
-      if (sc > 0) vibeScore = Math.round(sw / sc);
-    }
+    // פרופיל קוגניטיבי — מחושב ב-cognitiveScore.ts ונשמר ב-users.cognitive_score
+    const cognitive = u.cognitive_score != null ? Math.round(u.cognitive_score) : null;
 
-    const sii = traits.get("social_intuitive_intelligence");
+    // אינטליגנציה רגשית-חברתית — תכונות: social_intuitive_intelligence, eq, self_awareness, positivity, warmth
+    const emotional_social = weightedAvg(traits, [
+      "social_intuitive_intelligence", "eq", "self_awareness", "positivity", "warmth",
+    ]);
+
+    // מידת רגשנות — תכונות: neuroticism, emotional_intensity, emotional_expressiveness
+    const emotionality = weightedAvg(traits, [
+      "neuroticism", "emotional_intensity", "emotional_expressiveness",
+    ]);
+
+    // טון תקשורת — תכונות: communication_softness, harsh_talk (inv), directness, tonal_balance,
+    // authenticity, dramatic_intensity (inv), theatricality (inv), energy_level
+    const communication = invertedAvg(traits, [
+      "communication_softness", "harsh_talk", "directness", "tonal_balance",
+      "authenticity", "dramatic_intensity", "theatricality", "energy_level",
+    ], new Set(["harsh_talk", "dramatic_intensity", "theatricality"]));
+
+    // סחיות — תכונות: mainstreamness, conformity, openness_to_experience (inverted)
+    const vibe = invertedAvg(traits, [
+      "mainstreamness", "conformity", "openness_to_experience",
+    ], new Set(["openness_to_experience"]));
+
+    // עממיות — תכונות: oriental, mainstreamness, broad_appeal
+    const popularity = weightedAvg(traits, ["oriental", "mainstreamness", "broad_appeal"]);
+
+    // ביג פייב — תכונות: extraversion, conscientiousness, agreeableness, neuroticism, openness_to_experience
+    const big_five = weightedAvg(traits, [
+      "extraversion", "conscientiousness", "agreeableness", "neuroticism", "openness_to_experience",
+    ]);
+
+    // ערכי שוורץ — תכונות: hedonism, achievement, power, self_direction, stimulation,
+    // security, conformity, tradition, benevolence, universalism, spirituality
+    const schwartz = weightedAvg(traits, [
+      "hedonism", "achievement", "power", "self_direction", "stimulation",
+      "security", "conformity", "tradition", "benevolence", "universalism", "spirituality",
+    ]);
+
+    // סגנון אישי — תכונות: mainstreamness, oriental, broad_appeal, value_rigidity, family_of_origin_closeness,
+    // childishness, humor, right_wing, left_wing, social_activism, party_orientation,
+    // religiosity, secularity, hipsterishness, geekiness, hippie_style, soviet_style
+    const style = weightedAvg(traits, [
+      "mainstreamness", "oriental", "broad_appeal", "value_rigidity", "family_of_origin_closeness",
+      "childishness", "humor", "right_wing", "left_wing", "social_activism", "party_orientation",
+      "religiosity", "secularity", "hipsterishness", "geekiness", "hippie_style", "soviet_style",
+    ]);
 
     return {
       ...u,
-      cognitive_profile: u.cognitive_score,
-      intuitive_intelligence: sii ? Math.round(sii.score) : null,
-      vibe: vibeScore,
-      popularity: weightedAvg(traits, ["oriental", "mainstreamness", "broad_appeal"]),
+      cognitive, emotional_social, emotionality, communication,
+      vibe, popularity, big_five, schwartz, style,
     };
   });
 
@@ -1494,6 +1540,37 @@ app.post("/admin/users/:id/cognitive-test", async (req, res) => {
   } catch (err: any) {
     console.error(`[cognitive-test] Error for user ${user_id}:`, err);
     return res.status(500).json({ error: "Cognitive test failed: " + err.message });
+  }
+});
+
+// POST /admin/users/:id/reanalyze-group — Run a single trait group analysis
+app.post("/admin/users/:id/reanalyze-group", async (req, res) => {
+  const user_id = parseInt(req.params.id, 10);
+  if (!Number.isFinite(user_id) || user_id <= 0) {
+    return res.status(400).json({ error: `Invalid user_id: ${req.params.id}` });
+  }
+  const { group } = req.body;
+  if (!group || typeof group !== "string") {
+    return res.status(400).json({ error: "Missing group parameter" });
+  }
+
+  const transcript = await buildAnalysisTranscript(db, user_id);
+  if (!transcript || transcript.trim().length === 0) {
+    return res.status(400).json({ error: "No conversation data found for this user" });
+  }
+
+  try {
+    console.log(`[reanalyze-group] User ${user_id}: running group "${group}"...`);
+    const result = await runSingleGroupAnalysis(group, transcript, user_id);
+
+    // Update cognitive score if cognitive group was re-run
+    if (group === "cognitive") await updateCognitiveScore(user_id);
+
+    console.log(`[reanalyze-group] User ${user_id}: group "${group}" done — ${result.internal_saved} internal, ${result.external_saved} external`);
+    return res.json(result);
+  } catch (err: any) {
+    console.error(`[reanalyze-group] Error for user ${user_id}:`, err);
+    return res.status(500).json({ error: "Group analysis failed: " + err.message });
   }
 });
 
