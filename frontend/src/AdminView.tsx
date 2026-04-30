@@ -2470,6 +2470,7 @@ function CandidateMatchesTab() {
                 <th style={s.th}>User</th>
                 <th style={s.th}>Candidate</th>
                 <th style={s.th}>Score</th>
+                <th style={s.th}>Profile</th>
                 <th style={s.th}>Status</th>
                 <th style={s.th}>Shared Priority</th>
                 <th style={s.th}>Match Priority</th>
@@ -2484,6 +2485,7 @@ function CandidateMatchesTab() {
                 <th style={s.th}>ביג פייב</th>
                 <th style={s.th}>שוורץ</th>
                 <th style={s.th}>סגנון</th>
+                <th style={s.th}>כללי</th>
                 <th style={s.th}>MBTI</th>
               </tr>
             </thead>
@@ -2493,6 +2495,7 @@ function CandidateMatchesTab() {
                   <td style={s.td}><button style={s.expandBtn} onClick={() => setSelectedUserId(cm.user_id)}>{cm.user1_name}</button> ({cm.user1_age}, {cm.user1_city})</td>
                   <td style={s.td}><button style={s.expandBtn} onClick={() => setSelectedUserId(cm.candidate_user_id)}>{cm.user2_name}</button> ({cm.user2_age}, {cm.user2_city})</td>
                   <td style={s.td}>{cm.final_score != null ? <strong style={{ color: cm.final_score >= 70 ? "#28a745" : cm.final_score >= 50 ? "#856404" : "#dc3545" }}>{cm.final_score}</strong> : "-"}</td>
+                  <td style={s.td}>{cm.profile_score != null ? <strong style={{ color: cm.profile_score >= 70 ? "#28a745" : cm.profile_score >= 50 ? "#856404" : "#dc3545" }}>{cm.profile_score}</strong> : "-"}</td>
                   <td style={s.td}>{cm.match_status ? <span style={matchStatusColor(cm.match_status)}>{cm.match_status}</span> : <span style={s.badge}>{cm.status}</span>}</td>
                   <td style={s.td}>{cm.pair_priority != null ? cm.pair_priority : "-"}</td>
                   <td style={s.td}>{cm.final_match_priority != null ? <strong>{cm.final_match_priority}</strong> : "-"}</td>
@@ -2507,6 +2510,7 @@ function CandidateMatchesTab() {
                   <td style={s.td}>{cm.score_big_five ?? "-"}</td>
                   <td style={s.td}>{cm.score_schwartz ?? "-"}</td>
                   <td style={s.td}>{cm.score_style ?? "-"}</td>
+                  <td style={s.td}>{cm.score_general ?? "-"}</td>
                   <td style={s.td}>{cm.score_mbti ?? "-"}</td>
                 </tr>
               ))}

@@ -74,7 +74,9 @@ function calculateInternalScore(
     const def = traitDefs.get(traitId);
     if (def && (EXCLUDED_CALC_TYPES.has(def.calc_type) || def.weight === 0)) continue;
 
-    const match = 100 - Math.abs(t1.score - t2.score);
+    // Gaussian similarity: σ=12, so diff=5→92, diff=15→46, diff=30→5
+    const diff = Math.abs(t1.score - t2.score);
+    const match = 100 * Math.exp(-(diff * diff) / (2 * 12 * 12));
     const sharedConf = Math.sqrt(t1.confidence * t2.confidence);
 
     // Fall back to the trait definition's default weight when the AI
@@ -179,6 +181,12 @@ const MATCH_CATEGORIES: CategoryDef[] = [
     "religiosity", "secularity", "hipsterishness", "geekiness", "hippie_style", "soviet_style",
   ]},
 
+  // כללי — General Info
+  // Traits: loves_animals, vegetarian, serious_relationship_intent, appearance_sensitivity
+  { key: "general", traitNames: [
+    "loves_animals", "vegetarian", "serious_relationship_intent", "appearance_sensitivity",
+  ]},
+
   // MBTI — כולל extraversion מביג פייב + 6 תכונות MBTI
   // Traits: extraversion, sensing, intuition, thinking, feeling, judging, perceiving
   { key: "mbti", traitNames: [
@@ -224,7 +232,9 @@ function calculateCategoryScore(
     const def = traitDefs.get(traitId);
     if (def && (EXCLUDED_CALC_TYPES.has(def.calc_type) || def.weight === 0)) continue;
 
-    const match = 100 - Math.abs(t1.score - t2.score);
+    // Gaussian similarity: σ=12, so diff=5→92, diff=15→46, diff=30→5
+    const diff = Math.abs(t1.score - t2.score);
+    const match = 100 * Math.exp(-(diff * diff) / (2 * 12 * 12));
     const sharedConf = Math.sqrt(t1.confidence * t2.confidence);
 
     const defWeight = def?.weight ?? 5;
@@ -253,13 +263,34 @@ interface CategoryScores {
   score_big_five: number | null;
   score_schwartz: number | null;
   score_style: number | null;
+  score_general: number | null;
   score_mbti: number | null;
+}
+
+// Compute confidence-weighted average score for a set of traits
+function profileAverage(
+  traits: Map<number, TraitRow>,
+  traitIds: Set<number>,
+  traitDefs: Map<number, TraitDef>,
+): number | null {
+  let sumW = 0, sumC = 0;
+  for (const id of traitIds) {
+    const t = traits.get(id);
+    if (!t) continue;
+    const def = traitDefs.get(id);
+    if (def && (EXCLUDED_CALC_TYPES.has(def.calc_type) || def.weight === 0)) continue;
+    sumW += t.score * t.confidence;
+    sumC += t.confidence;
+  }
+  return sumC > 0 ? sumW / sumC : null;
 }
 
 function calculateAllCategoryScores(
   user1Traits: Map<number, TraitRow>,
   user2Traits: Map<number, TraitRow>,
   traitDefs: Map<number, TraitDef>,
+  user1Gender: string | null,
+  user2Gender: string | null,
 ): CategoryScores {
   const scores: any = {};
   for (const cat of MATCH_CATEGORIES) {
@@ -268,10 +299,64 @@ function calculateAllCategoryScores(
       scores[`score_${cat.key}`] = null;
       continue;
     }
+
+    // Emotionality / Emotional-Social in male-female pairs:
+    // 50% trait-by-trait comparison (no boost)
+    // 50% profile average comparison (male gets bonus)
+    if ((cat.key === "emotionality" || cat.key === "emotional_social") && user1Gender && user2Gender) {
+      const g1 = user1Gender.toLowerCase();
+      const g2 = user2Gender.toLowerCase();
+      if ((g1 === "male" && g2 === "female") || (g1 === "female" && g2 === "male")) {
+        const bonus = cat.key === "emotionality" ? 10 : 4;
+        const traitScore = calculateCategoryScore(user1Traits, user2Traits, traitDefs, ids);
+
+        const avg1 = profileAverage(user1Traits, ids, traitDefs);
+        const avg2 = profileAverage(user2Traits, ids, traitDefs);
+
+        if (traitScore != null && avg1 != null && avg2 != null) {
+          // Add bonus to male's profile average, then compare with gaussian
+          const boostedAvg1 = g1 === "male" ? Math.min(100, avg1 + bonus) : avg1;
+          const boostedAvg2 = g2 === "male" ? Math.min(100, avg2 + bonus) : avg2;
+          const diff = Math.abs(boostedAvg1 - boostedAvg2);
+          const profileMatch = 100 * Math.exp(-(diff * diff) / (2 * 12 * 12));
+
+          const combined = traitScore * 0.5 + profileMatch * 0.5;
+          scores[`score_${cat.key}`] = Math.round(combined * 100) / 100;
+          continue;
+        }
+      }
+    }
+
     const raw = calculateCategoryScore(user1Traits, user2Traits, traitDefs, ids);
     scores[`score_${cat.key}`] = raw != null ? Math.round(raw * 100) / 100 : null;
   }
   return scores as CategoryScores;
+}
+
+// ── Profile-based score ─────────────────────────────────────────
+// Weighted average of category scores (not individual traits).
+// Cognitive gets 2x weight. Vibe, Popularity, General excluded.
+function calculateProfileScore(categories: CategoryScores): number | null {
+  const profileWeights: [keyof CategoryScores, number][] = [
+    ["score_cognitive", 2],
+    ["score_emotional_social", 1],
+    ["score_emotionality", 1],
+    ["score_communication", 1],
+    ["score_big_five", 1],
+    ["score_schwartz", 1],
+    ["score_style", 1],
+    ["score_mbti", 1],
+  ];
+
+  let sumW = 0, sumC = 0;
+  for (const [key, weight] of profileWeights) {
+    const val = categories[key];
+    if (val == null) continue;
+    sumW += val * weight;
+    sumC += weight;
+  }
+  if (sumC === 0) return null;
+  return Math.round((sumW / sumC) * 100) / 100;
 }
 
 // ── Main entry point ─────────────────────────────────────────────
@@ -330,10 +415,18 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
   const getUserTraits = (uid: number): Map<number, TraitRow> =>
     traitCache.get(uid) ?? new Map();
 
+  // Pre-load genders for involved users
+  const genderRows = await queryAll<{ id: number; gender: string | null }>(
+    `SELECT id, gender FROM users WHERE id = ANY($1::int[])`,
+    [involvedIds]
+  );
+  const genderCache = new Map<number, string | null>();
+  for (const r of genderRows) genderCache.set(r.id, r.gender);
+
   // Compute scores in memory
   type Update = {
     id: number; internal: number | null; external: number | null; final: number | null;
-    categories: CategoryScores;
+    categories: CategoryScores; profile_score: number | null;
   };
   const updates: Update[] = [];
   let scored = 0;
@@ -342,7 +435,7 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
   const emptyCategories: CategoryScores = {
     score_cognitive: null, score_emotional_social: null, score_emotionality: null,
     score_communication: null, score_vibe: null, score_popularity: null,
-    score_big_five: null, score_schwartz: null, score_style: null, score_mbti: null,
+    score_big_five: null, score_schwartz: null, score_style: null, score_general: null, score_mbti: null,
   };
 
   for (const row of pending) {
@@ -352,7 +445,7 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
     const internalScore = calculateInternalScore(u1Traits, u2Traits, traitDefs);
 
     if (internalScore == null) {
-      updates.push({ id: row.id, internal: null, external: null, final: null, categories: emptyCategories });
+      updates.push({ id: row.id, internal: null, external: null, final: null, categories: emptyCategories, profile_score: null });
       skipped++;
       continue;
     }
@@ -363,7 +456,13 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
     const eRatio = sensitive ? SENSITIVE_EXTERNAL_RATIO : DEFAULT_EXTERNAL_RATIO;
     const finalScore = internalScore * iRatio + externalScore * eRatio;
 
-    const categories = calculateAllCategoryScores(u1Traits, u2Traits, traitDefs);
+    const categories = calculateAllCategoryScores(
+      u1Traits, u2Traits, traitDefs,
+      genderCache.get(row.user_id) ?? null,
+      genderCache.get(row.candidate_user_id) ?? null,
+    );
+
+    const profileScore = calculateProfileScore(categories);
 
     updates.push({
       id: row.id,
@@ -371,6 +470,7 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
       external: Math.round(externalScore * 100) / 100,
       final: Math.round(finalScore * 100) / 100,
       categories,
+      profile_score: profileScore,
     });
     scored++;
   }
@@ -384,7 +484,7 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
              score_cognitive = $5, score_emotional_social = $6, score_emotionality = $7,
              score_communication = $8, score_vibe = $9, score_popularity = $10,
              score_big_five = $11, score_schwartz = $12, score_style = $13,
-             score_mbti = $14,
+             score_general = $14, score_mbti = $15, profile_score = $16,
              status = 'scored', last_evaluated_at = NOW(), updated_at = NOW()
          WHERE id = $4`,
         [u.internal, u.external, u.final, u.id,
@@ -392,7 +492,8 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
          u.categories.score_emotionality, u.categories.score_communication,
          u.categories.score_vibe, u.categories.score_popularity,
          u.categories.score_big_five, u.categories.score_schwartz,
-         u.categories.score_style, u.categories.score_mbti]
+         u.categories.score_style, u.categories.score_general, u.categories.score_mbti,
+         u.profile_score]
       );
     }
   });

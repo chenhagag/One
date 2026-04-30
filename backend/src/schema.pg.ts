@@ -231,7 +231,9 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       score_big_five            DOUBLE PRECISION,
       score_schwartz            DOUBLE PRECISION,
       score_style               DOUBLE PRECISION,
+      score_general             DOUBLE PRECISION,
       score_mbti                DOUBLE PRECISION,
+      profile_score             DOUBLE PRECISION,
       created_at                TIMESTAMPTZ DEFAULT NOW(),
       updated_at                TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(user_id, candidate_user_id)
@@ -415,9 +417,23 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
 
       IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'candidate_matches' AND column_name = 'score_general'
+      ) THEN
+        ALTER TABLE candidate_matches ADD COLUMN score_general DOUBLE PRECISION;
+      END IF;
+
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'candidate_matches' AND column_name = 'score_mbti'
       ) THEN
         ALTER TABLE candidate_matches ADD COLUMN score_mbti DOUBLE PRECISION;
+      END IF;
+
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'candidate_matches' AND column_name = 'profile_score'
+      ) THEN
+        ALTER TABLE candidate_matches ADD COLUMN profile_score DOUBLE PRECISION;
       END IF;
     END $$;
   `);
