@@ -467,13 +467,7 @@ export default function App() {
       )}
 
       {/* Profile edit */}
-      {view === "profile_edit" && user && (
-        <ProfileEdit
-          user={user}
-          onBack={() => setView("new_chat")}
-          onUserUpdate={(u) => setUser(u)}
-        />
-      )}
+      {/* ProfileEdit is now rendered inside NewChat via onNavigate */}
 
       {/* Psychologist Chat */}
       {view === "psychologist_chat" && user && (
@@ -563,12 +557,11 @@ export default function App() {
           user={user}
           onBack={() => setView("admin")}
           onNavigate={(v) => setView(v as View)}
+          onUserUpdate={(u) => setUser(u)}
         />
       )}
 
-      {view === "insights" && user && (
-        <Insights user={user} onBack={() => setView("new_chat")} />
-      )}
+      {/* Insights is now rendered inside NewChat via onNavigate */}
     </div>
   );
 }

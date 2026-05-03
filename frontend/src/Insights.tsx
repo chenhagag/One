@@ -149,7 +149,6 @@ export default function Insights({ user, onBack }: InsightsProps) {
   return (
     <div style={styles.container}>
       <div style={styles.content}>
-        <button onClick={onBack} style={styles.backBtn}>→ חזרה</button>
         <h2 style={styles.heading}>תובנות על עצמ{g("י", "י")}</h2>
 
         {loading ? (

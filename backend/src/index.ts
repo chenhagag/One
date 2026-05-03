@@ -18,6 +18,8 @@ import { updateCognitiveScore } from "./cognitiveScore";
 import { runStage2, runMatchmaking } from "./matchStage2";
 import { runAnalysisAgent, runSingleGroupAnalysis, getAvailableGroups, buildAnalysisInput, saveAnalysisToDb, saveAnalysisRun, getLatestAnalysisRun } from "./agents/analysis";
 import { generateOpeningMessage, processUserMessage, computeCoverage, buildAnalysisTranscript, type ConversationState } from "./agents/conversation";
+import { getSafeUserProfile, formatSafeProfileForPrompt } from "./safeOutputLayer";
+import OpenAI from "openai";
 import { generatePsychologistOpening, processPsychologistMessage, type PsychologistState } from "./agents/conversation";
 
 dotenv.config();
@@ -1994,8 +1996,6 @@ const LEARNED_ABOUT_ME_SYSTEM_PROMPT = fs.readFileSync(
   path.join(__dirname, "agents/analysis/prompts/learned-about-me-system.txt"), "utf-8"
 );
 
-import { getSafeUserProfile, formatSafeProfileForPrompt } from "./safeOutputLayer";
-
 app.post("/new-chat/message", async (req, res) => {
   const { user_id, message, history, channel } = req.body;
   if (!user_id || !message) return res.status(400).json({ error: "user_id and message required" });
@@ -2050,7 +2050,7 @@ app.post("/new-chat/message", async (req, res) => {
       [user_id, message, guide]
     );
 
-    const openai = new (await import("openai")).default({ apiKey: process.env.OPENAI_API_KEY });
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const start = Date.now();
     const response = await openai.chat.completions.create({
       model: "gpt-4o",

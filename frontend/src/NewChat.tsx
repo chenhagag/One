@@ -1,4 +1,7 @@
 import { useState, useRef, useEffect } from "react";
+import ProfileEdit from "./ProfileEdit";
+import Insights from "./Insights";
+import type { User } from "./App";
 
 interface Message {
   role: "user" | "assistant";
@@ -6,9 +9,10 @@ interface Message {
 }
 
 interface NewChatProps {
-  user: { id: number; first_name: string; email: string };
+  user: User;
   onBack: () => void;
   onNavigate?: (view: string) => void;
+  onUserUpdate?: (u: User) => void;
 }
 
 const TOPIC_OPTIONS = [
@@ -26,12 +30,12 @@ const SIDEBAR_ITEMS: { icon: string; label: string; action?: string }[] = [
   { icon: "⚙️", label: "הגדרות" },
 ];
 
-export default function NewChat({ user, onBack, onNavigate }: NewChatProps) {
+export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [screen, setScreen] = useState<"home" | "chat">("home");
+  const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "insights">("home");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -162,9 +166,9 @@ export default function NewChat({ user, onBack, onNavigate }: NewChatProps) {
           {SIDEBAR_ITEMS.map((item, i) => (
             <button
               key={i}
-              style={item.action ? styles.sidebarItem : { ...styles.sidebarItem, cursor: "default" }}
+              style={item.action ? (screen === item.action ? styles.sidebarItemActive : styles.sidebarItem) : { ...styles.sidebarItem, cursor: "default" }}
               disabled={!item.action}
-              onClick={() => { if (item.action) { onNavigate?.(item.action); setMenuOpen(false); } }}
+              onClick={() => { if (item.action) { setScreen(item.action as any); setMenuOpen(false); } }}
             >
               <span style={{ fontSize: 16 }}>{item.icon}</span>
               <span>{item.label}</span>
@@ -182,61 +186,78 @@ export default function NewChat({ user, onBack, onNavigate }: NewChatProps) {
 
       {/* Main Area */}
       <div style={styles.main}>
-        {/* Header */}
+        {/* Header — mobile menu toggle */}
         <div style={styles.header}>
           <button className="nc-menu-btn" style={styles.menuBtn} onClick={() => setMenuOpen(!menuOpen)}>☰</button>
-          <span style={styles.headerTitle}>שיחה חדשה</span>
         </div>
 
-        {/* Chat Area */}
-        <div className="nc-chat-area" style={styles.chatArea}>
-          {screen === "home" && (
-            <div style={styles.welcomeBlock}>
-              <img src="/heartIcon.jpg" alt="" style={styles.welcomeIcon} />
-              <h2 style={styles.welcomeTitle}>ברוכים הבאים ל-MatchMe</h2>
-              <p style={styles.welcomeText}>
-                העוזר האישי שלך להכרויות מדויקות ומשמעותיות.
-              </p>
-              <p style={styles.welcomeText}>
-                אני כאן כדי להבין אותך לעומק ולסייע לך למצוא את ההתאמה המושלמת עבורך.
-              </p>
-            </div>
-          )}
-
-          {screen === "chat" && (
-            <>
-              {messages.map((msg, i) => (
-                <div key={i} style={msg.role === "user" ? styles.userMsgRow : styles.assistantMsgRow}>
-                  {msg.role === "assistant" && <img src="/heartIcon.jpg" alt="" style={styles.assistantIcon} />}
-                  <div style={msg.role === "user" ? styles.userBubble : styles.assistantBubble}>
-                    {msg.content}
-                  </div>
-                </div>
-              ))}
-
-              {sending && (
-                <div style={styles.assistantMsgRow}>
-                  <div style={{ ...styles.assistantBubble, color: "#999" }}>...</div>
-                </div>
-              )}
-            </>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Suggestions — only on home screen */}
-        {screen === "home" && (
-          <div className="nc-suggestions" style={styles.suggestions}>
-            {TOPIC_OPTIONS.map((s, i) => (
-              <button key={i} style={styles.suggestionBtn} onClick={() => sendMessage(s.text)}>
-                <span style={{ fontSize: 14, opacity: 0.6 }}>{s.icon}</span> {s.text}
-              </button>
-            ))}
+        {/* Sub-screens: profile edit / insights */}
+        {screen === "profile_edit" && (
+          <div style={{ flex: 1, overflowY: "auto" }}>
+            <ProfileEdit user={user} onBack={() => setScreen("home")} onUserUpdate={onUserUpdate} />
           </div>
         )}
 
-        {/* Input Area */}
+        {screen === "insights" && (
+          <div style={{ flex: 1, overflowY: "auto" }}>
+            <Insights user={user} onBack={() => setScreen("home")} />
+          </div>
+        )}
+
+        {/* Chat Area — home + chat screens */}
+        {(screen === "home" || screen === "chat") && (
+          <>
+            <div className="nc-chat-area" style={styles.chatArea}>
+              {screen === "home" && (
+                <div style={styles.welcomeBlock}>
+                  <img src="/heartIcon.jpg" alt="" style={styles.welcomeIcon} />
+                  <h2 style={styles.welcomeTitle}>ברוכים הבאים ל-MatchMe</h2>
+                  <p style={styles.welcomeText}>
+                    העוזר האישי שלך להכרויות מדויקות ומשמעותיות.
+                  </p>
+                  <p style={styles.welcomeText}>
+                    אני כאן כדי להבין אותך לעומק ולסייע לך למצוא את ההתאמה המושלמת עבורך.
+                  </p>
+                </div>
+              )}
+
+              {screen === "chat" && (
+                <>
+                  {messages.map((msg, i) => (
+                    <div key={i} style={msg.role === "user" ? styles.userMsgRow : styles.assistantMsgRow}>
+                      {msg.role === "assistant" && <img src="/heartIcon.jpg" alt="" style={styles.assistantIcon} />}
+                      <div style={msg.role === "user" ? styles.userBubble : styles.assistantBubble}>
+                        {msg.content}
+                      </div>
+                    </div>
+                  ))}
+
+                  {sending && (
+                    <div style={styles.assistantMsgRow}>
+                      <div style={{ ...styles.assistantBubble, color: "#999" }}>...</div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Suggestions — only on home screen */}
+            {screen === "home" && (
+              <div className="nc-suggestions" style={styles.suggestions}>
+                {TOPIC_OPTIONS.map((s, i) => (
+                  <button key={i} style={styles.suggestionBtn} onClick={() => sendMessage(s.text)}>
+                    <span style={{ fontSize: 14, opacity: 0.6 }}>{s.icon}</span> {s.text}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Input Area — only on home + chat screens */}
+        {(screen === "home" || screen === "chat") && (
         <div className="nc-input-area" style={styles.inputArea}>
           <div style={styles.inputRow}>
             <textarea
@@ -260,6 +281,7 @@ export default function NewChat({ user, onBack, onNavigate }: NewChatProps) {
           </div>
           <div style={styles.disclaimer}>השיחה מנוהלת על ידי בינה מלאכותית לצורך הכרות והתאמה</div>
         </div>
+        )}
       </div>
     </div>
   );

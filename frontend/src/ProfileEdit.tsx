@@ -121,8 +121,6 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
 
   return (
     <div style={s.wrapper}>
-      <button onClick={onBack} style={s.backBtn}><ArrowRight size={18} /> חזרה</button>
-
       <form onSubmit={handleSave} dir="rtl">
         <h2 style={s.heading}>הפרטים שלי</h2>
 
