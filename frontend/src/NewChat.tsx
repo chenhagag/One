@@ -65,6 +65,9 @@ export default function NewChat({ user, onBack, onNavigate }: NewChatProps) {
     setSending(true);
 
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 60000);
+
       const r = await fetch("/api/new-chat/message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -74,17 +77,25 @@ export default function NewChat({ user, onBack, onNavigate }: NewChatProps) {
           channel: "new_chat",
           history: updatedMessages.slice(-20),
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
+
+      if (!r.ok) {
+        throw new Error(`HTTP ${r.status}`);
+      }
       const data = await r.json();
       if (data.reply) {
         setMessages(prev => [...prev, { role: "assistant", content: data.reply }]);
+      } else if (data.error) {
+        setMessages(prev => [...prev, { role: "assistant", content: "מצטער, משהו השתבש. נסה שוב." }]);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("[NewChat] send error:", err);
-      setMessages(prev => [...prev, { role: "assistant", content: "שגיאה בתקשורת, נסה שוב." }]);
+      const errorMsg = err?.name === "AbortError" ? "הבקשה לקחה יותר מדי זמן. נסה שוב." : "שגיאה בתקשורת, נסה שוב.";
+      setMessages(prev => [...prev, { role: "assistant", content: errorMsg }]);
     } finally {
       setSending(false);
-      inputRef.current?.focus();
     }
   }
 
@@ -242,7 +253,6 @@ export default function NewChat({ user, onBack, onNavigate }: NewChatProps) {
               type="button"
               style={{ ...styles.sendBtn, opacity: input.trim() && !sending ? 1 : 0.4 }}
               onClick={() => sendMessage()}
-              onTouchEnd={(e) => { e.preventDefault(); sendMessage(); }}
               disabled={!input.trim() || sending}
             >
               ←

@@ -2042,6 +2042,8 @@ app.post("/new-chat/message", async (req, res) => {
   }
 
   try {
+    console.log(`[new-chat] User ${user_id}: received message (${message.length} chars), guide=${guide}`);
+
     // Save user message
     await pgQueryAll(
       "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES ($1, 'user', $2, $3)",
@@ -2049,12 +2051,14 @@ app.post("/new-chat/message", async (req, res) => {
     );
 
     const openai = new (await import("openai")).default({ apiKey: process.env.OPENAI_API_KEY });
+    const start = Date.now();
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: messages as any,
       temperature: 0.7,
       max_tokens: 500,
     });
+    console.log(`[new-chat] User ${user_id}: OpenAI responded in ${Date.now() - start}ms`);
 
     const reply = response.choices[0]?.message?.content || "";
 
@@ -2066,7 +2070,7 @@ app.post("/new-chat/message", async (req, res) => {
 
     return res.json({ reply });
   } catch (err: any) {
-    console.error("[new-chat] Error:", err.message);
+    console.error("[new-chat] Error:", err.message, err.stack);
     return res.status(500).json({ error: "AI error" });
   }
 });
