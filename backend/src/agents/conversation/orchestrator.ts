@@ -352,9 +352,10 @@ export async function buildAnalysisTranscript(
   userId: number
 ): Promise<string> {
   // Both interviewer AND psychologist messages go to the analyzer.
+  // Exclude psychologist and new_chat messages — only interviewer (lab) messages
   const interviewerMsgs = await pgQueryAll<{ role: string; content: string }>(
     `SELECT role, content FROM conversation_messages
-     WHERE user_id = $1 AND (guide IS NULL OR guide != 'psychologist')
+     WHERE user_id = $1 AND (guide IS NULL OR (guide != 'psychologist' AND guide NOT LIKE 'new_chat%'))
      ORDER BY created_at ASC, id ASC`,
     [userId]
   );

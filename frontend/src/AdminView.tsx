@@ -50,7 +50,7 @@ const s: Record<string, React.CSSProperties> = {
   scrollWrap: { overflowX: "auto" as const },
 };
 
-export default function AdminView({ onBack, onStartChat, onViewDashboard }: { onBack: () => void; onStartChat?: (user: { id: number; first_name: string; email: string }) => void; onViewDashboard?: (user: { id: number; first_name: string; email: string }) => void }) {
+export default function AdminView({ onBack, onStartChat, onViewDashboard, onViewNewChat }: { onBack: () => void; onStartChat?: (user: { id: number; first_name: string; email: string }) => void; onViewDashboard?: (user: { id: number; first_name: string; email: string }) => void; onViewNewChat?: (user: { id: number; first_name: string; email: string }) => void }) {
   const [tab, setTab] = useState<Tab>("overview");
 
   return (
@@ -82,7 +82,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard }: { on
       </div>
 
       {tab === "overview" && <OverviewTab />}
-      {tab === "users" && <UsersTab onStartChat={onStartChat} onViewDashboard={onViewDashboard} />}
+      {tab === "users" && <UsersTab onStartChat={onStartChat} onViewDashboard={onViewDashboard} onViewNewChat={onViewNewChat} />}
       {tab === "profiles" && <UserProfilesTab />}
       {tab === "traits" && <TraitDefsTab />}
       {tab === "look_traits" && <LookTraitDefsTab />}
@@ -120,7 +120,7 @@ function OverviewTab() {
 
 // ── Users Tab ────────────────────────────────────────────────────
 
-function UsersTab({ onStartChat, onViewDashboard }: { onStartChat?: (user: { id: number; first_name: string; email: string }) => void; onViewDashboard?: (user: { id: number; first_name: string; email: string }) => void }) {
+function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat?: (user: { id: number; first_name: string; email: string }) => void; onViewDashboard?: (user: { id: number; first_name: string; email: string }) => void; onViewNewChat?: (user: { id: number; first_name: string; email: string }) => void }) {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
@@ -136,7 +136,7 @@ function UsersTab({ onStartChat, onViewDashboard }: { onStartChat?: (user: { id:
   if (loading) return <p style={s.loading}>Loading...</p>;
 
   if (selectedUserId !== null) {
-    return <UserDetail userId={selectedUserId} onBack={() => setSelectedUserId(null)} onStartChat={onStartChat} onViewDashboard={onViewDashboard} />;
+    return <UserDetail userId={selectedUserId} onBack={() => setSelectedUserId(null)} onStartChat={onStartChat} onViewDashboard={onViewDashboard} onViewNewChat={onViewNewChat} />;
   }
 
   // Split users into flagged sections
@@ -244,7 +244,7 @@ function UsersTab({ onStartChat, onViewDashboard }: { onStartChat?: (user: { id:
 // Cache cognitive test results per user so they persist when navigating in/out
 const cognitiveTestCache = new Map<number, string>();
 
-function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: number; onBack: () => void; onStartChat?: (user: { id: number; first_name: string; email: string }) => void; onViewDashboard?: (user: { id: number; first_name: string; email: string }) => void }) {
+function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewChat }: { userId: number; onBack: () => void; onStartChat?: (user: { id: number; first_name: string; email: string }) => void; onViewDashboard?: (user: { id: number; first_name: string; email: string }) => void; onViewNewChat?: (user: { id: number; first_name: string; email: string }) => void }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -257,7 +257,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
   const [resetting, setResetting] = useState(false);
   const [transcript, setTranscript] = useState<any>(null);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
-  const [transcriptTab, setTranscriptTab] = useState<"all" | "interviewer" | "psychologist">("all");
+  const [transcriptTab, setTranscriptTab] = useState<"all" | "interviewer" | "psychologist" | "new_chat">("all");
   const [copied, setCopied] = useState<string | false>(false);
   const [analysisRun, setAnalysisRun] = useState<any>(null);
   const [showPrompt, setShowPrompt] = useState(false);
@@ -704,7 +704,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
     // T gets +20 bonus because conversational tone biases F scores upward
     const axis3 = (!thi && !fee) ? ["X"] :
       !thi ? ["F"] : !fee ? ["T"] :
-      (() => { const adjT = thi.score + 20; return adjT > fee.score ? ["T"] : adjT < fee.score ? ["F"] : ["T", "F"]; })();
+      (() => { const adjT = thi.score + 10; return adjT > fee.score ? ["T"] : adjT < fee.score ? ["F"] : ["T", "F"]; })();
     const axis4 = (!jud && !per) ? ["X"] :
       !jud ? ["P"] : !per ? ["J"] :
       jud.score > per.score ? ["J"] : jud.score < per.score ? ["P"] : ["J", "P"];
@@ -786,6 +786,14 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
               onClick={() => onViewDashboard({ id: user.id, first_name: user.first_name, email: user.email })}
             >
               צפייה במסך המשתמש
+            </button>
+          )}
+          {onViewNewChat && (
+            <button
+              style={{ padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", background: "#6366f1", color: "#fff", border: "none", borderRadius: 6 }}
+              onClick={() => onViewNewChat({ id: user.id, first_name: user.first_name, email: user.email })}
+            >
+              צפייה בממשק השיחה החדש
             </button>
           )}
           {onStartChat && !coverage?.profile_complete && user.is_real_user !== 0 && (
@@ -1322,10 +1330,12 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
 
       {/* Full Conversation */}
       {transcript && transcript.messages?.length > 0 && (() => {
-        const interviewerMsgs = transcript.messages.filter((m: any) => m.chat_type !== "psychologist");
+        const interviewerMsgs = transcript.messages.filter((m: any) => m.chat_type === "interviewer");
         const psychMsgs = transcript.messages.filter((m: any) => m.chat_type === "psychologist");
+        const allNewChatMsgs = transcript.messages.filter((m: any) => m.chat_type?.startsWith("new_chat"));
         const filteredMsgs = transcriptTab === "interviewer" ? interviewerMsgs
           : transcriptTab === "psychologist" ? psychMsgs
+          : transcriptTab === "new_chat" ? allNewChatMsgs
           : transcript.messages;
         return (
         <>
@@ -1360,6 +1370,17 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
               {copied === "psych" ? "Copied!" : `Copy Depth (${psychMsgs.length})`}
             </button>
             <button
+              style={{ padding: "3px 10px", fontSize: 11, cursor: "pointer", background: copied === "new" ? "#d4edda" : "#f0f4ff", border: "1px solid #ddd", borderRadius: 4 }}
+              onClick={() => {
+                const text = allNewChatMsgs
+                  .map((m: any) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+                  .join("\n\n");
+                navigator.clipboard.writeText(text).then(() => { setCopied("new"); setTimeout(() => setCopied(false), 2000); });
+              }}
+            >
+              {copied === "new" ? "Copied!" : `Copy New Chat (${allNewChatMsgs.length})`}
+            </button>
+            <button
               style={{ padding: "3px 10px", fontSize: 11, cursor: "pointer", background: copied === "all" ? "#d4edda" : "#fff", border: "1px solid #ddd", borderRadius: 4 }}
               onClick={() => {
                 const text = transcript.messages
@@ -1375,7 +1396,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
             <>
               {/* Tabs for chat type */}
               <div style={{ display: "flex", gap: 4, marginBottom: 8, marginTop: 8 }}>
-                {([["all", `הכל (${transcript.messages.length})`], ["interviewer", `מעבדת האישיות (${interviewerMsgs.length})`], ["psychologist", `שיחת עומק (${psychMsgs.length})`]] as [string, string][]).map(([key, label]) => (
+                {([["all", `הכל (${transcript.messages.length})`], ["interviewer", `מעבדת האישיות (${interviewerMsgs.length})`], ["psychologist", `שיחת עומק (${psychMsgs.length})`], ["new_chat", `צ'אט חדש (${allNewChatMsgs.length})`]] as [string, string][]).map(([key, label]) => (
                   <button key={key} onClick={() => setTranscriptTab(key as any)} style={{
                     padding: "4px 12px", fontSize: 11, border: "1px solid #ddd", borderRadius: 4, cursor: "pointer",
                     background: transcriptTab === key ? "#1a1a1a" : "#fff", color: transcriptTab === key ? "#fff" : "#333",
@@ -1393,6 +1414,9 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
                     {m.role === "user" ? "User" : m.role === "assistant" ? "Assistant" : "System"}
                   </span>
                   {m.chat_type === "psychologist" && <span style={{ fontSize: 9, color: "#7c3aed", marginLeft: 6 }}>פסיכולוג</span>}
+                  {m.chat_type?.startsWith("new_chat") && <span style={{ fontSize: 9, color: "#6366f1", marginLeft: 6 }}>
+                    {m.chat_type === "new_chat" ? "שיחה ראשית" : m.chat_type === "new_chat_taste_analysis" ? "ניתוח טעם" : m.chat_type === "new_chat_matching_method" ? "שיטת התאמה" : m.chat_type === "new_chat_process_question" ? "שאלה על התהליך" : m.chat_type === "new_chat_learned_about_me" ? "מה למדתי" : "צ'אט חדש"}
+                  </span>}
                   {m.timestamp && <span style={{ fontSize: 10, color: "#aaa", marginLeft: 8 }}>{m.timestamp}</span>}
                   <div style={{ whiteSpace: "pre-wrap", marginTop: 4 }}>{m.content}</div>
                 </div>

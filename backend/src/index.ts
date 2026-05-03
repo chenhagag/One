@@ -603,7 +603,9 @@ app.get("/admin/users/:id/full-transcript", async (req, res) => {
         role: m.role,
         content: m.content,
         timestamp: m.created_at,
-        chat_type: m.guide === "psychologist" ? "psychologist" : "interviewer",
+        chat_type: m.guide === "psychologist" ? "psychologist"
+          : m.guide && m.guide.startsWith("new_chat") ? m.guide
+          : "interviewer",
       })),
     });
   }
@@ -1473,8 +1475,9 @@ app.post("/admin/users/:id/reanalyze", async (req, res) => {
 
   try {
     // Clear existing traits for a truly fresh analysis (pg — these tables live there now)
+    // Keep manually entered look traits
     await pgQueryAll("DELETE FROM user_traits WHERE user_id = $1", [user_id]);
-    await pgQueryAll("DELETE FROM user_look_traits WHERE user_id = $1", [user_id]);
+    await pgQueryAll("DELETE FROM user_look_traits WHERE user_id = $1 AND source != 'manual'", [user_id]);
 
     const input = await buildAnalysisInput(db, transcript);
     console.log(`[reanalyze] User ${user_id}: transcript=${transcript.length} chars, running FRESH analysis...`);
@@ -1978,6 +1981,98 @@ app.delete("/admin/bug-reports/:id", async (req, res) => {
   const result = await pgQueryAll("DELETE FROM bug_reports WHERE id = $1 RETURNING id", [id]);
   if (result.length === 0) return res.status(404).json({ error: "Report not found" });
   return res.json({ deleted: true });
+});
+
+// ════════════════════════════════════════════════════════════════
+// NEW CONVERSATIONAL CHAT — Simple agent (separate from old chat flow)
+// ════════════════════════════════════════════════════════════════
+
+const NEW_CHAT_SYSTEM_PROMPT = fs.readFileSync(
+  path.join(__dirname, "agents/analysis/prompts/new-chat-system.txt"), "utf-8"
+);
+const LEARNED_ABOUT_ME_SYSTEM_PROMPT = fs.readFileSync(
+  path.join(__dirname, "agents/analysis/prompts/learned-about-me-system.txt"), "utf-8"
+);
+
+import { getSafeUserProfile, formatSafeProfileForPrompt } from "./safeOutputLayer";
+
+app.post("/new-chat/message", async (req, res) => {
+  const { user_id, message, history, channel } = req.body;
+  if (!user_id || !message) return res.status(400).json({ error: "user_id and message required" });
+
+  // Validate channel — must start with new_chat
+  const guide = typeof channel === "string" && channel.startsWith("new_chat") ? channel : "new_chat";
+
+  // Fetch user gender + looking_for_gender for correct Hebrew gendered language
+  const chatUser = await pgQueryOne<{ gender: string | null; first_name: string; looking_for_gender: string | null }>(
+    "SELECT gender, first_name, looking_for_gender FROM users WHERE id = $1", [user_id]
+  );
+  let genderInstruction = chatUser?.gender === "man"
+    ? "\n\nחשוב: המשתמש הוא גבר. פנה אליו בלשון זכר."
+    : chatUser?.gender === "woman"
+    ? "\n\nחשוב: המשתמשת היא אישה. פני אליה בלשון נקבה."
+    : "";
+  if (chatUser?.looking_for_gender) {
+    const lfg = chatUser.looking_for_gender;
+    genderInstruction += lfg === "man" ? "\nהמשתמש/ת מחפש/ת גבר. כשמדברים על בן/בת זוג, התייחס בלשון זכר."
+      : lfg === "woman" ? "\nהמשתמש/ת מחפש/ת אישה. כשמדברים על בן/בת זוג, התייחסי בלשון נקבה."
+      : lfg === "both" ? "\nהמשתמש/ת מחפש/ת גם גברים וגם נשים."
+      : "";
+  }
+
+  // Build system prompt — inject profile data for "learned about me" channel
+  let systemPrompt = NEW_CHAT_SYSTEM_PROMPT + genderInstruction;
+  if (guide === "new_chat_learned_about_me") {
+    const safeProfile = await getSafeUserProfile(user_id);
+    const profileText = formatSafeProfileForPrompt(safeProfile);
+    if (profileText.trim()) {
+      systemPrompt = LEARNED_ABOUT_ME_SYSTEM_PROMPT + genderInstruction + "\n\n## פרופיל המשתמש\n" + profileText;
+    } else {
+      systemPrompt = LEARNED_ABOUT_ME_SYSTEM_PROMPT + genderInstruction + "\n\n## פרופיל המשתמש\nאין עדיין נתוני פרופיל מובנים. אתה יכול לשתף רשמים כלליים וחיוביים מהשיחה, אבל הדגש שעדיין לא למדת מספיק ועודד להמשיך לשוחח.";
+    }
+  }
+
+  const messages: { role: string; content: string }[] = [
+    { role: "system", content: systemPrompt },
+  ];
+
+  // Add conversation history
+  if (Array.isArray(history)) {
+    for (const h of history) {
+      if (h.role === "user" || h.role === "assistant") {
+        messages.push({ role: h.role, content: h.content });
+      }
+    }
+  }
+
+  try {
+    // Save user message
+    await pgQueryAll(
+      "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES ($1, 'user', $2, $3)",
+      [user_id, message, guide]
+    );
+
+    const openai = new (await import("openai")).default({ apiKey: process.env.OPENAI_API_KEY });
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: messages as any,
+      temperature: 0.7,
+      max_tokens: 500,
+    });
+
+    const reply = response.choices[0]?.message?.content || "";
+
+    // Save assistant reply
+    await pgQueryAll(
+      "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES ($1, 'assistant', $2, $3)",
+      [user_id, reply, guide]
+    );
+
+    return res.json({ reply });
+  } catch (err: any) {
+    console.error("[new-chat] Error:", err.message);
+    return res.status(500).json({ error: "AI error" });
+  }
 });
 
 // ── SPA catch-all ────────────────────────────────────────────────

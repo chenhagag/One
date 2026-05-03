@@ -6,6 +6,8 @@ import Chat from "./Chat";
 import PsychologistChat from "./PsychologistChat";
 import Result from "./Result";
 import AdminView from "./AdminView";
+import NewChat from "./NewChat";
+import Insights from "./Insights";
 
 type View =
   | "landing"
@@ -18,7 +20,9 @@ type View =
   | "psychologist_chat"
   | "result"
   | "done"
-  | "admin";
+  | "admin"
+  | "new_chat"
+  | "insights";
 
 // Full user type matching the expanded DB schema
 export interface User {
@@ -196,7 +200,7 @@ export default function App() {
       .then(data => {
         if (data.id) {
           setUser(data);
-          setView("dashboard");
+          setView("new_chat");
         }
       })
       .catch(() => {})
@@ -222,7 +226,7 @@ export default function App() {
       }
       saveSession(data);
       setUser(data);
-      setView("dashboard");
+      setView("new_chat");
     } catch {
       setLoginError("Could not reach the server");
     } finally {
@@ -269,10 +273,10 @@ export default function App() {
   }
 
   // Dashboard uses a dark theme — hide the default light header
-  const showHeader = view !== "dashboard" && view !== "landing" && view !== "admin" && view !== "welcome";
+  const showHeader = view !== "dashboard" && view !== "landing" && view !== "admin" && view !== "welcome" && view !== "new_chat" && view !== "insights";
 
   return (
-    <div style={view === "admin" ? { ...styles.app, maxWidth: "100%" } : view === "dashboard" ? { ...styles.app, padding: "20px" } : styles.app}>
+    <div style={view === "admin" ? { ...styles.app, maxWidth: "100%" } : view === "new_chat" ? { ...styles.app, maxWidth: "100%", padding: 0 } : view === "dashboard" ? { ...styles.app, padding: "20px" } : styles.app}>
       {showHeader && (
         <div style={styles.header}>
           <h1
@@ -402,7 +406,7 @@ export default function App() {
 
           <button
             style={{ width: "100%", padding: 16, fontSize: 17, fontWeight: 600, background: "#6C63FF", color: "#fff", border: "none", borderRadius: 30, cursor: "pointer" }}
-            onClick={() => setView("dashboard")}
+            onClick={() => setView("new_chat")}
           >
             להמשיך לאפליקציה
           </button>
@@ -467,7 +471,7 @@ export default function App() {
       {view === "profile_edit" && user && (
         <ProfileEdit
           user={user}
-          onBack={() => setView("dashboard")}
+          onBack={() => setView("new_chat")}
           onUserUpdate={(u) => setUser(u)}
         />
       )}
@@ -547,7 +551,24 @@ export default function App() {
             saveSession({ id: u.id, first_name: u.first_name, email: u.email } as User);
             setView("dashboard");
           }}
+          onViewNewChat={(u) => {
+            setUser({ id: u.id, first_name: u.first_name, email: u.email } as User);
+            saveSession({ id: u.id, first_name: u.first_name, email: u.email } as User);
+            setView("new_chat");
+          }}
         />
+      )}
+
+      {view === "new_chat" && user && (
+        <NewChat
+          user={user}
+          onBack={() => setView("admin")}
+          onNavigate={(v) => setView(v as View)}
+        />
+      )}
+
+      {view === "insights" && user && (
+        <Insights user={user} onBack={() => setView("new_chat")} />
       )}
     </div>
   );

@@ -121,10 +121,10 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
 
   return (
     <div style={s.wrapper}>
-      <button onClick={onBack} style={s.backBtn}><ArrowRight size={18} /> חזרה לדשבורד</button>
+      <button onClick={onBack} style={s.backBtn}><ArrowRight size={18} /> חזרה</button>
 
       <form onSubmit={handleSave} dir="rtl">
-        <h2 style={s.heading}>תעודת זהות</h2>
+        <h2 style={s.heading}>הפרטים שלי</h2>
 
         {/* ── About Me ── */}
         <div style={s.section}>
@@ -213,51 +213,49 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
 const s: Record<string, React.CSSProperties> = {
   wrapper: {
     direction: "rtl",
-    minHeight: "80vh",
-    background: "linear-gradient(180deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%)",
-    borderRadius: 20,
+    maxWidth: 560,
+    margin: "0 auto",
     padding: "32px 24px",
-    color: "#e2e8f0",
+    fontFamily: "'Segoe UI', 'Arial', sans-serif",
+    color: "#1a1a2e",
+    background: "#f9fafb",
+    minHeight: "100vh",
   },
   backBtn: {
     display: "flex", alignItems: "center", gap: 6,
-    background: "none", border: "none", color: "#94a3b8",
+    background: "none", border: "none", color: "#6366f1",
     fontSize: 14, cursor: "pointer", padding: "4px 0", marginBottom: 16, fontFamily: "inherit",
   },
   heading: {
-    marginTop: 0, marginBottom: 24, fontSize: 24, fontWeight: 700,
-    background: "linear-gradient(135deg, #C084FC, #818CF8, #A78BFA)",
-    WebkitBackgroundClip: "text",
-    WebkitTextFillColor: "transparent",
+    marginTop: 0, marginBottom: 24, fontSize: 22, fontWeight: 700,
+    color: "#1a1a2e",
   },
   section: {
-    marginBottom: 24, padding: 20,
-    background: "rgba(26, 26, 46, 0.7)",
-    border: "1px solid #2a2a3e",
-    borderRadius: 16,
-    backdropFilter: "blur(10px)",
+    marginBottom: 20, padding: 20,
+    background: "#fff",
+    border: "1px solid #e5e7eb",
+    borderRadius: 12,
   },
-  sectionTitle: { fontSize: 16, fontWeight: 600, marginBottom: 16, marginTop: 0, color: "#f1f5f9" },
-  label: { display: "block", fontSize: 14, fontWeight: 500, marginBottom: 6, color: "#94a3b8" },
+  sectionTitle: { fontSize: 15, fontWeight: 600, marginBottom: 16, marginTop: 0, color: "#333" },
+  label: { display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6, color: "#666" },
   input: {
-    width: "100%", padding: "10px 12px", fontSize: 15,
-    border: "1px solid #2a2a3e", borderRadius: 8,
-    boxSizing: "border-box" as const, marginBottom: 16, outline: "none",
-    background: "rgba(15, 15, 26, 0.6)", color: "#e2e8f0",
+    width: "100%", padding: "10px 12px", fontSize: 14,
+    border: "1px solid #e0e0e8", borderRadius: 8,
+    boxSizing: "border-box" as const, marginBottom: 14, outline: "none",
+    background: "#f5f5fa", color: "#1a1a2e",
   },
   select: {
-    width: "100%", padding: "10px 12px", fontSize: 15,
-    border: "1px solid #2a2a3e", borderRadius: 8,
-    boxSizing: "border-box" as const, marginBottom: 16, outline: "none",
-    background: "rgba(15, 15, 26, 0.6)", color: "#e2e8f0",
+    width: "100%", padding: "10px 12px", fontSize: 14,
+    border: "1px solid #e0e0e8", borderRadius: 8,
+    boxSizing: "border-box" as const, marginBottom: 14, outline: "none",
+    background: "#f5f5fa", color: "#1a1a2e",
   },
   row: { display: "flex", gap: 12, marginBottom: 0 },
   rowItem: { flex: 1 },
   btn: {
-    width: "100%", padding: "14px", fontSize: 16, fontWeight: 600,
-    background: "linear-gradient(135deg, #818CF8, #6366F1)",
-    color: "#fff", border: "none", borderRadius: 30, cursor: "pointer", marginTop: 8,
-    letterSpacing: "0.5px",
+    width: "100%", padding: "14px", fontSize: 15, fontWeight: 600,
+    background: "#6366f1",
+    color: "#fff", border: "none", borderRadius: 10, cursor: "pointer", marginTop: 8,
   },
-  error: { color: "#f87171", fontSize: 13, marginTop: 10 },
+  error: { color: "#dc3545", fontSize: 13, marginTop: 10 },
 };
