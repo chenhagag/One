@@ -11,21 +11,11 @@ interface NewChatProps {
   onNavigate?: (view: string) => void;
 }
 
-type Channel = "main" | "taste_analysis" | "matching_method" | "process_question" | "learned_about_me";
-
-const CHANNEL_LABELS: Record<Channel, string> = {
-  main: "שיחה ראשית",
-  taste_analysis: "נתח את הטעם שלי לעומק",
-  matching_method: "איך אתה מוצא לי התאמה מדויקת?",
-  process_question: "יש לי שאלה לגבי התהליך",
-  learned_about_me: "מה למדת עליי עד עכשיו?",
-};
-
-const SUGGESTIONS: { icon: string; text: string; channel: Channel }[] = [
-  { icon: "🔍", text: "נתח את הטעם שלי לעומק", channel: "taste_analysis" },
-  { icon: "🎯", text: "איך אתה מוצא לי התאמה מדויקת?", channel: "matching_method" },
-  { icon: "❓", text: "יש לי שאלה לגבי התהליך", channel: "process_question" },
-  { icon: "📋", text: "מה למדת עליי עד עכשיו?", channel: "learned_about_me" },
+const TOPIC_OPTIONS = [
+  { icon: "🔍", text: "נתח את הטעם שלי לעומק" },
+  { icon: "🎯", text: "איך אתה מוצא לי התאמה מדויקת?" },
+  { icon: "❓", text: "יש לי שאלה לגבי התהליך" },
+  { icon: "📋", text: "מה למדת עליי עד עכשיו?" },
 ];
 
 const SIDEBAR_ITEMS: { icon: string; label: string; action?: string }[] = [
@@ -36,33 +26,14 @@ const SIDEBAR_ITEMS: { icon: string; label: string; action?: string }[] = [
   { icon: "⚙️", label: "הגדרות" },
 ];
 
-// DB guide values map to channels
-const GUIDE_TO_CHANNEL: Record<string, Channel> = {
-  new_chat: "main",
-  new_chat_taste_analysis: "taste_analysis",
-  new_chat_matching_method: "matching_method",
-  new_chat_process_question: "process_question",
-  new_chat_learned_about_me: "learned_about_me",
-};
-
-function channelToGuide(ch: Channel): string {
-  return ch === "main" ? "new_chat" : `new_chat_${ch}`;
-}
-
 export default function NewChat({ user, onBack, onNavigate }: NewChatProps) {
-  const [channel, setChannel] = useState<Channel>("main");
-  const [messagesByChannel, setMessagesByChannel] = useState<Record<Channel, Message[]>>({
-    main: [], taste_analysis: [], matching_method: [], process_question: [], learned_about_me: [],
-  });
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [pendingSend, setPendingSend] = useState<{ channel: Channel; text: string } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [screen, setScreen] = useState<"home" | "chat">("home");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  const messages = messagesByChannel[channel];
-  const isMainWithNoMessages = channel === "main" && messages.length === 0;
 
   // Load existing conversation history on mount
   useEffect(() => {
@@ -70,44 +41,27 @@ export default function NewChat({ user, onBack, onNavigate }: NewChatProps) {
       .then(r => r.json())
       .then(data => {
         if (!data.messages) return;
-        const loaded: Record<Channel, Message[]> = {
-          main: [], taste_analysis: [], matching_method: [], process_question: [], learned_about_me: [],
-        };
-        for (const m of data.messages) {
-          const ch = GUIDE_TO_CHANNEL[m.chat_type];
-          if (ch) {
-            loaded[ch].push({ role: m.role as "user" | "assistant", content: m.content });
-          }
-        }
-        setMessagesByChannel(loaded);
+        const chatMsgs = data.messages
+          .filter((m: any) => m.chat_type?.startsWith("new_chat"))
+          .map((m: any) => ({ role: m.role as "user" | "assistant", content: m.content }));
+        if (chatMsgs.length > 0) setMessages(chatMsgs);
       })
       .catch(() => {});
   }, [user.id]);
-
-  // Send pending message after channel switch
-  useEffect(() => {
-    if (pendingSend && pendingSend.channel === channel) {
-      setPendingSend(null);
-      sendMessage(pendingSend.text);
-    }
-  }, [channel, pendingSend]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  function switchChannel(ch: Channel) {
-    setChannel(ch);
-    setInput("");
-  }
-
   async function sendMessage(text?: string) {
     const msg = (text ?? input).trim();
     if (!msg || sending) return;
 
+    setScreen("chat");
     setInput("");
     const userMsg: Message = { role: "user", content: msg };
-    setMessagesByChannel(prev => ({ ...prev, [channel]: [...prev[channel], userMsg] }));
+    const updatedMessages = [...messages, userMsg];
+    setMessages(updatedMessages);
     setSending(true);
 
     try {
@@ -117,22 +71,17 @@ export default function NewChat({ user, onBack, onNavigate }: NewChatProps) {
         body: JSON.stringify({
           user_id: user.id,
           message: msg,
-          channel: channelToGuide(channel),
-          history: [...messages, userMsg].slice(-20),
+          channel: "new_chat",
+          history: updatedMessages.slice(-20),
         }),
       });
       const data = await r.json();
       if (data.reply) {
-        setMessagesByChannel(prev => ({
-          ...prev,
-          [channel]: [...prev[channel], { role: "assistant", content: data.reply }],
-        }));
+        setMessages(prev => [...prev, { role: "assistant", content: data.reply }]);
       }
-    } catch {
-      setMessagesByChannel(prev => ({
-        ...prev,
-        [channel]: [...prev[channel], { role: "assistant", content: "שגיאה בתקשורת, נסה שוב." }],
-      }));
+    } catch (err) {
+      console.error("[NewChat] send error:", err);
+      setMessages(prev => [...prev, { role: "assistant", content: "שגיאה בתקשורת, נסה שוב." }]);
     } finally {
       setSending(false);
       inputRef.current?.focus();
@@ -170,9 +119,9 @@ export default function NewChat({ user, onBack, onNavigate }: NewChatProps) {
       `}</style>
 
       {/* Mobile overlay */}
-      {menuOpen && <div style={styles.overlay} onClick={() => setMenuOpen(false)} />}
+      {menuOpen && <div style={styles.overlay} onClick={() => { setMenuOpen(false); setTopicsOpen(false); }} />}
 
-      {/* Sidebar — always visible on desktop, toggled on mobile */}
+      {/* Sidebar */}
       <div className={`nc-sidebar${menuOpen ? " open" : ""}`} style={styles.sidebar}>
         <div style={styles.logo}>
           <img src="/heartIcon.jpg" alt="" style={styles.logoIcon} />
@@ -180,10 +129,19 @@ export default function NewChat({ user, onBack, onNavigate }: NewChatProps) {
         </div>
 
         <div style={styles.sidebarItems}>
-          {/* Back to main chat */}
+          {/* Home screen */}
           <button
-            style={channel === "main" ? styles.sidebarItemActive : styles.sidebarItem}
-            onClick={() => { switchChannel("main"); setMenuOpen(false); }}
+            style={screen === "home" ? styles.sidebarItemActive : styles.sidebarItem}
+            onClick={() => { setScreen("home"); setMenuOpen(false); }}
+          >
+            <span style={{ fontSize: 16 }}>🏠</span>
+            <span>מסך ראשי</span>
+          </button>
+
+          {/* Back to chat */}
+          <button
+            style={screen === "chat" ? styles.sidebarItemActive : styles.sidebarItem}
+            onClick={() => { setScreen("chat"); setMenuOpen(false); }}
           >
             <span style={{ fontSize: 16 }}>💬</span>
             <span>חזרה לשיחה</span>
@@ -221,7 +179,7 @@ export default function NewChat({ user, onBack, onNavigate }: NewChatProps) {
 
         {/* Chat Area */}
         <div className="nc-chat-area" style={styles.chatArea}>
-          {isMainWithNoMessages && (
+          {screen === "home" && (
             <div style={styles.welcomeBlock}>
               <img src="/heartIcon.jpg" alt="" style={styles.welcomeIcon} />
               <h2 style={styles.welcomeTitle}>ברוכים הבאים ל-MatchMe</h2>
@@ -234,36 +192,33 @@ export default function NewChat({ user, onBack, onNavigate }: NewChatProps) {
             </div>
           )}
 
-          {messages.map((msg, i) => (
-            <div key={i} style={msg.role === "user" ? styles.userMsgRow : styles.assistantMsgRow}>
-              {msg.role === "assistant" && <img src="/heartIcon.jpg" alt="" style={styles.assistantIcon} />}
-              <div style={msg.role === "user" ? styles.userBubble : styles.assistantBubble}>
-                {msg.content}
-              </div>
-            </div>
-          ))}
+          {screen === "chat" && (
+            <>
+              {messages.map((msg, i) => (
+                <div key={i} style={msg.role === "user" ? styles.userMsgRow : styles.assistantMsgRow}>
+                  {msg.role === "assistant" && <img src="/heartIcon.jpg" alt="" style={styles.assistantIcon} />}
+                  <div style={msg.role === "user" ? styles.userBubble : styles.assistantBubble}>
+                    {msg.content}
+                  </div>
+                </div>
+              ))}
 
-          {sending && (
-            <div style={styles.assistantMsgRow}>
-              <div style={{ ...styles.assistantBubble, color: "#999" }}>...</div>
-            </div>
+              {sending && (
+                <div style={styles.assistantMsgRow}>
+                  <div style={{ ...styles.assistantBubble, color: "#999" }}>...</div>
+                </div>
+              )}
+            </>
           )}
 
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Suggestions — only on main channel with no messages */}
-        {isMainWithNoMessages && (
+        {/* Suggestions — only on home screen */}
+        {screen === "home" && (
           <div className="nc-suggestions" style={styles.suggestions}>
-            {SUGGESTIONS.map((s, i) => (
-              <button key={i} style={styles.suggestionBtn} onClick={() => {
-                if (messagesByChannel[s.channel].length > 0) {
-                  setChannel(s.channel);
-                } else {
-                  setChannel(s.channel);
-                  setPendingSend({ channel: s.channel, text: s.text });
-                }
-              }}>
+            {TOPIC_OPTIONS.map((s, i) => (
+              <button key={i} style={styles.suggestionBtn} onClick={() => sendMessage(s.text)}>
                 <span style={{ fontSize: 14, opacity: 0.6 }}>{s.icon}</span> {s.text}
               </button>
             ))}
@@ -284,8 +239,10 @@ export default function NewChat({ user, onBack, onNavigate }: NewChatProps) {
               disabled={sending}
             />
             <button
+              type="button"
               style={{ ...styles.sendBtn, opacity: input.trim() && !sending ? 1 : 0.4 }}
               onClick={() => sendMessage()}
+              onTouchEnd={(e) => { e.preventDefault(); sendMessage(); }}
               disabled={!input.trim() || sending}
             >
               ←
@@ -397,6 +354,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
   },
   userName: { fontSize: 13, fontWeight: 500, color: "#333" },
+
   // Main
   main: {
     flex: 1,

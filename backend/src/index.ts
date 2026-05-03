@@ -2020,17 +2020,13 @@ app.post("/new-chat/message", async (req, res) => {
       : "";
   }
 
-  // Build system prompt — inject profile data for "learned about me" channel
-  let systemPrompt = NEW_CHAT_SYSTEM_PROMPT + genderInstruction;
-  if (guide === "new_chat_learned_about_me") {
-    const safeProfile = await getSafeUserProfile(user_id);
-    const profileText = formatSafeProfileForPrompt(safeProfile);
-    if (profileText.trim()) {
-      systemPrompt = LEARNED_ABOUT_ME_SYSTEM_PROMPT + genderInstruction + "\n\n## פרופיל המשתמש\n" + profileText;
-    } else {
-      systemPrompt = LEARNED_ABOUT_ME_SYSTEM_PROMPT + genderInstruction + "\n\n## פרופיל המשתמש\nאין עדיין נתוני פרופיל מובנים. אתה יכול לשתף רשמים כלליים וחיוביים מהשיחה, אבל הדגש שעדיין לא למדת מספיק ועודד להמשיך לשוחח.";
-    }
-  }
+  // Always inject safe profile data so the agent can answer questions about the user
+  const safeProfile = await getSafeUserProfile(user_id);
+  const profileText = formatSafeProfileForPrompt(safeProfile);
+  const profileSection = profileText.trim()
+    ? "\n\n## מידע שיש לך על המשתמש (השתמש בו רק אם רלוונטי לשיחה, אל תשפוך הכל בבת אחת)\n" + profileText
+    : "";
+  let systemPrompt = NEW_CHAT_SYSTEM_PROMPT + genderInstruction + profileSection;
 
   const messages: { role: string; content: string }[] = [
     { role: "system", content: systemPrompt },
