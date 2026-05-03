@@ -57,6 +57,7 @@ export default function NewChat({ user, onBack, onNavigate }: NewChatProps) {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [pendingSend, setPendingSend] = useState<{ channel: Channel; text: string } | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -147,8 +148,32 @@ export default function NewChat({ user, onBack, onNavigate }: NewChatProps) {
 
   return (
     <div style={styles.container}>
-      {/* Sidebar */}
-      <div style={styles.sidebar}>
+      {/* Responsive CSS */}
+      <style>{`
+        .nc-sidebar { display: flex !important; }
+        .nc-menu-btn { display: none !important; }
+        @media (max-width: 768px) {
+          .nc-sidebar {
+            display: none !important;
+            position: fixed;
+            top: 0; right: 0;
+            height: 100vh;
+            z-index: 1000;
+            box-shadow: -2px 0 12px rgba(0,0,0,0.15);
+          }
+          .nc-sidebar.open { display: flex !important; }
+          .nc-menu-btn { display: flex !important; }
+          .nc-chat-area { padding: 16px 16px !important; }
+          .nc-input-area { padding: 10px 16px 12px !important; }
+          .nc-suggestions { padding: 0 16px 8px !important; }
+        }
+      `}</style>
+
+      {/* Mobile overlay */}
+      {menuOpen && <div style={styles.overlay} onClick={() => setMenuOpen(false)} />}
+
+      {/* Sidebar — always visible on desktop, toggled on mobile */}
+      <div className={`nc-sidebar${menuOpen ? " open" : ""}`} style={styles.sidebar}>
         <div style={styles.logo}>
           <img src="/heartIcon.jpg" alt="" style={styles.logoIcon} />
           <span style={styles.logoText}>MatchMe</span>
@@ -158,7 +183,7 @@ export default function NewChat({ user, onBack, onNavigate }: NewChatProps) {
           {/* Back to main chat */}
           <button
             style={channel === "main" ? styles.sidebarItemActive : styles.sidebarItem}
-            onClick={() => switchChannel("main")}
+            onClick={() => { switchChannel("main"); setMenuOpen(false); }}
           >
             <span style={{ fontSize: 16 }}>💬</span>
             <span>חזרה לשיחה</span>
@@ -170,7 +195,7 @@ export default function NewChat({ user, onBack, onNavigate }: NewChatProps) {
               key={i}
               style={item.action ? styles.sidebarItem : { ...styles.sidebarItem, cursor: "default" }}
               disabled={!item.action}
-              onClick={() => item.action && onNavigate?.(item.action)}
+              onClick={() => { if (item.action) { onNavigate?.(item.action); setMenuOpen(false); } }}
             >
               <span style={{ fontSize: 16 }}>{item.icon}</span>
               <span>{item.label}</span>
@@ -183,7 +208,6 @@ export default function NewChat({ user, onBack, onNavigate }: NewChatProps) {
             <div style={styles.avatar}>{user.first_name.charAt(0)}</div>
             <span style={styles.userName}>{user.first_name}</span>
           </div>
-          <button style={styles.backBtn} onClick={onBack}>חזרה לאדמין</button>
         </div>
       </div>
 
@@ -191,11 +215,12 @@ export default function NewChat({ user, onBack, onNavigate }: NewChatProps) {
       <div style={styles.main}>
         {/* Header */}
         <div style={styles.header}>
+          <button className="nc-menu-btn" style={styles.menuBtn} onClick={() => setMenuOpen(!menuOpen)}>☰</button>
           <span style={styles.headerTitle}>שיחה חדשה</span>
         </div>
 
         {/* Chat Area */}
-        <div style={styles.chatArea}>
+        <div className="nc-chat-area" style={styles.chatArea}>
           {isMainWithNoMessages && (
             <div style={styles.welcomeBlock}>
               <img src="/heartIcon.jpg" alt="" style={styles.welcomeIcon} />
@@ -229,9 +254,16 @@ export default function NewChat({ user, onBack, onNavigate }: NewChatProps) {
 
         {/* Suggestions — only on main channel with no messages */}
         {isMainWithNoMessages && (
-          <div style={styles.suggestions}>
+          <div className="nc-suggestions" style={styles.suggestions}>
             {SUGGESTIONS.map((s, i) => (
-              <button key={i} style={styles.suggestionBtn} onClick={() => { setChannel(s.channel); setPendingSend({ channel: s.channel, text: s.text }); }}>
+              <button key={i} style={styles.suggestionBtn} onClick={() => {
+                if (messagesByChannel[s.channel].length > 0) {
+                  setChannel(s.channel);
+                } else {
+                  setChannel(s.channel);
+                  setPendingSend({ channel: s.channel, text: s.text });
+                }
+              }}>
                 <span style={{ fontSize: 14, opacity: 0.6 }}>{s.icon}</span> {s.text}
               </button>
             ))}
@@ -239,7 +271,7 @@ export default function NewChat({ user, onBack, onNavigate }: NewChatProps) {
         )}
 
         {/* Input Area */}
-        <div style={styles.inputArea}>
+        <div className="nc-input-area" style={styles.inputArea}>
           <div style={styles.inputRow}>
             <textarea
               ref={inputRef}
@@ -275,6 +307,13 @@ const styles: Record<string, React.CSSProperties> = {
     direction: "rtl",
     fontFamily: "'Segoe UI', 'Arial', sans-serif",
     background: "#f9fafb",
+  },
+
+  overlay: {
+    position: "fixed" as const,
+    top: 0, left: 0, right: 0, bottom: 0,
+    background: "rgba(0,0,0,0.3)",
+    zIndex: 999,
   },
 
   // Sidebar
@@ -358,16 +397,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
   },
   userName: { fontSize: 13, fontWeight: 500, color: "#333" },
-  backBtn: {
-    background: "none",
-    border: "1px solid #ddd",
-    borderRadius: 6,
-    padding: "4px 12px",
-    fontSize: 12,
-    color: "#666",
-    cursor: "pointer",
-  },
-
   // Main
   main: {
     flex: 1,
@@ -379,6 +408,19 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "14px 24px",
     borderBottom: "1px solid #e5e7eb",
     background: "#fff",
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+  },
+  menuBtn: {
+    background: "none",
+    border: "none",
+    fontSize: 20,
+    cursor: "pointer",
+    color: "#555",
+    padding: "0 4px",
+    display: "flex",
+    alignItems: "center",
   },
   headerTitle: {
     fontSize: 15,
