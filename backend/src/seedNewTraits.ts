@@ -43,15 +43,12 @@ const NEW_TRAITS: NewTrait[] = [
   { internal_name: "intellectualism", display_name_he: "אינטלקטואליות", display_name_en: "Intellectualism", ai_description: null, trait_group: "Cognitive Profile", sensitivity: "normal", calc_type: "normal" },
   { internal_name: "career_prestige", display_name_he: "יוקרה תעסוקתית", display_name_en: "Career Prestige", ai_description: "יוקרה מקצועית — השילוב של השכלה פורמלית, הכשרה מקצועית, ורמת המשרה. לא חשוב כמה האדם טוב במה שהוא עושה — חשוב מה המקצוע עצמו. רופא/מהנדס תוכנה/טייס → 85-100. עורך דין/מתכנת/ארכיטקט → 65-80. רואה חשבון/פיזיותרפיסט → 50-65. מורה/אח/טכנאי → 35-50. עבודה בלי הכשרה/פרילנס לא מקצועי → 15-30. ירקן/קופאי/נהג/מלצר → 5-15. לא עובד → 0-5. ציון 50 הוא גבוה — מקצוע שדורש הכשרה משמעותית. אל תנפח ציון בגלל שהמשתמש מרוצה מהעבודה. יש להגדיר weight_for_match אם המשתמש מביע חשיבות למקצוע של הצד השני.", trait_group: "Cognitive Profile", sensitivity: "normal", calc_type: "normal" },
 
-  // ── Communication Tone (8) ──
-  { internal_name: "communication_softness", display_name_he: "רכות תקשורתית", display_name_en: "Communication Softness", ai_description: null, trait_group: "Communication Tone", sensitivity: "normal", calc_type: "normal" },
-  { internal_name: "harsh_talk", display_name_he: "קשיחות", display_name_en: "Harsh Talk", ai_description: null, trait_group: "Communication Tone", sensitivity: "normal", calc_type: "normal" },
-  { internal_name: "directness", display_name_he: "ישירות", display_name_en: "Directness", ai_description: null, trait_group: "Communication Tone", sensitivity: "normal", calc_type: "normal" },
-  { internal_name: "tonal_balance", display_name_he: "איזון טונלי", display_name_en: "Tonal Balance", ai_description: null, trait_group: "Communication Tone", sensitivity: "normal", calc_type: "normal" },
-  { internal_name: "authenticity", display_name_he: "אותנטיות", display_name_en: "Authenticity", ai_description: null, trait_group: "Communication Tone", sensitivity: "normal", calc_type: "normal" },
-  { internal_name: "dramatic_intensity", display_name_he: "עוצמה דרמטית", display_name_en: "Dramatic Intensity", ai_description: null, trait_group: "Communication Tone", sensitivity: "normal", calc_type: "normal" },
-  { internal_name: "theatricality", display_name_he: "תיאטרליות", display_name_en: "Theatricality", ai_description: null, trait_group: "Communication Tone", sensitivity: "normal", calc_type: "normal" },
-  { internal_name: "energy_level", display_name_he: "רמת אנרגיה", display_name_en: "Energy Level", ai_description: null, trait_group: "Communication Tone", sensitivity: "normal", calc_type: "normal" },
+  // ── Communication Tone (4) ──
+  { internal_name: "energetic_intensity", display_name_he: "עוצמה אנרגטית", display_name_en: "Energetic Intensity", ai_description: "Measures communication energy level, pace, passion, verbal intensity, momentum, enthusiasm, and overall energetic presence.", trait_group: "Communication Tone", sensitivity: "normal", calc_type: "normal" },
+  { internal_name: "assertiveness_forcefulness", display_name_he: "אסרטיביות ותקיפות", display_name_en: "Assertiveness & Forcefulness", ai_description: "Measures directness, decisiveness, forcefulness, dominance, leadership tone, and clarity.", trait_group: "Communication Tone", sensitivity: "normal", calc_type: "normal" },
+  { internal_name: "charismatic_presence", display_name_he: "נוכחות כריזמטית", display_name_en: "Charismatic Presence", ai_description: "Measures verbal charisma, magnetic communication, personal presence, expressiveness, and memorable social impact.", trait_group: "Communication Tone", sensitivity: "normal", calc_type: "normal" },
+  // softness_sharpness_balance — removed (deactivated)
+  // hesitation_level — removed (deactivated)
 
   // ── Big Five (5) ──
   { internal_name: "extraversion", display_name_he: "מוחצנות", display_name_en: "Extraversion", ai_description: null, trait_group: "Big Five", sensitivity: "normal", calc_type: "normal" },
@@ -99,6 +96,7 @@ const NEW_TRAITS: NewTrait[] = [
   { internal_name: "geekiness", display_name_he: "גיקיות", display_name_en: "Geekiness", ai_description: null, trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
   { internal_name: "hippie_style", display_name_he: "היפיות", display_name_en: "Hippie Style", ai_description: null, trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
   { internal_name: "soviet_style", display_name_he: "סגנון סובייטי", display_name_en: "Soviet Style", ai_description: null, trait_group: "Personal Style", sensitivity: "sensitive", calc_type: "normal" },
+  { internal_name: "theatricality", display_name_he: "תיאטרליות", display_name_en: "Theatricality", ai_description: "עד כמה המשתמש מעמיד הצגה — מפגין, מגזים, מספר סיפורים בצורה מבוימת.", trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
 
   // ── MBTI (6) ──
   // ציר E/I לא כלול — משתמשים ב-extraversion מ-Big Five

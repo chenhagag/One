@@ -1038,12 +1038,10 @@ app.get("/admin/user-profiles", async (_req, res) => {
       "neuroticism", "emotional_intensity", "emotional_expressiveness",
     ]);
 
-    // טון תקשורת — תכונות: communication_softness, harsh_talk (inv), directness, tonal_balance,
-    // authenticity, dramatic_intensity (inv), theatricality (inv), energy_level
-    const communication = invertedAvg(traits, [
-      "communication_softness", "harsh_talk", "directness", "tonal_balance",
-      "authenticity", "dramatic_intensity", "theatricality", "energy_level",
-    ], new Set(["harsh_talk", "dramatic_intensity", "theatricality"]));
+    // טון תקשורת — תכונות: energetic_intensity, assertiveness_forcefulness, charismatic_presence
+    const communication = weightedAvg(traits, [
+      "energetic_intensity", "assertiveness_forcefulness", "charismatic_presence",
+    ]);
 
     // סחיות — תכונות: mainstreamness, conformity, openness_to_experience (inverted)
     const vibe = invertedAvg(traits, [
@@ -1067,11 +1065,11 @@ app.get("/admin/user-profiles", async (_req, res) => {
 
     // סגנון אישי — תכונות: mainstreamness, oriental, broad_appeal, value_rigidity, family_of_origin_closeness,
     // childishness, humor, right_wing, left_wing, social_activism, party_orientation,
-    // religiosity, secularity, hipsterishness, geekiness, hippie_style, soviet_style
+    // religiosity, secularity, hipsterishness, geekiness, hippie_style, soviet_style, theatricality
     const style = weightedAvg(traits, [
       "mainstreamness", "oriental", "broad_appeal", "value_rigidity", "family_of_origin_closeness",
       "childishness", "humor", "right_wing", "left_wing", "social_activism", "party_orientation",
-      "religiosity", "secularity", "hipsterishness", "geekiness", "hippie_style", "soviet_style",
+      "religiosity", "secularity", "hipsterishness", "geekiness", "hippie_style", "soviet_style", "theatricality",
     ]);
 
     return {
@@ -1119,7 +1117,7 @@ app.get("/admin/users/:id/full", async (req, res) => {
   );
 
   const lookTraits = await pgQueryAll(
-    `SELECT ltd.internal_name, ltd.display_name_he, ltd.display_name_en,
+    `SELECT ltd.id as look_trait_definition_id, ltd.internal_name, ltd.display_name_he, ltd.display_name_en,
             ltd.weight as default_weight, ltd.possible_values,
             ult.personal_value, ult.personal_value_confidence,
             ult.desired_value, ult.desired_value_confidence,
@@ -1221,6 +1219,27 @@ app.put("/admin/look-trait-definitions/:id", async (req, res) => {
   );
   if (result.length === 0) return res.status(404).json({ error: "Not found" });
   return res.json({ success: true });
+});
+
+// PUT /admin/users/:id/look-traits — Save manual look trait values for a user
+app.put("/admin/users/:id/look-traits", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const traits = req.body.traits as { look_trait_definition_id: number; personal_value: string | null }[];
+  if (!Array.isArray(traits)) return res.status(400).json({ error: "traits array required" });
+
+  let saved = 0;
+  for (const t of traits) {
+    if (!t.look_trait_definition_id) continue;
+    await pgQueryAll(
+      `INSERT INTO user_look_traits (user_id, look_trait_definition_id, personal_value, personal_value_confidence, source)
+       VALUES ($1, $2, $3, 1.0, 'manual')
+       ON CONFLICT (user_id, look_trait_definition_id) DO UPDATE SET
+         personal_value = $3, personal_value_confidence = 1.0, source = 'manual', updated_at = NOW()`,
+      [userId, t.look_trait_definition_id, t.personal_value]
+    );
+    saved++;
+  }
+  return res.json({ saved });
 });
 
 // GET /admin/enum-options — All enums, optionally filtered by category
@@ -1639,8 +1658,9 @@ app.post("/admin/users/:id/reset-analysis", async (req, res) => {
   const deletedTraits = (await pgQueryAll(
     "DELETE FROM user_traits WHERE user_id = $1", [user_id]
   )) as any[];
+  // Keep manually entered look traits, only delete AI-generated ones
   const deletedLookTraits = (await pgQueryAll(
-    "DELETE FROM user_look_traits WHERE user_id = $1", [user_id]
+    "DELETE FROM user_look_traits WHERE user_id = $1 AND source != 'manual'", [user_id]
   )) as any[];
 
   // Clear profiles.analysis_json in pg

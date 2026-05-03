@@ -270,6 +270,9 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
   const [runningCognitiveTest, setRunningCognitiveTest] = useState(false);
   const [showEvidenceScores, setShowEvidenceScores] = useState(false);
   const [runningGroup, setRunningGroup] = useState<string | null>(null);
+  const [lookTraitEdits, setLookTraitEdits] = useState<Record<number, string>>({});
+  const [savingLookTraits, setSavingLookTraits] = useState(false);
+  const [lookTraitsSaved, setLookTraitsSaved] = useState(false);
 
   function loadMatches() {
     fetch(`/api/admin/users/${userId}/matches`)
@@ -430,6 +433,48 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
 
   const { user, profile, traits, lookTraits, coverage } = data;
 
+  // Manual look traits: traits with source "manual" that accept numeric 1-100
+  const manualLookTraitNames = new Set([
+    "appeal", "warmth_visual", "femininity_masculinity", "glamour",
+    "naturalness", "fitness_aesthetic", "style_polish", "skin_tone_range",
+  ]);
+  const manualLookTraits = lookTraits.filter((lt: any) => manualLookTraitNames.has(lt.internal_name));
+  const otherLookTraits = lookTraits.filter((lt: any) => !manualLookTraitNames.has(lt.internal_name));
+
+  function getLookTraitEditValue(lt: any): string {
+    if (lookTraitEdits[lt.look_trait_definition_id] !== undefined)
+      return lookTraitEdits[lt.look_trait_definition_id];
+    return lt.personal_value ?? "";
+  }
+
+  function setLookTraitEdit(lt: any, value: string) {
+    setLookTraitEdits(prev => ({ ...prev, [lt.look_trait_definition_id]: value }));
+    setLookTraitsSaved(false);
+  }
+
+  async function saveLookTraits() {
+    setSavingLookTraits(true);
+    const traitsToSave = manualLookTraits.map((lt: any) => {
+      const val = lookTraitEdits[lt.look_trait_definition_id] !== undefined
+        ? lookTraitEdits[lt.look_trait_definition_id]
+        : (lt.personal_value ?? "");
+      return {
+        look_trait_definition_id: lt.look_trait_definition_id,
+        personal_value: val === "" ? null : val,
+      };
+    });
+    try {
+      await fetch(`/api/admin/users/${userId}/look-traits`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ traits: traitsToSave }),
+      });
+      setLookTraitsSaved(true);
+      loadUserData();
+    } catch { alert("Save failed"); }
+    finally { setSavingLookTraits(false); }
+  }
+
   // Split traits into visible, internal-use, text (deal_breakers), and deal_breakers
   const visibleTraits = traits.filter((t: any) => t.calc_type !== "internal_use" && t.calc_type !== "text");
   const internalTraits = traits.filter((t: any) => t.calc_type === "internal_use");
@@ -553,28 +598,11 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
 
   const evidenceProfile = computeEvidenceBasedProfile();
 
-  // תכונות: communication_softness, harsh_talk (inverted), directness, tonal_balance,
-  // authenticity, dramatic_intensity (inverted), theatricality (inverted), energy_level
+  // תכונות: energetic_intensity, assertiveness_forcefulness, charismatic_presence
   function computeCommunicationTone() {
-    const invertedTraits = new Set(["harsh_talk", "dramatic_intensity", "theatricality"]);
-    const toneTraits = [
-      "communication_softness", "harsh_talk", "directness", "tonal_balance",
-      "authenticity", "dramatic_intensity", "theatricality", "energy_level",
-    ];
-    const items: { score: number; confidence: number }[] = [];
-    for (const name of toneTraits) {
-      const d = traitData(name);
-      if (!d) continue;
-      items.push({
-        score: invertedTraits.has(name) ? 100 - d.score : d.score,
-        confidence: d.confidence,
-      });
-    }
-    if (items.length === 0) return null;
-    const sumW = items.reduce((s, d) => s + d.score * d.confidence, 0);
-    const sumC = items.reduce((s, d) => s + d.confidence, 0);
-    if (sumC === 0) return null;
-    return { score: Math.round(sumW / sumC), count: items.length, total: toneTraits.length };
+    return weightedAvg([
+      "energetic_intensity", "assertiveness_forcefulness", "charismatic_presence",
+    ]);
   }
 
   // סחיות — תכונות: mainstreamness, conformity, openness_to_experience (inverted)
@@ -708,6 +736,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
       { name: "geekiness", he: "גיקי" },
       { name: "hippie_style", he: "היפי" },
       { name: "soviet_style", he: "סובייטי" },
+      { name: "theatricality", he: "תיאטרלי" },
     ];
     const highlights: { label: string; score: number }[] = [];
     for (const t of styleTraits) {
@@ -1219,43 +1248,75 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard }: { userId: 
               : <span style={{ color: "#999" }}>Not analyzed</span>}
           </div>
 
-          {/* Look Traits */}
-          <SectionHeading title={`Look Traits (${lookTraits.length})`} />
-          <p style={{ fontSize: 11, color: "#888", margin: "0 0 8px" }}>
-            Effective = weight × weight_confidence × value_confidence
-          </p>
-          <table style={{ ...s.table, marginBottom: 24 }}>
-            <thead>
-              <tr>
-                <th style={s.th}>Trait</th>
-                <th style={s.th}>Personal</th>
-                <th style={s.th}>P. Conf.</th>
-                <th style={s.th}>Desired</th>
-                <th style={s.th}>D. Conf.</th>
-                <th style={s.th}>Weight</th>
-                <th style={s.th}>Effective</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lookTraits.map((lt: any, i: number) => {
-                const analyzed = lt.personal_value != null || lt.desired_value != null;
-                return (
-                  <tr key={i} style={analyzed ? {} : { opacity: 0.45 }}>
-                    <td style={s.td}>
-                      {lt.display_name_he || lt.internal_name}
-                      <span style={{ color: "#aaa", fontSize: 10, marginLeft: 4 }}>{lt.internal_name}</span>
-                    </td>
-                    <td style={s.td}>{lt.personal_value ? <span style={s.badge}>{lt.personal_value}</span> : <span style={{ color: "#bbb" }}>—</span>}</td>
-                    <td style={s.td}>{lt.personal_value_confidence != null ? lt.personal_value_confidence.toFixed(2) : <span style={{ color: "#bbb" }}>—</span>}</td>
-                    <td style={s.td}>{lt.desired_value ? <span style={{ ...s.badge, background: "#d6eaff" }}>{lt.desired_value}</span> : <span style={{ color: "#bbb" }}>—</span>}</td>
-                    <td style={s.td}>{lt.desired_value_confidence != null ? lt.desired_value_confidence.toFixed(2) : <span style={{ color: "#bbb" }}>—</span>}</td>
-                    <td style={s.td}>{lt.default_weight}</td>
-                    <td style={s.td}><strong>{analyzed ? lt.effective_weight : "—"}</strong></td>
+          {/* External Traits — Manual Visual Scores */}
+          <SectionHeading title="External Traits — Manual" />
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
+            {manualLookTraits.map((lt: any) => {
+              const id = lt.look_trait_definition_id;
+              const val = getLookTraitEditValue(lt);
+              return (
+                <div key={id} style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 130 }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: "#555" }}>
+                    {lt.display_name_he || lt.internal_name}
+                  </label>
+                  <input
+                    type="number" min={1} max={100}
+                    value={val}
+                    onChange={e => setLookTraitEdit(lt, e.target.value)}
+                    placeholder="1-100"
+                    style={{ ...s.configInput, width: 70 }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 20 }}>
+            <button
+              onClick={saveLookTraits}
+              disabled={savingLookTraits}
+              style={{ ...s.configSave, padding: "6px 16px", fontSize: 12 }}
+            >{savingLookTraits ? "Saving..." : "Save External Traits"}</button>
+            {lookTraitsSaved && <span style={{ fontSize: 12, color: "#28a745" }}>Saved</span>}
+          </div>
+
+          {/* Other Look Traits (AI-analyzed, read-only) */}
+          {otherLookTraits.length > 0 && (
+            <>
+              <SectionHeading title={`Other Look Traits (${otherLookTraits.length})`} />
+              <table style={{ ...s.table, marginBottom: 24 }}>
+                <thead>
+                  <tr>
+                    <th style={s.th}>Trait</th>
+                    <th style={s.th}>Personal</th>
+                    <th style={s.th}>P. Conf.</th>
+                    <th style={s.th}>Desired</th>
+                    <th style={s.th}>D. Conf.</th>
+                    <th style={s.th}>Weight</th>
+                    <th style={s.th}>Effective</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {otherLookTraits.map((lt: any, i: number) => {
+                    const analyzed = lt.personal_value != null || lt.desired_value != null;
+                    return (
+                      <tr key={i} style={analyzed ? {} : { opacity: 0.45 }}>
+                        <td style={s.td}>
+                          {lt.display_name_he || lt.internal_name}
+                          <span style={{ color: "#aaa", fontSize: 10, marginLeft: 4 }}>{lt.internal_name}</span>
+                        </td>
+                        <td style={s.td}>{lt.personal_value ? <span style={s.badge}>{lt.personal_value}</span> : <span style={{ color: "#bbb" }}>—</span>}</td>
+                        <td style={s.td}>{lt.personal_value_confidence != null ? lt.personal_value_confidence.toFixed(2) : <span style={{ color: "#bbb" }}>—</span>}</td>
+                        <td style={s.td}>{lt.desired_value ? <span style={{ ...s.badge, background: "#d6eaff" }}>{lt.desired_value}</span> : <span style={{ color: "#bbb" }}>—</span>}</td>
+                        <td style={s.td}>{lt.desired_value_confidence != null ? lt.desired_value_confidence.toFixed(2) : <span style={{ color: "#bbb" }}>—</span>}</td>
+                        <td style={s.td}>{lt.default_weight}</td>
+                        <td style={s.td}><strong>{analyzed ? lt.effective_weight : "—"}</strong></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </>
+          )}
         </div>
       </div>
 

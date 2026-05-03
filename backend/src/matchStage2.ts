@@ -28,10 +28,10 @@ import { queryAll, queryOne, withTransaction } from "./db.pg";
 let APPEARANCE_SENSITIVITY_TRAIT_ID = -1;
 const APPEARANCE_SENSITIVITY_THRESHOLD = 0.7;
 
-const DEFAULT_INTERNAL_RATIO = 0.80;
-const DEFAULT_EXTERNAL_RATIO = 0.20;
-const SENSITIVE_INTERNAL_RATIO = 0.75;
-const SENSITIVE_EXTERNAL_RATIO = 0.25;
+const DEFAULT_INTERNAL_RATIO = 0.70;
+const DEFAULT_EXTERNAL_RATIO = 0.30;
+const SENSITIVE_INTERNAL_RATIO = 0.65;
+const SENSITIVE_EXTERNAL_RATIO = 0.35;
 
 const EXCLUDED_CALC_TYPES = new Set(["internal_use", "special"]);
 
@@ -51,10 +51,46 @@ interface TraitDef {
   weight: number;
 }
 
-// ── External score placeholder ───────────────────────────────────
+// ── External score — weighted similarity on manual visual traits ──
 
-function calculateExternalScore(_userId1: number, _userId2: number): number {
-  return 100;
+interface LookTraitRow {
+  look_trait_definition_id: number;
+  internal_name: string;
+  personal_value: string | null;
+}
+
+// Traits included in external scoring and their weights
+// Appeal and Fitness aesthetic get double weight
+const EXTERNAL_SCORE_WEIGHTS: Record<string, number> = {
+  appeal: 3,
+  fitness_aesthetic: 3,
+  warmth_visual: 1,
+  femininity_masculinity: 2,
+  glamour: 1,
+  naturalness: 1,
+  style_polish: 1,
+  skin_tone_range: 1,
+};
+
+function calculateExternalScore(
+  user1LookTraits: Map<string, number>,
+  user2LookTraits: Map<string, number>,
+): number | null {
+  let sumWeightedScore = 0;
+  let sumWeight = 0;
+
+  for (const [traitName, weight] of Object.entries(EXTERNAL_SCORE_WEIGHTS)) {
+    const v1 = user1LookTraits.get(traitName);
+    const v2 = user2LookTraits.get(traitName);
+    if (v1 == null || v2 == null) continue;
+
+    const traitScore = 100 - Math.abs(v1 - v2);
+    sumWeightedScore += traitScore * weight;
+    sumWeight += weight;
+  }
+
+  if (sumWeight === 0) return null;
+  return sumWeightedScore / sumWeight;
 }
 
 // ── Internal score calculation (pure / sync) ─────────────────────
@@ -97,11 +133,11 @@ function calculateInternalScore(
   return sumWeightedScore / sumWeightedWeight;
 }
 
+// Appearance sensitive if score >= 70 AND confidence >= 0.7
 function isAppearanceSensitive(traits: Map<number, TraitRow>): boolean {
   const t = traits.get(APPEARANCE_SENSITIVITY_TRAIT_ID);
   if (!t) return false;
-  const weighted = (t.score / 100) * t.confidence;
-  return weighted > APPEARANCE_SENSITIVITY_THRESHOLD;
+  return t.score >= 70 && t.confidence >= 0.7;
 }
 
 // ── Category match score definitions ────────────────────────────
@@ -138,11 +174,9 @@ const MATCH_CATEGORIES: CategoryDef[] = [
   ]},
 
   // טון תקשורת — Communication Tone
-  // Traits: communication_softness, harsh_talk, directness, tonal_balance,
-  //         authenticity, dramatic_intensity, theatricality, energy_level
+  // Traits: energetic_intensity, assertiveness_forcefulness, charismatic_presence
   { key: "communication", traitNames: [
-    "communication_softness", "harsh_talk", "directness", "tonal_balance",
-    "authenticity", "dramatic_intensity", "theatricality", "energy_level",
+    "energetic_intensity", "assertiveness_forcefulness", "charismatic_presence",
   ]},
 
   // סחיות — Vibe
@@ -174,11 +208,11 @@ const MATCH_CATEGORIES: CategoryDef[] = [
   // סגנון אישי — Personal Style
   // Traits: mainstreamness, oriental, broad_appeal, value_rigidity, family_of_origin_closeness,
   //         childishness, humor, right_wing, left_wing, social_activism, party_orientation,
-  //         religiosity, secularity, hipsterishness, geekiness, hippie_style, soviet_style
+  //         religiosity, secularity, hipsterishness, geekiness, hippie_style, soviet_style, theatricality
   { key: "style", traitNames: [
     "mainstreamness", "oriental", "broad_appeal", "value_rigidity", "family_of_origin_closeness",
     "childishness", "humor", "right_wing", "left_wing", "social_activism", "party_orientation",
-    "religiosity", "secularity", "hipsterishness", "geekiness", "hippie_style", "soviet_style",
+    "religiosity", "secularity", "hipsterishness", "geekiness", "hippie_style", "soviet_style", "theatricality",
   ]},
 
   // כללי — General Info
@@ -336,16 +370,18 @@ function calculateAllCategoryScores(
 // ── Profile-based score ─────────────────────────────────────────
 // Weighted average of category scores (not individual traits).
 // Cognitive gets 2x weight. Vibe, Popularity, General excluded.
-function calculateProfileScore(categories: CategoryScores): number | null {
+function calculateProfileScore(categories: CategoryScores, externalScore: number | null): number | null {
   const profileWeights: [keyof CategoryScores, number][] = [
-    ["score_cognitive", 2],
+    ["score_cognitive", 3],
     ["score_emotional_social", 1],
-    ["score_emotionality", 1],
-    ["score_communication", 1],
+    ["score_emotionality", 0.5],
+    ["score_communication", 2],
     ["score_big_five", 1],
     ["score_schwartz", 1],
     ["score_style", 1],
-    ["score_mbti", 1],
+    ["score_popularity", 0.25],
+    ["score_vibe", 0.25],
+    ["score_mbti", 0.5],
   ];
 
   let sumW = 0, sumC = 0;
@@ -355,6 +391,13 @@ function calculateProfileScore(categories: CategoryScores): number | null {
     sumW += val * weight;
     sumC += weight;
   }
+
+  // External score gets triple weight (like cognitive)
+  if (externalScore != null) {
+    sumW += externalScore * 3;
+    sumC += 3;
+  }
+
   if (sumC === 0) return null;
   return Math.round((sumW / sumC) * 100) / 100;
 }
@@ -415,6 +458,26 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
   const getUserTraits = (uid: number): Map<number, TraitRow> =>
     traitCache.get(uid) ?? new Map();
 
+  // Pre-load look traits (manual visual traits) for involved users
+  const allLookTraits = await queryAll<{ user_id: number; internal_name: string; personal_value: string | null }>(
+    `SELECT ult.user_id, ltd.internal_name, ult.personal_value
+     FROM user_look_traits ult
+     JOIN look_trait_definitions ltd ON ltd.id = ult.look_trait_definition_id
+     WHERE ult.user_id = ANY($1::int[]) AND ult.personal_value IS NOT NULL`,
+    [involvedIds]
+  );
+
+  const lookTraitCache = new Map<number, Map<string, number>>();
+  for (const r of allLookTraits) {
+    const numVal = parseFloat(r.personal_value ?? "");
+    if (isNaN(numVal)) continue;
+    if (!lookTraitCache.has(r.user_id)) lookTraitCache.set(r.user_id, new Map());
+    lookTraitCache.get(r.user_id)!.set(r.internal_name, numVal);
+  }
+
+  const getUserLookTraits = (uid: number): Map<string, number> =>
+    lookTraitCache.get(uid) ?? new Map();
+
   // Pre-load genders for involved users
   const genderRows = await queryAll<{ id: number; gender: string | null }>(
     `SELECT id, gender FROM users WHERE id = ANY($1::int[])`,
@@ -450,7 +513,10 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
       continue;
     }
 
-    const externalScore = calculateExternalScore(row.user_id, row.candidate_user_id);
+    const externalScore = calculateExternalScore(
+      getUserLookTraits(row.user_id),
+      getUserLookTraits(row.candidate_user_id),
+    ) ?? 0; // fallback to 0 if no visual data available
     const sensitive = isAppearanceSensitive(u1Traits) || isAppearanceSensitive(u2Traits);
     const iRatio = sensitive ? SENSITIVE_INTERNAL_RATIO : DEFAULT_INTERNAL_RATIO;
     const eRatio = sensitive ? SENSITIVE_EXTERNAL_RATIO : DEFAULT_EXTERNAL_RATIO;
@@ -462,7 +528,7 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
       genderCache.get(row.candidate_user_id) ?? null,
     );
 
-    const profileScore = calculateProfileScore(categories);
+    const profileScore = calculateProfileScore(categories, externalScore);
 
     updates.push({
       id: row.id,
