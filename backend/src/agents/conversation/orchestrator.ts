@@ -351,8 +351,7 @@ export async function buildAnalysisTranscript(
   _db: Database.Database,
   userId: number
 ): Promise<string> {
-  // Both interviewer AND psychologist messages go to the analyzer.
-  // Exclude psychologist and new_chat messages — only interviewer (lab) messages
+  // Fetch all three chat types separately
   const interviewerMsgs = await pgQueryAll<{ role: string; content: string }>(
     `SELECT role, content FROM conversation_messages
      WHERE user_id = $1 AND (guide IS NULL OR (guide != 'psychologist' AND guide NOT LIKE 'new_chat%'))
@@ -367,10 +366,18 @@ export async function buildAnalysisTranscript(
     [userId]
   );
 
-  const parts: string[] = [];
+  const newChatMsgs = await pgQueryAll<{ role: string; content: string }>(
+    `SELECT role, content FROM conversation_messages
+     WHERE user_id = $1 AND guide LIKE 'new_chat%'
+     ORDER BY created_at ASC, id ASC`,
+    [userId]
+  );
 
-  if (interviewerMsgs.length > 0 && psychMsgs.length > 0) {
-    parts.push("הנחיה: נתח את שני התמלילים. שיחת המעבדה (חלק 1) - תגובות לסימולציות ודילמות, ושיחת העומק (חלק 2) - שיחה שוטפת ורגשית. שלב את שניהם לפרופיל אחד מדויק.\n");
+  const parts: string[] = [];
+  const availableParts = [interviewerMsgs.length > 0, psychMsgs.length > 0, newChatMsgs.length > 0].filter(Boolean).length;
+
+  if (availableParts > 1) {
+    parts.push("הנחיה: נתח את כל התמלילים הבאים. שיחת המעבדה (חלק 1) - תגובות לסימולציות ודילמות, שיחת העומק (חלק 2) - שיחה שוטפת ורגשית, והשיחה החופשית (חלק 3) - שיחת היכרות כללית. שלב את כולם לפרופיל אחד מדויק.\n");
   }
 
   if (interviewerMsgs.length > 0) {
@@ -381,6 +388,11 @@ export async function buildAnalysisTranscript(
   if (psychMsgs.length > 0) {
     parts.push("\n### חלק 2: שיחת עומק (פסיכולוג)");
     parts.push(psychMsgs.map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`).join("\n\n"));
+  }
+
+  if (newChatMsgs.length > 0) {
+    parts.push("\n### חלק 3: שיחה חופשית (היכרות כללית)");
+    parts.push(newChatMsgs.map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`).join("\n\n"));
   }
 
   if (parts.length > 0) return parts.join("\n\n");

@@ -155,8 +155,9 @@ export default function Insights({ user, onBack }: InsightsProps) {
           <p style={styles.loading}>טוען...</p>
         ) : !hasData ? (
           <div style={styles.emptyState}>
-            <p style={styles.emptyText}>עדיין אין מספיק נתונים כדי להציג תובנות.</p>
-            <p style={styles.emptyText}>{g("המשך", "המשיכי")} לשוחח ונוכל ללמוד {g("עליך", "עלייך")} יותר.</p>
+            <p style={styles.emptyText}>הנתונים {g("שלך", "שלך")} עדיין לא נותחו לעומק במערכת, ולכן עדיין אין תובנות מובנות להציג.</p>
+            <p style={styles.emptyText}>בינתיים, {g("אתה יכול", "את יכולה")} לשאול את הצ'אט "מה למדת עליי עד עכשיו?" וקבל ממנו רשמים ראשוניים על בסיס השיחה.</p>
+            <p style={styles.emptySubtext}>{g("המשך", "המשיכי")} לשוחח וברגע שיהיה מספיק מידע, הניתוח ירוץ אוטומטית והתובנות יופיעו כאן.</p>
           </div>
         ) : (
           <>
@@ -259,6 +260,12 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#888",
     lineHeight: 1.6,
     margin: "4px 0",
+  },
+  emptySubtext: {
+    fontSize: 13,
+    color: "#aaa",
+    lineHeight: 1.5,
+    marginTop: 16,
   },
 
   // Sections

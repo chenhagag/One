@@ -435,6 +435,27 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       ) THEN
         ALTER TABLE candidate_matches ADD COLUMN profile_score DOUBLE PRECISION;
       END IF;
+
+      -- Auto-analysis flag: prevents running automatic analysis more than once
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'auto_analyzed'
+      ) THEN
+        ALTER TABLE users ADD COLUMN auto_analyzed BOOLEAN DEFAULT FALSE;
+      END IF;
     END $$;
+  `);
+
+  // ── User Chat Summaries ───────────────────────────────────────
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_chat_summaries (
+      id                  SERIAL PRIMARY KEY,
+      user_id             INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      summary_json        JSONB NOT NULL DEFAULT '{}',
+      message_count_at    INTEGER NOT NULL DEFAULT 0,
+      updated_at          TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_chat_summaries_user ON user_chat_summaries(user_id);
   `);
 }

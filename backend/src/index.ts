@@ -18,7 +18,9 @@ import { updateCognitiveScore } from "./cognitiveScore";
 import { runStage2, runMatchmaking } from "./matchStage2";
 import { runAnalysisAgent, runSingleGroupAnalysis, getAvailableGroups, buildAnalysisInput, saveAnalysisToDb, saveAnalysisRun, getLatestAnalysisRun } from "./agents/analysis";
 import { generateOpeningMessage, processUserMessage, computeCoverage, buildAnalysisTranscript, type ConversationState } from "./agents/conversation";
-import { getSafeUserProfile, formatSafeProfileForPrompt } from "./safeOutputLayer";
+import { buildChatPrompt } from "./agents/conversation/chatManager";
+import { shouldSummarize, getUserSummary, runSummarization } from "./agents/conversation/summarizer";
+import { maybeAutoAnalyze } from "./agents/conversation/autoAnalysis";
 import OpenAI from "openai";
 import { generatePsychologistOpening, processPsychologistMessage, type PsychologistState } from "./agents/conversation";
 
@@ -1986,15 +1988,64 @@ app.delete("/admin/bug-reports/:id", async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════
-// NEW CONVERSATIONAL CHAT — Simple agent (separate from old chat flow)
+// NEW CONVERSATIONAL CHAT — RAG-based conversation manager
 // ════════════════════════════════════════════════════════════════
 
-const NEW_CHAT_SYSTEM_PROMPT = fs.readFileSync(
-  path.join(__dirname, "agents/analysis/prompts/new-chat-system.txt"), "utf-8"
-);
-const LEARNED_ABOUT_ME_SYSTEM_PROMPT = fs.readFileSync(
-  path.join(__dirname, "agents/analysis/prompts/learned-about-me-system.txt"), "utf-8"
-);
+// GET /new-chat/status/:user_id — Returns recommendation flags for the home screen
+app.get("/new-chat/status/:user_id", async (req, res) => {
+  const userId = parseInt(req.params.user_id, 10);
+  if (!userId) return res.status(400).json({ error: "invalid user_id" });
+
+  try {
+    // Check cognitive messages count
+    const cogResult = await pgQueryOne<{ count: string }>(
+      `SELECT COUNT(*) as count FROM conversation_messages
+       WHERE user_id = $1 AND guide = 'new_chat_cognitive' AND role = 'user'`,
+      [userId]
+    );
+    const cognitiveCount = parseInt(cogResult?.count || "0", 10);
+
+    // Check general chat messages count
+    const chatResult = await pgQueryOne<{ count: string }>(
+      `SELECT COUNT(*) as count FROM conversation_messages
+       WHERE user_id = $1 AND guide = 'new_chat' AND role = 'user'`,
+      [userId]
+    );
+    const chatCount = parseInt(chatResult?.count || "0", 10);
+
+    // Check summary completeness
+    const summaryRow = await pgQueryOne<{ summary_json: any; message_count_at: number }>(
+      "SELECT summary_json, message_count_at FROM user_chat_summaries WHERE user_id = $1",
+      [userId]
+    );
+    const summary = summaryRow?.summary_json || null;
+    // Check taste test messages count
+    const tasteResult = await pgQueryOne<{ count: string }>(
+      `SELECT COUNT(*) as count FROM conversation_messages
+       WHERE user_id = $1 AND guide = 'new_chat_taste' AND role = 'user'`,
+      [userId]
+    );
+    const tasteCount = parseInt(tasteResult?.count || "0", 10);
+    const hasTasteInfo = tasteCount >= 5 || !!(summary && summary.taste_and_style && summary.taste_and_style.trim().length > 0);
+
+    // Count filled summary fields
+    let summaryFields = 0;
+    if (summary) {
+      const fields = ['general_info', 'occupation', 'background_culture', 'social_style', 'taste_and_style', 'relationships', 'values', 'intellectual_world'];
+      summaryFields = fields.filter(f => summary[f] && summary[f].trim().length > 0).length;
+    }
+
+    return res.json({
+      has_cognitive: cognitiveCount >= 7,
+      cognitive_count: cognitiveCount,
+      has_taste_info: hasTasteInfo,
+      chat_count: chatCount,
+      summary_fields: summaryFields,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 app.post("/new-chat/message", async (req, res) => {
   const { user_id, message, history, channel } = req.body;
@@ -2003,30 +2054,32 @@ app.post("/new-chat/message", async (req, res) => {
   // Validate channel — must start with new_chat
   const guide = typeof channel === "string" && channel.startsWith("new_chat") ? channel : "new_chat";
 
-  // Fetch user gender + looking_for_gender for correct Hebrew gendered language
+  // Fetch user gender + looking_for_gender
   const chatUser = await pgQueryOne<{ gender: string | null; first_name: string; looking_for_gender: string | null }>(
     "SELECT gender, first_name, looking_for_gender FROM users WHERE id = $1", [user_id]
   );
-  let genderInstruction = chatUser?.gender === "man"
-    ? "\n\nחשוב: המשתמש הוא גבר. פנה אליו בלשון זכר."
-    : chatUser?.gender === "woman"
-    ? "\n\nחשוב: המשתמשת היא אישה. פני אליה בלשון נקבה."
-    : "";
-  if (chatUser?.looking_for_gender) {
-    const lfg = chatUser.looking_for_gender;
-    genderInstruction += lfg === "man" ? "\nהמשתמש/ת מחפש/ת גבר. כשמדברים על בן/בת זוג, התייחס בלשון זכר."
-      : lfg === "woman" ? "\nהמשתמש/ת מחפש/ת אישה. כשמדברים על בן/בת זוג, התייחסי בלשון נקבה."
-      : lfg === "both" ? "\nהמשתמש/ת מחפש/ת גם גברים וגם נשים."
-      : "";
+
+  // Count existing messages to determine conversation phase
+  const messageCount = Array.isArray(history) ? history.length : 0;
+
+  // Get last assistant message for cognitive agreement detection
+  let lastAssistantMsg: string | undefined;
+  if (Array.isArray(history)) {
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (history[i].role === "assistant") { lastAssistantMsg = history[i].content; break; }
+    }
   }
 
-  // Always inject safe profile data so the agent can answer questions about the user
-  const safeProfile = await getSafeUserProfile(user_id);
-  const profileText = formatSafeProfileForPrompt(safeProfile);
-  const profileSection = profileText.trim()
-    ? "\n\n## מידע שיש לך על המשתמש (השתמש בו רק אם רלוונטי לשיחה, אל תשפוך הכל בבת אחת)\n" + profileText
-    : "";
-  let systemPrompt = NEW_CHAT_SYSTEM_PROMPT + genderInstruction + profileSection;
+  // Build prompt via conversation manager (RAG — injects only relevant context)
+  const { systemPrompt, intent, switchToCognitive } = await buildChatPrompt(
+    user_id, message,
+    chatUser?.gender ?? null,
+    chatUser?.looking_for_gender ?? null,
+    messageCount,
+    guide,
+    lastAssistantMsg,
+    Array.isArray(history) ? history : [],
+  );
 
   const messages: { role: string; content: string }[] = [
     { role: "system", content: systemPrompt },
@@ -2042,12 +2095,14 @@ app.post("/new-chat/message", async (req, res) => {
   }
 
   try {
-    console.log(`[new-chat] User ${user_id}: received message (${message.length} chars), guide=${guide}`);
+    // Determine effective guide (might switch to cognitive mid-conversation)
+    const saveGuide = switchToCognitive ? "new_chat_cognitive" : guide;
+    console.log(`[new-chat] User ${user_id}: received message (${message.length} chars), intent=${intent}, guide=${saveGuide}${switchToCognitive ? " [SWITCHING TO COGNITIVE]" : ""}`);
 
     // Save user message
     await pgQueryAll(
       "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES ($1, 'user', $2, $3)",
-      [user_id, message, guide]
+      [user_id, message, saveGuide]
     );
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -2065,10 +2120,27 @@ app.post("/new-chat/message", async (req, res) => {
     // Save assistant reply
     await pgQueryAll(
       "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES ($1, 'assistant', $2, $3)",
-      [user_id, reply, guide]
+      [user_id, reply, saveGuide]
     );
 
-    return res.json({ reply });
+    // Trigger async summarization if enough messages accumulated (non-blocking)
+    if (guide === "new_chat" && !switchToCognitive) {
+      getUserSummary(user_id).then(({ summary: existingSummary, messageCountAt }) => {
+        if (shouldSummarize(messageCount + 1, messageCountAt)) {
+          const fullHistory = [...(Array.isArray(history) ? history : []), { role: "user", content: message }, { role: "assistant", content: reply }];
+          runSummarization(user_id, fullHistory, messageCount + 1, existingSummary)
+            .then(() => maybeAutoAnalyze(user_id))
+            .catch(() => {});
+        }
+      }).catch(() => {});
+    }
+
+    // After cognitive messages, check if auto-analysis conditions are met
+    if (saveGuide === "new_chat_cognitive") {
+      maybeAutoAnalyze(user_id).catch(() => {});
+    }
+
+    return res.json({ reply, ...(switchToCognitive ? { switch_to_cognitive: true } : {}) });
   } catch (err: any) {
     console.error("[new-chat] Error:", err.message, err.stack);
     return res.status(500).json({ error: "AI error" });

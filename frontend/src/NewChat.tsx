@@ -16,7 +16,8 @@ interface NewChatProps {
 }
 
 const TOPIC_OPTIONS = [
-  { icon: "🔍", text: "נתח את הטעם שלי לעומק" },
+  { icon: "🧠", text: "בוא נבין את סגנון החשיבה שלי", channel: "new_chat_cognitive" },
+  { icon: "🔍", text: "נתח את הטעם שלי לעומק", channel: "new_chat_taste" },
   { icon: "🎯", text: "איך אתה מוצא לי התאמה מדויקת?" },
   { icon: "❓", text: "יש לי שאלה לגבי התהליך" },
   { icon: "📋", text: "מה למדת עליי עד עכשיו?" },
@@ -26,8 +27,9 @@ const SIDEBAR_ITEMS: { icon: string; label: string; action?: string }[] = [
   { icon: "📋", label: "הפרטים שלי", action: "profile_edit" },
   { icon: "👤", label: "פרופיל" },
   { icon: "💡", label: "תובנות על עצמי", action: "insights" },
-  { icon: "🎯", label: "בדיקת טעם אישי" },
-  { icon: "⚙️", label: "הגדרות" },
+  { icon: "🎯", label: "בדיקת טעם אישי", action: "taste_test" },
+  { icon: "🐛", label: "דווח על באג", action: "bug_report" },
+  { icon: "⚙️", label: "הגדרות", action: "settings" },
 ];
 
 export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewChatProps) {
@@ -35,13 +37,34 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "insights">("home");
+  const [channel, setChannel] = useState<string>("new_chat");
+  const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "insights" | "bug_report" | "settings">("home");
+  const [bugText, setBugText] = useState("");
+  const [bugSent, setBugSent] = useState(false);
+  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number }>({ has_cognitive: true, has_taste_info: true, chat_count: 0, summary_fields: 0 });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // Load recommendations status
+  useEffect(() => {
+    fetch(`/api/new-chat/status/${user.id}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.has_cognitive !== undefined) {
+          setRecommendations({
+            has_cognitive: data.has_cognitive,
+            has_taste_info: data.has_taste_info,
+            chat_count: data.chat_count || 0,
+            summary_fields: data.summary_fields || 0,
+          });
+        }
+      })
+      .catch(() => {});
+  }, [user.id]);
+
   // Load existing conversation history on mount
   useEffect(() => {
-    fetch(`/api/users/${user.id}/transcript`)
+    fetch(`/api/admin/users/${user.id}/full-transcript`)
       .then(r => r.json())
       .then(data => {
         if (!data.messages) return;
@@ -57,9 +80,19 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  async function sendMessage(text?: string) {
+  // Also scroll to bottom when switching back to chat screen
+  useEffect(() => {
+    if (screen === "chat") {
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+    }
+  }, [screen]);
+
+  async function sendMessage(text?: string, channelOverride?: string) {
     const msg = (text ?? input).trim();
     if (!msg || sending) return;
+
+    const effectiveChannel = channelOverride ?? channel;
+    if (channelOverride) setChannel(channelOverride);
 
     setScreen("chat");
     setInput("");
@@ -78,7 +111,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
         body: JSON.stringify({
           user_id: user.id,
           message: msg,
-          channel: "new_chat",
+          channel: effectiveChannel,
           history: updatedMessages.slice(-20),
         }),
         signal: controller.signal,
@@ -91,6 +124,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
       const data = await r.json();
       if (data.reply) {
         setMessages(prev => [...prev, { role: "assistant", content: data.reply }]);
+        // Backend signals to switch to cognitive mode
+        if (data.switch_to_cognitive) {
+          setChannel("new_chat_cognitive");
+        }
       } else if (data.error) {
         setMessages(prev => [...prev, { role: "assistant", content: "מצטער, משהו השתבש. נסה שוב." }]);
       }
@@ -134,7 +171,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
       `}</style>
 
       {/* Mobile overlay */}
-      {menuOpen && <div style={styles.overlay} onClick={() => { setMenuOpen(false); setTopicsOpen(false); }} />}
+      {menuOpen && <div style={styles.overlay} onClick={() => setMenuOpen(false)} />}
 
       {/* Sidebar */}
       <div className={`nc-sidebar${menuOpen ? " open" : ""}`} style={styles.sidebar}>
@@ -153,14 +190,16 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
             <span>מסך ראשי</span>
           </button>
 
-          {/* Back to chat */}
-          <button
-            style={screen === "chat" ? styles.sidebarItemActive : styles.sidebarItem}
-            onClick={() => { setScreen("chat"); setMenuOpen(false); }}
-          >
-            <span style={{ fontSize: 16 }}>💬</span>
-            <span>חזרה לשיחה</span>
-          </button>
+          {/* Back to chat — only shown if conversation has started */}
+          {messages.length > 0 && (
+            <button
+              style={screen === "chat" ? styles.sidebarItemActive : styles.sidebarItem}
+              onClick={() => { setScreen("chat"); setMenuOpen(false); }}
+            >
+              <span style={{ fontSize: 16 }}>💬</span>
+              <span>חזרה לשיחה</span>
+            </button>
+          )}
 
           {/* Other sidebar items */}
           {SIDEBAR_ITEMS.map((item, i) => (
@@ -168,7 +207,17 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
               key={i}
               style={item.action ? (screen === item.action ? styles.sidebarItemActive : styles.sidebarItem) : { ...styles.sidebarItem, cursor: "default" }}
               disabled={!item.action}
-              onClick={() => { if (item.action) { setScreen(item.action as any); setMenuOpen(false); } }}
+              onClick={() => {
+                if (!item.action) return;
+                if (item.action === "taste_test") {
+                  // Switch to taste test chat channel
+                  sendMessage("נתח את הטעם שלי לעומק", "new_chat_taste");
+                  setMenuOpen(false);
+                  return;
+                }
+                setScreen(item.action as any);
+                setMenuOpen(false);
+              }}
             >
               <span style={{ fontSize: 16 }}>{item.icon}</span>
               <span>{item.label}</span>
@@ -201,6 +250,61 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
         {screen === "insights" && (
           <div style={{ flex: 1, overflowY: "auto" }}>
             <Insights user={user} onBack={() => setScreen("home")} />
+          </div>
+        )}
+
+        {screen === "bug_report" && (
+          <div style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
+            <div style={{ maxWidth: 500, margin: "0 auto", padding: "32px 24px" }}>
+              <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", marginTop: 0, marginBottom: 8 }}>דווח על באג</h2>
+              <p style={{ fontSize: 14, color: "#666", marginBottom: 20 }}>נתקלת בבעיה? ספר/י לנו ונטפל בזה בהקדם.</p>
+              <textarea
+                style={{
+                  width: "100%", minHeight: 120, padding: 14, fontSize: 14,
+                  border: "1px solid #e0e0e8", borderRadius: 10, background: "#f5f5fa",
+                  color: "#1a1a2e", resize: "vertical", outline: "none",
+                  fontFamily: "inherit", direction: "rtl", boxSizing: "border-box",
+                }}
+                placeholder="תאר/י את הבאג שנתקלת בו..."
+                value={bugText}
+                onChange={e => setBugText(e.target.value)}
+                disabled={bugSent}
+              />
+              <button
+                style={{
+                  marginTop: 12, padding: "12px 24px", fontSize: 15, fontWeight: 600,
+                  background: bugSent ? "#28a745" : "#6366f1", color: "#fff",
+                  border: "none", borderRadius: 10, cursor: bugText.trim() && !bugSent ? "pointer" : "default",
+                  opacity: bugText.trim() && !bugSent ? 1 : 0.5,
+                }}
+                disabled={!bugText.trim() || bugSent}
+                onClick={async () => {
+                  if (!bugText.trim()) return;
+                  try {
+                    await fetch("/api/report-bug", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ user_id: user.id, report_text: bugText.trim() }),
+                    });
+                    setBugSent(true);
+                    setBugText("");
+                    setTimeout(() => { setBugSent(false); setScreen("home"); }, 2000);
+                  } catch {}
+                }}
+              >
+                {bugSent ? "נשלח בהצלחה ✓" : "שלח דיווח"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {screen === "settings" && (
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", direction: "rtl" }}>
+            <div style={{ textAlign: "center", padding: 24 }}>
+              <div style={{ fontSize: 40, marginBottom: 16 }}>⚙️</div>
+              <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", marginBottom: 8 }}>הגדרות</h2>
+              <p style={{ fontSize: 14, color: "#888" }}>המסך עוד בבנייה, בקרוב יהיה זמין!</p>
+            </div>
           </div>
         )}
 
@@ -243,11 +347,49 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
               <div ref={messagesEndRef} />
             </div>
 
+            {/* Expert recommendation — one at a time, only when conversation is advanced enough */}
+            {screen === "home" && (() => {
+              const { has_cognitive, has_taste_info, summary_fields } = recommendations;
+              const conversationAdvanced = summary_fields >= 4;
+              // Show cognitive recommendation: only after enough general conversation
+              if (!has_cognitive && conversationAdvanced) {
+                return (
+                  <div style={styles.recommendationBlock}>
+                    <p style={styles.recommendationText}>
+                      <span style={styles.recommendationBadge}>המלצת המומחה</span> היכנס ל"בוא נבין את סגנון החשיבה שלי" כדי שנוכל להכיר אותך יותר לעומק ולדייק את ההתאמה.
+                    </p>
+                  </div>
+                );
+              }
+              // Show taste recommendation: only after cognitive is done
+              if (has_cognitive && !has_taste_info) {
+                return (
+                  <div style={styles.recommendationBlock}>
+                    <p style={styles.recommendationText}>
+                      <span style={styles.recommendationBadge}>המלצת המומחה</span> לחץ על "נתח את הטעם שלי לעומק" כדי שנוכל להבין את העדפות הטעם שלך.
+                    </p>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
             {/* Suggestions — only on home screen */}
             {screen === "home" && (
               <div className="nc-suggestions" style={styles.suggestions}>
+                <button style={{ ...styles.suggestionBtn, background: "#6366f1", color: "#fff", border: "1px solid #6366f1" }} onClick={() => {
+                  if (messages.length === 0) {
+                    const g = user.gender === "woman";
+                    setMessages([{ role: "assistant", content: `היי, אני מומחה ההתאמה שלך. אני כאן כדי למצוא ${g ? "לך" : "לך"} התאמה מדויקת על ידי היכרות מעמיקה.\nחשוב לי ש${g ? "תדעי" : "תדע"} שכל מה ש${g ? "את כותבת" : "אתה כותב"} לי כאן הוא לעיניי בלבד — שום דבר לא מופיע בפרופיל ${g ? "שלך" : "שלך"} ולא חשוף לאף משתמש אחר.\nככל ש${g ? "תשתפי" : "תשתף"} אותי יותר, נוכל לדייק את ההתאמה ${g ? "שלך" : "שלך"} יותר. ${g ? "מוכנה להתחיל?" : "מוכן להתחיל?"}` }]);
+                  }
+                  setScreen("chat");
+                }}>
+                  <span style={{ fontSize: 14 }}>💬</span> {messages.length > 0 ? "בוא נמשיך" : "בוא נתחיל"}
+                </button>
                 {TOPIC_OPTIONS.map((s, i) => (
-                  <button key={i} style={styles.suggestionBtn} onClick={() => sendMessage(s.text)}>
+                  <button key={i} style={styles.suggestionBtn} onClick={() => {
+                    sendMessage(s.text, s.channel);
+                  }}>
                     <span style={{ fontSize: 14, opacity: 0.6 }}>{s.icon}</span> {s.text}
                   </button>
                 ))}
@@ -450,6 +592,29 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#666",
     lineHeight: 1.6,
     margin: "4px 0",
+  },
+
+  // Recommendations
+  recommendationBlock: {
+    padding: "0 24px 12px",
+    maxWidth: 500,
+    margin: "0 auto",
+  },
+  recommendationText: {
+    fontSize: 13,
+    color: "#6b7280",
+    lineHeight: 1.5,
+    margin: "8px 0",
+    padding: "10px 14px",
+    background: "#f0f4ff",
+    borderRadius: 10,
+    borderRight: "3px solid #6366f1",
+  },
+  recommendationBadge: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: "#6366f1",
+    marginLeft: 6,
   },
 
   // Messages

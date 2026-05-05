@@ -1115,37 +1115,35 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
           <p style={{ fontSize: 11, color: "#888", margin: "0 0 8px" }}>
             Effective = system_weight × user_weight × weight_confidence
           </p>
-          {/* Analysis toolbar */}
-          {profile && (
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
-              <button
-                style={{ padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#1a73e8", color: "#fff", border: "none", borderRadius: 4 }}
-                onClick={handleReanalyze}
-                disabled={reanalyzing || resetting}
-              >
-                {reanalyzing ? "Re-analyzing..." : "Re-analyze"}
-              </button>
-              <button
-                style={{ padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#dc3545", color: "#fff", border: "none", borderRadius: 4 }}
-                onClick={handleResetAnalysis}
-                disabled={resetting || reanalyzing}
-              >
-                {resetting ? "Resetting..." : "Reset analysis"}
-              </button>
-              <button
-                style={{ padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#7c3aed", color: "#fff", border: "none", borderRadius: 4 }}
-                onClick={handleCognitiveTest}
-                disabled={runningCognitiveTest}
-              >
-                {runningCognitiveTest ? "Running..." : "Cognitive Test"}
-              </button>
-              {traits.length === 0 && lookTraits.length === 0 && (
-                <span style={{ fontSize: 12, color: "#856404", background: "#fff3cd", padding: "4px 10px", borderRadius: 4 }}>
-                  No trait data — click Re-analyze to generate
-                </span>
-              )}
-            </div>
-          )}
+          {/* Analysis toolbar — always visible */}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
+            <button
+              style={{ padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#1a73e8", color: "#fff", border: "none", borderRadius: 4 }}
+              onClick={handleReanalyze}
+              disabled={reanalyzing || resetting}
+            >
+              {reanalyzing ? "Re-analyzing..." : "Re-analyze"}
+            </button>
+            <button
+              style={{ padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#dc3545", color: "#fff", border: "none", borderRadius: 4 }}
+              onClick={handleResetAnalysis}
+              disabled={resetting || reanalyzing}
+            >
+              {resetting ? "Resetting..." : "Reset analysis"}
+            </button>
+            <button
+              style={{ padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#7c3aed", color: "#fff", border: "none", borderRadius: 4 }}
+              onClick={handleCognitiveTest}
+              disabled={runningCognitiveTest}
+            >
+              {runningCognitiveTest ? "Running..." : "Cognitive Test"}
+            </button>
+            {traits.length === 0 && lookTraits.length === 0 && (
+              <span style={{ fontSize: 12, color: "#856404", background: "#fff3cd", padding: "4px 10px", borderRadius: 4 }}>
+                No trait data — click Re-analyze to generate
+              </span>
+            )}
+          </div>
           {profile && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 12 }}>
               <span style={{ fontSize: 11, color: "#888", alignSelf: "center", marginRight: 4 }}>Run single group:</span>
