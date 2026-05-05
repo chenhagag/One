@@ -1144,27 +1144,25 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
               </span>
             )}
           </div>
-          {profile && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 12 }}>
-              <span style={{ fontSize: 11, color: "#888", alignSelf: "center", marginRight: 4 }}>Run single group:</span>
-              {[
-                { key: "cognitive", label: "Cognitive", color: "#6366F1" },
-                { key: "personality", label: "Big Five + Schwartz", color: "#3b82f6" },
-                { key: "communication", label: "Comm. Tone", color: "#14b8a6" },
-                { key: "style", label: "Personal Style", color: "#f97316" },
-                { key: "emotional", label: "Emotional", color: "#ec4899" },
-                { key: "general", label: "General Info", color: "#6b7280" },
-                { key: "mbti", label: "MBTI", color: "#0ea5e9" },
-                { key: "external", label: "External", color: "#8b5cf6" },
-              ].map(g => (
-                <button key={g.key}
-                  style={{ padding: "3px 10px", fontSize: 11, fontWeight: 500, cursor: "pointer", background: runningGroup === g.key ? g.color : "#fff", color: runningGroup === g.key ? "#fff" : g.color, border: `1px solid ${g.color}`, borderRadius: 4, opacity: runningGroup && runningGroup !== g.key ? 0.5 : 1 }}
-                  onClick={() => handleGroupReanalyze(g.key)}
-                  disabled={!!runningGroup}
-                >{runningGroup === g.key ? "Running..." : g.label}</button>
-              ))}
-            </div>
-          )}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 12 }}>
+            <span style={{ fontSize: 11, color: "#888", alignSelf: "center", marginRight: 4 }}>Run single group:</span>
+            {[
+              { key: "cognitive", label: "Cognitive", color: "#6366F1" },
+              { key: "personality", label: "Big Five + Schwartz", color: "#3b82f6" },
+              { key: "communication", label: "Comm. Tone", color: "#14b8a6" },
+              { key: "style", label: "Personal Style", color: "#f97316" },
+              { key: "emotional", label: "Emotional", color: "#ec4899" },
+              { key: "general", label: "General Info", color: "#6b7280" },
+              { key: "mbti", label: "MBTI", color: "#0ea5e9" },
+              { key: "external", label: "External", color: "#8b5cf6" },
+            ].map(g => (
+              <button key={g.key}
+                style={{ padding: "3px 10px", fontSize: 11, fontWeight: 500, cursor: "pointer", background: runningGroup === g.key ? g.color : "#fff", color: runningGroup === g.key ? "#fff" : g.color, border: `1px solid ${g.color}`, borderRadius: 4, opacity: runningGroup && runningGroup !== g.key ? 0.5 : 1 }}
+                onClick={() => handleGroupReanalyze(g.key)}
+                disabled={!!runningGroup}
+              >{runningGroup === g.key ? "Running..." : g.label}</button>
+            ))}
+          </div>
           <table style={{ ...s.table, marginBottom: 24 }}>
             <thead>
               <tr>
