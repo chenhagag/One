@@ -25,13 +25,25 @@
 - New `shouldSuggestTaste()` — checks if cognitive done (≥3 msgs) and taste not done (<3 msgs)
 - Suggestion flow: general chat suggests cognitive → cognitive done, general chat suggests taste
 
-#### 4. Admin: Re-analyze Buttons Always Visible
+#### 4. Chat Flow Improvements (from user testing feedback)
+- **Separated intros**: Both taste test and cognitive now explain what's about to happen, ask "מוכן/ה?" and wait for confirmation before starting questions/profiles
+- **Taste test follow-up questions**: After each profile reaction, AI asks 1-2 follow-up questions (what did you like? what didn't work?) to understand both attraction and repulsion. Skips if answer already detailed. Max 2 follow-ups per profile.
+- **Taste test expanded to 13 profiles** (was 8): covers more diverse styles for better data
+- **Taste test summary validates**: After all profiles, summarizes patterns and asks user "קלטתי נכון?" to let them correct/refine
+- **Cognitive closes after ~10 questions**: Tells user "I feel I've captured your thinking style" and navigates to next step
+- **Dynamic navigation at end of each chat**: Both cognitive and taste test check what the user still needs (cognitive done? taste done? general chat complete?) and suggest the right next step
+- **Culture topic shortened**: Less deep-diving into hobbies/music — 1-2 questions per sub-topic, enough for general picture
+
+#### 5. Admin: Re-analyze Buttons Always Visible
 - Re-analyze, Reset analysis, Cognitive Test, and per-group analysis buttons no longer gated by `profile` existence
 - Fixes issue where users who only used new_chat (no old chat) had no way to trigger analysis
 
 ### Files Modified
 - `frontend/src/NewChat.tsx` — Per-channel message state, channel-aware sendMessage, navigation buttons always go to new_chat
-- `backend/src/agents/conversation/chatManager.ts` — Removed cognitive agreement detection, added taste suggestion, updated suggestion text
+- `backend/src/agents/conversation/chatManager.ts` — Removed cognitive agreement detection, added taste suggestion, dynamic navigation at end of cognitive/taste, separated intro phases, follow-up questions, 13 profiles
+- `backend/src/agents/conversation/prompts/taste-test-chat.txt` — Follow-up questions after each profile reaction
+- `backend/src/agents/conversation/prompts/cognitive-chat.txt` — Ask "ready?" before starting, ~10 questions target
+- `backend/src/agents/conversation/prompts/topic-culture.txt` — Shortened, less deep-diving
 - `backend/src/index.ts` — Removed switchToCognitive handling, simplified guide logic
 - `frontend/src/AdminView.tsx` — Analysis toolbar always visible (not gated by profile)
 
@@ -40,6 +52,9 @@
 - No mid-conversation channel switching — user navigates via home screen bubbles
 - AI guides user to the right bubble at the right time via natural suggestion
 - Same base prompt for all channels, channel-specific behavior via RAG injection
+- Intro → confirm → start pattern: always explain first, never surprise user with questions/profiles
+- Dynamic navigation: code checks DB for what's done, injects the right suggestion — no hardcoded flows
+- 13 taste profiles for better coverage; ~10 cognitive questions for sufficient thinking style data
 
 ### Open Questions
 - When to trigger a second auto-analysis (after more conversation data)?
