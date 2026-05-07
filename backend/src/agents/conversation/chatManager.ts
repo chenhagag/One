@@ -221,33 +221,7 @@ function getCurrentTopic(
   return { topic: "culture", prompt: TOPIC_CULTURE };
 }
 
-// ── Cognitive transition detection ──────────────────────────────
-
-const COGNITIVE_AGREE_PATTERNS = [
-  /^(כן|יאללה|בוא|אוקי|אוקיי|סבבה|בטח|למה לא|קדימה|מוכן|בואי|אשמח|נשמע טוב|בסדר|נסה אותי)/i,
-  /^(ok|yes|sure|let'?s go|yalla)/i,
-  /מוכנה?$/i,
-  /נשמע (מעניין|טוב|כיף)/i,
-  /בא לי/i,
-  /קדימה/i,
-];
-
-/**
- * Detect if the user is agreeing to the cognitive suggestion.
- * Only relevant when the previous assistant message suggested cognitive.
- */
-export function detectCognitiveAgreement(message: string, lastAssistantMsg?: string): boolean {
-  if (!lastAssistantMsg) return false;
-  const suggestedCognitive = /סגנון החשיבה|שאלות סימולציה|איך אתה חושב|סגנון חשיבה/.test(lastAssistantMsg);
-  if (!suggestedCognitive) return false;
-
-  for (const p of COGNITIVE_AGREE_PATTERNS) {
-    if (p.test(message.trim())) return true;
-  }
-  return false;
-}
-
-/** Minimum filled fields in summary to suggest cognitive */
+/** Minimum filled fields in summary to suggest cognitive/taste */
 const MIN_FIELDS_FOR_COGNITIVE_SUGGESTION = 5;
 
 /**
@@ -276,12 +250,41 @@ async function shouldSuggestCognitive(userId: number, summary: UserChatSummary |
 
 const COGNITIVE_SUGGESTION_INSTRUCTION = `
 
-## הנחיה מיוחדת — הצע מעבר לשאלות חשיבה
+## הנחיה מיוחדת — הפנה למדור סגנון חשיבה
 
-יש לך מספיק מידע על המשתמש בתחומים הכלליים. עכשיו, בתגובה הקרובה שלך (אחרי שתגיב למה שהוא אמר), הצע לו בצורה טבעית לעבור לשאלות סימולציה שיעזרו לך להבין את סגנון החשיבה שלו.
-נסח משהו בסגנון: "אגב, כדי שאוכל להכיר אותך יותר לעומק ולדייק את ההתאמה — אני רוצה לשאול אותך כמה שאלות סימולציה שיעזרו לי להבין איך אתה חושב. מה דעתך?"
-אל תכריח — תן לו לבחור. אם הוא לא רוצה, המשך בשיחה רגילה.
-הצע את זה פעם אחת בלבד בשיחה.`;
+יש לך מספיק מידע על המשתמש בתחומים הכלליים. בתגובה הקרובה שלך (אחרי שתגיב למה שאמר), הפנה אותו בצורה טבעית ללחוץ על הכפתור "בוא נבין את סגנון החשיבה שלי" שנמצא במסך הראשי.
+נסח משהו בסגנון: "אגב, אני חושב שיהיה סופר מעניין לבדוק את סגנון החשיבה שלך — תלחץ על 'בוא נבין את סגנון החשיבה שלי' במסך הראשי ונתחיל."
+הצע את זה פעם אחת בלבד בשיחה. אל תכריח.`;
+
+const TASTE_SUGGESTION_INSTRUCTION = `
+
+## הנחיה מיוחדת — הפנה לבדיקת טעם
+
+כבר יש מספיק מידע על סגנון החשיבה של המשתמש. בתגובה הקרובה שלך, הפנה אותו ללחוץ על "נתח את הטעם שלי לעומק" במסך הראשי.
+נסח משהו בסגנון: "מצוין! עכשיו כדי לדייק עוד יותר — אני ממליץ ללחוץ על 'נתח את הטעם שלי לעומק' במסך הראשי."
+הצע את זה פעם אחת בלבד.`;
+
+/**
+ * Check if we should suggest taste test to the user.
+ * Only when cognitive is done but taste is not.
+ */
+async function shouldSuggestTaste(userId: number): Promise<boolean> {
+  const cogResult = await pgQueryOne<{ count: string }>(
+    `SELECT COUNT(*) as count FROM conversation_messages
+     WHERE user_id = $1 AND guide = 'new_chat_cognitive' AND role = 'user'`,
+    [userId]
+  );
+  const cogCount = parseInt(cogResult?.count || "0", 10);
+  if (cogCount < 3) return false; // Cognitive not done yet
+
+  const tasteResult = await pgQueryOne<{ count: string }>(
+    `SELECT COUNT(*) as count FROM conversation_messages
+     WHERE user_id = $1 AND guide = 'new_chat_taste' AND role = 'user'`,
+    [userId]
+  );
+  const tasteCount = parseInt(tasteResult?.count || "0", 10);
+  return tasteCount < 3; // Taste not done yet
+}
 
 // ── Gender instruction builder ──────────────────────────────────
 
@@ -314,7 +317,6 @@ export interface ChatPromptResult {
   systemPrompt: string;
   intent: ChatIntent;
   phase: ConversationPhase;
-  switchToCognitive?: boolean; // Signal frontend to switch channel
 }
 
 export async function buildChatPrompt(
@@ -399,12 +401,6 @@ export async function buildChatPrompt(
     return { systemPrompt, intent: "general", phase: detectPhase(messageCount) };
   }
 
-  // Check if user is agreeing to cognitive suggestion → switch to cognitive mode
-  if (channel === "new_chat" && detectCognitiveAgreement(message, lastAssistantMessage)) {
-    const systemPrompt = COGNITIVE_PROMPT + genderInstruction;
-    return { systemPrompt, intent: "general", phase: detectPhase(messageCount), switchToCognitive: true };
-  }
-
   const intent = detectIntent(message);
   const phase = detectPhase(messageCount);
 
@@ -438,11 +434,16 @@ export async function buildChatPrompt(
     const { prompt: topicPrompt } = getCurrentTopic(summary, history, message);
     topicBlock = "\n\n" + topicPrompt;
 
-    // Check if we should suggest cognitive transition
+    // Check if we should suggest cognitive or taste test navigation
     if (phase === "middle" || phase === "deep") {
-      const shouldSuggest = await shouldSuggestCognitive(userId, summary);
-      if (shouldSuggest) {
+      const suggestCognitive = await shouldSuggestCognitive(userId, summary);
+      if (suggestCognitive) {
         cognitiveSuggestion = COGNITIVE_SUGGESTION_INSTRUCTION;
+      } else {
+        const suggestTaste = await shouldSuggestTaste(userId);
+        if (suggestTaste) {
+          cognitiveSuggestion = TASTE_SUGGESTION_INSTRUCTION;
+        }
       }
     }
   }

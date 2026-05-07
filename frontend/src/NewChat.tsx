@@ -33,7 +33,11 @@ const SIDEBAR_ITEMS: { icon: string; label: string; action?: string }[] = [
 ];
 
 export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewChatProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [channelMessages, setChannelMessages] = useState<Record<string, Message[]>>({
+    new_chat: [],
+    new_chat_cognitive: [],
+    new_chat_taste: [],
+  });
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -44,6 +48,17 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
   const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number }>({ has_cognitive: true, has_taste_info: true, chat_count: 0, summary_fields: 0 });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Current channel's messages
+  const messages = channelMessages[channel] || [];
+
+  // Helper to update a specific channel's messages
+  function setMessagesForChannel(ch: string, updater: (prev: Message[]) => Message[]) {
+    setChannelMessages(prev => ({ ...prev, [ch]: updater(prev[ch] || []) }));
+  }
+
+  // Any channel has messages (for sidebar visibility)
+  const hasAnyMessages = Object.values(channelMessages).some(arr => arr.length > 0);
 
   // Load recommendations status
   useEffect(() => {
@@ -62,23 +77,32 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
       .catch(() => {});
   }, [user.id]);
 
-  // Load existing conversation history on mount
+  // Load existing conversation history on mount — split by channel
   useEffect(() => {
     fetch(`/api/admin/users/${user.id}/full-transcript`)
       .then(r => r.json())
       .then(data => {
         if (!data.messages) return;
-        const chatMsgs = data.messages
-          .filter((m: any) => m.chat_type?.startsWith("new_chat"))
-          .map((m: any) => ({ role: m.role as "user" | "assistant", content: m.content }));
-        if (chatMsgs.length > 0) setMessages(chatMsgs);
+        const perChannel: Record<string, Message[]> = {
+          new_chat: [],
+          new_chat_cognitive: [],
+          new_chat_taste: [],
+        };
+        for (const m of data.messages) {
+          const ct = m.chat_type as string;
+          if (ct && ct.startsWith("new_chat")) {
+            const key = ct in perChannel ? ct : "new_chat";
+            perChannel[key].push({ role: m.role, content: m.content });
+          }
+        }
+        setChannelMessages(perChannel);
       })
       .catch(() => {});
   }, [user.id]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [channelMessages, channel]);
 
   // Also scroll to bottom when switching back to chat screen
   useEffect(() => {
@@ -97,8 +121,9 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
     setScreen("chat");
     setInput("");
     const userMsg: Message = { role: "user", content: msg };
-    const updatedMessages = [...messages, userMsg];
-    setMessages(updatedMessages);
+    const channelMsgs = channelMessages[effectiveChannel] || [];
+    const updatedMessages = [...channelMsgs, userMsg];
+    setMessagesForChannel(effectiveChannel, () => updatedMessages);
     setSending(true);
 
     try {
@@ -123,18 +148,14 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
       }
       const data = await r.json();
       if (data.reply) {
-        setMessages(prev => [...prev, { role: "assistant", content: data.reply }]);
-        // Backend signals to switch to cognitive mode
-        if (data.switch_to_cognitive) {
-          setChannel("new_chat_cognitive");
-        }
+        setMessagesForChannel(effectiveChannel, prev => [...prev, { role: "assistant", content: data.reply }]);
       } else if (data.error) {
-        setMessages(prev => [...prev, { role: "assistant", content: "מצטער, משהו השתבש. נסה שוב." }]);
+        setMessagesForChannel(effectiveChannel, prev => [...prev, { role: "assistant", content: "מצטער, משהו השתבש. נסה שוב." }]);
       }
     } catch (err: any) {
       console.error("[NewChat] send error:", err);
       const errorMsg = err?.name === "AbortError" ? "הבקשה לקחה יותר מדי זמן. נסה שוב." : "שגיאה בתקשורת, נסה שוב.";
-      setMessages(prev => [...prev, { role: "assistant", content: errorMsg }]);
+      setMessagesForChannel(effectiveChannel, prev => [...prev, { role: "assistant", content: errorMsg }]);
     } finally {
       setSending(false);
     }
@@ -190,11 +211,11 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
             <span>מסך ראשי</span>
           </button>
 
-          {/* Back to chat — only shown if conversation has started */}
-          {messages.length > 0 && (
+          {/* Back to chat — only shown if any conversation has started */}
+          {hasAnyMessages && (
             <button
-              style={screen === "chat" ? styles.sidebarItemActive : styles.sidebarItem}
-              onClick={() => { setScreen("chat"); setMenuOpen(false); }}
+              style={screen === "chat" && channel === "new_chat" ? styles.sidebarItemActive : styles.sidebarItem}
+              onClick={() => { setChannel("new_chat"); setScreen("chat"); setMenuOpen(false); }}
             >
               <span style={{ fontSize: 16 }}>💬</span>
               <span>חזרה לשיחה</span>
@@ -378,13 +399,14 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
             {screen === "home" && (
               <div className="nc-suggestions" style={styles.suggestions}>
                 <button style={{ ...styles.suggestionBtn, background: "#6366f1", color: "#fff", border: "1px solid #6366f1" }} onClick={() => {
-                  if (messages.length === 0) {
+                  setChannel("new_chat");
+                  if (channelMessages["new_chat"].length === 0) {
                     const g = user.gender === "woman";
-                    setMessages([{ role: "assistant", content: `היי, אני מומחה ההתאמה שלך. אני כאן כדי למצוא ${g ? "לך" : "לך"} התאמה מדויקת על ידי היכרות מעמיקה.\nחשוב לי ש${g ? "תדעי" : "תדע"} שכל מה ש${g ? "את כותבת" : "אתה כותב"} לי כאן הוא לעיניי בלבד — שום דבר לא מופיע בפרופיל ${g ? "שלך" : "שלך"} ולא חשוף לאף משתמש אחר.\nככל ש${g ? "תשתפי" : "תשתף"} אותי יותר, נוכל לדייק את ההתאמה ${g ? "שלך" : "שלך"} יותר. ${g ? "מוכנה להתחיל?" : "מוכן להתחיל?"}` }]);
+                    setMessagesForChannel("new_chat", () => [{ role: "assistant", content: `היי, אני מומחה ההתאמה שלך. אני כאן כדי למצוא ${g ? "לך" : "לך"} התאמה מדויקת על ידי היכרות מעמיקה.\nחשוב לי ש${g ? "תדעי" : "תדע"} שכל מה ש${g ? "את כותבת" : "אתה כותב"} לי כאן הוא לעיניי בלבד — שום דבר לא מופיע בפרופיל ${g ? "שלך" : "שלך"} ולא חשוף לאף משתמש אחר.\nככל ש${g ? "תשתפי" : "תשתף"} אותי יותר, נוכל לדייק את ההתאמה ${g ? "שלך" : "שלך"} יותר. ${g ? "מוכנה להתחיל?" : "מוכן להתחיל?"}` }]);
                   }
                   setScreen("chat");
                 }}>
-                  <span style={{ fontSize: 14 }}>💬</span> {messages.length > 0 ? "בוא נמשיך" : "בוא נתחיל"}
+                  <span style={{ fontSize: 14 }}>💬</span> {channelMessages["new_chat"].length > 0 ? "בוא נמשיך" : "בוא נתחיל"}
                 </button>
                 {TOPIC_OPTIONS.map((s, i) => (
                   <button key={i} style={styles.suggestionBtn} onClick={() => {

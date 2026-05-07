@@ -2071,7 +2071,7 @@ app.post("/new-chat/message", async (req, res) => {
   }
 
   // Build prompt via conversation manager (RAG — injects only relevant context)
-  const { systemPrompt, intent, switchToCognitive } = await buildChatPrompt(
+  const { systemPrompt, intent } = await buildChatPrompt(
     user_id, message,
     chatUser?.gender ?? null,
     chatUser?.looking_for_gender ?? null,
@@ -2095,14 +2095,12 @@ app.post("/new-chat/message", async (req, res) => {
   }
 
   try {
-    // Determine effective guide (might switch to cognitive mid-conversation)
-    const saveGuide = switchToCognitive ? "new_chat_cognitive" : guide;
-    console.log(`[new-chat] User ${user_id}: received message (${message.length} chars), intent=${intent}, guide=${saveGuide}${switchToCognitive ? " [SWITCHING TO COGNITIVE]" : ""}`);
+    console.log(`[new-chat] User ${user_id}: received message (${message.length} chars), intent=${intent}, guide=${guide}`);
 
     // Save user message
     await pgQueryAll(
       "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES ($1, 'user', $2, $3)",
-      [user_id, message, saveGuide]
+      [user_id, message, guide]
     );
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -2120,11 +2118,11 @@ app.post("/new-chat/message", async (req, res) => {
     // Save assistant reply
     await pgQueryAll(
       "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES ($1, 'assistant', $2, $3)",
-      [user_id, reply, saveGuide]
+      [user_id, reply, guide]
     );
 
     // Trigger async summarization if enough messages accumulated (non-blocking)
-    if (guide === "new_chat" && !switchToCognitive) {
+    if (guide === "new_chat") {
       getUserSummary(user_id).then(({ summary: existingSummary, messageCountAt }) => {
         if (shouldSummarize(messageCount + 1, messageCountAt)) {
           const fullHistory = [...(Array.isArray(history) ? history : []), { role: "user", content: message }, { role: "assistant", content: reply }];
@@ -2136,11 +2134,11 @@ app.post("/new-chat/message", async (req, res) => {
     }
 
     // After cognitive messages, check if auto-analysis conditions are met
-    if (saveGuide === "new_chat_cognitive") {
+    if (guide === "new_chat_cognitive") {
       maybeAutoAnalyze(user_id).catch(() => {});
     }
 
-    return res.json({ reply, ...(switchToCognitive ? { switch_to_cognitive: true } : {}) });
+    return res.json({ reply });
   } catch (err: any) {
     console.error("[new-chat] Error:", err.message, err.stack);
     return res.status(500).json({ error: "AI error" });
