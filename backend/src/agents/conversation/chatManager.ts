@@ -250,19 +250,19 @@ async function shouldSuggestCognitive(userId: number, summary: UserChatSummary |
 
 const COGNITIVE_SUGGESTION_INSTRUCTION = `
 
-## הנחיה מיוחדת — הפנה למדור סגנון חשיבה
+## הנחיה מיוחדת — חובה להפנות למדור סגנון חשיבה
 
-יש לך מספיק מידע על המשתמש בתחומים הכלליים. בתגובה הקרובה שלך (אחרי שתגיב למה שאמר), הפנה אותו בצורה טבעית ללחוץ על הכפתור "בוא נבין את סגנון החשיבה שלי" שנמצא במסך הראשי.
-נסח משהו בסגנון: "אגב, אני חושב שיהיה סופר מעניין לבדוק את סגנון החשיבה שלך — תלחץ על 'בוא נבין את סגנון החשיבה שלי' במסך הראשי ונתחיל."
-הצע את זה פעם אחת בלבד בשיחה. אל תכריח.`;
+יש לך מספיק מידע על המשתמש בתחומים הכלליים. חובה: בתגובה הזו, אחרי שתגיב בקצרה למה שאמר, הוסף הפניה ללחוץ על "בוא נבין את סגנון החשיבה שלי" במסך הראשי.
+דוגמה: "אגב, כדי שאוכל לדייק את ההתאמה — ממליץ לך ללחוץ על 'בוא נבין את סגנון החשיבה שלי' במסך הראשי."
+אל תשכח לכלול את ההפניה הזו בתגובה.`;
 
 const TASTE_SUGGESTION_INSTRUCTION = `
 
-## הנחיה מיוחדת — הפנה לבדיקת טעם
+## הנחיה מיוחדת — חובה להפנות לבדיקת טעם
 
-כבר יש מספיק מידע על סגנון החשיבה של המשתמש. בתגובה הקרובה שלך, הפנה אותו ללחוץ על "נתח את הטעם שלי לעומק" במסך הראשי.
-נסח משהו בסגנון: "מצוין! עכשיו כדי לדייק עוד יותר — אני ממליץ ללחוץ על 'נתח את הטעם שלי לעומק' במסך הראשי."
-הצע את זה פעם אחת בלבד.`;
+כבר יש מספיק מידע על סגנון החשיבה. חובה: בתגובה הזו, אחרי שתגיב בקצרה, הוסף הפניה ללחוץ על "נתח את הטעם שלי לעומק" במסך הראשי.
+דוגמה: "מצוין! עכשיו כדי לדייק עוד יותר — ממליץ ללחוץ על 'נתח את הטעם שלי לעומק' במסך הראשי."
+אל תשכח לכלול את ההפניה הזו בתגובה.`;
 
 /**
  * Check if we should suggest taste test to the user.
@@ -349,7 +349,8 @@ export async function buildChatPrompt(
     const cogUserMsgCount = parseInt(cogCountResult?.count || "0", 10);
 
     // After ~10 user messages — close and navigate
-    if (cogUserMsgCount >= 10) {
+    // Note: current message not yet saved to DB, so count is N-1
+    if (cogUserMsgCount >= 9) {
       // Check what user still needs
       const tasteResult = await pgQueryOne<{ count: string }>(
         `SELECT COUNT(*) as count FROM conversation_messages WHERE user_id = $1 AND guide = 'new_chat_taste' AND role = 'user'`,
@@ -491,11 +492,21 @@ export async function buildChatPrompt(
     topicBlock = "\n\n" + topicPrompt;
 
     // Check if we should suggest cognitive or taste test navigation
+    // Use both summary fields AND history length — summarizer may lag behind
+    const historyCoversEnough = history.length >= 12; // ~6 exchanges = enough for suggestion
     if (phase === "middle" || phase === "deep") {
       const suggestCognitive = await shouldSuggestCognitive(userId, summary);
-      if (suggestCognitive) {
-        cognitiveSuggestion = COGNITIVE_SUGGESTION_INSTRUCTION;
-      } else {
+      if (suggestCognitive || (historyCoversEnough && !summary)) {
+        // Double-check cognitive not already done
+        const cogCheck = await pgQueryOne<{ count: string }>(
+          `SELECT COUNT(*) as count FROM conversation_messages WHERE user_id = $1 AND guide = 'new_chat_cognitive' AND role = 'user'`,
+          [userId]
+        );
+        if (parseInt(cogCheck?.count || "0", 10) < 3) {
+          cognitiveSuggestion = COGNITIVE_SUGGESTION_INSTRUCTION;
+        }
+      }
+      if (!cognitiveSuggestion) {
         const suggestTaste = await shouldSuggestTaste(userId);
         if (suggestTaste) {
           cognitiveSuggestion = TASTE_SUGGESTION_INSTRUCTION;
