@@ -42,23 +42,24 @@ No React Router — uses state-based view switching in `App.tsx`:
 - `NewChat.tsx` — Main user-facing screen with sidebar + chat
 - Sub-screens rendered inside NewChat: ProfileEdit, Insights, BugReport, Settings
 - Sidebar always visible (toggle on mobile)
-- `chatManager.ts` — RAG-based intent detection + topic flow + cognitive transition + taste test
+- `chatManager.ts` — RAG-based intent detection + topic flow + taste test
+- **Each channel has separate history** — `Record<string, Message[]>` keyed by channel name
 - Channel state tracks current mode: `new_chat` (general), `new_chat_cognitive`, or `new_chat_taste`
 - Home screen shows expert recommendations when cognitive or taste info is missing
+- No mid-conversation channel switching — user navigates via home screen bubbles
+- AI suggests navigating to cognitive/taste bubbles when conditions are met
 
 ### Chat Manager (RAG Architecture)
 ```
 User message → detectIntent() → "profile" | "system" | "general"
                     +
-              getCurrentTopic(summary) → "intro" | "relationships" | "values" | "culture"
-                    +
-              detectCognitiveAgreement() → switchToCognitive?
+              getCurrentTopic(summary, history, message) → "intro" | "relationships" | "values" | "culture"
   ↓
 profile → inject safe profile data OR conversation summary (if no analysis yet)
 system  → inject system info
-general → base prompt + current topic guidance (one topic at a time)
-cognitive channel → cognitive prompt
-taste channel → taste prompt + one profile from bank
+general → base prompt + current topic guidance (one topic at a time) + suggest cognitive/taste bubble
+cognitive channel → cognitive prompt (separate history)
+taste channel → taste prompt + one profile from bank (separate history)
 ```
 
 ### Topic-Based Conversation Flow
@@ -69,15 +70,17 @@ Driven by summary coverage (not message count). Each topic's prompt injected onl
 - **culture** → covers: background_culture, social_style, taste_and_style → suggest cognitive when done
 
 ### Cognitive Mode
-- Triggered by clicking "בוא נבין את סגנון החשיבה שלי" bubble, OR
-- Chat suggests it naturally when summary is complete enough + no cognitive done yet
-- User agrees → backend detects agreement → switches to cognitive prompt → frontend updates channel
+- Triggered by clicking "בוא נבין את סגנון החשיבה שלי" bubble on home screen
+- General chat suggests navigating to this bubble when summary has ≥5 fields + no cognitive done yet
+- **Separate chat history** — independent from general chat
 - 27 simulation/thinking questions across 7 categories
 - Messages saved with `guide = 'new_chat_cognitive'`
 - Re-entry support: if user leaves and comes back, reminds of last unanswered question
 
 ### Taste Test Mode
-- Triggered by clicking "נתח את הטעם שלי" (home screen or sidebar)
+- Triggered by clicking "נתח את הטעם שלי" bubble on home screen or sidebar
+- General chat suggests navigating to this bubble after cognitive is done
+- **Separate chat history** — independent from general chat
 - Channel: `new_chat_taste`, messages saved with `guide = 'new_chat_taste'`
 - 24 synthetic profiles per gender, parsed into arrays at startup
 - **One profile per prompt** (~80 tokens) — not entire bank (~5000 tokens)
@@ -190,11 +193,13 @@ Cognitive(×3), External(×3), Communication(×2), Emotional-Social(×1), Big Fi
 - **auto_analyzed flag** prevents auto-analysis from running more than once
 - **Prompts are slim** — base prompt ~500 tokens, topic/context injected via RAG only when needed
 - **Taste test profiles** — one per prompt turn (~80 tokens), never inject entire bank
+- **No mid-conversation channel switching** — each channel is independent; AI suggests navigating to bubbles
+- **DO NOT use real users for testing** — always create fresh test users via `/api/register`
 
 ## API Endpoints (New Chat)
 | Method | Path | Purpose |
 |--------|------|---------|
-| POST | `/new-chat/message` | Send message, get reply. Returns `switch_to_cognitive: true` when transitioning |
+| POST | `/new-chat/message` | Send message, get reply. Channel determines guide (no auto-switching) |
 | GET | `/new-chat/status/:user_id` | Returns `has_cognitive`, `has_taste_info` for home screen recommendations |
 
 ## How to Run

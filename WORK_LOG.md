@@ -1,6 +1,54 @@
 # WORK_LOG.md — MatchMe Development Log
 
-## Latest Session: 2026-05-05 (continued)
+## Latest Session: 2026-05-07
+
+### What We Worked On
+
+#### 1. Separate Chat Histories Per Channel
+- **Each bubble (general, cognitive, taste test) now has its own independent chat history**
+- Frontend state changed from single `Message[]` to `Record<string, Message[]>` keyed by channel
+- History loading on mount splits messages by `chat_type` into per-channel arrays
+- `sendMessage` sends only the current channel's history to the backend
+- "חזרה לשיחה" and "בוא נמשיך" always return to `new_chat` (general) channel
+- Sidebar "חזרה לשיחה" visibility based on any channel having messages
+
+#### 2. Removed Mid-Conversation Cognitive Switch
+- **Deleted** `detectCognitiveAgreement()` function and `COGNITIVE_AGREE_PATTERNS`
+- **Deleted** `switchToCognitive` from `ChatPromptResult` and backend response
+- No more automatic channel switching mid-conversation
+- Instead: when enough data collected, AI suggests navigating to the cognitive bubble on home screen
+- After cognitive is done, AI suggests navigating to taste test bubble
+
+#### 3. Navigation Suggestions (Replace Mid-Chat Switching)
+- `COGNITIVE_SUGGESTION_INSTRUCTION` — now says "click on 'בוא נבין את סגנון החשיבה שלי' on the home screen"
+- New `TASTE_SUGGESTION_INSTRUCTION` — after cognitive done, suggests "click on 'נתח את הטעם שלי' on the home screen"
+- New `shouldSuggestTaste()` — checks if cognitive done (≥3 msgs) and taste not done (<3 msgs)
+- Suggestion flow: general chat suggests cognitive → cognitive done, general chat suggests taste
+
+#### 4. Admin: Re-analyze Buttons Always Visible
+- Re-analyze, Reset analysis, Cognitive Test, and per-group analysis buttons no longer gated by `profile` existence
+- Fixes issue where users who only used new_chat (no old chat) had no way to trigger analysis
+
+### Files Modified
+- `frontend/src/NewChat.tsx` — Per-channel message state, channel-aware sendMessage, navigation buttons always go to new_chat
+- `backend/src/agents/conversation/chatManager.ts` — Removed cognitive agreement detection, added taste suggestion, updated suggestion text
+- `backend/src/index.ts` — Removed switchToCognitive handling, simplified guide logic
+- `frontend/src/AdminView.tsx` — Analysis toolbar always visible (not gated by profile)
+
+### Decisions Made
+- Each channel = separate conversation with separate history (user experience of independent chats)
+- No mid-conversation channel switching — user navigates via home screen bubbles
+- AI guides user to the right bubble at the right time via natural suggestion
+- Same base prompt for all channels, channel-specific behavior via RAG injection
+
+### Open Questions
+- When to trigger a second auto-analysis (after more conversation data)?
+- Should taste test responses get a separate analysis prompt group (taste-specific traits)?
+- "פרופיל" sidebar button still not connected
+
+---
+
+## Previous Session: 2026-05-05/06
 
 ### What We Worked On
 
