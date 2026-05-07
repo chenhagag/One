@@ -71,9 +71,11 @@ Driven by summary coverage (not message count). Each topic's prompt injected onl
 
 ### Cognitive Mode
 - Triggered by clicking "בוא נבין את סגנון החשיבה שלי" bubble on home screen
-- General chat suggests navigating to this bubble when summary has ≥5 fields + no cognitive done yet
+- General chat suggests navigating to this bubble when summary ≥5 fields OR history ≥12 messages
 - **Separate chat history** — independent from general chat
-- 27 simulation/thinking questions across 7 categories
+- Intro explains + asks "מוכן/ה?" → waits → then starts simulation questions
+- ~10 questions, then closes with dynamic navigation to next step
+- Closing at cogUserMsgCount ≥ 9 (current msg not yet in DB)
 - Messages saved with `guide = 'new_chat_cognitive'`
 - Re-entry support: if user leaves and comes back, reminds of last unanswered question
 
@@ -84,8 +86,10 @@ Driven by summary coverage (not message count). Each topic's prompt injected onl
 - Channel: `new_chat_taste`, messages saved with `guide = 'new_chat_taste'`
 - 24 synthetic profiles per gender, parsed into arrays at startup
 - **One profile per prompt** (~80 tokens) — not entire bank (~5000 tokens)
-- Curated diverse selection: 8 profiles per session covering different styles
-- 3 phases: intro (msg 0) → profile presentation (msg 1-7) → summary (msg 8+)
+- Curated diverse selection: 13 profiles per session covering different styles
+- Intro (msg 0) explains + asks "מוכן/ה?" → msg 1 shows first profile → follow-up questions → next profile → summary after ~13 profiles
+- Follow-up: 1-2 questions per profile (what attracted? what didn't?) unless answer already detailed
+- Summary validates with user ("קלטתי נכון?") then dynamic navigation to next step
 - Gender handling: matches `looking_for_gender`; "both" alternates male/female; unset → asks user
 - Re-entry support: if user leaves and comes back, reminds of last unanswered profile
 

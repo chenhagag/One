@@ -34,7 +34,22 @@
 - **Dynamic navigation at end of each chat**: Both cognitive and taste test check what the user still needs (cognitive done? taste done? general chat complete?) and suggest the right next step
 - **Culture topic shortened**: Less deep-diving into hobbies/music — 1-2 questions per sub-topic, enough for general picture
 
-#### 5. Admin: Re-analyze Buttons Always Visible
+#### 5. Suggestion Timing Fix (found during edge-case testing)
+- **Problem**: Suggestions to navigate to cognitive/taste never appeared in fresh conversations because summarizer runs async and summary_fields was still 0 when buildChatPrompt checked
+- **Fix**: Added fallback trigger — if `history.length >= 12` (6+ exchanges), suggest cognitive even without waiting for summarizer
+- **Problem**: Cognitive closing appeared one message too late because DB count doesn't include current message
+- **Fix**: Threshold lowered to `cogUserMsgCount >= 9` (current msg not yet in DB)
+- **Strengthened suggestion text**: Changed from soft "הצע" to "חובה" so AI doesn't skip the suggestion
+- **Strengthened cognitive intro**: Explicit "מוכן/ה להתחיל?" + "אל תשאל שאלת סימולציה בהודעה הזו" to prevent AI from jumping ahead
+
+#### 6. Edge Case Testing (5 scenarios)
+- **Verbose user**: AI doesn't repeat questions, progresses topics correctly
+- **Terse user**: AI asks focused follow-ups, tries to draw out details
+- **User asks questions back**: AI answers system questions then steers back to conversation
+- **Confused user**: AI explains gently and guides into conversation
+- **Channel hopper**: Each channel preserves its own history, no cross-contamination, returning to general continues where it left off
+
+#### 7. Admin: Re-analyze Buttons Always Visible
 - Re-analyze, Reset analysis, Cognitive Test, and per-group analysis buttons no longer gated by `profile` existence
 - Fixes issue where users who only used new_chat (no old chat) had no way to trigger analysis
 
