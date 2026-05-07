@@ -87,11 +87,26 @@ Driven by summary coverage (not message count). Each topic's prompt injected onl
 - 24 synthetic profiles per gender, parsed into arrays at startup
 - **One profile per prompt** (~80 tokens) — not entire bank (~5000 tokens)
 - Curated diverse selection: 13 profiles per session covering different styles
-- Intro (msg 0) explains + asks "מוכן/ה?" → msg 1 shows first profile → follow-up questions → next profile → summary after ~13 profiles
+- **Smart intro**: if no prior taste info → 2-3 general taste questions first (what attracts? what repels? physical preferences?), then profile explanation + "ready?". If prior info exists → skip to profiles.
 - Follow-up: 1-2 questions per profile (what attracted? what didn't?) unless answer already detailed
 - Summary validates with user ("קלטתי נכון?") then dynamic navigation to next step
 - Gender handling: matches `looking_for_gender`; "both" alternates male/female; unset → asks user
 - Re-entry support: if user leaves and comes back, reminds of last unanswered profile
+
+### Conversation Closing
+- **`isFullyCovered()`** checks: summary 8/8 fields + cognitive ≥7 user msgs + taste ≥7 user msgs
+- **General chat + taste test**: insight about user + "דייקתי?" + correction loop + farewell
+- **Cognitive**: positive close without personality insights + farewell
+- **Farewell message**: "תודה, מתחילים לנתח, נעדכן כשנמצא התאמות"
+- **Partial**: if not all done → navigate to the missing channel
+- **User returns after close**: continue, try to close again gently
+
+### Couple Tester Support
+- `COUPLE_TESTER_INSTRUCTION` (~100 tokens) — injected when `test_user_type === "Couple Tester"`
+- First message: thanks, explains testing purpose, mentions insights + relationship strengths
+- Adapts questions: "before your current relationship" instead of assuming single
+- Zero overhead for regular users (empty string)
+- Injected into all 3 channels (general, cognitive, taste)
 
 ### Summarization System
 - **`summarizer.ts`** — Runs every 8 user messages (first at 6)

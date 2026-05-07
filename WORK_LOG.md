@@ -49,17 +49,51 @@
 - **Confused user**: AI explains gently and guides into conversation
 - **Channel hopper**: Each channel preserves its own history, no cross-contamination, returning to general continues where it left off
 
-#### 7. Admin: Re-analyze Buttons Always Visible
+#### 7. Conversation Closing Logic
+- **Full closing**: when all 8 summary fields filled + cognitive ≥7 msgs + taste ≥7 msgs → `isFullyCovered()` returns true
+- **General chat closing**: insight about user + "דייקתי?" + user can correct + farewell message ("תודה, מתחילים לנתח, נעדכן")
+- **Taste test closing**: same pattern — summary + validation + farewell
+- **Cognitive closing**: positive close without personality insights + farewell
+- **Partial closing**: if only some channels done → navigate to the missing one
+- **User returns after close**: continue conversation, try to close again gently after a few messages
+
+#### 8. Taste Test — General Taste Questions Phase
+- **New phase**: before showing profiles, ask 2-3 general questions about taste ("what attracts you?", "what's the biggest turn-off?", "anything important physically?")
+- **Smart skip**: if user already discussed taste in general chat (summary has `taste_and_style` or `relationships`) → skip straight to profile explanation
+- **Profile start shifted**: `profileStartMsg = hasPriorTasteInfo ? 1 : 3`
+
+#### 9. Couple Tester Support
+- **`COUPLE_TESTER_INSTRUCTION`** (~100 tokens) — injected when `test_user_type === "Couple Tester"`
+- **First message**: thanks for participation, explains testing purpose, mentions they'll see insights and relationship strengths
+- **Adapted questions**: "relationship before your current one" instead of "are you single?", doesn't assume they're looking for a match
+- **Zero overhead for regular users**: empty string when not couple tester
+- **All 3 channels**: instruction injected into general, cognitive, and taste test prompts
+
+#### 10. DB Query Optimization
+- `getUserSummary` now called **once** at the start of `buildChatPrompt`, result (`userSummary`) reused across all logic
+- Previously called 3-4 times per request (taste check, topic detection, suggestion check, closing check)
+
+#### 11. Topic Intro — Education & Work Detail
+- Strengthened `topic-intro.txt`: explicit instruction to ask about education (where studied, what field) and work details (role, what they like about it)
+- "Not like a job interview, but genuine interest"
+
+#### 12. Frontend — "Not Enough Data" Recommendation
+- New home screen recommendation: "עדיין לא הגענו להיכרות מספקת, לחץ על בוא נמשיך"
+- Shows when `summary_fields < 8` and user has started chatting
+- Priority system: cognitive suggestion > taste suggestion > return to general chat
+
+#### 13. Admin: Re-analyze Buttons Always Visible
 - Re-analyze, Reset analysis, Cognitive Test, and per-group analysis buttons no longer gated by `profile` existence
 - Fixes issue where users who only used new_chat (no old chat) had no way to trigger analysis
 
 ### Files Modified
-- `frontend/src/NewChat.tsx` — Per-channel message state, channel-aware sendMessage, navigation buttons always go to new_chat
-- `backend/src/agents/conversation/chatManager.ts` — Removed cognitive agreement detection, added taste suggestion, dynamic navigation at end of cognitive/taste, separated intro phases, follow-up questions, 13 profiles
+- `frontend/src/NewChat.tsx` — Per-channel message state, channel-aware sendMessage, navigation buttons, "not enough data" recommendation
+- `backend/src/agents/conversation/chatManager.ts` — Major: closing logic, taste intro questions, couple tester, DB optimization, suggestion timing, cognitive/taste navigation
 - `backend/src/agents/conversation/prompts/taste-test-chat.txt` — Follow-up questions after each profile reaction
-- `backend/src/agents/conversation/prompts/cognitive-chat.txt` — Ask "ready?" before starting, ~10 questions target
+- `backend/src/agents/conversation/prompts/cognitive-chat.txt` — Ask "ready?" before starting, ~10 questions target, explicit stop before first question
 - `backend/src/agents/conversation/prompts/topic-culture.txt` — Shortened, less deep-diving
-- `backend/src/index.ts` — Removed switchToCognitive handling, simplified guide logic
+- `backend/src/agents/conversation/prompts/topic-intro.txt` — Education + work detail questions
+- `backend/src/index.ts` — Removed switchToCognitive, passes test_user_type to buildChatPrompt
 - `frontend/src/AdminView.tsx` — Analysis toolbar always visible (not gated by profile)
 
 ### Decisions Made
@@ -70,6 +104,9 @@
 - Intro → confirm → start pattern: always explain first, never surprise user with questions/profiles
 - Dynamic navigation: code checks DB for what's done, injects the right suggestion — no hardcoded flows
 - 13 taste profiles for better coverage; ~10 cognitive questions for sufficient thinking style data
+- Closing requires 8/8 summary fields — not 5 (full coverage, not partial)
+- Couple tester: lightweight instruction (~100 tokens), zero overhead for regular users
+- DB optimization: single getUserSummary call per request
 
 ### Open Questions
 - When to trigger a second auto-analysis (after more conversation data)?
