@@ -2055,8 +2055,8 @@ app.post("/new-chat/message", async (req, res) => {
   const guide = typeof channel === "string" && channel.startsWith("new_chat") ? channel : "new_chat";
 
   // Fetch user gender + looking_for_gender
-  const chatUser = await pgQueryOne<{ gender: string | null; first_name: string; looking_for_gender: string | null }>(
-    "SELECT gender, first_name, looking_for_gender FROM users WHERE id = $1", [user_id]
+  const chatUser = await pgQueryOne<{ gender: string | null; first_name: string; looking_for_gender: string | null; test_user_type: string | null }>(
+    "SELECT gender, first_name, looking_for_gender, test_user_type FROM users WHERE id = $1", [user_id]
   );
 
   // Count existing messages to determine conversation phase
@@ -2079,6 +2079,7 @@ app.post("/new-chat/message", async (req, res) => {
     guide,
     lastAssistantMsg,
     Array.isArray(history) ? history : [],
+    chatUser?.test_user_type,
   );
 
   const messages: { role: string; content: string }[] = [

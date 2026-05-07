@@ -368,11 +368,23 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Expert recommendation — one at a time, only when conversation is advanced enough */}
+            {/* Expert recommendation — one at a time, prioritized */}
             {screen === "home" && (() => {
-              const { has_cognitive, has_taste_info, summary_fields } = recommendations;
+              const { has_cognitive, has_taste_info, summary_fields, chat_count } = recommendations;
               const conversationAdvanced = summary_fields >= 4;
-              // Show cognitive recommendation: only after enough general conversation
+              const chatNotEnough = summary_fields < 8 && chat_count > 0;
+
+              // Priority 1: Return to general chat if not enough data and user already started
+              if (chatNotEnough && has_cognitive && has_taste_info) {
+                return (
+                  <div style={styles.recommendationBlock}>
+                    <p style={styles.recommendationText}>
+                      <span style={styles.recommendationBadge}>המלצת המומחה</span> עדיין לא הגענו להיכרות מספקת כדי למצוא לך התאמה ראויה. לחץ על "בוא נמשיך" כדי להתקדם.
+                    </p>
+                  </div>
+                );
+              }
+              // Priority 2: Suggest cognitive after enough general conversation
               if (!has_cognitive && conversationAdvanced) {
                 return (
                   <div style={styles.recommendationBlock}>
@@ -382,12 +394,22 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
                   </div>
                 );
               }
-              // Show taste recommendation: only after cognitive is done
+              // Priority 3: Suggest taste after cognitive is done
               if (has_cognitive && !has_taste_info) {
                 return (
                   <div style={styles.recommendationBlock}>
                     <p style={styles.recommendationText}>
                       <span style={styles.recommendationBadge}>המלצת המומחה</span> לחץ על "נתח את הטעם שלי לעומק" כדי שנוכל להבין את העדפות הטעם שלך.
+                    </p>
+                  </div>
+                );
+              }
+              // Priority 4: General chat not complete
+              if (chatNotEnough) {
+                return (
+                  <div style={styles.recommendationBlock}>
+                    <p style={styles.recommendationText}>
+                      <span style={styles.recommendationBadge}>המלצת המומחה</span> עדיין לא הגענו להיכרות מספקת כדי למצוא לך התאמה ראויה. לחץ על "בוא נמשיך" כדי להתקדם.
                     </p>
                   </div>
                 );

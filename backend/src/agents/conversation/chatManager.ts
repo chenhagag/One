@@ -224,6 +224,39 @@ function getCurrentTopic(
 /** Minimum filled fields in summary to suggest cognitive/taste */
 const MIN_FIELDS_FOR_COGNITIVE_SUGGESTION = 5;
 
+/** Total content fields in summary (excluding notable_quotes) */
+const TOTAL_SUMMARY_FIELDS = 8;
+
+/** Count filled summary fields */
+function countSummaryFields(summary: UserChatSummary | null): number {
+  if (!summary) return 0;
+  const fields = [
+    summary.general_info, summary.occupation, summary.background_culture,
+    summary.social_style, summary.taste_and_style, summary.relationships,
+    summary.values, summary.intellectual_world,
+  ];
+  return fields.filter(f => f && typeof f === "string" && f.trim().length > 0).length;
+}
+
+/** Check if all channels are complete */
+async function isFullyCovered(userId: number, summary: UserChatSummary | null): Promise<{ allDone: boolean; cogDone: boolean; tasteDone: boolean; chatDone: boolean }> {
+  const chatDone = countSummaryFields(summary) >= TOTAL_SUMMARY_FIELDS;
+
+  const cogResult = await pgQueryOne<{ count: string }>(
+    `SELECT COUNT(*) as count FROM conversation_messages WHERE user_id = $1 AND guide = 'new_chat_cognitive' AND role = 'user'`,
+    [userId]
+  );
+  const cogDone = parseInt(cogResult?.count || "0", 10) >= 7;
+
+  const tasteResult = await pgQueryOne<{ count: string }>(
+    `SELECT COUNT(*) as count FROM conversation_messages WHERE user_id = $1 AND guide = 'new_chat_taste' AND role = 'user'`,
+    [userId]
+  );
+  const tasteDone = parseInt(tasteResult?.count || "0", 10) >= 7;
+
+  return { allDone: chatDone && cogDone && tasteDone, cogDone, tasteDone, chatDone };
+}
+
 /**
  * Check if we should suggest cognitive questions to the user.
  */
@@ -286,6 +319,19 @@ async function shouldSuggestTaste(userId: number): Promise<boolean> {
   return tasteCount < 3; // Taste not done yet
 }
 
+// ── Couple tester instruction ──────────────────────────────────
+
+const COUPLE_TESTER_INSTRUCTION = `
+
+## הערה חשובה — המשתמש הוא חלק מזוג שבודק את המערכת
+
+המשתמש הזה נמצא בזוגיות ומשתתף כדי לעזור לנו לבדוק את דיוק ההתאמות. בהודעה הראשונה שלך (אם אין היסטוריה), תודה לו על ההשתתפות והסבר בקצרה: "אנחנו שואלים אותך שאלות כדי להכיר אותך לעומק ולבדוק אם המערכת מצליחה לזהות התאמות בצורה מדויקת. בסוף תוכל לראות תובנות על עצמך ונקודות חוזקה לגבי הזוגיות שלך."
+
+התאמות לשיחה:
+- כששואל על מערכות יחסים קודמות — שאל על מה שהיה לפני הזוגיות הנוכחית
+- אל תניח שהוא רווק — הוא בזוגיות
+- חוץ מזה, נהל את השיחה בדיוק כרגיל — כל השאלות והנושאים רלוונטיים`;
+
 // ── Gender instruction builder ──────────────────────────────────
 
 export function buildGenderInstruction(
@@ -328,8 +374,13 @@ export async function buildChatPrompt(
   channel: string = "new_chat",
   lastAssistantMessage?: string,
   history: { role: string; content: string }[] = [],
+  testUserType?: string | null,
 ): Promise<ChatPromptResult> {
   const genderInstruction = buildGenderInstruction(gender, lookingForGender);
+  const coupleInstruction = testUserType === "Couple Tester" ? COUPLE_TESTER_INSTRUCTION : "";
+
+  // Load summary once — reused across all channel logic
+  const { summary: userSummary } = await getUserSummary(userId);
 
   // Cognitive channel uses a completely separate prompt
   if (channel === "new_chat_cognitive") {
@@ -351,29 +402,23 @@ export async function buildChatPrompt(
     // After ~10 user messages — close and navigate
     // Note: current message not yet saved to DB, so count is N-1
     if (cogUserMsgCount >= 9) {
-      // Check what user still needs
-      const tasteResult = await pgQueryOne<{ count: string }>(
-        `SELECT COUNT(*) as count FROM conversation_messages WHERE user_id = $1 AND guide = 'new_chat_taste' AND role = 'user'`,
-        [userId]
-      );
-      const tasteDone = parseInt(tasteResult?.count || "0", 10) >= 5;
-      const { summary } = await getUserSummary(userId);
-      const summaryFields = summary ? [summary.general_info, summary.occupation, summary.background_culture, summary.social_style, summary.relationships, summary.values, summary.intellectual_world].filter(f => f && f.trim().length > 0).length : 0;
-      const chatDone = summaryFields >= 5;
+      const coverage = await isFullyCovered(userId, userSummary);
 
       let navSuggestion = "";
-      if (!tasteDone) {
+      if (coverage.allDone) {
+        navSuggestion = `כתוב הודעת סיום: "תודה רבה על הפתיחות! אנחנו מתחילים לנתח את הפרופיל שלך ולבדוק התאמות אפשריות. נעדכן אותך כשנמצא אפשרויות מתאימות, או אם נצטרך ממך מידע נוסף. אנחנו כאן לכל מה שתצטרך."\nאם המשתמש ממשיך לכתוב — המשך איתו ונסה לסגור שוב בעדינות.`;
+      } else if (!coverage.tasteDone) {
         navSuggestion = `המלץ למשתמש: "עכשיו אני ממליץ ללחוץ על 'נתח את הטעם שלי לעומק' במסך הראשי — זה יעזור לי לדייק את ההתאמה עוד יותר."`;
-      } else if (!chatDone) {
+      } else if (!coverage.chatDone) {
         navSuggestion = `המלץ למשתמש: "מומלץ לחזור לשיחה הראשית כדי שנוכל להמשיך להכיר אותך — לחץ על 'בוא נמשיך' במסך הראשי."`;
       } else {
         navSuggestion = `ספר למשתמש שאספנו מספיק מידע ושאנחנו מעבדים את הנתונים כדי למצוא לו התאמה מדויקת.`;
       }
 
-      cognitiveExtra += `\n\n## שלב: סיום\nאתה מרגיש שהצלחת לקלוט מספיק מסגנון החשיבה של המשתמש. סגור בחיוב: ספר שהתשובות היו מעניינות ושזה עוזר לך מאוד להבין את סגנון החשיבה שלו.\n${navSuggestion}`;
+      cognitiveExtra += `\n\n## שלב: סיום\nאתה מרגיש שהצלחת לקלוט מספיק מסגנון החשיבה של המשתמש. סגור בחיוב: ספר שהתשובות היו מעניינות ושזה עוזר לך מאוד להבין את סגנון החשיבה שלו. אל תתן תובנות על אישיות המשתמש — רק סגירה חיובית.\n${navSuggestion}`;
     }
 
-    const systemPrompt = COGNITIVE_PROMPT + genderInstruction + cognitiveExtra;
+    const systemPrompt = COGNITIVE_PROMPT + genderInstruction + coupleInstruction + cognitiveExtra;
     return { systemPrompt, intent: "general", phase: detectPhase(messageCount) };
   }
 
@@ -404,57 +449,78 @@ export async function buildChatPrompt(
     // Profile index = tasteUserMsgCount (first real response is msg 1 → show profile index 1, etc.)
     // But msg 0 is the trigger "נתח את הטעם שלי" → show intro + profile 0
     const isBoth = lookingForGender !== "woman" && lookingForGender !== "man";
-    // msg 0 = trigger, msg 1 = "ready" confirmation → profile 0, msg 2 = response → profile 1, etc.
-    const profileIndex = tasteUserMsgCount <= 1 ? 0 : tasteUserMsgCount - 1;
+
+    // Check if user already shared taste preferences in general chat
+    const hasPriorTasteInfo = userSummary && (
+      (userSummary.taste_and_style && userSummary.taste_and_style.trim().length > 0) ||
+      (userSummary.relationships && userSummary.relationships.trim().length > 0)
+    );
+
+    // Determine taste test phases:
+    // Without prior taste info: msg0=explain+general questions, msg1-2=answers, msg3=explain profiles+"ready?", msg4+=profiles
+    // With prior taste info: msg0=explain profiles+"ready?", msg1+=profiles
+    // We use a "profileStartMsg" threshold to know when profiles begin
+    const profileStartMsg = hasPriorTasteInfo ? 1 : 3;
+
+    // Profile index: first profile at profileStartMsg, then +1 per msg
+    const profileIndex = tasteUserMsgCount <= profileStartMsg ? 0 : tasteUserMsgCount - profileStartMsg;
     const currentProfile = getTasteProfile(profileBank, profileIndex, isBoth);
 
     let phaseInstruction = "";
     if (tasteUserMsgCount === 0) {
-      // Intro phase — explain + ask if ready. Do NOT show profile yet.
       if (!lookingForGender) {
+        // Need to ask gender preference first
         phaseInstruction = `\n\n## שלב: פתיחה\nזו ההודעה הראשונה. לפני שמתחילים, שאל את המשתמש/ת בצורה עדינה: "לפני שנתחיל — אני רוצה להציג לך פרופילים של אנשים בסגנונות שונים. מה מעניין אותך — פרופילים של גברים, נשים, או שניהם?"\nחכה לתשובה לפני שמציג פרופיל.`;
+      } else if (hasPriorTasteInfo) {
+        // Already know their taste — skip to profile explanation + ready
+        phaseInstruction = `\n\n## שלב: פתיחה\nזו ההודעה הראשונה. הסבר למשתמש:\n"בוא/י נעשה רגע בדיקת טעם עמוקה יותר.\nאני אציג לך כמה פרופילים קצרים של אנשים בסגנונות שונים. אין כאן תשובה נכונה — מעניין אותי מה התחושה הראשונית שלך.\n\nאחרי כל פרופיל אשאל אותך עד כמה הוא/היא הטעם שלך מ-1 עד 10, מה עובד לך, ומה פחות. מוכן/ה?"\n\nאל תציג פרופיל — חכה שהמשתמש יאשר.`;
       } else {
-        phaseInstruction = `\n\n## שלב: פתיחה\nזו ההודעה הראשונה. הסבר למשתמש מה הולך לקרות:\n"בוא/י נעשה רגע בדיקת טעם עמוקה יותר.\nאני אציג לך כמה פרופילים קצרים של אנשים בסגנונות שונים. אין כאן תשובה נכונה — מעניין אותי מה התחושה הראשונית שלך: האם זה מסקרן, מושך, מרתיע, מביך, משעמם, או פשוט לא מרגיש מהעולם שלך.\n\nאחרי כל פרופיל אשאל אותך עד כמה הוא/היא הטעם שלך מ-1 עד 10, מה עובד לך, ומה פחות. מוכן/ה?"\n\nאל תציג פרופיל עדיין — חכה שהמשתמש יגיד שהוא מוכן.`;
+        // No prior taste info — start with general taste questions
+        const genderWord = lookingForGender === "woman" ? "נשים" : lookingForGender === "man" ? "גברים" : "אנשים";
+        phaseInstruction = `\n\n## שלב: פתיחה + שאלות כלליות על טעם\nזו ההודעה הראשונה. הסבר בקצרה שאנחנו הולכים לעשות בדיקת טעם כדי להבין מה מושך את המשתמש ומה פחות.\n\nלפני שמציגים פרופילים, שאל 2-3 שאלות כלליות על הטעם שלו. למשל:\n- "איך היית מגדיר/ה את הטעם שלך ב${genderWord}? מה מושך אותך?"\n- "מה הכי רחוק מהטעם שלך? מה הכי מוריד לך?"\n- "יש משהו ספציפי שחשוב לך מבחינה חיצונית?"\n\nנסח את השאלות בצורה טבעית ונעימה. שאל שאלה אחת-שתיים עכשיו, והמשך לפי התשובה. אל תציג פרופילים בשלב הזה.`;
       }
-    } else if (tasteUserMsgCount === 1) {
+    } else if (tasteUserMsgCount < profileStartMsg) {
+      // Still in general taste questions phase (only when no prior info)
+      if (tasteUserMsgCount === profileStartMsg - 1) {
+        // Last general question answered — now explain profiles and ask "ready?"
+        phaseInstruction = `\n\n## שלב: מעבר לפרופילים\nתגיב בקצרה לתשובת המשתמש. ואז הסבר:\n"עכשיו אני הולך להציג לך כמה פרופילים קצרים של אנשים בסגנונות שונים. אין כאן תשובה נכונה — מעניין אותי מה התחושה הראשונית שלך.\n\nאחרי כל פרופיל אשאל אותך עד כמה הוא/היא הטעם שלך מ-1 עד 10. מוכן/ה?"\n\nחכה לאישור לפני שמציג פרופיל.`;
+      } else {
+        // Continue general taste questions
+        phaseInstruction = `\n\n## שלב: שאלות כלליות על טעם\nתגיב לתשובת המשתמש, ואז שאל עוד שאלה על הטעם שלו. למשל:\n- "מה הכי רחוק מהטעם שלך? מה מוריד לך?"\n- "יש משהו ספציפי שחשוב לך מבחינה חיצונית?"\nשאל שאלה אחת בכל תור. אל תציג פרופילים עדיין.`;
+      }
+    } else if (tasteUserMsgCount === profileStartMsg) {
       // User confirmed ready — show first profile
       phaseInstruction = `\n\n## שלב: פרופיל ראשון\nהמשתמש אישר שהוא מוכן. הצג את הפרופיל ושאל: עד כמה הוא/היא הטעם שלך מ-1 עד 10?`;
     } else if (!currentProfile) {
-      // All profiles shown — summarize + ask if accurate + dynamic navigation
+      // All profiles shown — summarize + ask if accurate
       phaseInstruction = `\n\n## שלב: סיכום\nהצגת מספיק פרופילים. סכם בקצרה (2-3 משפטים) את הדפוס שעולה מהתגובות של המשתמש — מה מושך אותו, מה פחות, איזה סגנון מדבר אליו.\nשאל את המשתמש: "קלטתי נכון? יש משהו שהיית רוצה לדייק?" תן לו להגיב ולתקן אם צריך.`;
     } else {
       phaseInstruction = `\n\n## שלב: הצגת פרופיל\nשאל שאלה-שתיים של הרחבה על התגובה של המשתמש (מה אהבת? מה פחות דיבר אליך?). אם התשובה כבר מפורטת — עבור ישר לפרופיל הבא.\nאחרי ההרחבה, הצג את הפרופיל הבא ושאל: עד כמה הוא/היא הטעם שלך מ-1 עד 10?`;
     }
 
-    // Inject the single profile (if we have one to show) — NOT on intro (msg 0)
+    // Inject the single profile — only in profile phases
     let profileBlock = "";
-    if (currentProfile && tasteUserMsgCount >= 1) {
+    if (currentProfile && tasteUserMsgCount >= profileStartMsg) {
       profileBlock = `\n\n## הפרופיל להצגה\n\n${currentProfile.text}`;
     }
 
     // Dynamic navigation at end — check what user still needs to do
     let navigationInstruction = "";
     if (!currentProfile && tasteUserMsgCount > 1) {
-      // Taste is done — suggest next step
-      const cogResult = await pgQueryOne<{ count: string }>(
-        `SELECT COUNT(*) as count FROM conversation_messages WHERE user_id = $1 AND guide = 'new_chat_cognitive' AND role = 'user'`,
-        [userId]
-      );
-      const cogDone = parseInt(cogResult?.count || "0", 10) >= 5;
-      const { summary } = await getUserSummary(userId);
-      const summaryFields = summary ? [summary.general_info, summary.occupation, summary.background_culture, summary.social_style, summary.relationships, summary.values, summary.intellectual_world].filter(f => f && f.trim().length > 0).length : 0;
-      const chatDone = summaryFields >= 5;
+      const coverage = await isFullyCovered(userId, userSummary);
 
-      if (!cogDone) {
+      if (coverage.allDone) {
+        navigationInstruction = `\n\nאחרי הסיכום והחידוד, כתוב הודעת סיום: "תודה רבה על הפתיחות! אנחנו מתחילים לנתח את הפרופיל שלך ולבדוק התאמות אפשריות. נעדכן אותך כשנמצא אפשרויות מתאימות, או אם נצטרך ממך מידע נוסף. אנחנו כאן לכל מה שתצטרך."\nאם המשתמש ממשיך לכתוב — המשך איתו ונסה לסגור שוב בעדינות.`;
+      } else if (!coverage.cogDone) {
         navigationInstruction = `\n\nאחרי הסיכום, המלץ למשתמש: "עכשיו אני ממליץ ללחוץ על 'בוא נבין את סגנון החשיבה שלי' במסך הראשי — זה יעזור לי לדייק את ההתאמה עוד יותר."`;
-      } else if (!chatDone) {
+      } else if (!coverage.chatDone) {
         navigationInstruction = `\n\nאחרי הסיכום, המלץ למשתמש: "מומלץ לחזור לשיחה הראשית כדי שנוכל להמשיך להכיר אותך — לחץ על 'בוא נמשיך' במסך הראשי."`;
       } else {
         navigationInstruction = `\n\nאחרי הסיכום, ספר למשתמש שאספנו מספיק מידע ושאנחנו מעבדים את הנתונים כדי למצוא לו התאמה מדויקת.`;
       }
     }
 
-    const systemPrompt = TASTE_TEST_PROMPT + genderInstruction + phaseInstruction + profileBlock + reentryInstruction + navigationInstruction;
+    const systemPrompt = TASTE_TEST_PROMPT + genderInstruction + coupleInstruction + phaseInstruction + profileBlock + reentryInstruction + navigationInstruction;
     return { systemPrompt, intent: "general", phase: detectPhase(messageCount) };
   }
 
@@ -469,9 +535,8 @@ export async function buildChatPrompt(
     if (profileText.trim()) {
       contextBlock = "\n\n" + PROFILE_CONTEXT + "\n\n## פרופיל המשתמש\n" + profileText;
     } else {
-      const { summary } = await getUserSummary(userId);
-      if (summary) {
-        const summaryText = formatSummaryForPrompt(summary);
+      if (userSummary) {
+        const summaryText = formatSummaryForPrompt(userSummary);
         contextBlock = "\n\n" + PROFILE_CONTEXT + "\n\n## מה שלמדתי עליך מהשיחה (טרם בוצע ניתוח רשמי)\n" + summaryText + "\n\nהערה: זה מבוסס על מה שהמשתמש שיתף בשיחה. עדיין לא בוצע ניתוח אישיות מלא. שתף תובנות בצורה חמה ומעצימה, והדגש שככל שנמשיך לשוחח תוכל ללמוד עליו עוד.";
       } else {
         contextBlock = "\n\n" + PROFILE_CONTEXT + "\n\n## פרופיל המשתמש\nאין עדיין נתוני פרופיל מובנים. אתה יכול לשתף רשמים כלליים וחיוביים מהשיחה, אבל הדגש שעדיין לא למדת מספיק ועודד להמשיך לשוחח.";
@@ -486,17 +551,15 @@ export async function buildChatPrompt(
   let cognitiveSuggestion = "";
 
   if (intent === "general") {
-    // Get summary + scan history (including current message) to determine current topic
-    const { summary } = await getUserSummary(userId);
-    const { prompt: topicPrompt } = getCurrentTopic(summary, history, message);
+    const { prompt: topicPrompt } = getCurrentTopic(userSummary, history, message);
     topicBlock = "\n\n" + topicPrompt;
 
     // Check if we should suggest cognitive or taste test navigation
     // Use both summary fields AND history length — summarizer may lag behind
     const historyCoversEnough = history.length >= 12; // ~6 exchanges = enough for suggestion
     if (phase === "middle" || phase === "deep") {
-      const suggestCognitive = await shouldSuggestCognitive(userId, summary);
-      if (suggestCognitive || (historyCoversEnough && !summary)) {
+      const suggestCognitive = await shouldSuggestCognitive(userId, userSummary);
+      if (suggestCognitive || (historyCoversEnough && !userSummary)) {
         // Double-check cognitive not already done
         const cogCheck = await pgQueryOne<{ count: string }>(
           `SELECT COUNT(*) as count FROM conversation_messages WHERE user_id = $1 AND guide = 'new_chat_cognitive' AND role = 'user'`,
@@ -515,7 +578,20 @@ export async function buildChatPrompt(
     }
   }
 
-  const systemPrompt = BASE_PROMPT + genderInstruction + topicBlock + contextBlock + cognitiveSuggestion;
+  // Check for full closing — all channels complete (only when no other suggestion active)
+  let closingInstruction = "";
+  if (intent === "general" && !cognitiveSuggestion) {
+    const coverage = await isFullyCovered(userId, userSummary);
+    if (coverage.allDone) {
+      closingInstruction = `\n\n## שלב: סגירת שיחה\nכל הנושאים כוסו. תגיב למה שהמשתמש אמר, ואז תן תובנה קצרה (2-3 משפטים) על מה שלמדת עליו ועל מה הוא מחפש. שאל "דייקתי?" — אם הוא מתקן, המשך עוד כמה הודעות כדי להבהיר.\nכשמסיימים, כתוב משהו בסגנון: "תודה רבה על הפתיחות! אנחנו מתחילים לנתח את הפרופיל שלך ולבדוק התאמות אפשריות. נעדכן אותך כשנמצא אפשרויות מתאימות, או אם נצטרך ממך מידע נוסף. אנחנו כאן לכל מה שתצטרך."\nאם המשתמש ממשיך לכתוב אחרי הסיום — המשך איתו בשיחה, ענה לצורך שלו, ואחרי כמה הודעות נסה לסגור שוב בעדינות.`;
+    } else if (coverage.chatDone && !coverage.cogDone) {
+      cognitiveSuggestion = COGNITIVE_SUGGESTION_INSTRUCTION;
+    } else if (coverage.chatDone && !coverage.tasteDone) {
+      cognitiveSuggestion = TASTE_SUGGESTION_INSTRUCTION;
+    }
+  }
+
+  const systemPrompt = BASE_PROMPT + genderInstruction + coupleInstruction + topicBlock + contextBlock + cognitiveSuggestion + closingInstruction;
 
   return { systemPrompt, intent, phase };
 }
