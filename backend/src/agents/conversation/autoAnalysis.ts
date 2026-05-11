@@ -15,9 +15,8 @@ import {
   queryAll as pgQueryAll,
 } from "../../db.pg";
 import { getUserSummary, type UserChatSummary } from "./summarizer";
-import { buildAnalysisTranscript } from "./orchestrator";
+import { buildAnalysisTranscript, computeCoverage } from "./analysisHelpers";
 import { runAnalysisAgent, buildAnalysisInput, saveAnalysisToDb } from "../analysis";
-import { computeCoverage } from "./index";
 import { updateCognitiveScore } from "../../cognitiveScore";
 
 // ── Config ──────────────────────────────────────────────────────

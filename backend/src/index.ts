@@ -17,12 +17,12 @@ import { runStage1 } from "./matchStage1";
 import { updateCognitiveScore } from "./cognitiveScore";
 import { runStage2, runMatchmaking } from "./matchStage2";
 import { runAnalysisAgent, runSingleGroupAnalysis, getAvailableGroups, buildAnalysisInput, saveAnalysisToDb, saveAnalysisRun, getLatestAnalysisRun } from "./agents/analysis";
-import { generateOpeningMessage, processUserMessage, computeCoverage, buildAnalysisTranscript, type ConversationState } from "./agents/conversation";
+import { computeCoverage, buildAnalysisTranscript } from "./agents/conversation";
 import { buildChatPrompt } from "./agents/conversation/chatManager";
 import { shouldSummarize, getUserSummary, runSummarization } from "./agents/conversation/summarizer";
 import { maybeAutoAnalyze } from "./agents/conversation/autoAnalysis";
 import OpenAI from "openai";
-import { generatePsychologistOpening, processPsychologistMessage, type PsychologistState } from "./agents/conversation";
+import { trackTokens } from "./tokenTracker";
 
 dotenv.config();
 
@@ -94,7 +94,7 @@ app.post("/register", async (req, res) => {
     city, height, self_style,
     desired_age_min, desired_age_max, age_flexibility,
     desired_height_min, desired_height_max, height_flexibility,
-    desired_location_range, test_user_type,
+    desired_location_range, test_user_type, partner_name,
   } = req.body;
 
   if (!first_name || !email) {
@@ -109,8 +109,8 @@ app.post("/register", async (req, res) => {
          city, height, self_style,
          desired_age_min, desired_age_max, age_flexibility,
          desired_height_min, desired_height_max, height_flexibility,
-         desired_location_range, test_user_type
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, $15, $16)
+         desired_location_range, test_user_type, partner_name
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, $15, $16, $17)
        RETURNING *`,
       [
         first_name.trim(),
@@ -129,6 +129,7 @@ app.post("/register", async (req, res) => {
         height_flexibility || "slightly_flexible",
         desired_location_range || "my_area",
         test_user_type || null,
+        partner_name?.trim() || null,
       ]
     );
 
@@ -359,234 +360,10 @@ app.delete("/users/:id/photos/:photoId", async (req, res) => {
   return res.json({ deleted: true, photo_count: Number(countRow?.c ?? 0) });
 });
 
-// ════════════════════════════════════════════════════════════════
-// MULTI-TURN CONVERSATION — Orchestrated chat flow
-// ════════════════════════════════════════════════════════════════
-
-// In-memory conversation state (per user).
-const conversationStates = new Map<number, ConversationState>();
-
 function parseUserId(raw: any): number | null {
   const id = typeof raw === "string" ? parseInt(raw, 10) : Number(raw);
   return Number.isFinite(id) && id > 0 ? id : null;
 }
-
-// POST /conversation/start — Begin or resume a conversation
-app.post("/conversation/start", async (req, res) => {
-  const userId = parseUserId(req.body.user_id);
-  if (!userId) return res.status(400).json({ error: "Valid user_id required" });
-
-  const user = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [userId]);
-  if (!user) return res.status(404).json({ error: "User not found" });
-
-  const { message, state, isReturning } = await generateOpeningMessage(db, userId);
-  conversationStates.set(userId, state);
-  const cov = isReturning ? await computeCoverage(db, userId) : { coverage_pct: 0 } as any;
-  console.log(`[conversation] ${isReturning ? "Returning" : "Started"} for user ${userId}, turns=${state.turn_count}`);
-  return res.json({
-    assistant_message: message,
-    phase: "chatting",
-    coverage_pct: isReturning ? cov.coverage_pct : 0,
-    turn_count: state.turn_count,
-    resumed: isReturning,
-    turns: state.turns,
-  });
-});
-
-// POST /conversation/message — Send a user message and get assistant response
-app.post("/conversation/message", async (req, res) => {
-  const userId = parseUserId(req.body.user_id);
-  const message = req.body.message;
-  if (!userId || !message) return res.status(400).json({ error: "user_id and message required" });
-
-  let state = conversationStates.get(userId);
-
-  // If no state exists (server restart) or state was paused,
-  // rebuild it from DB — sending a message implicitly resumes the conversation.
-  if (!state || state.phase === "paused") {
-    const { state: freshState } = await generateOpeningMessage(db, userId);
-    state = freshState;
-    conversationStates.set(userId, state);
-  }
-
-  if (state.phase === "confirmed") {
-    return res.status(400).json({ error: "Conversation already confirmed. Navigate to results." });
-  }
-
-  try {
-    const { result, state: newState } = await processUserMessage(db, state, message);
-    conversationStates.set(userId, newState);
-    console.log(`[conversation] User ${userId} turn ${result.turn_count}: phase=${result.phase}, coverage=${result.coverage_pct}%`);
-    return res.json(result);
-  } catch (err: any) {
-    console.error(`[conversation] Message error for user ${userId}:`, err);
-    return res.status(500).json({ error: "Conversation failed: " + err.message });
-  }
-});
-
-// POST /conversation/pause — Save state and pause the conversation
-// Also triggers analysis so trait scores are saved
-app.post("/conversation/pause", async (req, res) => {
-  const userId = parseUserId(req.body.user_id);
-  if (!userId) return res.status(400).json({ error: "Valid user_id required" });
-
-  // Update in-memory state if it exists (may not exist after server restart)
-  const state = conversationStates.get(userId);
-  if (state && state.phase !== "confirmed") {
-    (state as any)._phase_before_pause = state.phase;
-    state.phase = "paused";
-    conversationStates.set(userId, state);
-  }
-
-  // Count user messages directly from pg
-  const userMsgCount = Number((await pgQueryOne<{ c: string }>(
-    "SELECT COUNT(*)::int AS c FROM conversation_messages WHERE user_id = $1 AND role = 'user'",
-    [userId]
-  ))?.c ?? 0);
-
-  console.log(`[conversation] Paused for user ${userId} (${userMsgCount} user messages in DB)`);
-
-  // Fire analysis in background — do NOT block the pause response
-  if (userMsgCount >= 3) {
-    console.log(`[conversation] Triggering background analysis for user ${userId} on pause...`);
-    const transcript = await buildAnalysisTranscript(db, userId);
-    (async () => {
-      try {
-        const input = await buildAnalysisInput(db, transcript);
-        const output = await runAnalysisAgent(input, userId, "analysis_pause");
-        const runData = (output as any)._run_data;
-        if (runData) {
-          await saveAnalysisRun(db, userId, runData.generated_prompt, runData.stage_a_output, JSON.stringify(runData.stage_b_output), "analysis_pause");
-        }
-        delete (output as any)._run_data;
-        const saved = await saveAnalysisToDb(db, userId, output);
-        console.log(`[conversation] Pause analysis DONE for user ${userId}: ${saved.internal_saved} internal, ${saved.external_saved} external`);
-
-        // Recompute readiness NOW that traits are saved — this sets is_matchable
-        const covAfter = await computeCoverage(db, userId);
-        await pgQueryAll(
-          "UPDATE users SET readiness_score = $1, is_matchable = $2, updated_at = NOW() WHERE id = $3",
-          [covAfter.readiness_score, covAfter.ready_for_matching, userId]
-        );
-        console.log(`[conversation] Readiness updated for user ${userId}: score=${covAfter.readiness_score}, matchable=${covAfter.ready_for_matching}`);
-      } catch (err: any) {
-        console.error(`[conversation] Pause analysis FAILED for user ${userId}:`, err.message);
-      }
-    })();
-  }
-
-  const cov = await computeCoverage(db, userId);
-  return res.json({
-    phase: "paused",
-    analysis_ran: false, // analysis runs in background
-    turn_count: userMsgCount,
-    coverage_pct: cov.coverage_pct,
-  });
-});
-
-// POST /conversation/analyze — Explicitly trigger analysis for a user
-app.post("/conversation/analyze", async (req, res) => {
-  const userId = parseUserId(req.body.user_id);
-  if (!userId) return res.status(400).json({ error: "Valid user_id required" });
-
-  const userMsgCount = Number((await pgQueryOne<{ c: string }>(
-    "SELECT COUNT(*)::int AS c FROM conversation_messages WHERE user_id = $1 AND role = 'user'",
-    [userId]
-  ))?.c ?? 0);
-
-  if (userMsgCount < 3) {
-    return res.json({ analysis_ran: false, reason: "not_enough_messages", user_messages: userMsgCount });
-  }
-
-  try {
-    console.log(`[analyze] Explicit analysis for user ${userId} (${userMsgCount} messages)...`);
-    const transcript = await buildAnalysisTranscript(db, userId);
-    const input = await buildAnalysisInput(db, transcript);
-    const output = await runAnalysisAgent(input, userId, "analysis_explicit");
-    const runData = (output as any)._run_data;
-    if (runData) {
-      await saveAnalysisRun(db, userId, runData.generated_prompt, runData.stage_a_output, JSON.stringify(runData.stage_b_output), "analysis_explicit");
-    }
-    delete (output as any)._run_data;
-    const saved = await saveAnalysisToDb(db, userId, output);
-
-    // Recompute readiness now that traits are saved — sets is_matchable
-    const cov = await computeCoverage(db, userId);
-    await pgQueryAll(
-      "UPDATE users SET readiness_score = $1, is_matchable = $2, updated_at = NOW() WHERE id = $3",
-      [cov.readiness_score, cov.ready_for_matching, userId]
-    );
-
-    console.log(`[analyze] DONE for user ${userId}: ${saved.internal_saved} internal, ${saved.external_saved} external, matchable=${cov.ready_for_matching}`);
-    return res.json({ analysis_ran: true, saved, traits_count: output.internal_traits?.length });
-  } catch (err: any) {
-    console.error(`[analyze] FAILED for user ${userId}:`, err.message);
-    return res.status(500).json({ analysis_ran: false, error: err.message });
-  }
-});
-
-// ════════════════════════════════════════════════════════════════
-// PSYCHOLOGIST CHAT — managed by psychologist-orchestrator
-// ════════════════════════════════════════════════════════════════
-
-const psychologistStates = new Map<number, PsychologistState>();
-
-// POST /psychologist/start — Start or resume the psychologist chat
-app.post("/psychologist/start", async (req, res) => {
-  const userId = parseUserId(req.body.user_id);
-  if (!userId) return res.status(400).json({ error: "Valid user_id required" });
-
-  const { message, state, isReturning } = await generatePsychologistOpening(db, userId);
-  psychologistStates.set(userId, state);
-
-  console.log(`[psychologist] ${isReturning ? "Resuming" : "Starting"} for user ${userId}, turns=${state.turn_count}`);
-
-  return res.json({
-    messages: state.turns.map(t => ({ role: t.role, content: t.content })),
-    is_returning: isReturning,
-  });
-});
-
-// POST /psychologist/message — Send a message in the psychologist chat
-app.post("/psychologist/message", async (req, res) => {
-  const userId = parseUserId(req.body.user_id);
-  const message = req.body.message;
-  if (!userId || !message) return res.status(400).json({ error: "user_id and message required" });
-
-  let state = psychologistStates.get(userId);
-  if (!state) {
-    // Reconstruct state if missing (server restart)
-    const { state: newState } = await generatePsychologistOpening(db, userId);
-    state = newState;
-    psychologistStates.set(userId, state);
-  }
-
-  try {
-    const { result, state: newState } = await processPsychologistMessage(db, state, message);
-    psychologistStates.set(userId, newState);
-    return res.json(result);
-  } catch (err: any) {
-    console.error(`[psychologist] Error for user ${userId}:`, err.message);
-    return res.status(500).json({ error: "Psychologist chat failed: " + err.message });
-  }
-});
-
-// GET /conversation/state/:id — Current conversation state
-app.get("/conversation/state/:id", async (req, res) => {
-  const userId = parseInt(req.params.id, 10);
-  const state = conversationStates.get(userId);
-  if (!state) return res.status(404).json({ error: "No active conversation" });
-
-  const cov = await computeCoverage(db, userId);
-  return res.json({
-    user_id: state.user_id,
-    turn_count: state.turn_count,
-    phase: state.phase,
-    last_analysis_at_turn: state.last_analysis_at_turn,
-    coverage_pct: cov.coverage_pct,
-    turns: state.turns,
-  });
-});
 
 // GET /admin/users/:id/full-transcript — Full conversation history (both roles)
 app.get("/admin/users/:id/full-transcript", async (req, res) => {
@@ -614,21 +391,7 @@ app.get("/admin/users/:id/full-transcript", async (req, res) => {
     });
   }
 
-  // Fallback: in-memory state (for conversations started before this change)
-  const state = conversationStates.get(userId);
-  if (state && state.turns.length > 0) {
-    return res.json({
-      source: "memory",
-      turn_count: state.turn_count,
-      messages: state.turns.map((t, i) => ({
-        index: i,
-        role: t.role,
-        content: t.content,
-      })),
-    });
-  }
-
-  // Last fallback: profiles table (user messages only)
+  // Fallback: profiles table (user messages only)
   const profiles = await pgQueryAll<{ raw_answer: string; created_at: string }>(
     "SELECT raw_answer, created_at FROM profiles WHERE user_id = $1 ORDER BY created_at ASC",
     [userId]
@@ -910,9 +673,6 @@ app.delete("/admin/users/:id", async (req, res) => {
   // but we do it explicitly to match other deletes and collect count).
   await pgQueryAll("DELETE FROM user_photos WHERE user_id = $1", [userId]);
 
-  // Clear in-memory conversation state
-  conversationStates.delete(userId);
-
   console.log(`[admin] Deleted user ${userId} (${user.first_name} <${user.email}>):`, result);
   return res.json({ deleted: true, user_id: userId, ...result });
 });
@@ -926,7 +686,9 @@ app.get("/admin/users", async (_req, res) => {
       lp.analysis_json,
       lp.created_at as profile_created_at,
       COALESCE(tu.total_tokens, 0) as total_tokens,
-      COALESCE(tu.total_cost_usd, 0) as total_cost_usd
+      COALESCE(tu.total_cost_usd, 0) as total_cost_usd,
+      COALESCE(tu.conversation_cost_usd, 0) as conversation_cost_usd,
+      COALESCE(tu.analysis_cost_usd, 0) as analysis_cost_usd
     FROM users u
     LEFT JOIN LATERAL (
       SELECT raw_answer, analysis_json, created_at
@@ -2113,6 +1875,9 @@ app.post("/new-chat/message", async (req, res) => {
       max_tokens: 500,
     });
     console.log(`[new-chat] User ${user_id}: OpenAI responded in ${Date.now() - start}ms`);
+
+    // Track token usage
+    trackTokens(user_id, `chat_${guide}`, "gpt-4o", response.usage as any);
 
     const reply = response.choices[0]?.message?.content || "";
 

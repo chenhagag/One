@@ -126,6 +126,10 @@ export async function runSummarization(
       response_format: { type: "json_object" },
     });
 
+    // Track token usage
+    const { trackTokens } = require("../../tokenTracker");
+    trackTokens(userId, "summarize", "gpt-4o-mini", response.usage);
+
     const raw = response.choices[0]?.message?.content || "{}";
     const summary: UserChatSummary = JSON.parse(raw);
 

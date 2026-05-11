@@ -1,9 +1,6 @@
 import { useState, useEffect } from "react";
 import Register from "./Register";
-import Dashboard from "./Dashboard";
 import ProfileEdit from "./ProfileEdit";
-import Chat from "./Chat";
-import PsychologistChat from "./PsychologistChat";
 import Result from "./Result";
 import AdminView from "./AdminView";
 import NewChat from "./NewChat";
@@ -14,10 +11,7 @@ type View =
   | "register"
   | "login"
   | "welcome"
-  | "dashboard"
   | "profile_edit"
-  | "chat"
-  | "psychologist_chat"
   | "result"
   | "done"
   | "admin"
@@ -164,16 +158,10 @@ export default function App() {
   const [view, setView] = useState<View>("landing");
   const [user, setUser] = useState<User | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
-  const [chatSessionKey, setChatSessionKey] = useState(0);
   const [loginEmail, setLoginEmail] = useState("");
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
   const [autoLoginDone, setAutoLoginDone] = useState(false);
-
-  // Bug report state (must be before any early return — Rules of Hooks)
-  const [showBugReport, setShowBugReport] = useState(false);
-  const [bugText, setBugText] = useState("");
-  const [bugSent, setBugSent] = useState(false);
 
   // ── Auto-login on mount ────────────────────────────────────────
   useEffect(() => {
@@ -258,30 +246,16 @@ export default function App() {
     );
   }
 
-  async function handleBugSubmit() {
-    if (!bugText.trim()) return;
-    try {
-      await fetch("/api/report-bug", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: user?.id, report_text: bugText.trim() }),
-      });
-      setBugSent(true);
-      setBugText("");
-      setTimeout(() => { setBugSent(false); setShowBugReport(false); }, 2000);
-    } catch {}
-  }
-
-  // Dashboard uses a dark theme — hide the default light header
-  const showHeader = view !== "dashboard" && view !== "landing" && view !== "admin" && view !== "welcome" && view !== "new_chat" && view !== "insights";
+  // Hide header in full-screen views
+  const showHeader = view !== "landing" && view !== "admin" && view !== "welcome" && view !== "new_chat" && view !== "insights";
 
   return (
-    <div style={view === "admin" ? { ...styles.app, maxWidth: "100%" } : view === "new_chat" ? { ...styles.app, maxWidth: "100%", padding: 0 } : view === "dashboard" ? { ...styles.app, padding: "20px" } : styles.app}>
+    <div style={view === "admin" ? { ...styles.app, maxWidth: "100%" } : view === "new_chat" ? { ...styles.app, maxWidth: "100%", padding: 0 } : styles.app}>
       {showHeader && (
         <div style={styles.header}>
           <h1
             style={{ ...styles.title, cursor: "pointer" }}
-            onClick={() => { if (user) setView("dashboard"); }}
+            onClick={() => { if (user) setView("new_chat"); }}
           >
             MatchMe
           </h1>
@@ -359,14 +333,34 @@ export default function App() {
             {user.first_name}, !ברוך/ה הבא/ה ל-MatchMe
           </h2>
           <div style={{ background: "#f8f9fa", borderRadius: 12, padding: 24, marginBottom: 20, lineHeight: 1.8, fontSize: 15, color: "#333" }}>
-            <p style={{ marginTop: 0 }}>
-              <strong>MatchMe</strong> הוא מערכת שידוכים חכמה שמתאימה בין אנשים ברמה עמוקה — בלי החלקות, בלי שיפוטיות חיצונית.
-            </p>
-            <p>
-המערכת תכיר אותך באמצעות שיחה שוטפת עם צ'אט AI.            </p>
-            <p>
-              כל מה שתספר/י נשאר חסוי לחלוטין ולא מופיע בפרופיל. ככל שתהיה יותר כנ/ה ופתוח/ה, כך ההתאמה תהיה מדויקת יותר.
-            </p>
+            {user.test_user_type === "Couple Tester" ? (
+              <>
+                <p style={{ marginTop: 0 }}>
+                  <strong>MatchMe</strong> הוא מערכת שידוכים חכמה שמתאימה בין אנשים ברמה עמוקה — על בסיס ניתוח אישיותי העולה מהיכרות באמצעות שיחה עם צ'אט AI.
+                </p>
+                <p>
+                  אנחנו כרגע בשלבי אימון המערכת על זוגות אמיתיים, כך שתלמד לדייק התאמות עבור משתמשים אמיתיים בהמשך ולמצוא מה באמת מחבר בין זוגות.
+                </p>
+                <p>
+                  כל מה שתספר/י נשאר חסוי לחלוטין ולעיני ה-AI בלבד. ככל שתענה בצורה כנה ופתוחה יותר - נוכל לדייק יותר את התוצאות.
+                </p>
+                <p>
+                  בסיום התהליך - נוכל להציג לכם תובנות על עצמכם ועל הזוגיות שלכם :)
+                </p>
+              </>
+            ) : (
+              <>
+                <p style={{ marginTop: 0 }}>
+                  <strong>MatchMe</strong> הוא מערכת שידוכים חכמה שמתאימה בין אנשים ברמה עמוקה — בלי החלקות, בלי שיפוטיות חיצונית.
+                </p>
+                <p>
+                  המערכת תכיר אותך באמצעות שיחה שוטפת עם צ'אט AI.
+                </p>
+                <p>
+                  כל מה שתספר/י נשאר חסוי לחלוטין ולא מופיע בפרופיל. ככל שתהיה יותר כנ/ה ופתוח/ה, כך ההתאמה תהיה מדויקת יותר.
+                </p>
+              </>
+            )}
             <p style={{ color: "#888", fontSize: 13 }}>
               המערכת בשלבי בנייה ובדיקות — ייתכנו באגים קטנים. נשמח לשמוע אם נתקלת בבעיה.
             </p>
@@ -374,13 +368,6 @@ export default function App() {
               תודה רבה על שיתוף הפעולה והעזרה!
             </p>
           </div>
-
-          {user.test_user_type === "Couple Tester" && (
-            <div style={{ background: "#fff3cd", borderRadius: 10, padding: 16, marginBottom: 20, fontSize: 14, lineHeight: 1.7, border: "1px solid #ffc107" }}>
-              <strong>הערה לזוגות:</strong> המטרה היא לבדוק אם המערכת מצליחה לזהות את ההתאמה בין בני זוג קיימים.
-              אנא ענה/י בכנות, כאילו את/ה רווק/ה ומחפש/ת — בדיוק כפי שהיית עונה אילו היית באמת מחפש/ת מישהו חדש.
-            </div>
-          )}
 
           {/* הנחיות התקנה כאפליקציה */}
           <div style={{ background: "#e8f4fd", borderRadius: 10, padding: 16, marginBottom: 20, fontSize: 13, lineHeight: 1.8, border: "1px solid #bee5eb" }}>
@@ -412,90 +399,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Dashboard */}
-      {view === "dashboard" && user && (
-        <>
-          {/* Top bar: logout + bug report */}
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "8px 16px 0" }}>
-            <button
-              style={{ ...styles.logoutBtn, background: showBugReport ? "#fff3cd" : undefined, borderColor: showBugReport ? "#ffc107" : undefined }}
-              onClick={() => { setShowBugReport(!showBugReport); setBugSent(false); }}
-            >
-              {showBugReport ? "סגור" : "דווח על באג"}
-            </button>
-            <button style={styles.logoutBtn} onClick={handleLogout}>
-              Logout
-            </button>
-          </div>
-
-          {/* Bug report form (inline, above dashboard) */}
-          {showBugReport && (
-            <div dir="rtl" style={{ maxWidth: 420, margin: "12px auto", padding: 16, background: "#fffde7", borderRadius: 10, border: "1px solid #ffe082" }}>
-              <textarea
-                style={{ width: "100%", minHeight: 80, padding: 10, fontSize: 14, borderRadius: 8, border: "1px solid #ddd", resize: "vertical", boxSizing: "border-box", direction: "rtl" }}
-                placeholder="תאר/י את הבאג שנתקלת בו..."
-                value={bugText}
-                onChange={e => setBugText(e.target.value)}
-              />
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
-                <button
-                  style={{ padding: "8px 20px", fontSize: 14, fontWeight: 600, background: bugSent ? "#28a745" : "#6C63FF", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer" }}
-                  onClick={handleBugSubmit}
-                  disabled={bugSent}
-                >
-                  {bugSent ? "נשלח בהצלחה!" : "שלח דיווח"}
-                </button>
-              </div>
-            </div>
-          )}
-
-          <Dashboard
-            userId={user.id}
-            userName={user.first_name}
-            onNavigate={(key) => {
-              if (key === "identity") {
-                setView("profile_edit");
-              } else if (key === "personality_lab") {
-                setChatSessionKey(k => k + 1);
-                setView("chat");
-              } else if (key === "deep_chat") {
-                setView("psychologist_chat");
-              }
-            }}
-          />
-        </>
-      )}
-
-      {/* Profile edit */}
-      {/* ProfileEdit is now rendered inside NewChat via onNavigate */}
-
-      {/* Psychologist Chat */}
-      {view === "psychologist_chat" && user && (
-        <PsychologistChat
-          user={{ id: user.id, name: user.first_name, email: user.email }}
-          onBack={() => setView("dashboard")}
-        />
-      )}
-
-      {/* AI Chat (Interviewer) */}
-      {view === "chat" && user && (
-        <Chat
-          key={`chat-${chatSessionKey}`}
-          user={{ id: user.id, name: user.first_name, email: user.email }}
-          onComplete={() => {
-            fetch("/api/conversation/analyze", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ user_id: user.id }),
-            }).catch(() => {});
-            setView("done");
-          }}
-          onPause={() => {
-            setView("dashboard");
-          }}
-        />
-      )}
-
       {/* Result display */}
       {view === "result" && user && analysis && (
         <Result
@@ -519,7 +422,7 @@ export default function App() {
           </p>
           <button
             style={{ ...styles.logoutBtn, marginTop: 24 }}
-            onClick={() => setView("dashboard")}
+            onClick={() => setView("new_chat")}
           >
             חזרה לדשבורד
           </button>
@@ -531,7 +434,7 @@ export default function App() {
         <AdminView
           onBack={() => {
             window.location.hash = "";
-            user ? setView("dashboard") : setView("landing");
+            user ? setView("new_chat") : setView("landing");
           }}
           onStartChat={(u) => {
             setUser({ id: u.id, first_name: u.first_name, email: u.email } as User);
@@ -542,7 +445,7 @@ export default function App() {
           onViewDashboard={(u) => {
             setUser({ id: u.id, first_name: u.first_name, email: u.email } as User);
             saveSession({ id: u.id, first_name: u.first_name, email: u.email } as User);
-            setView("dashboard");
+            setView("new_chat");
           }}
           onViewNewChat={(u) => {
             setUser({ id: u.id, first_name: u.first_name, email: u.email } as User);

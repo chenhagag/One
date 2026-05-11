@@ -25,7 +25,7 @@ const TOPIC_OPTIONS = [
 
 const SIDEBAR_ITEMS: { icon: string; label: string; action?: string }[] = [
   { icon: "📋", label: "הפרטים שלי", action: "profile_edit" },
-  { icon: "👤", label: "פרופיל" },
+  { icon: "👤", label: "פרופיל", action: "profile_view" },
   { icon: "💡", label: "תובנות על עצמי", action: "insights" },
   { icon: "🎯", label: "בדיקת טעם אישי", action: "taste_test" },
   { icon: "🐛", label: "דווח על באג", action: "bug_report" },
@@ -42,10 +42,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
   const [sending, setSending] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [channel, setChannel] = useState<string>("new_chat");
-  const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "insights" | "bug_report" | "settings">("home");
+  const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "profile_view" | "insights" | "bug_report" | "settings">("home");
   const [bugText, setBugText] = useState("");
   const [bugSent, setBugSent] = useState(false);
-  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number }>({ has_cognitive: true, has_taste_info: true, chat_count: 0, summary_fields: 0 });
+  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number }>({ has_cognitive: true, has_taste_info: true, chat_count: 0, summary_fields: 0, cognitive_count: 0 });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -71,6 +71,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
             has_taste_info: data.has_taste_info,
             chat_count: data.chat_count || 0,
             summary_fields: data.summary_fields || 0,
+            cognitive_count: data.cognitive_count || 0,
           });
         }
       })
@@ -231,8 +232,12 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
               onClick={() => {
                 if (!item.action) return;
                 if (item.action === "taste_test") {
-                  // Switch to taste test chat channel
-                  sendMessage("נתח את הטעם שלי לעומק", "new_chat_taste");
+                  if (channelMessages["new_chat_taste"]?.length > 0) {
+                    setChannel("new_chat_taste");
+                    setScreen("chat");
+                  } else {
+                    sendMessage("נתח את הטעם שלי לעומק", "new_chat_taste");
+                  }
                   setMenuOpen(false);
                   return;
                 }
@@ -329,6 +334,41 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
           </div>
         )}
 
+        {/* Profile View */}
+        {screen === "profile_view" && (
+          <div style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
+            <div style={{ maxWidth: 400, margin: "0 auto", padding: "32px 24px", textAlign: "center" }}>
+              <p style={{ fontSize: 12, color: "#6366f1", marginBottom: 16 }}>רצוי להעלות 3 תמונות לפחות</p>
+              {/* Photo */}
+              <div style={{ width: 140, height: 140, borderRadius: "50%", background: "#e0e0e8", margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                {(user as any)._photoUrl
+                  ? <img src={(user as any)._photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  : <span style={{ fontSize: 48, color: "#aaa" }}>{user.first_name.charAt(0)}</span>
+                }
+              </div>
+              <label style={{
+                display: "inline-block", padding: "8px 20px", fontSize: 13, fontWeight: 600,
+                background: "#6366f1", color: "#fff", borderRadius: 8, cursor: "pointer", marginBottom: 20,
+              }}>
+                העלאת תמונה
+                <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const form = new FormData();
+                  form.append("photo", file);
+                  try {
+                    await fetch(`/api/users/${user.id}/photos`, { method: "POST", body: form });
+                    // Refresh would show new photo — for now just alert
+                    alert("התמונה הועלתה בהצלחה!");
+                  } catch { alert("שגיאה בהעלאת התמונה"); }
+                }} />
+              </label>
+              <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", marginBottom: 4 }}>{user.first_name}</h2>
+              {user.age && <p style={{ fontSize: 15, color: "#666", margin: 0 }}>גיל {user.age}</p>}
+            </div>
+          </div>
+        )}
+
         {/* Chat Area — home + chat screens */}
         {(screen === "home" || screen === "chat") && (
           <>
@@ -371,11 +411,15 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
             {/* Expert recommendation — one at a time, prioritized */}
             {screen === "home" && (() => {
               const { has_cognitive, has_taste_info, summary_fields, chat_count } = recommendations;
-              const conversationAdvanced = summary_fields >= 4;
+              const isCouple = (user as any).test_user_type === "Couple Tester";
+              // Couples get recommendations earlier
+              const conversationAdvanced = isCouple ? chat_count >= 5 : summary_fields >= 4;
+              const cogDoneForCouple = isCouple ? recommendations.cognitive_count >= 3 : has_cognitive;
+              const tasteDoneForCouple = isCouple ? recommendations.cognitive_count >= 3 && has_taste_info : has_taste_info;
               const chatNotEnough = summary_fields < 8 && chat_count > 0;
 
               // Priority 1: Return to general chat if not enough data and user already started
-              if (chatNotEnough && has_cognitive && has_taste_info) {
+              if (chatNotEnough && cogDoneForCouple && tasteDoneForCouple) {
                 return (
                   <div style={styles.recommendationBlock}>
                     <p style={styles.recommendationText}>
@@ -385,7 +429,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
                 );
               }
               // Priority 2: Suggest cognitive after enough general conversation
-              if (!has_cognitive && conversationAdvanced) {
+              if (!cogDoneForCouple && conversationAdvanced) {
                 return (
                   <div style={styles.recommendationBlock}>
                     <p style={styles.recommendationText}>
@@ -395,7 +439,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
                 );
               }
               // Priority 3: Suggest taste after cognitive is done
-              if (has_cognitive && !has_taste_info) {
+              if (cogDoneForCouple && !tasteDoneForCouple) {
                 return (
                   <div style={styles.recommendationBlock}>
                     <p style={styles.recommendationText}>
@@ -424,7 +468,11 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
                   setChannel("new_chat");
                   if (channelMessages["new_chat"].length === 0) {
                     const g = user.gender === "woman";
-                    setMessagesForChannel("new_chat", () => [{ role: "assistant", content: `היי, אני מומחה ההתאמה שלך. אני כאן כדי למצוא ${g ? "לך" : "לך"} התאמה מדויקת על ידי היכרות מעמיקה.\nחשוב לי ש${g ? "תדעי" : "תדע"} שכל מה ש${g ? "את כותבת" : "אתה כותב"} לי כאן הוא לעיניי בלבד — שום דבר לא מופיע בפרופיל ${g ? "שלך" : "שלך"} ולא חשוף לאף משתמש אחר.\nככל ש${g ? "תשתפי" : "תשתף"} אותי יותר, נוכל לדייק את ההתאמה ${g ? "שלך" : "שלך"} יותר. ${g ? "מוכנה להתחיל?" : "מוכן להתחיל?"}` }]);
+                    const isCouple = (user as any).test_user_type === "Couple Tester";
+                    const greeting = isCouple
+                      ? `היי, תודה רבה על ההשתתפות בתהליך האימון שלי.\nככל שאני נבדק על זוגות רבים יותר - אני לומד לדייק את ההתאמות למשתמשים שמחפשים זוגיות אמיתית, והשתתפות ${g ? "שלך" : "שלך"} מסייעת לי מאוד.\nאשאל ${g ? "אותך" : "אותך"} שאלות כמו שהייתי שואל רווקים-רווקות אמיתיים שנכנסים למערכת, ${g ? "אשמח אם תעני" : "אשמח אם תענה"} בכנות ובטבעיות כפי ש${g ? "היית עונה אם היית" : "היית עונה אם היית"} באמת ${g ? "מחפשת" : "מחפש"} שידוך.\nבסוף התהליך ${g ? "תוכלי" : "תוכל"} גם לקבל ממני קצת תובנות על ${g ? "עצמך" : "עצמך"} ועל הזוגיות ${g ? "שלך" : "שלך"} :)\nחשוב לי ש${g ? "תדעי" : "תדע"} שכל מה ש${g ? "את כותבת" : "אתה כותב"} לי כאן הוא לעיניי בלבד — שום דבר לא מופיע בפרופיל ${g ? "שלך" : "שלך"} ולא חשוף לאף משתמש אחר.\n${g ? "מוכנה להתחיל?" : "מוכן להתחיל?"}`
+                      : `היי, אני מומחה ההתאמה שלך. אני כאן כדי למצוא ${g ? "לך" : "לך"} התאמה מדויקת על ידי היכרות מעמיקה.\nחשוב לי ש${g ? "תדעי" : "תדע"} שכל מה ש${g ? "את כותבת" : "אתה כותב"} לי כאן הוא לעיניי בלבד — שום דבר לא מופיע בפרופיל ${g ? "שלך" : "שלך"} ולא חשוף לאף משתמש אחר.\nככל ש${g ? "תשתפי" : "תשתף"} אותי יותר, נוכל לדייק את ההתאמה ${g ? "שלך" : "שלך"} יותר. ${g ? "מוכנה להתחיל?" : "מוכן להתחיל?"}`;
+                    setMessagesForChannel("new_chat", () => [{ role: "assistant", content: greeting }]);
                   }
                   setScreen("chat");
                 }}>
@@ -432,7 +480,13 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
                 </button>
                 {TOPIC_OPTIONS.map((s, i) => (
                   <button key={i} style={styles.suggestionBtn} onClick={() => {
-                    sendMessage(s.text, s.channel);
+                    if (s.channel && channelMessages[s.channel]?.length > 0) {
+                      // Already has history — just switch to that channel
+                      setChannel(s.channel);
+                      setScreen("chat");
+                    } else {
+                      sendMessage(s.text, s.channel);
+                    }
                   }}>
                     <span style={{ fontSize: 14, opacity: 0.6 }}>{s.icon}</span> {s.text}
                   </button>
@@ -448,9 +502,15 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
           <div style={styles.inputRow}>
             <textarea
               ref={inputRef}
-              style={styles.textarea}
+              style={{ ...styles.textarea, maxHeight: 120, overflowY: input.split("\n").length > 4 ? "auto" : "hidden" }}
               value={input}
-              onChange={e => setInput(e.target.value)}
+              onChange={e => {
+                setInput(e.target.value);
+                // Auto-grow textarea
+                const el = e.target;
+                el.style.height = "auto";
+                el.style.height = Math.min(el.scrollHeight, 120) + "px";
+              }}
               onKeyDown={handleKeyDown}
               placeholder="כתוב הודעה..."
               rows={1}

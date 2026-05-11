@@ -124,6 +124,7 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       good_matches              INTEGER DEFAULT 0,
       selected_guide            TEXT,
       test_user_type            TEXT,
+      partner_name              TEXT,
       created_at                TIMESTAMPTZ DEFAULT NOW(),
       updated_at                TIMESTAMPTZ DEFAULT NOW()
     );
@@ -399,6 +400,13 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
         ALTER TABLE users ADD COLUMN cognitive_score DOUBLE PRECISION;
       END IF;
 
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'partner_name'
+      ) THEN
+        ALTER TABLE users ADD COLUMN partner_name TEXT;
+      END IF;
+
       -- Category match scores on candidate_matches
       IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
@@ -446,14 +454,27 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
     END $$;
   `);
 
+  // Add topic_injection_counts to user_chat_summaries if missing
+  await pool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'user_chat_summaries' AND column_name = 'topic_injection_counts'
+      ) THEN
+        ALTER TABLE user_chat_summaries ADD COLUMN topic_injection_counts JSONB DEFAULT '{"intro":0,"relationships":0,"personality":0,"values":0,"culture":0}';
+      END IF;
+    END $$;
+  `);
+
   // ── User Chat Summaries ───────────────────────────────────────
   await pool.query(`
     CREATE TABLE IF NOT EXISTS user_chat_summaries (
-      id                  SERIAL PRIMARY KEY,
-      user_id             INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      summary_json        JSONB NOT NULL DEFAULT '{}',
-      message_count_at    INTEGER NOT NULL DEFAULT 0,
-      updated_at          TIMESTAMPTZ DEFAULT NOW(),
+      id                        SERIAL PRIMARY KEY,
+      user_id                   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      summary_json              JSONB NOT NULL DEFAULT '{}',
+      message_count_at          INTEGER NOT NULL DEFAULT 0,
+      topic_injection_counts    JSONB DEFAULT '{"intro":0,"relationships":0,"personality":0,"values":0,"culture":0}',
+      updated_at                TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(user_id)
     );
     CREATE INDEX IF NOT EXISTS idx_chat_summaries_user ON user_chat_summaries(user_id);

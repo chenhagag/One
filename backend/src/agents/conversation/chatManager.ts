@@ -33,6 +33,7 @@ const SYSTEM_CONTEXT = fs.readFileSync(path.join(PROMPTS_DIR, "context-system-in
 // Topic-based guidance prompts (injected one at a time based on coverage)
 const TOPIC_INTRO = fs.readFileSync(path.join(PROMPTS_DIR, "topic-intro.txt"), "utf-8");
 const TOPIC_RELATIONSHIPS = fs.readFileSync(path.join(PROMPTS_DIR, "topic-relationships.txt"), "utf-8");
+const TOPIC_PERSONALITY = fs.readFileSync(path.join(PROMPTS_DIR, "topic-personality.txt"), "utf-8");
 const TOPIC_VALUES = fs.readFileSync(path.join(PROMPTS_DIR, "topic-values.txt"), "utf-8");
 const TOPIC_CULTURE = fs.readFileSync(path.join(PROMPTS_DIR, "topic-culture.txt"), "utf-8");
 
@@ -75,8 +76,17 @@ const TASTE_SELECTION_ORDER = [0, 3, 9, 14, 11, 17, 21, 5, 12, 16, 7, 19, 22];
  */
 const TASTE_SELECTION_ORDER_BOTH = [0, 24+3, 9, 24+14, 11, 24+17, 21, 24+5, 12, 24+16, 7, 24+19, 22];
 
-function getTasteProfile(profiles: { id: string; text: string }[], index: number, isBoth: boolean = false): { id: string; text: string } | null {
-  const order = isBoth ? TASTE_SELECTION_ORDER_BOTH : TASTE_SELECTION_ORDER;
+/** Shorter selection for couple testers — 5 diverse profiles */
+const TASTE_SELECTION_ORDER_COUPLE = [0, 3, 9, 14, 21];
+const TASTE_SELECTION_ORDER_COUPLE_BOTH = [0, 24+3, 9, 24+14, 21];
+
+function getTasteProfile(profiles: { id: string; text: string }[], index: number, isBoth: boolean = false, isCouple: boolean = false): { id: string; text: string } | null {
+  let order: number[];
+  if (isCouple) {
+    order = isBoth ? TASTE_SELECTION_ORDER_COUPLE_BOTH : TASTE_SELECTION_ORDER_COUPLE;
+  } else {
+    order = isBoth ? TASTE_SELECTION_ORDER_BOTH : TASTE_SELECTION_ORDER;
+  }
   if (index >= order.length) return null; // Done — all shown
   const profileIdx = order[index];
   return profiles[profileIdx] ?? null;
@@ -130,47 +140,43 @@ export function detectPhase(messageCount: number): ConversationPhase {
  * Topics in order. Each topic maps to summary fields that indicate coverage.
  * When all fields for a topic are filled, we move to the next topic.
  */
-type ConversationTopic = "intro" | "relationships" | "values" | "culture";
+type ConversationTopic = "intro" | "relationships" | "personality" | "values" | "culture";
 
-const TOPIC_ORDER: { topic: ConversationTopic; fields: (keyof UserChatSummary)[]; prompt: string }[] = [
-  { topic: "intro", fields: ["general_info", "occupation"], prompt: TOPIC_INTRO },
-  { topic: "relationships", fields: ["relationships"], prompt: TOPIC_RELATIONSHIPS },
-  { topic: "values", fields: ["values"], prompt: TOPIC_VALUES },
-  { topic: "culture", fields: ["background_culture", "social_style", "taste_and_style"], prompt: TOPIC_CULTURE },
+const TOPIC_ORDER: { topic: ConversationTopic; prompt: string; minInjections: number }[] = [
+  { topic: "intro", prompt: TOPIC_INTRO, minInjections: 3 },
+  { topic: "relationships", prompt: TOPIC_RELATIONSHIPS, minInjections: 3 },
+  { topic: "personality", prompt: TOPIC_PERSONALITY, minInjections: 4 },
+  { topic: "values", prompt: TOPIC_VALUES, minInjections: 3 },
+  { topic: "culture", prompt: TOPIC_CULTURE, minInjections: 2 },
 ];
 
-/**
- * Quick keyword scan on recent history to detect topics already discussed.
- * Runs on the history array that's already sent with each request — no DB query needed.
- */
-const TOPIC_KEYWORDS: Record<ConversationTopic, RegExp[]> = {
-  intro: [/עובד|עבודה|לומד|לימודים|תואר|אוניברסיטה|מכללה|גר ב|גדלתי|מאיפה את/i],
-  relationships: [/מחפש|מושך|זוגיות|מערכת יחסים|בן זוג|בת זוג|אקס|נפרדנו|יחסים קודמ/i],
-  values: [/חשוב לי|ערך|לא מתפשר|מפריע|נלחם על|שינית דעה|בן אדם טוב/i],
-  culture: [/מוזיקה|סרט|סדרה|ספר|תחביב|סופש|חברים|מבלה|זמן פנוי/i],
-};
+/** Topic injection counts — how many times each topic was served as the active topic */
+export type TopicInjectionCounts = Record<ConversationTopic, number>;
 
-function detectTopicsInHistory(history: { role: string; content: string }[]): Set<ConversationTopic> {
-  const discussed = new Set<ConversationTopic>();
-  // Scan both user and assistant messages — if the AI asked about relationships and user answered, it's covered
-  const text = history.map(m => m.content).join(" ");
-  for (const [topic, patterns] of Object.entries(TOPIC_KEYWORDS) as [ConversationTopic, RegExp[]][]) {
-    for (const p of patterns) {
-      if (p.test(text)) {
-        discussed.add(topic);
-        break;
-      }
-    }
-  }
-  return discussed;
+/** Load topic injection counts from DB (stored in user_chat_summaries) */
+async function getTopicInjectionCounts(userId: number): Promise<TopicInjectionCounts> {
+  const row = await pgQueryOne<{ topic_injection_counts: TopicInjectionCounts }>(
+    "SELECT topic_injection_counts FROM user_chat_summaries WHERE user_id = $1",
+    [userId]
+  );
+  return row?.topic_injection_counts || { intro: 0, relationships: 0, personality: 0, values: 0, culture: 0 };
 }
 
+
 /**
- * Detect which topic the user's CURRENT message is steering toward.
- * Returns the topic if detected, null if the message is generic.
+ * Keywords for detecting what topic the user is REQUESTING to discuss.
+ * Used only for steering — when user explicitly asks about a topic.
  */
+const TOPIC_STEER_KEYWORDS: Record<ConversationTopic, RegExp[]> = {
+  intro: [/עובד|עבודה|לומד|לימודים|תואר|אוניברסיטה|מכללה|גר ב|גדלתי/i],
+  relationships: [/מחפש|זוגיות|מערכת יחסים|בן זוג|בת זוג|אקס|נפרדנו/i],
+  personality: [/אופי|אישיות|קונפליקט|מתנהג|מגיב|מתמודד/i],
+  values: [/ערך|ערכים|חשוב לי|לא מתפשר|מפריע|דת|מסורת|פוליטי/i],
+  culture: [/מוזיקה|סרט|סדרה|ספר|תחביב|סופש|חברים|מבלה/i],
+};
+
 function detectUserRequestedTopic(message: string): ConversationTopic | null {
-  for (const [topic, patterns] of Object.entries(TOPIC_KEYWORDS) as [ConversationTopic, RegExp[]][]) {
+  for (const [topic, patterns] of Object.entries(TOPIC_STEER_KEYWORDS) as [ConversationTopic, RegExp[]][]) {
     for (const p of patterns) {
       if (p.test(message)) return topic;
     }
@@ -183,27 +189,15 @@ function detectUserRequestedTopic(message: string): ConversationTopic | null {
  * 1. User's current message direction (highest priority — follow the user)
  * 2. Summary coverage + history scan (fallback — pick first uncovered topic)
  */
+/**
+ * Determine the current topic based on injection counts.
+ * A topic is "covered" when it was injected >= minInjections times.
+ * User steering takes priority.
+ */
 function getCurrentTopic(
-  summary: UserChatSummary | null,
-  history: { role: string; content: string }[],
+  injectionCounts: TopicInjectionCounts,
   currentMessage: string,
 ): { topic: ConversationTopic; prompt: string } {
-  const discussedInHistory = detectTopicsInHistory(history);
-
-  // Build list of uncovered topics (not in summary AND not in history)
-  const uncovered: ConversationTopic[] = [];
-  for (const entry of TOPIC_ORDER) {
-    const coveredBySummary = summary && entry.fields.every(field => {
-      const val = summary[field];
-      return val && typeof val === "string" && val.trim().length > 0;
-    });
-    const coveredByHistory = discussedInHistory.has(entry.topic);
-
-    if (!coveredBySummary && !coveredByHistory) {
-      uncovered.push(entry.topic);
-    }
-  }
-
   // If user's current message steers toward a specific topic — follow them
   const userRequested = detectUserRequestedTopic(currentMessage);
   if (userRequested) {
@@ -211,18 +205,17 @@ function getCurrentTopic(
     return { topic: userRequested, prompt: entry.prompt };
   }
 
-  // Default: first uncovered topic in order
-  if (uncovered.length > 0) {
-    const entry = TOPIC_ORDER.find(e => e.topic === uncovered[0])!;
-    return { topic: uncovered[0], prompt: entry.prompt };
+  // Find first topic that hasn't been injected enough times
+  for (const entry of TOPIC_ORDER) {
+    const count = injectionCounts[entry.topic] || 0;
+    if (count < entry.minInjections) {
+      return { topic: entry.topic, prompt: entry.prompt };
+    }
   }
 
   // All topics covered — fallback to culture
   return { topic: "culture", prompt: TOPIC_CULTURE };
 }
-
-/** Minimum filled fields in summary to suggest cognitive/taste */
-const MIN_FIELDS_FOR_COGNITIVE_SUGGESTION = 5;
 
 /** Total content fields in summary (excluding notable_quotes) */
 const TOTAL_SUMMARY_FIELDS = 8;
@@ -238,86 +231,30 @@ function countSummaryFields(summary: UserChatSummary | null): number {
   return fields.filter(f => f && typeof f === "string" && f.trim().length > 0).length;
 }
 
+/** Fetch cognitive + taste message counts in a single query */
+async function getChannelCounts(userId: number): Promise<{ cogCount: number; tasteCount: number }> {
+  const result = await pgQueryOne<{ cog: string; taste: string }>(
+    `SELECT
+       COUNT(*) FILTER (WHERE guide = 'new_chat_cognitive') as cog,
+       COUNT(*) FILTER (WHERE guide = 'new_chat_taste') as taste
+     FROM conversation_messages
+     WHERE user_id = $1 AND role = 'user' AND guide IN ('new_chat_cognitive', 'new_chat_taste')`,
+    [userId]
+  );
+  return {
+    cogCount: parseInt(result?.cog || "0", 10),
+    tasteCount: parseInt(result?.taste || "0", 10),
+  };
+}
+
 /** Check if all channels are complete */
-async function isFullyCovered(userId: number, summary: UserChatSummary | null): Promise<{ allDone: boolean; cogDone: boolean; tasteDone: boolean; chatDone: boolean }> {
+function isFullyCovered(summary: UserChatSummary | null, cogCount: number, tasteCount: number, isCouple: boolean = false): { allDone: boolean; cogDone: boolean; tasteDone: boolean; chatDone: boolean } {
   const chatDone = countSummaryFields(summary) >= TOTAL_SUMMARY_FIELDS;
-
-  const cogResult = await pgQueryOne<{ count: string }>(
-    `SELECT COUNT(*) as count FROM conversation_messages WHERE user_id = $1 AND guide = 'new_chat_cognitive' AND role = 'user'`,
-    [userId]
-  );
-  const cogDone = parseInt(cogResult?.count || "0", 10) >= 7;
-
-  const tasteResult = await pgQueryOne<{ count: string }>(
-    `SELECT COUNT(*) as count FROM conversation_messages WHERE user_id = $1 AND guide = 'new_chat_taste' AND role = 'user'`,
-    [userId]
-  );
-  const tasteDone = parseInt(tasteResult?.count || "0", 10) >= 7;
-
+  const cogDone = cogCount >= (isCouple ? 4 : 7);
+  const tasteDone = tasteCount >= (isCouple ? 5 : 7);
   return { allDone: chatDone && cogDone && tasteDone, cogDone, tasteDone, chatDone };
 }
 
-/**
- * Check if we should suggest cognitive questions to the user.
- */
-async function shouldSuggestCognitive(userId: number, summary: UserChatSummary | null): Promise<boolean> {
-  // Check if user already has cognitive messages
-  const cogResult = await pgQueryOne<{ count: string }>(
-    `SELECT COUNT(*) as count FROM conversation_messages
-     WHERE user_id = $1 AND guide = 'new_chat_cognitive' AND role = 'user'`,
-    [userId]
-  );
-  const cogCount = parseInt(cogResult?.count || "0", 10);
-  if (cogCount >= 3) return false; // Already done cognitive
-
-  if (!summary) return false;
-
-  const fields = [
-    summary.general_info, summary.occupation, summary.background_culture,
-    summary.social_style, summary.taste_and_style, summary.relationships,
-    summary.values, summary.intellectual_world,
-  ];
-  const filled = fields.filter(f => f && f.trim().length > 0).length;
-  return filled >= MIN_FIELDS_FOR_COGNITIVE_SUGGESTION;
-}
-
-const COGNITIVE_SUGGESTION_INSTRUCTION = `
-
-## הנחיה מיוחדת — חובה להפנות למדור סגנון חשיבה
-
-יש לך מספיק מידע על המשתמש בתחומים הכלליים. חובה: בתגובה הזו, אחרי שתגיב בקצרה למה שאמר, הוסף הפניה ללחוץ על "בוא נבין את סגנון החשיבה שלי" במסך הראשי.
-דוגמה: "אגב, כדי שאוכל לדייק את ההתאמה — ממליץ לך ללחוץ על 'בוא נבין את סגנון החשיבה שלי' במסך הראשי."
-אל תשכח לכלול את ההפניה הזו בתגובה.`;
-
-const TASTE_SUGGESTION_INSTRUCTION = `
-
-## הנחיה מיוחדת — חובה להפנות לבדיקת טעם
-
-כבר יש מספיק מידע על סגנון החשיבה. חובה: בתגובה הזו, אחרי שתגיב בקצרה, הוסף הפניה ללחוץ על "נתח את הטעם שלי לעומק" במסך הראשי.
-דוגמה: "מצוין! עכשיו כדי לדייק עוד יותר — ממליץ ללחוץ על 'נתח את הטעם שלי לעומק' במסך הראשי."
-אל תשכח לכלול את ההפניה הזו בתגובה.`;
-
-/**
- * Check if we should suggest taste test to the user.
- * Only when cognitive is done but taste is not.
- */
-async function shouldSuggestTaste(userId: number): Promise<boolean> {
-  const cogResult = await pgQueryOne<{ count: string }>(
-    `SELECT COUNT(*) as count FROM conversation_messages
-     WHERE user_id = $1 AND guide = 'new_chat_cognitive' AND role = 'user'`,
-    [userId]
-  );
-  const cogCount = parseInt(cogResult?.count || "0", 10);
-  if (cogCount < 3) return false; // Cognitive not done yet
-
-  const tasteResult = await pgQueryOne<{ count: string }>(
-    `SELECT COUNT(*) as count FROM conversation_messages
-     WHERE user_id = $1 AND guide = 'new_chat_taste' AND role = 'user'`,
-    [userId]
-  );
-  const tasteCount = parseInt(tasteResult?.count || "0", 10);
-  return tasteCount < 3; // Taste not done yet
-}
 
 // ── Couple tester instruction ──────────────────────────────────
 
@@ -325,11 +262,12 @@ const COUPLE_TESTER_INSTRUCTION = `
 
 ## הערה חשובה — המשתמש הוא חלק מזוג שבודק את המערכת
 
-המשתמש הזה נמצא בזוגיות ומשתתף כדי לעזור לנו לבדוק את דיוק ההתאמות. בהודעה הראשונה שלך (אם אין היסטוריה), תודה לו על ההשתתפות והסבר בקצרה: "אנחנו שואלים אותך שאלות כדי להכיר אותך לעומק ולבדוק אם המערכת מצליחה לזהות התאמות בצורה מדויקת. בסוף תוכל לראות תובנות על עצמך ונקודות חוזקה לגבי הזוגיות שלך."
+המשתמש הזה נמצא בזוגיות ומשתתף כדי לעזור לנו לבדוק את דיוק ההתאמות.
 
 התאמות לשיחה:
 - כששואל על מערכות יחסים קודמות — שאל על מה שהיה לפני הזוגיות הנוכחית
 - אל תניח שהוא רווק — הוא בזוגיות
+- אל תחזור על "תודה על ההשתתפות" — זה כבר נאמר בהודעה הראשונה
 - חוץ מזה, נהל את השיחה בדיוק כרגיל — כל השאלות והנושאים רלוונטיים`;
 
 // ── Gender instruction builder ──────────────────────────────────
@@ -379,8 +317,10 @@ export async function buildChatPrompt(
   const genderInstruction = buildGenderInstruction(gender, lookingForGender);
   const coupleInstruction = testUserType === "Couple Tester" ? COUPLE_TESTER_INSTRUCTION : "";
 
-  // Load summary once — reused across all channel logic
+  // Load summary + channel counts + topic injection counts once — reused across all logic
   const { summary: userSummary } = await getUserSummary(userId);
+  const { cogCount, tasteCount } = await getChannelCounts(userId);
+  const topicCounts = await getTopicInjectionCounts(userId);
 
   // Cognitive channel uses a completely separate prompt
   if (channel === "new_chat_cognitive") {
@@ -392,30 +332,11 @@ export async function buildChatPrompt(
       }
     }
 
-    // Count cognitive user messages to detect when to close
-    const cogCountResult = await pgQueryOne<{ count: string }>(
-      `SELECT COUNT(*) as count FROM conversation_messages WHERE user_id = $1 AND guide = 'new_chat_cognitive' AND role = 'user'`,
-      [userId]
-    );
-    const cogUserMsgCount = parseInt(cogCountResult?.count || "0", 10);
-
-    // After ~10 user messages — close and navigate
+    // After ~10 user messages — close (couples: after 4)
     // Note: current message not yet saved to DB, so count is N-1
-    if (cogUserMsgCount >= 9) {
-      const coverage = await isFullyCovered(userId, userSummary);
-
-      let navSuggestion = "";
-      if (coverage.allDone) {
-        navSuggestion = `כתוב הודעת סיום: "תודה רבה על הפתיחות! אנחנו מתחילים לנתח את הפרופיל שלך ולבדוק התאמות אפשריות. נעדכן אותך כשנמצא אפשרויות מתאימות, או אם נצטרך ממך מידע נוסף. אנחנו כאן לכל מה שתצטרך."\nאם המשתמש ממשיך לכתוב — המשך איתו ונסה לסגור שוב בעדינות.`;
-      } else if (!coverage.tasteDone) {
-        navSuggestion = `המלץ למשתמש: "עכשיו אני ממליץ ללחוץ על 'נתח את הטעם שלי לעומק' במסך הראשי — זה יעזור לי לדייק את ההתאמה עוד יותר."`;
-      } else if (!coverage.chatDone) {
-        navSuggestion = `המלץ למשתמש: "מומלץ לחזור לשיחה הראשית כדי שנוכל להמשיך להכיר אותך — לחץ על 'בוא נמשיך' במסך הראשי."`;
-      } else {
-        navSuggestion = `ספר למשתמש שאספנו מספיק מידע ושאנחנו מעבדים את הנתונים כדי למצוא לו התאמה מדויקת.`;
-      }
-
-      cognitiveExtra += `\n\n## שלב: סיום\nאתה מרגיש שהצלחת לקלוט מספיק מסגנון החשיבה של המשתמש. סגור בחיוב: ספר שהתשובות היו מעניינות ושזה עוזר לך מאוד להבין את סגנון החשיבה שלו. אל תתן תובנות על אישיות המשתמש — רק סגירה חיובית.\n${navSuggestion}`;
+    const cogCloseThreshold = testUserType === "Couple Tester" ? 4 : 9;
+    if (cogCount >= cogCloseThreshold) {
+      cognitiveExtra += `\n\n## שלב: סיום\nאתה מרגיש שהצלחת לקלוט מספיק מסגנון החשיבה של המשתמש. סגור בחיוב: ספר שהתשובות היו מעניינות ושזה עוזר לך מאוד להבין את סגנון החשיבה שלו. אל תתן תובנות על אישיות המשתמש — רק סגירה חיובית.\nכתוב: "תודה, זה מאוד עוזר לי להבין את סגנון החשיבה שלך. אם יש עוד משהו — אני כאן."`;
     }
 
     const systemPrompt = COGNITIVE_PROMPT + genderInstruction + coupleInstruction + cognitiveExtra;
@@ -424,13 +345,7 @@ export async function buildChatPrompt(
 
   // Taste test channel — slim prompt + one profile at a time
   if (channel === "new_chat_taste") {
-    // Count existing taste test user messages to determine progress
-    const tasteCountResult = await pgQueryOne<{ count: string }>(
-      `SELECT COUNT(*) as count FROM conversation_messages
-       WHERE user_id = $1 AND guide = 'new_chat_taste' AND role = 'user'`,
-      [userId]
-    );
-    const tasteUserMsgCount = parseInt(tasteCountResult?.count || "0", 10);
+    const tasteUserMsgCount = tasteCount; // from getChannelCounts()
 
     // Select the right profile bank
     const profileBank = lookingForGender === "woman" ? TASTE_PROFILES_FEMALE
@@ -464,7 +379,8 @@ export async function buildChatPrompt(
 
     // Profile index: first profile at profileStartMsg, then +1 per msg
     const profileIndex = tasteUserMsgCount <= profileStartMsg ? 0 : tasteUserMsgCount - profileStartMsg;
-    const currentProfile = getTasteProfile(profileBank, profileIndex, isBoth);
+    const isCoupleTest = testUserType === "Couple Tester";
+    const currentProfile = getTasteProfile(profileBank, profileIndex, isBoth, isCoupleTest);
 
     let phaseInstruction = "";
     if (tasteUserMsgCount === 0) {
@@ -504,20 +420,10 @@ export async function buildChatPrompt(
       profileBlock = `\n\n## הפרופיל להצגה\n\n${currentProfile.text}`;
     }
 
-    // Dynamic navigation at end — check what user still needs to do
+    // End of taste test — simple closing, frontend handles navigation
     let navigationInstruction = "";
     if (!currentProfile && tasteUserMsgCount > 1) {
-      const coverage = await isFullyCovered(userId, userSummary);
-
-      if (coverage.allDone) {
-        navigationInstruction = `\n\nאחרי הסיכום והחידוד, כתוב הודעת סיום: "תודה רבה על הפתיחות! אנחנו מתחילים לנתח את הפרופיל שלך ולבדוק התאמות אפשריות. נעדכן אותך כשנמצא אפשרויות מתאימות, או אם נצטרך ממך מידע נוסף. אנחנו כאן לכל מה שתצטרך."\nאם המשתמש ממשיך לכתוב — המשך איתו ונסה לסגור שוב בעדינות.`;
-      } else if (!coverage.cogDone) {
-        navigationInstruction = `\n\nאחרי הסיכום, המלץ למשתמש: "עכשיו אני ממליץ ללחוץ על 'בוא נבין את סגנון החשיבה שלי' במסך הראשי — זה יעזור לי לדייק את ההתאמה עוד יותר."`;
-      } else if (!coverage.chatDone) {
-        navigationInstruction = `\n\nאחרי הסיכום, המלץ למשתמש: "מומלץ לחזור לשיחה הראשית כדי שנוכל להמשיך להכיר אותך — לחץ על 'בוא נמשיך' במסך הראשי."`;
-      } else {
-        navigationInstruction = `\n\nאחרי הסיכום, ספר למשתמש שאספנו מספיק מידע ושאנחנו מעבדים את הנתונים כדי למצוא לו התאמה מדויקת.`;
-      }
+      navigationInstruction = `\n\nאחרי הסיכום והחידוד, כתוב: "תודה על הפתיחות, זה מאוד עוזר לי לדייק את ההתאמה. אם יש עוד משהו שתרצה להוסיף — אני כאן."`;
     }
 
     const systemPrompt = TASTE_TEST_PROMPT + genderInstruction + coupleInstruction + phaseInstruction + profileBlock + reentryInstruction + navigationInstruction;
@@ -548,50 +454,73 @@ export async function buildChatPrompt(
 
   // Topic-based guidance (RAG) — inject only the current topic's prompt
   let topicBlock = "";
-  let cognitiveSuggestion = "";
 
   if (intent === "general") {
-    const { prompt: topicPrompt } = getCurrentTopic(userSummary, history, message);
+    const { topic: currentTopic, prompt: topicPrompt } = getCurrentTopic(topicCounts, message);
     topicBlock = "\n\n" + topicPrompt;
 
-    // Check if we should suggest cognitive or taste test navigation
-    // Use both summary fields AND history length — summarizer may lag behind
-    const historyCoversEnough = history.length >= 12; // ~6 exchanges = enough for suggestion
-    if (phase === "middle" || phase === "deep") {
-      const suggestCognitive = await shouldSuggestCognitive(userId, userSummary);
-      if (suggestCognitive || (historyCoversEnough && !userSummary)) {
-        // Double-check cognitive not already done
-        const cogCheck = await pgQueryOne<{ count: string }>(
-          `SELECT COUNT(*) as count FROM conversation_messages WHERE user_id = $1 AND guide = 'new_chat_cognitive' AND role = 'user'`,
-          [userId]
-        );
-        if (parseInt(cogCheck?.count || "0", 10) < 3) {
-          cognitiveSuggestion = COGNITIVE_SUGGESTION_INSTRUCTION;
-        }
-      }
-      if (!cognitiveSuggestion) {
-        const suggestTaste = await shouldSuggestTaste(userId);
-        if (suggestTaste) {
-          cognitiveSuggestion = TASTE_SUGGESTION_INSTRUCTION;
-        }
+    // Increment topic count every OTHER substantive message per topic.
+    // _skip_topic stores which topic was last incremented. If same topic → skip (follow-up turn).
+    // If different topic or first time → increment (new bank question).
+    const isSubstantive = message.trim().length >= 15;
+    const lastIncrementedTopic = (topicCounts as any)._last_incremented || "";
+
+    if (isSubstantive) {
+      if (lastIncrementedTopic === currentTopic) {
+        // Same topic as last increment → this is a follow-up turn, skip but clear
+        const updated = { ...topicCounts, _last_incremented: "" };
+        pgQueryOne(
+          `INSERT INTO user_chat_summaries (user_id, summary_json, message_count_at, topic_injection_counts, updated_at)
+           VALUES ($1, '{}'::jsonb, 0, $2::jsonb, NOW())
+           ON CONFLICT (user_id) DO UPDATE SET topic_injection_counts = $2::jsonb, updated_at = NOW()`,
+          [userId, JSON.stringify(updated)]
+        ).catch(() => {});
+      } else {
+        // Different topic or cleared → this is a bank question turn, increment
+        const updated = { ...topicCounts, [currentTopic]: (topicCounts[currentTopic] || 0) + 1, _last_incremented: currentTopic };
+        pgQueryOne(
+          `INSERT INTO user_chat_summaries (user_id, summary_json, message_count_at, topic_injection_counts, updated_at)
+           VALUES ($1, '{}'::jsonb, 0, $2::jsonb, NOW())
+           ON CONFLICT (user_id) DO UPDATE SET topic_injection_counts = $2::jsonb, updated_at = NOW()`,
+          [userId, JSON.stringify(updated)]
+        ).catch(() => {});
       }
     }
   }
 
-  // Check for full closing — all channels complete (only when no other suggestion active)
+  // Closing logic — managed as a state machine via _closing_stage in topicCounts
+  // Stage 0 (or absent): not closing yet
+  // Stage 1: all topics covered → inject "give insight + ask if accurate"
+  // Stage 2: user responded to insight → inject "thank + close"
   let closingInstruction = "";
-  if (intent === "general" && !cognitiveSuggestion) {
-    const coverage = await isFullyCovered(userId, userSummary);
-    if (coverage.allDone) {
-      closingInstruction = `\n\n## שלב: סגירת שיחה\nכל הנושאים כוסו. תגיב למה שהמשתמש אמר, ואז תן תובנה קצרה (2-3 משפטים) על מה שלמדת עליו ועל מה הוא מחפש. שאל "דייקתי?" — אם הוא מתקן, המשך עוד כמה הודעות כדי להבהיר.\nכשמסיימים, כתוב משהו בסגנון: "תודה רבה על הפתיחות! אנחנו מתחילים לנתח את הפרופיל שלך ולבדוק התאמות אפשריות. נעדכן אותך כשנמצא אפשרויות מתאימות, או אם נצטרך ממך מידע נוסף. אנחנו כאן לכל מה שתצטרך."\nאם המשתמש ממשיך לכתוב אחרי הסיום — המשך איתו בשיחה, ענה לצורך שלו, ואחרי כמה הודעות נסה לסגור שוב בעדינות.`;
-    } else if (coverage.chatDone && !coverage.cogDone) {
-      cognitiveSuggestion = COGNITIVE_SUGGESTION_INSTRUCTION;
-    } else if (coverage.chatDone && !coverage.tasteDone) {
-      cognitiveSuggestion = TASTE_SUGGESTION_INSTRUCTION;
+  if (intent === "general") {
+    const closingStage = (topicCounts as any)._closing_stage || 0;
+    const allTopicsCovered = TOPIC_ORDER.every(entry => (topicCounts[entry.topic] || 0) >= entry.minInjections);
+
+    if (closingStage === 2) {
+      // Stage 2: user responded to our insight — close the conversation
+      closingInstruction = `\n\n## שלב: סגירת שיחה\nתגיב בקצרה למה שהמשתמש אמר (אם תיקן — הכר בתיקון). ואז כתוב הודעת סיום:\n"תודה רבה על הפתיחות! אנחנו מתחילים לנתח את הפרופיל שלך ולבדוק התאמות אפשריות. נעדכן אותך כשנמצא אפשרויות מתאימות, או אם נצטרך ממך מידע נוסף. אנחנו כאן לכל מה שתצטרך."`;
+    } else if (closingStage === 1) {
+      // Stage 1 was set last turn — now advance to stage 2
+      const updated = { ...topicCounts, _closing_stage: 2 };
+      pgQueryOne(
+        `UPDATE user_chat_summaries SET topic_injection_counts = $1::jsonb, updated_at = NOW() WHERE user_id = $2`,
+        [JSON.stringify(updated), userId]
+      ).catch(() => {});
+      // Still inject insight instruction (in case stage 1 reply didn't include it)
+      closingInstruction = `\n\n## שלב: תובנה וסיכום\nתגיב למה שהמשתמש אמר, ואז תן תובנה קצרה (2-3 משפטים) על מה שלמדת עליו — מה מאפיין אותו, מה הוא מחפש, ומה לדעתך ידבר אליו בבן/בת זוג. שאל: "דייקתי? יש משהו שהיית רוצה להוסיף או לתקן?"`;
+    } else if (allTopicsCovered && closingStage === 0) {
+      // All topics done — enter stage 1: give insight
+      const updated = { ...topicCounts, _closing_stage: 1 };
+      pgQueryOne(
+        `UPDATE user_chat_summaries SET topic_injection_counts = $1::jsonb, updated_at = NOW() WHERE user_id = $2`,
+        [JSON.stringify(updated), userId]
+      ).catch(() => {});
+      closingInstruction = `\n\n## שלב: תובנה וסיכום\nכיסינו את כל הנושאים. תגיב למה שהמשתמש אמר, ואז תן תובנה קצרה (2-3 משפטים) על מה שלמדת עליו — מה מאפיין אותו, מה הוא מחפש, ומה לדעתך ידבר אליו בבן/בת זוג. שאל: "דייקתי? יש משהו שהיית רוצה להוסיף או לתקן?"`;
     }
   }
 
-  const systemPrompt = BASE_PROMPT + genderInstruction + coupleInstruction + topicBlock + contextBlock + cognitiveSuggestion + closingInstruction;
+  const systemPrompt = BASE_PROMPT + genderInstruction + coupleInstruction + topicBlock + contextBlock + closingInstruction;
 
   return { systemPrompt, intent, phase };
 }

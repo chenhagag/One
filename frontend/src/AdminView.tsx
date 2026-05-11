@@ -257,7 +257,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   const [resetting, setResetting] = useState(false);
   const [transcript, setTranscript] = useState<any>(null);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
-  const [transcriptTab, setTranscriptTab] = useState<"all" | "interviewer" | "psychologist" | "new_chat">("all");
+  const [transcriptTab, setTranscriptTab] = useState<string>("all");
   const [copied, setCopied] = useState<string | false>(false);
   const [analysisRun, setAnalysisRun] = useState<any>(null);
   const [showPrompt, setShowPrompt] = useState(false);
@@ -1326,13 +1326,23 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
 
       {/* Full Conversation */}
       {transcript && transcript.messages?.length > 0 && (() => {
+        // Build per-channel message groups
+        const channelGroups: { key: string; label: string; color: string; msgs: any[] }[] = [];
         const interviewerMsgs = transcript.messages.filter((m: any) => m.chat_type === "interviewer");
         const psychMsgs = transcript.messages.filter((m: any) => m.chat_type === "psychologist");
-        const allNewChatMsgs = transcript.messages.filter((m: any) => m.chat_type?.startsWith("new_chat"));
-        const filteredMsgs = transcriptTab === "interviewer" ? interviewerMsgs
-          : transcriptTab === "psychologist" ? psychMsgs
-          : transcriptTab === "new_chat" ? allNewChatMsgs
-          : transcript.messages;
+        const generalMsgs = transcript.messages.filter((m: any) => m.chat_type === "new_chat");
+        const cognitiveMsgs = transcript.messages.filter((m: any) => m.chat_type === "new_chat_cognitive");
+        const tasteMsgs = transcript.messages.filter((m: any) => m.chat_type === "new_chat_taste");
+
+        // Only show tabs that have messages
+        if (interviewerMsgs.length > 0) channelGroups.push({ key: "interviewer", label: `מעבדת אישיות (${interviewerMsgs.length})`, color: "#e67e22", msgs: interviewerMsgs });
+        if (psychMsgs.length > 0) channelGroups.push({ key: "psychologist", label: `שיחת עומק (${psychMsgs.length})`, color: "#7c3aed", msgs: psychMsgs });
+        if (generalMsgs.length > 0) channelGroups.push({ key: "new_chat", label: `צ'אט כללי (${generalMsgs.length})`, color: "#6366f1", msgs: generalMsgs });
+        if (cognitiveMsgs.length > 0) channelGroups.push({ key: "new_chat_cognitive", label: `סגנון חשיבה (${cognitiveMsgs.length})`, color: "#0ea5e9", msgs: cognitiveMsgs });
+        if (tasteMsgs.length > 0) channelGroups.push({ key: "new_chat_taste", label: `ניתוח טעם (${tasteMsgs.length})`, color: "#ec4899", msgs: tasteMsgs });
+
+        const filteredMsgs = transcriptTab === "all" ? transcript.messages
+          : (channelGroups.find(g => g.key === transcriptTab)?.msgs || transcript.messages);
         return (
         <>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16, flexWrap: "wrap" }}>
@@ -1343,44 +1353,24 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
             >
               {transcriptOpen ? "Hide" : "Show"}
             </button>
-            <button
-              style={{ padding: "3px 10px", fontSize: 11, cursor: "pointer", background: copied === "lab" ? "#d4edda" : "#f0f4ff", border: "1px solid #ddd", borderRadius: 4 }}
-              onClick={() => {
-                const text = interviewerMsgs
-                  .map((m: any) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
-                  .join("\n\n");
-                navigator.clipboard.writeText(text).then(() => { setCopied("lab"); setTimeout(() => setCopied(false), 2000); });
-              }}
-            >
-              {copied === "lab" ? "Copied!" : `Copy Lab (${interviewerMsgs.length})`}
-            </button>
-            <button
-              style={{ padding: "3px 10px", fontSize: 11, cursor: "pointer", background: copied === "psych" ? "#d4edda" : "#f0f4ff", border: "1px solid #ddd", borderRadius: 4 }}
-              onClick={() => {
-                const text = psychMsgs
-                  .map((m: any) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
-                  .join("\n\n");
-                navigator.clipboard.writeText(text).then(() => { setCopied("psych"); setTimeout(() => setCopied(false), 2000); });
-              }}
-            >
-              {copied === "psych" ? "Copied!" : `Copy Depth (${psychMsgs.length})`}
-            </button>
-            <button
-              style={{ padding: "3px 10px", fontSize: 11, cursor: "pointer", background: copied === "new" ? "#d4edda" : "#f0f4ff", border: "1px solid #ddd", borderRadius: 4 }}
-              onClick={() => {
-                const text = allNewChatMsgs
-                  .map((m: any) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
-                  .join("\n\n");
-                navigator.clipboard.writeText(text).then(() => { setCopied("new"); setTimeout(() => setCopied(false), 2000); });
-              }}
-            >
-              {copied === "new" ? "Copied!" : `Copy New Chat (${allNewChatMsgs.length})`}
-            </button>
+            {/* Copy buttons — one per non-empty channel + Copy All */}
+            {channelGroups.map(g => (
+              <button key={`copy-${g.key}`}
+                style={{ padding: "3px 10px", fontSize: 11, cursor: "pointer", background: copied === g.key ? "#d4edda" : "#f0f4ff", border: "1px solid #ddd", borderRadius: 4 }}
+                onClick={() => {
+                  const text = g.msgs.map((m: any) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`).join("\n\n");
+                  navigator.clipboard.writeText(text).then(() => { setCopied(g.key); setTimeout(() => setCopied(false), 2000); });
+                }}
+              >
+                {copied === g.key ? "Copied!" : `Copy ${g.label}`}
+              </button>
+            ))}
             <button
               style={{ padding: "3px 10px", fontSize: 11, cursor: "pointer", background: copied === "all" ? "#d4edda" : "#fff", border: "1px solid #ddd", borderRadius: 4 }}
               onClick={() => {
+                const tagNames: Record<string, string> = { interviewer: "Lab", psychologist: "Depth", new_chat: "General", new_chat_cognitive: "Cognitive", new_chat_taste: "Taste" };
                 const text = transcript.messages
-                  .map((m: any) => `[${m.chat_type === "psychologist" ? "Depth" : "Lab"}] ${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+                  .map((m: any) => `[${tagNames[m.chat_type] || m.chat_type}] ${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
                   .join("\n\n");
                 navigator.clipboard.writeText(text).then(() => { setCopied("all"); setTimeout(() => setCopied(false), 2000); });
               }}
@@ -1390,13 +1380,17 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
           </div>
           {transcriptOpen && (
             <>
-              {/* Tabs for chat type */}
-              <div style={{ display: "flex", gap: 4, marginBottom: 8, marginTop: 8 }}>
-                {([["all", `הכל (${transcript.messages.length})`], ["interviewer", `מעבדת האישיות (${interviewerMsgs.length})`], ["psychologist", `שיחת עומק (${psychMsgs.length})`], ["new_chat", `צ'אט חדש (${allNewChatMsgs.length})`]] as [string, string][]).map(([key, label]) => (
-                  <button key={key} onClick={() => setTranscriptTab(key as any)} style={{
-                    padding: "4px 12px", fontSize: 11, border: "1px solid #ddd", borderRadius: 4, cursor: "pointer",
-                    background: transcriptTab === key ? "#1a1a1a" : "#fff", color: transcriptTab === key ? "#fff" : "#333",
-                  }}>{label}</button>
+              {/* Tabs for chat type — only show non-empty */}
+              <div style={{ display: "flex", gap: 4, marginBottom: 8, marginTop: 8, flexWrap: "wrap" }}>
+                <button onClick={() => setTranscriptTab("all")} style={{
+                  padding: "4px 12px", fontSize: 11, border: "1px solid #ddd", borderRadius: 4, cursor: "pointer",
+                  background: transcriptTab === "all" ? "#1a1a1a" : "#fff", color: transcriptTab === "all" ? "#fff" : "#333",
+                }}>{`הכל (${transcript.messages.length})`}</button>
+                {channelGroups.map(g => (
+                  <button key={g.key} onClick={() => setTranscriptTab(g.key)} style={{
+                    padding: "4px 12px", fontSize: 11, border: `1px solid ${transcriptTab === g.key ? g.color : "#ddd"}`, borderRadius: 4, cursor: "pointer",
+                    background: transcriptTab === g.key ? g.color : "#fff", color: transcriptTab === g.key ? "#fff" : "#333",
+                  }}>{g.label}</button>
                 ))}
               </div>
               <div style={{ background: "#fafafa", borderRadius: 8, padding: 16, marginBottom: 16, maxHeight: 500, overflowY: "auto", fontSize: 13, lineHeight: 1.7 }}>
@@ -1409,10 +1403,17 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                   }}>
                     {m.role === "user" ? "User" : m.role === "assistant" ? "Assistant" : "System"}
                   </span>
-                  {m.chat_type === "psychologist" && <span style={{ fontSize: 9, color: "#7c3aed", marginLeft: 6 }}>פסיכולוג</span>}
-                  {m.chat_type?.startsWith("new_chat") && <span style={{ fontSize: 9, color: "#6366f1", marginLeft: 6 }}>
-                    {m.chat_type === "new_chat" ? "שיחה ראשית" : m.chat_type === "new_chat_taste_analysis" ? "ניתוח טעם" : m.chat_type === "new_chat_matching_method" ? "שיטת התאמה" : m.chat_type === "new_chat_process_question" ? "שאלה על התהליך" : m.chat_type === "new_chat_learned_about_me" ? "מה למדתי" : "צ'אט חדש"}
-                  </span>}
+                  {(() => {
+                    const tagMap: Record<string, { label: string; color: string }> = {
+                      interviewer: { label: "מעבדה", color: "#e67e22" },
+                      psychologist: { label: "עומק", color: "#7c3aed" },
+                      new_chat: { label: "כללי", color: "#6366f1" },
+                      new_chat_cognitive: { label: "חשיבה", color: "#0ea5e9" },
+                      new_chat_taste: { label: "טעם", color: "#ec4899" },
+                    };
+                    const tag = tagMap[m.chat_type];
+                    return tag ? <span style={{ fontSize: 9, color: tag.color, marginLeft: 6 }}>{tag.label}</span> : null;
+                  })()}
                   {m.timestamp && <span style={{ fontSize: 10, color: "#aaa", marginLeft: 8 }}>{m.timestamp}</span>}
                   <div style={{ whiteSpace: "pre-wrap", marginTop: 4 }}>{m.content}</div>
                 </div>

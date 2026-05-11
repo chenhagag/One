@@ -96,6 +96,7 @@ export default function Register({ onSuccess }: { onSuccess: (u: User) => void }
   const [heightFlex, setHeightFlex] = useState("slightly_flexible");
   const [locationRange, setLocationRange] = useState("my_area");
   const [testUserType, setTestUserType] = useState("");
+  const [partnerName, setPartnerName] = useState("");
 
   // Enum options from server
   const [enums, setEnums] = useState<Record<string, EnumOption[]>>({});
@@ -155,6 +156,7 @@ export default function Register({ onSuccess }: { onSuccess: (u: User) => void }
           height_flexibility: heightFlex,
           desired_location_range: locationRange,
           test_user_type: testUserType || null,
+          partner_name: partnerName.trim() || null,
         }),
       });
 
@@ -234,11 +236,18 @@ export default function Register({ onSuccess }: { onSuccess: (u: User) => void }
         </select>
 
         <label style={s.label}>סוג משתמש לבדיקות</label>
-        <select style={s.select} value={testUserType} onChange={(e) => setTestUserType(e.target.value)}>
+        <select style={s.select} value={testUserType} onChange={(e) => { setTestUserType(e.target.value); if (e.target.value !== "Couple Tester") setPartnerName(""); }}>
           <option value="">בחר/י</option>
           <option value="Couple Tester">אני בזוגיות ועוזר/ת בבדיקות שידוך</option>
           <option value="User Experience Tester">אני רווק/ה ועוזר/ת בבדיקות מערכת</option>
         </select>
+
+        {testUserType === "Couple Tester" && (
+          <>
+            <label style={s.label}>שם בן/בת הזוג (שם מלא)</label>
+            <input style={s.input} type="text" value={partnerName} onChange={e => setPartnerName(e.target.value)} placeholder="שם מלא של בן/בת הזוג" />
+          </>
+        )}
       </div>
 
       <button style={s.btn} type="submit" disabled={loading}>
