@@ -290,11 +290,12 @@ export async function buildChatPrompt(
       }
     }
 
-    // After ~10 user messages — close (couples: after 4)
-    // Note: current message not yet saved to DB, so count is N-1
-    const cogCloseThreshold = testUserType === "Couple Tester" ? 4 : 6;
+    // Close after N real questions. cogCount includes ~2 intro messages (trigger + "ready").
+    // Current message not yet in DB, so threshold = desired_questions + 2 intro - 1.
+    // Regular: 6 questions → threshold 7. Couples: 4 questions → threshold 5.
+    const cogCloseThreshold = testUserType === "Couple Tester" ? 7 : 7;
     if (cogCount >= cogCloseThreshold) {
-      cognitiveExtra += `\n\n## שלב: סיום\nאתה מרגיש שהצלחת לקלוט מספיק מסגנון החשיבה של המשתמש. סגור בחיוב: ספר שהתשובות היו מעניינות ושזה עוזר לך מאוד להבין את סגנון החשיבה שלו. אל תתן תובנות על אישיות המשתמש — רק סגירה חיובית.\nכתוב: "תודה, זה מאוד עוזר לי להבין את סגנון החשיבה שלך."`;
+      cognitiveExtra += `\n\n## שלב: סיום — חובה לסגור עכשיו\nזו ההודעה האחרונה שלך. אתה חייב לסגור את השיחה עכשיו.\nסגור בחיוב: ספר שהתשובות היו מעניינות ושזה עוזר לך מאוד להבין את סגנון החשיבה שלו. אל תתן תובנות על אישיות המשתמש — רק סגירה חיובית.\nסיים עם המשפט: "תודה, זה מאוד עוזר לי להבין את סגנון החשיבה שלך."\nאל תשאל שאלה נוספת. אל תמשיך את השיחה.`;
     }
 
     const systemPrompt = COGNITIVE_PROMPT + genderInstruction + coupleInstruction + cognitiveExtra;
@@ -367,8 +368,8 @@ export async function buildChatPrompt(
       // User confirmed ready — show first profile
       phaseInstruction = `\n\n## שלב: פרופיל ראשון\nהמשתמש אישר שהוא מוכן. הצג את הפרופיל ושאל: עד כמה הוא/היא הטעם שלך מ-1 עד 10?`;
     } else if (!currentProfile) {
-      // All profiles shown — summarize + ask if accurate
-      phaseInstruction = `\n\n## שלב: סיכום\nהצגת מספיק פרופילים. סכם בקצרה (2-3 משפטים) את הדפוס שעולה מהתגובות של המשתמש — מה מושך אותו, מה פחות, איזה סגנון מדבר אליו.\nשאל את המשתמש: "קלטתי נכון? יש משהו שהיית רוצה לדייק?" תן לו להגיב ולתקן אם צריך.`;
+      // All profiles shown — summarize + close
+      phaseInstruction = `\n\n## שלב: סיכום וסגירה — חובה לסגור עכשיו\nהצגת מספיק פרופילים. סכם בקצרה (2-3 משפטים) את הדפוס שעולה מהתגובות של המשתמש — מה מושך אותו, מה פחות, איזה סגנון מדבר אליו.\nשאל את המשתמש: "קלטתי נכון? יש משהו שהיית רוצה לדייק?"\nאם המשתמש כבר אישר או תיקן — סיים עם: "תודה על הפתיחות, זה מאוד עוזר לי לדייק את ההתאמה."\nאל תציג עוד פרופילים. אל תמשיך את השיחה אחרי הסגירה.`;
     } else {
       phaseInstruction = `\n\n## שלב: הצגת פרופיל\nשאל שאלה-שתיים של הרחבה על התגובה של המשתמש (מה אהבת? מה פחות דיבר אליך?). אם התשובה כבר מפורטת — עבור ישר לפרופיל הבא.\nאחרי ההרחבה, הצג את הפרופיל הבא ושאל: עד כמה הוא/היא הטעם שלך מ-1 עד 10?`;
     }

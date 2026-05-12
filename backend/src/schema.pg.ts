@@ -451,6 +451,14 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       ) THEN
         ALTER TABLE users ADD COLUMN auto_analyzed BOOLEAN DEFAULT FALSE;
       END IF;
+
+      -- Analysis run count: tracks how many times auto-analysis has run (max 2)
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'analysis_run_count'
+      ) THEN
+        ALTER TABLE users ADD COLUMN analysis_run_count INTEGER DEFAULT 0;
+      END IF;
     END $$;
   `);
 

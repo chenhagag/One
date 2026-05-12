@@ -20,7 +20,7 @@ import { runAnalysisAgent, runSingleGroupAnalysis, getAvailableGroups, buildAnal
 import { computeCoverage, buildAnalysisTranscript } from "./agents/conversation";
 import { buildChatPrompt } from "./agents/conversation/chatManager";
 import { shouldSummarize, getUserSummary, runSummarization } from "./agents/conversation/summarizer";
-import { maybeAutoAnalyze } from "./agents/conversation/autoAnalysis";
+import { maybeAutoAnalyze, maybeAutoAnalyzeAfterChat, maybeAutoAnalyzeAfterAll } from "./agents/conversation/autoAnalysis";
 import OpenAI from "openai";
 import { trackTokens } from "./tokenTracker";
 
@@ -1848,9 +1848,11 @@ app.post("/new-chat/message", async (req, res) => {
     { role: "system", content: systemPrompt },
   ];
 
-  // Add recent conversation history (last 6 messages for context — keeps prompt small and fast)
+  // Add conversation history.
+  // Cognitive: send full history (AI picks questions from a list — needs to see what it already asked).
+  // General/taste: last 6 messages (code controls questions, less history = faster).
   if (Array.isArray(history)) {
-    const recentHistory = history.slice(-6);
+    const recentHistory = guide === "new_chat_cognitive" ? history : history.slice(-6);
     for (const h of recentHistory) {
       if (h.role === "user" || h.role === "assistant") {
         messages.push({ role: h.role, content: h.content });
@@ -1873,7 +1875,7 @@ app.post("/new-chat/message", async (req, res) => {
       model: "gpt-4o",
       messages: messages as any,
       temperature: 0.7,
-      max_tokens: 500,
+      max_tokens: 300,
     });
     console.log(`[new-chat] User ${user_id}: OpenAI responded in ${Date.now() - start}ms`);
 
@@ -1900,12 +1902,27 @@ app.post("/new-chat/message", async (req, res) => {
       }).catch(() => {});
     }
 
-    // After cognitive messages, check if auto-analysis conditions are met
-    if (guide === "new_chat_cognitive") {
-      maybeAutoAnalyze(user_id).catch(() => {});
+    // For general chat, closingStage comes from DB state machine — reliable.
+    // For cognitive/taste, closingStage is threshold-based. Only report closed
+    // if the AI reply actually contains closing text (prevents premature bubbles).
+    let effectiveClosingStage = closingStage;
+    if (guide !== "new_chat" && closingStage >= 3) {
+      const hasClosingText = /תודה.{0,40}(עוזר|סגנון|החשיבה|לדייק|הפתיחות|ההתאמה)/s.test(reply);
+      if (!hasClosingText) effectiveClosingStage = 0;
     }
 
-    return res.json({ reply, closing_stage: closingStage });
+    // Trigger auto-analysis based on channel closing
+    if (effectiveClosingStage >= 3) {
+      if (guide === "new_chat") {
+        // General chat closed — run analysis #1
+        maybeAutoAnalyzeAfterChat(user_id).catch(() => {});
+      } else {
+        // Cognitive or taste closed — check if all channels done for analysis #2
+        maybeAutoAnalyzeAfterAll(user_id).catch(() => {});
+      }
+    }
+
+    return res.json({ reply, closing_stage: effectiveClosingStage });
   } catch (err: any) {
     console.error("[new-chat] Error:", err.message, err.stack);
     return res.status(500).json({ error: "AI error" });

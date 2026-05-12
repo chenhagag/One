@@ -1,12 +1,12 @@
 /**
- * Auto-Analysis — Triggers full profile analysis once conditions are met.
+ * Auto-Analysis — Triggers full profile analysis at two points:
  *
- * Conditions for auto-analysis:
- * 1. User summary is sufficiently complete (≥5 of 8 content fields filled)
- * 2. User has at least 5 cognitive/simulation messages
- * 3. Auto-analysis hasn't already run for this user
+ * Run 1: When the general chat closes (closing_stage >= 3)
+ *         — even without cognitive/taste data
+ * Run 2: When all channels are closed (general + cognitive + taste)
+ *         — re-analyzes with full data
  *
- * Runs in the background — does not block chat responses.
+ * Max 2 automatic runs per user. Admin can always run manual analysis.
  */
 
 import db from "../../db";
@@ -14,89 +14,23 @@ import {
   queryOne as pgQueryOne,
   queryAll as pgQueryAll,
 } from "../../db.pg";
-import { getUserSummary, type UserChatSummary } from "./summarizer";
 import { buildAnalysisTranscript, computeCoverage } from "./analysisHelpers";
 import { runAnalysisAgent, buildAnalysisInput, saveAnalysisToDb } from "../analysis";
 import { updateCognitiveScore } from "../../cognitiveScore";
-
-// ── Config ──────────────────────────────────────────────────────
-
-/** Minimum filled fields in summary to consider it "complete enough" */
-const MIN_SUMMARY_FIELDS = 5;
-
-/** Minimum user messages in cognitive chat */
-const MIN_COGNITIVE_MESSAGES = 5;
-
-// ── Readiness check ─────────────────────────────────────────────
-
-/**
- * Count how many content fields in the summary are filled (non-null, non-empty).
- */
-function countFilledFields(summary: UserChatSummary): number {
-  const fields = [
-    summary.general_info,
-    summary.occupation,
-    summary.background_culture,
-    summary.social_style,
-    summary.taste_and_style,
-    summary.relationships,
-    summary.values,
-    summary.intellectual_world,
-  ];
-  return fields.filter(f => f && f.trim().length > 0).length;
-}
-
-/**
- * Check if all conditions for auto-analysis are met.
- */
-export async function checkAutoAnalysisReady(userId: number): Promise<{
-  ready: boolean;
-  reason?: string;
-}> {
-  // 1. Check if already auto-analyzed
-  const user = await pgQueryOne<{ auto_analyzed: boolean }>(
-    "SELECT auto_analyzed FROM users WHERE id = $1",
-    [userId]
-  );
-  if (!user) return { ready: false, reason: "user_not_found" };
-  if (user.auto_analyzed) return { ready: false, reason: "already_analyzed" };
-
-  // 2. Check summary completeness
-  const { summary } = await getUserSummary(userId);
-  if (!summary) return { ready: false, reason: "no_summary" };
-
-  const filledFields = countFilledFields(summary);
-  if (filledFields < MIN_SUMMARY_FIELDS) {
-    return { ready: false, reason: `summary_incomplete (${filledFields}/${MIN_SUMMARY_FIELDS})` };
-  }
-
-  // 3. Check cognitive messages count (user messages only)
-  const cogResult = await pgQueryOne<{ count: string }>(
-    `SELECT COUNT(*) as count FROM conversation_messages
-     WHERE user_id = $1 AND guide = 'new_chat_cognitive' AND role = 'user'`,
-    [userId]
-  );
-  const cogCount = parseInt(cogResult?.count || "0", 10);
-  if (cogCount < MIN_COGNITIVE_MESSAGES) {
-    return { ready: false, reason: `cognitive_insufficient (${cogCount}/${MIN_COGNITIVE_MESSAGES})` };
-  }
-
-  return { ready: true };
-}
 
 // ── Auto-analysis execution ─────────────────────────────────────
 
 /**
  * Run full analysis in the background. Call without await for non-blocking.
  */
-export async function triggerAutoAnalysis(userId: number): Promise<void> {
+async function runAnalysis(userId: number, runNumber: number): Promise<void> {
   try {
-    console.log(`[auto-analysis] User ${userId}: starting automatic analysis...`);
+    console.log(`[auto-analysis] User ${userId}: starting run #${runNumber}...`);
 
-    // Mark as analyzed immediately to prevent duplicate triggers
+    // Increment run count immediately to prevent duplicate triggers
     await pgQueryAll(
-      "UPDATE users SET auto_analyzed = TRUE WHERE id = $1",
-      [userId]
+      "UPDATE users SET auto_analyzed = TRUE, analysis_run_count = $2 WHERE id = $1",
+      [userId, runNumber]
     );
 
     // Build transcript (includes all three chat types)
@@ -121,26 +55,73 @@ export async function triggerAutoAnalysis(userId: number): Promise<void> {
     // Update coverage / matchable status
     const cov = await computeCoverage(db, userId);
 
-    console.log(`[auto-analysis] User ${userId}: DONE — ${saved.internal_saved} internal, ${saved.external_saved} external traits, cognitive=${cogScore}, matchable=${cov.ready_for_matching}`);
+    console.log(`[auto-analysis] User ${userId}: run #${runNumber} DONE — ${saved.internal_saved} internal, ${saved.external_saved} external traits, cognitive=${cogScore}, matchable=${cov.ready_for_matching}`);
   } catch (err: any) {
-    console.error(`[auto-analysis] User ${userId}: ERROR —`, err.message);
-    // Don't revert auto_analyzed flag — we don't want to retry on error
-    // Admin can always run manual reanalysis
+    console.error(`[auto-analysis] User ${userId}: run #${runNumber} ERROR —`, err.message);
   }
 }
 
 /**
- * Check readiness and trigger if ready. Safe to call frequently — no-ops if not ready.
+ * Trigger analysis after general chat closes (run 1).
+ * Requirements: closing_stage >= 3 on general chat, run count = 0.
+ */
+export async function maybeAutoAnalyzeAfterChat(userId: number): Promise<void> {
+  const user = await pgQueryOne<{ analysis_run_count: number }>(
+    "SELECT COALESCE(analysis_run_count, 0) as analysis_run_count FROM users WHERE id = $1",
+    [userId]
+  );
+  if (!user || user.analysis_run_count >= 1) return;
+
+  console.log(`[auto-analysis] User ${userId}: general chat closed, triggering run #1`);
+  runAnalysis(userId, 1).catch(() => {});
+}
+
+/**
+ * Trigger analysis after all channels are complete (run 2).
+ * Requirements: cognitive done + taste done + run count = 1.
+ */
+export async function maybeAutoAnalyzeAfterAll(userId: number): Promise<void> {
+  const user = await pgQueryOne<{ analysis_run_count: number }>(
+    "SELECT COALESCE(analysis_run_count, 0) as analysis_run_count FROM users WHERE id = $1",
+    [userId]
+  );
+  if (!user || user.analysis_run_count >= 2) return;
+
+  // Check that cognitive and taste are done
+  const result = await pgQueryOne<{ cog: string; taste: string }>(
+    `SELECT
+       COUNT(*) FILTER (WHERE guide = 'new_chat_cognitive') as cog,
+       COUNT(*) FILTER (WHERE guide = 'new_chat_taste') as taste
+     FROM conversation_messages
+     WHERE user_id = $1 AND role = 'user' AND guide IN ('new_chat_cognitive', 'new_chat_taste')`,
+    [userId]
+  );
+  const cogCount = parseInt(result?.cog || "0", 10);
+  const tasteCount = parseInt(result?.taste || "0", 10);
+
+  if (cogCount < 5 || tasteCount < 5) return;
+
+  console.log(`[auto-analysis] User ${userId}: all channels complete, triggering run #2`);
+  runAnalysis(userId, 2).catch(() => {});
+}
+
+/**
+ * Legacy compatibility — called from existing code paths.
+ * Checks if run 1 or run 2 should trigger.
  */
 export async function maybeAutoAnalyze(userId: number): Promise<void> {
-  const { ready, reason } = await checkAutoAnalysisReady(userId);
-  if (ready) {
-    // Fire and forget — don't await
-    triggerAutoAnalysis(userId).catch(() => {});
-  } else {
-    // Only log if it's close to ready (has summary but missing cognitive)
-    if (reason && reason.startsWith("cognitive_insufficient")) {
-      console.log(`[auto-analysis] User ${userId}: not ready yet — ${reason}`);
-    }
+  const user = await pgQueryOne<{ analysis_run_count: number }>(
+    "SELECT COALESCE(analysis_run_count, 0) as analysis_run_count FROM users WHERE id = $1",
+    [userId]
+  );
+  if (!user || user.analysis_run_count >= 2) return;
+
+  if (user.analysis_run_count === 0) {
+    // Not yet analyzed — legacy path, keep existing behavior (summary + cognitive check)
+    return;
+  }
+  if (user.analysis_run_count === 1) {
+    // Already ran once — check if all channels done for run 2
+    await maybeAutoAnalyzeAfterAll(userId);
   }
 }

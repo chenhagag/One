@@ -271,7 +271,7 @@ export default function App() {
       {view === "landing" && (
         <div style={styles.landingContainer}>
           <h1 style={styles.landingTitle}>One</h1>
-          <p style={styles.landingSubtitle}>Find your perfect match</p>
+          <p style={styles.landingSubtitle}>Find your one perfect match</p>
           <div style={styles.landingBtnRow}>
             <button
               style={{ ...styles.landingBtn, background: "#6C63FF", color: "#fff" }}
@@ -330,34 +330,34 @@ export default function App() {
       {view === "welcome" && user && (
         <div dir="rtl" style={{ maxWidth: 520, margin: "0 auto", padding: "40px 20px" }}>
           <h2 style={{ fontSize: 26, marginBottom: 16, textAlign: "center" }}>
-            {user.first_name}, !ברוך/ה הבא/ה ל-One
+            {user.first_name}, {user.gender === "woman" ? "ברוכה הבאה" : "ברוך הבא"} ל-One
           </h2>
           <div style={{ background: "#f8f9fa", borderRadius: 12, padding: 24, marginBottom: 20, lineHeight: 1.8, fontSize: 15, color: "#333" }}>
             {user.test_user_type === "Couple Tester" ? (
               <>
                 <p style={{ marginTop: 0 }}>
-                  <strong>One</strong> הוא מערכת שידוכים חכמה שמתאימה בין אנשים ברמה עמוקה — על בסיס ניתוח אישיותי העולה מהיכרות באמצעות שיחה עם צ'אט AI.
+                  <strong>One</strong> היא מערכת שידוכים חכמה שמתאימה בין אנשים ברמה עמוקה — על בסיס ניתוח אישיותי העולה מהיכרות באמצעות שיחה עם צ'אט AI.
                 </p>
                 <p>
                   אנחנו כרגע בשלבי אימון המערכת על זוגות אמיתיים, כך שתלמד לדייק התאמות עבור משתמשים אמיתיים בהמשך ולמצוא מה באמת מחבר בין זוגות.
                 </p>
                 <p>
-                  כל מה שתספר/י נשאר חסוי לחלוטין ולעיני ה-AI בלבד. ככל שתענה בצורה כנה ופתוחה יותר - נוכל לדייק יותר את התוצאות.
+                  כל מה ש{user.gender === "woman" ? "תספרי נשאר חסוי לחלוטין ולעיני ה-AI בלבד. ככל שתעני" : "תספר נשאר חסוי לחלוטין ולעיני ה-AI בלבד. ככל שתענה"} בצורה כנה ופתוחה יותר - נוכל לדייק יותר את התוצאות.
                 </p>
                 <p>
-                  בסיום התהליך - נוכל להציג לכם תובנות על עצמכם ועל הזוגיות שלכם :)
+                  בסיום התהליך - נוכל להציג {user.gender === "woman" ? "לך" : "לך"} תובנות על {user.gender === "woman" ? "עצמך" : "עצמך"} ועל הזוגיות {user.gender === "woman" ? "שלך" : "שלך"} :)
                 </p>
               </>
             ) : (
               <>
                 <p style={{ marginTop: 0 }}>
-                  <strong>One</strong> הוא מערכת שידוכים חכמה שמתאימה בין אנשים ברמה עמוקה — בלי החלקות, בלי שיפוטיות חיצונית.
+                  <strong>One</strong> היא מערכת שידוכים חכמה שמתאימה בין אנשים ברמה עמוקה — בלי החלקות, בלי שיפוטיות חיצונית.
                 </p>
                 <p>
-                  המערכת תכיר אותך באמצעות שיחה שוטפת עם צ'אט AI.
+                  המערכת תכיר {user.gender === "woman" ? "אותך" : "אותך"} באמצעות שיחה שוטפת עם צ'אט AI.
                 </p>
                 <p>
-                  כל מה שתספר/י נשאר חסוי לחלוטין ולא מופיע בפרופיל. ככל שתהיה יותר כנ/ה ופתוח/ה, כך ההתאמה תהיה מדויקת יותר.
+                  כל מה ש{user.gender === "woman" ? "תספרי נשאר חסוי לחלוטין ולא מופיע בפרופיל. ככל שתהיי יותר כנה ופתוחה" : "תספר נשאר חסוי לחלוטין ולא מופיע בפרופיל. ככל שתהיה יותר כן ופתוח"}, כך ההתאמה תהיה מדויקת יותר.
                 </p>
               </>
             )}

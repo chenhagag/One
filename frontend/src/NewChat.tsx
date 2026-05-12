@@ -391,6 +391,9 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
                   <p style={styles.welcomeText}>
                     אני כאן כדי להבין אותך לעומק ולסייע לך למצוא את ההתאמה המושלמת עבורך.
                   </p>
+                  <p style={{ fontSize: 12, color: "#999", marginTop: 12, lineHeight: 1.5 }}>
+                    המערכת בשלבי בנייה. הצ'אט עלול עדיין להרגיש קצת רובוטי או תקוע — תודה על ההבנה.
+                  </p>
                 </div>
               )}
 
@@ -420,7 +423,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
                     const bubbles: { icon: string; text: string; ch: string }[] = [];
                     if (!cogDone && channel !== "new_chat_cognitive") bubbles.push({ icon: "🧠", text: "בוא נבין את סגנון החשיבה שלי", ch: "new_chat_cognitive" });
                     if (!tasteDone && channel !== "new_chat_taste") bubbles.push({ icon: "🔍", text: "נתח את הטעם שלי לעומק", ch: "new_chat_taste" });
-                    if (channel !== "new_chat" && (recommendations.summary_fields < 8)) bubbles.push({ icon: "💬", text: "בוא נמשיך להכיר", ch: "new_chat" });
+                    if (channel !== "new_chat" && !closedChannels["new_chat"] && (recommendations.summary_fields < 8)) bubbles.push({ icon: "💬", text: "בוא נמשיך להכיר", ch: "new_chat" });
                     if (bubbles.length === 0) return null;
                     return (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginTop: 12 }}>
@@ -452,7 +455,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
               const conversationAdvanced = isCouple ? chat_count >= 5 : summary_fields >= 4;
               const cogDoneForCouple = isCouple ? recommendations.cognitive_count >= 3 : has_cognitive;
               const tasteDoneForCouple = isCouple ? recommendations.cognitive_count >= 3 && has_taste_info : has_taste_info;
-              const chatNotEnough = summary_fields < 8 && chat_count > 0;
+              const chatClosed = closedChannels["new_chat"] || false;
+              const chatNotEnough = summary_fields < 8 && chat_count > 0 && !chatClosed;
 
               // Priority 1: Return to general chat if not enough data and user already started
               if (chatNotEnough && cogDoneForCouple && tasteDoneForCouple) {
@@ -506,8 +510,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
                     const g = user.gender === "woman";
                     const isCouple = (user as any).test_user_type === "Couple Tester";
                     const greeting = isCouple
-                      ? `היי, תודה רבה על ההשתתפות בתהליך האימון שלי.\nככל שאני נבדק על זוגות רבים יותר - אני לומד לדייק את ההתאמות למשתמשים שמחפשים זוגיות אמיתית, והשתתפות ${g ? "שלך" : "שלך"} מסייעת לי מאוד.\nאשאל ${g ? "אותך" : "אותך"} שאלות כמו שהייתי שואל רווקים-רווקות אמיתיים שנכנסים למערכת, ${g ? "אשמח אם תעני" : "אשמח אם תענה"} בכנות ובטבעיות כפי ש${g ? "היית עונה אם היית" : "היית עונה אם היית"} באמת ${g ? "מחפשת" : "מחפש"} שידוך.\nבסוף התהליך ${g ? "תוכלי" : "תוכל"} גם לקבל ממני קצת תובנות על ${g ? "עצמך" : "עצמך"} ועל הזוגיות ${g ? "שלך" : "שלך"} :)\nחשוב לי ש${g ? "תדעי" : "תדע"} שכל מה ש${g ? "את כותבת" : "אתה כותב"} לי כאן הוא לעיניי בלבד — שום דבר לא מופיע בפרופיל ${g ? "שלך" : "שלך"} ולא חשוף לאף משתמש אחר.\n${g ? "מוכנה להתחיל?" : "מוכן להתחיל?"}`
-                      : `היי, אני מומחה ההתאמה שלך. אני כאן כדי למצוא ${g ? "לך" : "לך"} התאמה מדויקת על ידי היכרות מעמיקה.\nחשוב לי ש${g ? "תדעי" : "תדע"} שכל מה ש${g ? "את כותבת" : "אתה כותב"} לי כאן הוא לעיניי בלבד — שום דבר לא מופיע בפרופיל ${g ? "שלך" : "שלך"} ולא חשוף לאף משתמש אחר.\nככל ש${g ? "תשתפי" : "תשתף"} אותי יותר, נוכל לדייק את ההתאמה ${g ? "שלך" : "שלך"} יותר. ${g ? "מוכנה להתחיל?" : "מוכן להתחיל?"}`;
+                      ? `היי ${user.first_name}, תודה רבה על ההשתתפות בתהליך האימון שלי.\nככל שאני נבדק על זוגות רבים יותר - אני לומד לדייק את ההתאמות למשתמשים שמחפשים זוגיות אמיתית, והשתתפות ${g ? "שלך" : "שלך"} מסייעת לי מאוד.\nאשאל ${g ? "אותך" : "אותך"} שאלות כמו שהייתי שואל רווקים-רווקות אמיתיים שנכנסים למערכת, ${g ? "אשמח אם תעני" : "אשמח אם תענה"} בכנות ובטבעיות כפי ש${g ? "היית עונה אם היית" : "היית עונה אם היית"} באמת ${g ? "מחפשת" : "מחפש"} שידוך.\nבסוף התהליך ${g ? "תוכלי" : "תוכל"} גם לקבל ממני קצת תובנות על ${g ? "עצמך" : "עצמך"} ועל הזוגיות ${g ? "שלך" : "שלך"} :)\nחשוב לי ש${g ? "תדעי" : "תדע"} שכל מה ש${g ? "את כותבת" : "אתה כותב"} לי כאן הוא לעיניי בלבד — שום דבר לא מופיע בפרופיל ${g ? "שלך" : "שלך"} ולא חשוף לאף משתמש אחר.\n${g ? "מוכנה להתחיל?" : "מוכן להתחיל?"}`
+                      : `היי ${user.first_name}, אני מומחה ההתאמה שלך. אני כאן כדי למצוא ${g ? "לך" : "לך"} התאמה מדויקת על ידי היכרות מעמיקה.\nחשוב לי ש${g ? "תדעי" : "תדע"} שכל מה ש${g ? "את כותבת" : "אתה כותב"} לי כאן הוא לעיניי בלבד — שום דבר לא מופיע בפרופיל ${g ? "שלך" : "שלך"} ולא חשוף לאף משתמש אחר.\nככל ש${g ? "תשתפי" : "תשתף"} אותי יותר, נוכל לדייק את ההתאמה ${g ? "שלך" : "שלך"} יותר. ${g ? "מוכנה להתחיל?" : "מוכן להתחיל?"}`;
                     setMessagesForChannel("new_chat", () => [{ role: "assistant", content: greeting }]);
                   }
                   setScreen("chat");
