@@ -1833,7 +1833,7 @@ app.post("/new-chat/message", async (req, res) => {
   }
 
   // Build prompt via conversation manager (RAG — injects only relevant context)
-  const { systemPrompt, intent } = await buildChatPrompt(
+  const { systemPrompt, intent, closingStage } = await buildChatPrompt(
     user_id, message,
     chatUser?.gender ?? null,
     chatUser?.looking_for_gender ?? null,
@@ -1848,9 +1848,10 @@ app.post("/new-chat/message", async (req, res) => {
     { role: "system", content: systemPrompt },
   ];
 
-  // Add conversation history
+  // Add recent conversation history (last 6 messages for context — keeps prompt small and fast)
   if (Array.isArray(history)) {
-    for (const h of history) {
+    const recentHistory = history.slice(-6);
+    for (const h of recentHistory) {
       if (h.role === "user" || h.role === "assistant") {
         messages.push({ role: h.role, content: h.content });
       }
@@ -1904,7 +1905,7 @@ app.post("/new-chat/message", async (req, res) => {
       maybeAutoAnalyze(user_id).catch(() => {});
     }
 
-    return res.json({ reply });
+    return res.json({ reply, closing_stage: closingStage });
   } catch (err: any) {
     console.error("[new-chat] Error:", err.message, err.stack);
     return res.status(500).json({ error: "AI error" });

@@ -26,16 +26,18 @@ import { queryOne as pgQueryOne } from "../../db.pg";
 
 const PROMPTS_DIR = path.join(__dirname, "prompts");
 
-const BASE_PROMPT = fs.readFileSync(path.join(PROMPTS_DIR, "new-chat-base.txt"), "utf-8");
 const PROFILE_CONTEXT = fs.readFileSync(path.join(PROMPTS_DIR, "context-profile.txt"), "utf-8");
 const SYSTEM_CONTEXT = fs.readFileSync(path.join(PROMPTS_DIR, "context-system-info.txt"), "utf-8");
 
-// Topic-based guidance prompts (injected one at a time based on coverage)
-const TOPIC_INTRO = fs.readFileSync(path.join(PROMPTS_DIR, "topic-intro.txt"), "utf-8");
-const TOPIC_RELATIONSHIPS = fs.readFileSync(path.join(PROMPTS_DIR, "topic-relationships.txt"), "utf-8");
-const TOPIC_PERSONALITY = fs.readFileSync(path.join(PROMPTS_DIR, "topic-personality.txt"), "utf-8");
-const TOPIC_VALUES = fs.readFileSync(path.join(PROMPTS_DIR, "topic-values.txt"), "utf-8");
-const TOPIC_CULTURE = fs.readFileSync(path.join(PROMPTS_DIR, "topic-culture.txt"), "utf-8");
+// Micro-topic system + prompt templates
+import {
+  getCurrentTopic, advanceToNextTopic, allTopicsDone,
+  type ConversationState, DEFAULT_STATE,
+} from "./microTopics";
+import {
+  buildPromptA, buildPromptB, buildPromptC, buildPromptD,
+  buildPromptEInsight, buildPromptEFinal,
+} from "./promptTemplates";
 
 // Cognitive chat prompt (separate conversation mode)
 const COGNITIVE_PROMPT = fs.readFileSync(path.join(PROMPTS_DIR, "cognitive-chat.txt"), "utf-8");
@@ -114,6 +116,11 @@ const SYSTEM_PATTERNS = [
   /בדיקת (תמונה|מראה|חיצונ)/i, /ציון התאמה/i,
   /שאלה (על|לגבי) (התהליך|המערכת)/i, /יש לי שאלה לגבי התהליך/i,
   /איך אתה מוצא לי/i, /התאמה מדויקת/i,
+  // Meta questions — "why are you asking this?"
+  /למה (זה |את |אתה )?(שואל|שואלת|רלוונטי|קשור)/i,
+  /מה (המטרה|הטעם)/i,
+  /למה את שואל/i, /למה אתה שואל/i,
+  /שואל (הרבה |מלא )שאלות/i, /קצת חופר/i,
 ];
 
 export function detectIntent(message: string): ChatIntent {
@@ -134,87 +141,35 @@ export function detectPhase(messageCount: number): ConversationPhase {
   return "deep";
 }
 
-// ── Topic-based conversation flow ──────────────────────────────
+// ── Conversation state management ────────────────────────────
 
-/**
- * Topics in order. Each topic maps to summary fields that indicate coverage.
- * When all fields for a topic are filled, we move to the next topic.
- */
-type ConversationTopic = "intro" | "relationships" | "personality" | "values" | "culture";
-
-const TOPIC_ORDER: { topic: ConversationTopic; prompt: string; minInjections: number }[] = [
-  { topic: "intro", prompt: TOPIC_INTRO, minInjections: 3 },
-  { topic: "relationships", prompt: TOPIC_RELATIONSHIPS, minInjections: 3 },
-  { topic: "personality", prompt: TOPIC_PERSONALITY, minInjections: 4 },
-  { topic: "values", prompt: TOPIC_VALUES, minInjections: 3 },
-  { topic: "culture", prompt: TOPIC_CULTURE, minInjections: 2 },
-];
-
-/** Topic injection counts — how many times each topic was served as the active topic */
-export type TopicInjectionCounts = Record<ConversationTopic, number>;
-
-/** Load topic injection counts from DB (stored in user_chat_summaries) */
-async function getTopicInjectionCounts(userId: number): Promise<TopicInjectionCounts> {
-  const row = await pgQueryOne<{ topic_injection_counts: TopicInjectionCounts }>(
+/** Load conversation state from DB */
+async function getConversationState(userId: number): Promise<ConversationState> {
+  const row = await pgQueryOne<{ topic_injection_counts: any }>(
     "SELECT topic_injection_counts FROM user_chat_summaries WHERE user_id = $1",
     [userId]
   );
-  return row?.topic_injection_counts || { intro: 0, relationships: 0, personality: 0, values: 0, culture: 0 };
+  const raw = row?.topic_injection_counts;
+  if (!raw || raw.counts !== undefined) {
+    // No state or old format — start fresh
+    return { ...DEFAULT_STATE };
+  }
+  return {
+    current_topic_index: raw.current_topic_index ?? 0,
+    turn_in_topic: raw.turn_in_topic ?? 0,
+    closing_stage: raw.closing_stage ?? 0,
+    off_topic_turns: raw.off_topic_turns ?? 0,
+  };
 }
 
-
-/**
- * Keywords for detecting what topic the user is REQUESTING to discuss.
- * Used only for steering — when user explicitly asks about a topic.
- */
-const TOPIC_STEER_KEYWORDS: Record<ConversationTopic, RegExp[]> = {
-  intro: [/עובד|עבודה|לומד|לימודים|תואר|אוניברסיטה|מכללה|גר ב|גדלתי/i],
-  relationships: [/מחפש|זוגיות|מערכת יחסים|בן זוג|בת זוג|אקס|נפרדנו/i],
-  personality: [/אופי|אישיות|קונפליקט|מתנהג|מגיב|מתמודד/i],
-  values: [/ערך|ערכים|חשוב לי|לא מתפשר|מפריע|דת|מסורת|פוליטי/i],
-  culture: [/מוזיקה|סרט|סדרה|ספר|תחביב|סופש|חברים|מבלה/i],
-};
-
-function detectUserRequestedTopic(message: string): ConversationTopic | null {
-  for (const [topic, patterns] of Object.entries(TOPIC_STEER_KEYWORDS) as [ConversationTopic, RegExp[]][]) {
-    for (const p of patterns) {
-      if (p.test(message)) return topic;
-    }
-  }
-  return null;
-}
-
-/**
- * Determine the current topic based on:
- * 1. User's current message direction (highest priority — follow the user)
- * 2. Summary coverage + history scan (fallback — pick first uncovered topic)
- */
-/**
- * Determine the current topic based on injection counts.
- * A topic is "covered" when it was injected >= minInjections times.
- * User steering takes priority.
- */
-function getCurrentTopic(
-  injectionCounts: TopicInjectionCounts,
-  currentMessage: string,
-): { topic: ConversationTopic; prompt: string } {
-  // If user's current message steers toward a specific topic — follow them
-  const userRequested = detectUserRequestedTopic(currentMessage);
-  if (userRequested) {
-    const entry = TOPIC_ORDER.find(e => e.topic === userRequested)!;
-    return { topic: userRequested, prompt: entry.prompt };
-  }
-
-  // Find first topic that hasn't been injected enough times
-  for (const entry of TOPIC_ORDER) {
-    const count = injectionCounts[entry.topic] || 0;
-    if (count < entry.minInjections) {
-      return { topic: entry.topic, prompt: entry.prompt };
-    }
-  }
-
-  // All topics covered — fallback to culture
-  return { topic: "culture", prompt: TOPIC_CULTURE };
+/** Persist conversation state to DB */
+function saveConversationState(userId: number, state: ConversationState): void {
+  pgQueryOne(
+    `INSERT INTO user_chat_summaries (user_id, summary_json, message_count_at, topic_injection_counts, updated_at)
+     VALUES ($1, '{}'::jsonb, 0, $2::jsonb, NOW())
+     ON CONFLICT (user_id) DO UPDATE SET topic_injection_counts = $2::jsonb, updated_at = NOW()`,
+    [userId, JSON.stringify(state)]
+  ).catch(() => {});
 }
 
 /** Total content fields in summary (excluding notable_quotes) */
@@ -301,6 +256,7 @@ export interface ChatPromptResult {
   systemPrompt: string;
   intent: ChatIntent;
   phase: ConversationPhase;
+  closingStage: number;
 }
 
 export async function buildChatPrompt(
@@ -317,10 +273,12 @@ export async function buildChatPrompt(
   const genderInstruction = buildGenderInstruction(gender, lookingForGender);
   const coupleInstruction = testUserType === "Couple Tester" ? COUPLE_TESTER_INSTRUCTION : "";
 
-  // Load summary + channel counts + topic injection counts once — reused across all logic
-  const { summary: userSummary } = await getUserSummary(userId);
-  const { cogCount, tasteCount } = await getChannelCounts(userId);
-  const topicCounts = await getTopicInjectionCounts(userId);
+  // Load summary + channel counts + conversation state in parallel
+  const [{ summary: userSummary }, { cogCount, tasteCount }, convState] = await Promise.all([
+    getUserSummary(userId),
+    getChannelCounts(userId),
+    getConversationState(userId),
+  ]);
 
   // Cognitive channel uses a completely separate prompt
   if (channel === "new_chat_cognitive") {
@@ -334,13 +292,14 @@ export async function buildChatPrompt(
 
     // After ~10 user messages — close (couples: after 4)
     // Note: current message not yet saved to DB, so count is N-1
-    const cogCloseThreshold = testUserType === "Couple Tester" ? 4 : 9;
+    const cogCloseThreshold = testUserType === "Couple Tester" ? 4 : 6;
     if (cogCount >= cogCloseThreshold) {
-      cognitiveExtra += `\n\n## שלב: סיום\nאתה מרגיש שהצלחת לקלוט מספיק מסגנון החשיבה של המשתמש. סגור בחיוב: ספר שהתשובות היו מעניינות ושזה עוזר לך מאוד להבין את סגנון החשיבה שלו. אל תתן תובנות על אישיות המשתמש — רק סגירה חיובית.\nכתוב: "תודה, זה מאוד עוזר לי להבין את סגנון החשיבה שלך. אם יש עוד משהו — אני כאן."`;
+      cognitiveExtra += `\n\n## שלב: סיום\nאתה מרגיש שהצלחת לקלוט מספיק מסגנון החשיבה של המשתמש. סגור בחיוב: ספר שהתשובות היו מעניינות ושזה עוזר לך מאוד להבין את סגנון החשיבה שלו. אל תתן תובנות על אישיות המשתמש — רק סגירה חיובית.\nכתוב: "תודה, זה מאוד עוזר לי להבין את סגנון החשיבה שלך."`;
     }
 
     const systemPrompt = COGNITIVE_PROMPT + genderInstruction + coupleInstruction + cognitiveExtra;
-    return { systemPrompt, intent: "general", phase: detectPhase(messageCount) };
+    const closingStage = cogCount >= cogCloseThreshold ? 3 : 0;
+    return { systemPrompt, intent: "general", phase: detectPhase(messageCount), closingStage };
   }
 
   // Taste test channel — slim prompt + one profile at a time
@@ -423,11 +382,12 @@ export async function buildChatPrompt(
     // End of taste test — simple closing, frontend handles navigation
     let navigationInstruction = "";
     if (!currentProfile && tasteUserMsgCount > 1) {
-      navigationInstruction = `\n\nאחרי הסיכום והחידוד, כתוב: "תודה על הפתיחות, זה מאוד עוזר לי לדייק את ההתאמה. אם יש עוד משהו שתרצה להוסיף — אני כאן."`;
+      navigationInstruction = `\n\nאחרי הסיכום והחידוד, כתוב: "תודה על הפתיחות, זה מאוד עוזר לי לדייק את ההתאמה."`;
     }
 
     const systemPrompt = TASTE_TEST_PROMPT + genderInstruction + coupleInstruction + phaseInstruction + profileBlock + reentryInstruction + navigationInstruction;
-    return { systemPrompt, intent: "general", phase: detectPhase(messageCount) };
+    const closingStage = (!currentProfile && tasteUserMsgCount > 1) ? 3 : 0;
+    return { systemPrompt, intent: "general", phase: detectPhase(messageCount), closingStage };
   }
 
   const intent = detectIntent(message);
@@ -452,75 +412,70 @@ export async function buildChatPrompt(
     contextBlock = "\n\n" + SYSTEM_CONTEXT;
   }
 
-  // Topic-based guidance (RAG) — inject only the current topic's prompt
-  let topicBlock = "";
+  // ── Build prompt based on conversation state ──────────────
+  let systemPrompt: string;
 
-  if (intent === "general") {
-    const { topic: currentTopic, prompt: topicPrompt } = getCurrentTopic(topicCounts, message);
-    topicBlock = "\n\n" + topicPrompt;
+  if (intent === "system" || intent === "profile") {
+    // System/profile question — answer briefly, ask to continue
+    convState.off_topic_turns++;
+    saveConversationState(userId, convState);
+    const ctx = intent === "system" ? SYSTEM_CONTEXT : (contextBlock || PROFILE_CONTEXT);
+    systemPrompt = buildPromptC(ctx, genderInstruction);
 
-    // Increment topic count every OTHER substantive message per topic.
-    // _skip_topic stores which topic was last incremented. If same topic → skip (follow-up turn).
-    // If different topic or first time → increment (new bank question).
-    const isSubstantive = message.trim().length >= 15;
-    const lastIncrementedTopic = (topicCounts as any)._last_incremented || "";
+  } else if (convState.closing_stage >= 3) {
+    // Conversation already closed — respond briefly
+    systemPrompt = buildPromptD(genderInstruction);
 
-    if (isSubstantive) {
-      if (lastIncrementedTopic === currentTopic) {
-        // Same topic as last increment → this is a follow-up turn, skip but clear
-        const updated = { ...topicCounts, _last_incremented: "" };
-        pgQueryOne(
-          `INSERT INTO user_chat_summaries (user_id, summary_json, message_count_at, topic_injection_counts, updated_at)
-           VALUES ($1, '{}'::jsonb, 0, $2::jsonb, NOW())
-           ON CONFLICT (user_id) DO UPDATE SET topic_injection_counts = $2::jsonb, updated_at = NOW()`,
-          [userId, JSON.stringify(updated)]
-        ).catch(() => {});
-      } else {
-        // Different topic or cleared → this is a bank question turn, increment
-        const updated = { ...topicCounts, [currentTopic]: (topicCounts[currentTopic] || 0) + 1, _last_incremented: currentTopic };
-        pgQueryOne(
-          `INSERT INTO user_chat_summaries (user_id, summary_json, message_count_at, topic_injection_counts, updated_at)
-           VALUES ($1, '{}'::jsonb, 0, $2::jsonb, NOW())
-           ON CONFLICT (user_id) DO UPDATE SET topic_injection_counts = $2::jsonb, updated_at = NOW()`,
-          [userId, JSON.stringify(updated)]
-        ).catch(() => {});
-      }
+  } else if (convState.closing_stage === 2) {
+    // User responded to insight — final close
+    convState.closing_stage = 3;
+    saveConversationState(userId, convState);
+    systemPrompt = buildPromptEFinal(genderInstruction);
+
+  } else if (convState.closing_stage === 1) {
+    // All topics done, give insight
+    convState.closing_stage = 2;
+    saveConversationState(userId, convState);
+    systemPrompt = buildPromptEInsight(genderInstruction);
+
+  } else {
+    // Normal flow — micro-topics
+    // Reset off-topic counter
+    if (convState.off_topic_turns > 0) {
+      convState.off_topic_turns = 0;
+    }
+
+    const currentTopic = getCurrentTopic(convState);
+
+    if (!currentTopic) {
+      // All topics done — enter closing stage 1 (insight)
+      convState.closing_stage = 1;
+      saveConversationState(userId, convState);
+      systemPrompt = buildPromptEInsight(genderInstruction);
+
+    } else if (convState.turn_in_topic === 0) {
+      // Opening question for this topic — Prompt A
+      systemPrompt = buildPromptA(
+        currentTopic.openingQuestion,
+        genderInstruction,
+        coupleInstruction,
+        currentTopic.guideline,
+      );
+      // Advance to follow-up turn
+      convState.turn_in_topic = 1;
+      saveConversationState(userId, convState);
+
+    } else {
+      // Follow-up turn — Prompt B
+      const fallback = currentTopic.followUpQuestions.length > 0
+        ? currentTopic.followUpQuestions[0]
+        : null;
+      systemPrompt = buildPromptB(fallback, genderInstruction, coupleInstruction);
+      // Advance to next topic
+      advanceToNextTopic(convState);
+      saveConversationState(userId, convState);
     }
   }
 
-  // Closing logic — managed as a state machine via _closing_stage in topicCounts
-  // Stage 0 (or absent): not closing yet
-  // Stage 1: all topics covered → inject "give insight + ask if accurate"
-  // Stage 2: user responded to insight → inject "thank + close"
-  let closingInstruction = "";
-  if (intent === "general") {
-    const closingStage = (topicCounts as any)._closing_stage || 0;
-    const allTopicsCovered = TOPIC_ORDER.every(entry => (topicCounts[entry.topic] || 0) >= entry.minInjections);
-
-    if (closingStage === 2) {
-      // Stage 2: user responded to our insight — close the conversation
-      closingInstruction = `\n\n## שלב: סגירת שיחה\nתגיב בקצרה למה שהמשתמש אמר (אם תיקן — הכר בתיקון). ואז כתוב הודעת סיום:\n"תודה רבה על הפתיחות! אנחנו מתחילים לנתח את הפרופיל שלך ולבדוק התאמות אפשריות. נעדכן אותך כשנמצא אפשרויות מתאימות, או אם נצטרך ממך מידע נוסף. אנחנו כאן לכל מה שתצטרך."`;
-    } else if (closingStage === 1) {
-      // Stage 1 was set last turn — now advance to stage 2
-      const updated = { ...topicCounts, _closing_stage: 2 };
-      pgQueryOne(
-        `UPDATE user_chat_summaries SET topic_injection_counts = $1::jsonb, updated_at = NOW() WHERE user_id = $2`,
-        [JSON.stringify(updated), userId]
-      ).catch(() => {});
-      // Still inject insight instruction (in case stage 1 reply didn't include it)
-      closingInstruction = `\n\n## שלב: תובנה וסיכום\nתגיב למה שהמשתמש אמר, ואז תן תובנה קצרה (2-3 משפטים) על מה שלמדת עליו — מה מאפיין אותו, מה הוא מחפש, ומה לדעתך ידבר אליו בבן/בת זוג. שאל: "דייקתי? יש משהו שהיית רוצה להוסיף או לתקן?"`;
-    } else if (allTopicsCovered && closingStage === 0) {
-      // All topics done — enter stage 1: give insight
-      const updated = { ...topicCounts, _closing_stage: 1 };
-      pgQueryOne(
-        `UPDATE user_chat_summaries SET topic_injection_counts = $1::jsonb, updated_at = NOW() WHERE user_id = $2`,
-        [JSON.stringify(updated), userId]
-      ).catch(() => {});
-      closingInstruction = `\n\n## שלב: תובנה וסיכום\nכיסינו את כל הנושאים. תגיב למה שהמשתמש אמר, ואז תן תובנה קצרה (2-3 משפטים) על מה שלמדת עליו — מה מאפיין אותו, מה הוא מחפש, ומה לדעתך ידבר אליו בבן/בת זוג. שאל: "דייקתי? יש משהו שהיית רוצה להוסיף או לתקן?"`;
-    }
-  }
-
-  const systemPrompt = BASE_PROMPT + genderInstruction + coupleInstruction + topicBlock + contextBlock + closingInstruction;
-
-  return { systemPrompt, intent, phase };
+  return { systemPrompt, intent, phase, closingStage: convState.closing_stage };
 }

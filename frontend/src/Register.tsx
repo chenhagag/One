@@ -187,7 +187,7 @@ export default function Register({ onSuccess }: { onSuccess: (u: User) => void }
 
   return (
     <form onSubmit={handleSubmit} dir="rtl">
-      <h2 style={s.heading}>הרשמה ל-MatchMe</h2>
+      <h2 style={s.heading}>הרשמה ל-One</h2>
       <p style={s.sub}>רק כמה פרטים בסיסיים כדי להתחיל</p>
 
       <div style={s.section}>

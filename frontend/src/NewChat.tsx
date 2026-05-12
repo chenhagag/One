@@ -46,6 +46,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
   const [bugText, setBugText] = useState("");
   const [bugSent, setBugSent] = useState(false);
   const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number }>({ has_cognitive: true, has_taste_info: true, chat_count: 0, summary_fields: 0, cognitive_count: 0 });
+  const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -150,6 +151,13 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
       const data = await r.json();
       if (data.reply) {
         setMessagesForChannel(effectiveChannel, prev => [...prev, { role: "assistant", content: data.reply }]);
+        if (data.closing_stage >= 3) {
+          setClosedChannels(prev => ({ ...prev, [effectiveChannel]: true }));
+          // Refresh recommendations so bubbles reflect current state
+          fetch(`/api/new-chat/status/${user.id}`).then(r => r.json()).then(d => {
+            if (d.has_cognitive !== undefined) setRecommendations({ has_cognitive: d.has_cognitive, has_taste_info: d.has_taste_info, chat_count: d.chat_count || 0, summary_fields: d.summary_fields || 0, cognitive_count: d.cognitive_count || 0 });
+          }).catch(() => {});
+        }
       } else if (data.error) {
         setMessagesForChannel(effectiveChannel, prev => [...prev, { role: "assistant", content: "מצטער, משהו השתבש. נסה שוב." }]);
       }
@@ -199,7 +207,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
       <div className={`nc-sidebar${menuOpen ? " open" : ""}`} style={styles.sidebar}>
         <div style={styles.logo}>
           <img src="/heartIcon.jpg" alt="" style={styles.logoIcon} />
-          <span style={styles.logoText}>MatchMe</span>
+          <span style={styles.logoText}>One</span>
         </div>
 
         <div style={styles.sidebarItems}>
@@ -376,7 +384,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
               {screen === "home" && (
                 <div style={styles.welcomeBlock}>
                   <img src="/heartIcon.jpg" alt="" style={styles.welcomeIcon} />
-                  <h2 style={styles.welcomeTitle}>ברוכים הבאים ל-MatchMe</h2>
+                  <h2 style={styles.welcomeTitle}>ברוכים הבאים ל-One</h2>
                   <p style={styles.welcomeText}>
                     העוזר האישי שלך להכרויות מדויקות ומשמעותיות.
                   </p>
@@ -402,6 +410,34 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
                       <div style={{ ...styles.assistantBubble, color: "#999" }}>...</div>
                     </div>
                   )}
+
+                  {/* Post-close channel bubbles */}
+                  {closedChannels[channel] && !sending && (() => {
+                    const { has_cognitive, has_taste_info } = recommendations;
+                    const isCouple = (user as any).test_user_type === "Couple Tester";
+                    const cogDone = isCouple ? recommendations.cognitive_count >= 3 : has_cognitive;
+                    const tasteDone = isCouple ? has_taste_info : has_taste_info;
+                    const bubbles: { icon: string; text: string; ch: string }[] = [];
+                    if (!cogDone && channel !== "new_chat_cognitive") bubbles.push({ icon: "🧠", text: "בוא נבין את סגנון החשיבה שלי", ch: "new_chat_cognitive" });
+                    if (!tasteDone && channel !== "new_chat_taste") bubbles.push({ icon: "🔍", text: "נתח את הטעם שלי לעומק", ch: "new_chat_taste" });
+                    if (channel !== "new_chat" && (recommendations.summary_fields < 8)) bubbles.push({ icon: "💬", text: "בוא נמשיך להכיר", ch: "new_chat" });
+                    if (bubbles.length === 0) return null;
+                    return (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginTop: 12 }}>
+                        {bubbles.map((b, i) => (
+                          <button key={i} style={{ padding: "8px 16px", border: "1px solid #e0e0e8", borderRadius: 20, background: "#fff", fontSize: 13, color: "#6366f1", cursor: "pointer", fontWeight: 600 }} onClick={() => {
+                            if (channelMessages[b.ch]?.length > 0) {
+                              setChannel(b.ch);
+                            } else {
+                              sendMessage(b.text, b.ch);
+                            }
+                          }}>
+                            <span style={{ fontSize: 14, marginLeft: 4 }}>{b.icon}</span> {b.text}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </>
               )}
 

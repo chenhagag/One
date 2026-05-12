@@ -257,7 +257,7 @@ export default function App() {
             style={{ ...styles.title, cursor: "pointer" }}
             onClick={() => { if (user) setView("new_chat"); }}
           >
-            MatchMe
+            One
           </h1>
           {user && (
             <button style={styles.logoutBtn} onClick={handleLogout}>
@@ -270,7 +270,7 @@ export default function App() {
       {/* Landing — choose Register or Login */}
       {view === "landing" && (
         <div style={styles.landingContainer}>
-          <h1 style={styles.landingTitle}>MatchMe</h1>
+          <h1 style={styles.landingTitle}>One</h1>
           <p style={styles.landingSubtitle}>Find your perfect match</p>
           <div style={styles.landingBtnRow}>
             <button
@@ -330,13 +330,13 @@ export default function App() {
       {view === "welcome" && user && (
         <div dir="rtl" style={{ maxWidth: 520, margin: "0 auto", padding: "40px 20px" }}>
           <h2 style={{ fontSize: 26, marginBottom: 16, textAlign: "center" }}>
-            {user.first_name}, !ברוך/ה הבא/ה ל-MatchMe
+            {user.first_name}, !ברוך/ה הבא/ה ל-One
           </h2>
           <div style={{ background: "#f8f9fa", borderRadius: 12, padding: 24, marginBottom: 20, lineHeight: 1.8, fontSize: 15, color: "#333" }}>
             {user.test_user_type === "Couple Tester" ? (
               <>
                 <p style={{ marginTop: 0 }}>
-                  <strong>MatchMe</strong> הוא מערכת שידוכים חכמה שמתאימה בין אנשים ברמה עמוקה — על בסיס ניתוח אישיותי העולה מהיכרות באמצעות שיחה עם צ'אט AI.
+                  <strong>One</strong> הוא מערכת שידוכים חכמה שמתאימה בין אנשים ברמה עמוקה — על בסיס ניתוח אישיותי העולה מהיכרות באמצעות שיחה עם צ'אט AI.
                 </p>
                 <p>
                   אנחנו כרגע בשלבי אימון המערכת על זוגות אמיתיים, כך שתלמד לדייק התאמות עבור משתמשים אמיתיים בהמשך ולמצוא מה באמת מחבר בין זוגות.
@@ -351,7 +351,7 @@ export default function App() {
             ) : (
               <>
                 <p style={{ marginTop: 0 }}>
-                  <strong>MatchMe</strong> הוא מערכת שידוכים חכמה שמתאימה בין אנשים ברמה עמוקה — בלי החלקות, בלי שיפוטיות חיצונית.
+                  <strong>One</strong> הוא מערכת שידוכים חכמה שמתאימה בין אנשים ברמה עמוקה — בלי החלקות, בלי שיפוטיות חיצונית.
                 </p>
                 <p>
                   המערכת תכיר אותך באמצעות שיחה שוטפת עם צ'אט AI.
