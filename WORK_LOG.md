@@ -1,6 +1,108 @@
-# WORK_LOG.md — MatchMe Development Log
+# WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-05-07
+## Latest Session: 2026-05-12
+
+### What We Worked On
+
+#### 1. Micro-Topics + Prompt Templates (A/B/C/D/E)
+- **Replaced** topic-based RAG with 14 micro-topics + structured prompt templates
+- Code controls what AI asks (Prompt A = required question, Prompt B = follow-up only if needed)
+- AI's role is formatting/tone only — eliminates topic drift and repetition
+- State machine: `ConversationState` with `current_topic_index`, `turn_in_topic`, `closing_stage`
+- New files: `microTopics.ts`, `promptTemplates.ts`
+- Deleted old topic files: `topic-intro.txt`, `topic-relationships.txt`, `topic-values.txt`, `topic-culture.txt`
+
+#### 2. Rename MatchMe → One
+- All frontend UI references updated: App.tsx, NewChat.tsx, Register.tsx, index.html
+- "הוא מערכת" → "היא מערכת" (grammatical gender fix)
+
+#### 3. Welcome Screen Gender Adaptation
+- "ברוך הבא" / "ברוכה הבאה" based on user.gender
+- All body text adapted: "תספרי"/"תעני" for women, "תספר"/"תענה" for men
+
+#### 4. User Name in Greeting
+- "היי נוי, תודה רבה..." instead of "היי, תודה רבה..."
+- Both couple tester and regular greetings updated
+
+#### 5. Response Speed
+- `max_tokens` reduced from 500 to 300 (chat responses are short — 100-150 tokens)
+
+#### 6. Disclaimer on Home Screen
+- "המערכת בשלבי בנייה. הצ'אט עלול עדיין להרגיש קצת רובוטי או תקוע — תודה על ההבנה."
+
+#### 7. Cognitive Chat Fixes
+- **Full history sent** (not `slice(-6)`) — AI sees all previous questions, prevents repetition
+- **Prompt updated**: "שאל 6 שאלות", "לעולם אל תחזור על שאלה שכבר שאלת"
+- **Closing threshold**: couples = 7 (6 questions), regular = 7 (6 questions), accounting for 2 intro messages
+- **Stronger closing instruction**: "חובה לסגור עכשיו", "אל תשאל שאלה נוספת"
+
+#### 8. Post-Close Channel Bubbles
+- Backend returns `closing_stage` in API response
+- For cognitive/taste: `closing_stage=3` only when AI reply contains actual closing text (regex check)
+- Frontend shows bubbles for incomplete channels after conversation closes
+- "בוא נמשיך להכיר" hidden when general chat already closed
+
+#### 9. Expert Recommendation Respects Closed Channels
+- "בוא נמשיך" recommendation no longer shown after general chat closed
+- "All done" message when all channels complete: "סיימת את כל השלבים, תודה רבה..."
+- Conditional photo/profile prompt: couples get "העלו תמונות", singles get "להשלמת הפרופיל..."
+- Photo/profile prompt disappears when photos uploaded and details filled
+
+#### 10. Taste Test Closing Fix
+- Stronger closing instruction: "חובה לסגור עכשיו", "אל תציג עוד פרופילים"
+
+#### 11. Auto-Analysis Rework (Two Runs)
+- **Run 1**: Triggers when general chat closes — even without cognitive/taste
+- **Run 2**: Triggers when all channels done (cognitive ≥5 + taste ≥5)
+- Max 2 automatic runs per user (tracked via `analysis_run_count` column)
+- New functions: `maybeAutoAnalyzeAfterChat()`, `maybeAutoAnalyzeAfterAll()`
+
+#### 12. Taste Profiles — Remove Age + Gender Adaptation
+- Removed age from all 48 profiles (female + male): "אני יעל. אוהבת..." instead of "אני יעל, 32. אוהבת..."
+- Prompt instruction to adapt "מחפש/ת גבר/אישה" to match user's gender
+
+#### 13. Sidebar: "בדיקת טעם חיצוני" Placeholder
+- Renamed from "בדיקת טעם אישי" to "בדיקת טעם חיצוני"
+- Shows "בבנייה" screen instead of opening taste chat
+
+#### 14. Profile View — Photo Upload Fix
+- Extracted `ProfileView` component with photo loading from API
+- Photos displayed in grid, auto-refresh after upload
+- Delete button on each photo
+- Vite proxy added for `/uploads` in dev mode
+- Age displayed without "גיל" prefix
+
+#### 15. Old Chat History Mapping
+- `psychologist` (שיחת עומק) → displayed in general chat (`new_chat`)
+- `interviewer` (שיחת מעבדה) → displayed in cognitive chat (`new_chat_cognitive`)
+- Read-only mapping in frontend — zero DB changes, no data modified
+
+### Files Modified
+- `backend/src/agents/conversation/chatManager.ts` — Micro-topics, prompt templates, closing thresholds
+- `backend/src/agents/conversation/autoAnalysis.ts` — Two-run auto-analysis
+- `backend/src/agents/conversation/prompts/cognitive-chat.txt` — 6 questions, no-repeat rule
+- `backend/src/agents/conversation/prompts/taste-test-chat.txt` — Gender adaptation instruction
+- `backend/src/agents/conversation/prompts/taste-profiles-female.txt` — Removed ages
+- `backend/src/agents/conversation/prompts/taste-profiles-male.txt` — Removed ages
+- `backend/src/index.ts` — closing_stage in API, full history for cognitive, auto-analysis triggers, photo count
+- `backend/src/schema.pg.ts` — `analysis_run_count` column
+- `frontend/src/App.tsx` — Rename to One, gender-adapted welcome
+- `frontend/src/NewChat.tsx` — Bubbles, recommendations, ProfileView, old chat mapping, disclaimer
+- `frontend/src/Register.tsx` — Rename to One
+- `frontend/index.html` — Title: One
+- `frontend/vite.config.ts` — Uploads proxy
+
+### Files Created
+- `backend/src/agents/conversation/microTopics.ts` — 14 micro-topics with state machine
+- `backend/src/agents/conversation/promptTemplates.ts` — Prompt A/B/C/D/E templates
+
+### Files Deleted
+- `backend/src/agents/conversation/prompts/topic-intro.txt`
+- `backend/src/agents/conversation/prompts/topic-relationships.txt`
+- `backend/src/agents/conversation/prompts/topic-values.txt`
+- `backend/src/agents/conversation/prompts/topic-culture.txt`
+
+## Previous Session: 2026-05-07
 
 ### What We Worked On
 

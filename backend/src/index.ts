@@ -1797,12 +1797,26 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
       summaryFields = fields.filter(f => summary[f] && summary[f].trim().length > 0).length;
     }
 
+    // Photo count
+    const photoRow = await pgQueryOne<{ c: number }>(
+      "SELECT COUNT(*)::int AS c FROM user_photos WHERE user_id = $1", [userId]
+    );
+    const photoCount = photoRow?.c ?? 0;
+
+    // Profile completeness (check key fields)
+    const profileRow = await pgQueryOne<{ age: number | null; city: string | null }>(
+      "SELECT age, city FROM users WHERE id = $1", [userId]
+    );
+    const hasProfileDetails = !!(profileRow?.age && profileRow?.city);
+
     return res.json({
       has_cognitive: cognitiveCount >= 7,
       cognitive_count: cognitiveCount,
       has_taste_info: hasTasteInfo,
       chat_count: chatCount,
       summary_fields: summaryFields,
+      photo_count: photoCount,
+      has_profile_details: hasProfileDetails,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

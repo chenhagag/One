@@ -27,7 +27,7 @@ const SIDEBAR_ITEMS: { icon: string; label: string; action?: string }[] = [
   { icon: "📋", label: "הפרטים שלי", action: "profile_edit" },
   { icon: "👤", label: "פרופיל", action: "profile_view" },
   { icon: "💡", label: "תובנות על עצמי", action: "insights" },
-  { icon: "🎯", label: "בדיקת טעם אישי", action: "taste_test" },
+  { icon: "🎯", label: "בדיקת טעם חיצוני", action: "taste_test" },
   { icon: "🐛", label: "דווח על באג", action: "bug_report" },
   { icon: "⚙️", label: "הגדרות", action: "settings" },
 ];
@@ -45,7 +45,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
   const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "profile_view" | "insights" | "bug_report" | "settings">("home");
   const [bugText, setBugText] = useState("");
   const [bugSent, setBugSent] = useState(false);
-  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number }>({ has_cognitive: true, has_taste_info: true, chat_count: 0, summary_fields: 0, cognitive_count: 0 });
+  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean }>({ has_cognitive: true, has_taste_info: true, chat_count: 0, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false });
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -73,6 +73,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
             chat_count: data.chat_count || 0,
             summary_fields: data.summary_fields || 0,
             cognitive_count: data.cognitive_count || 0,
+            photo_count: data.photo_count || 0,
+            has_profile_details: data.has_profile_details || false,
           });
         }
       })
@@ -92,10 +94,16 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
         };
         for (const m of data.messages) {
           const ct = m.chat_type as string;
-          if (ct && ct.startsWith("new_chat")) {
-            const key = ct in perChannel ? ct : "new_chat";
-            perChannel[key].push({ role: m.role, content: m.content });
+          if (!ct) continue;
+          let key: string | null = null;
+          if (ct.startsWith("new_chat")) {
+            key = ct in perChannel ? ct : "new_chat";
+          } else if (ct === "psychologist") {
+            key = "new_chat";
+          } else if (ct === "interviewer") {
+            key = "new_chat_cognitive";
           }
+          if (key) perChannel[key].push({ role: m.role, content: m.content });
         }
         setChannelMessages(perChannel);
       })
@@ -155,7 +163,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
           setClosedChannels(prev => ({ ...prev, [effectiveChannel]: true }));
           // Refresh recommendations so bubbles reflect current state
           fetch(`/api/new-chat/status/${user.id}`).then(r => r.json()).then(d => {
-            if (d.has_cognitive !== undefined) setRecommendations({ has_cognitive: d.has_cognitive, has_taste_info: d.has_taste_info, chat_count: d.chat_count || 0, summary_fields: d.summary_fields || 0, cognitive_count: d.cognitive_count || 0 });
+            if (d.has_cognitive !== undefined) setRecommendations({ has_cognitive: d.has_cognitive, has_taste_info: d.has_taste_info, chat_count: d.chat_count || 0, summary_fields: d.summary_fields || 0, cognitive_count: d.cognitive_count || 0, photo_count: d.photo_count || 0, has_profile_details: d.has_profile_details || false });
           }).catch(() => {});
         }
       } else if (data.error) {
@@ -240,12 +248,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
               onClick={() => {
                 if (!item.action) return;
                 if (item.action === "taste_test") {
-                  if (channelMessages["new_chat_taste"]?.length > 0) {
-                    setChannel("new_chat_taste");
-                    setScreen("chat");
-                  } else {
-                    sendMessage("נתח את הטעם שלי לעומק", "new_chat_taste");
-                  }
+                  setScreen("taste_test" as any);
                   setMenuOpen(false);
                   return;
                 }
@@ -342,40 +345,18 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
           </div>
         )}
 
-        {/* Profile View */}
-        {screen === "profile_view" && (
-          <div style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
-            <div style={{ maxWidth: 400, margin: "0 auto", padding: "32px 24px", textAlign: "center" }}>
-              <p style={{ fontSize: 12, color: "#6366f1", marginBottom: 16 }}>רצוי להעלות 3 תמונות לפחות</p>
-              {/* Photo */}
-              <div style={{ width: 140, height: 140, borderRadius: "50%", background: "#e0e0e8", margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                {(user as any)._photoUrl
-                  ? <img src={(user as any)._photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  : <span style={{ fontSize: 48, color: "#aaa" }}>{user.first_name.charAt(0)}</span>
-                }
-              </div>
-              <label style={{
-                display: "inline-block", padding: "8px 20px", fontSize: 13, fontWeight: 600,
-                background: "#6366f1", color: "#fff", borderRadius: 8, cursor: "pointer", marginBottom: 20,
-              }}>
-                העלאת תמונה
-                <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  const form = new FormData();
-                  form.append("photo", file);
-                  try {
-                    await fetch(`/api/users/${user.id}/photos`, { method: "POST", body: form });
-                    // Refresh would show new photo — for now just alert
-                    alert("התמונה הועלתה בהצלחה!");
-                  } catch { alert("שגיאה בהעלאת התמונה"); }
-                }} />
-              </label>
-              <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", marginBottom: 4 }}>{user.first_name}</h2>
-              {user.age && <p style={{ fontSize: 15, color: "#666", margin: 0 }}>גיל {user.age}</p>}
+        {screen === ("taste_test" as any) && (
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", direction: "rtl" }}>
+            <div style={{ textAlign: "center", padding: 24 }}>
+              <div style={{ fontSize: 40, marginBottom: 16 }}>🎯</div>
+              <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", marginBottom: 8 }}>בדיקת טעם חיצוני</h2>
+              <p style={{ fontSize: 14, color: "#888" }}>המסך עוד בבנייה, בקרוב יהיה זמין!</p>
             </div>
           </div>
         )}
+
+        {/* Profile View */}
+        {screen === "profile_view" && <ProfileView user={user} />}
 
         {/* Chat Area — home + chat screens */}
         {(screen === "home" || screen === "chat") && (
@@ -498,6 +479,27 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
                   </div>
                 );
               }
+              // All done — thank the user + prompt for photos/profile
+              if (chatClosed && cogDoneForCouple && tasteDoneForCouple) {
+                const hasPhotos = recommendations.photo_count > 0;
+                const hasDetails = recommendations.has_profile_details;
+                return (
+                  <div style={styles.recommendationBlock}>
+                    <p style={styles.recommendationText}>
+                      סיימת את כל השלבים, תודה רבה, עזרת לי מאוד לשפר את עצמי! נחזור אליך בקרוב עם תובנות על הזוגיות שלך :)
+                    </p>
+                    {(!hasPhotos || !hasDetails) && (
+                      <p style={{ ...styles.recommendationText, marginTop: 8 }}>
+                        <span style={styles.recommendationBadge}>המלצת המומחה</span>
+                        {isCouple
+                          ? " אם אתם מעוניינים לעזור לי להתאמן ולבחון גם התאמה חיצונית ביניכם — העלו תמונות במסך הפרופיל. תודה רבה!"
+                          : ` להשלמת הפרופיל ${!hasPhotos ? "יש להעלות תמונות" : ""}${!hasPhotos && !hasDetails ? " ו" : ""}${!hasDetails ? "להשלים פרטים אישיים" : ""} במסך הפרופיל.`
+                        }
+                      </p>
+                    )}
+                  </div>
+                );
+              }
               return null;
             })()}
 
@@ -568,6 +570,68 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
           <div style={styles.disclaimer}>השיחה מנוהלת על ידי בינה מלאכותית לצורך הכרות והתאמה</div>
         </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Profile View component ──────────────────────────────────────
+
+function ProfileView({ user }: { user: User }) {
+  const [photos, setPhotos] = useState<{ id: number; url: string }[]>([]);
+
+  function loadPhotos() {
+    fetch(`/api/users/${user.id}/photos`).then(r => r.json()).then(data => {
+      if (data.photos) setPhotos(data.photos);
+    }).catch(() => {});
+  }
+
+  useEffect(() => { loadPhotos(); }, [user.id]);
+
+  return (
+    <div style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
+      <div style={{ maxWidth: 400, margin: "0 auto", padding: "32px 24px", textAlign: "center" }}>
+        <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", marginBottom: 4 }}>{user.first_name}</h2>
+        {user.age && <p style={{ fontSize: 15, color: "#666", margin: "0 0 16px" }}>{user.age}</p>}
+
+        {/* Photos grid */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginBottom: 16 }}>
+          {photos.map(p => (
+            <div key={p.id} style={{ position: "relative", width: 100, height: 100, borderRadius: 10, overflow: "hidden", background: "#e0e0e8" }}>
+              <img src={p.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <button
+                style={{ position: "absolute", top: 2, left: 2, background: "rgba(0,0,0,0.5)", color: "#fff", border: "none", borderRadius: "50%", width: 22, height: 22, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                onClick={async () => {
+                  await fetch(`/api/users/${user.id}/photos/${p.id}`, { method: "DELETE" });
+                  loadPhotos();
+                }}
+              >✕</button>
+            </div>
+          ))}
+          {photos.length === 0 && (
+            <div style={{ width: 100, height: 100, borderRadius: 10, background: "#e0e0e8", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ fontSize: 36, color: "#aaa" }}>{user.first_name.charAt(0)}</span>
+            </div>
+          )}
+        </div>
+
+        <p style={{ fontSize: 12, color: "#6366f1", marginBottom: 12 }}>רצוי להעלות 3 תמונות לפחות</p>
+        <label style={{
+          display: "inline-block", padding: "8px 20px", fontSize: 13, fontWeight: 600,
+          background: "#6366f1", color: "#fff", borderRadius: 8, cursor: "pointer",
+        }}>
+          העלאת תמונה
+          <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            const form = new FormData();
+            form.append("photo", file);
+            try {
+              await fetch(`/api/users/${user.id}/photos`, { method: "POST", body: form });
+              loadPhotos();
+            } catch { alert("שגיאה בהעלאת התמונה"); }
+          }} />
+        </label>
       </div>
     </div>
   );

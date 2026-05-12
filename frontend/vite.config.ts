@@ -10,6 +10,9 @@ export default defineConfig({
         target: "http://localhost:3001",
         rewrite: (path) => path.replace(/^\/api/, ""),
       },
+      "/uploads": {
+        target: "http://localhost:3001",
+      },
     },
   },
 });
