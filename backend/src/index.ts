@@ -26,6 +26,9 @@ import { trackTokens } from "./tokenTracker";
 
 dotenv.config();
 
+// Single OpenAI client instance — reused across all requests
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
@@ -1307,7 +1310,7 @@ app.post("/admin/users/:id/cognitive-test", async (req, res) => {
     const systemPrompt = fs.readFileSync(promptPath, "utf-8");
 
     const OpenAI = (await import("openai")).default;
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    // uses global openai client
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -1846,15 +1849,8 @@ app.post("/new-chat/message", async (req, res) => {
   // Validate channel — must start with new_chat
   const guide = typeof channel === "string" && channel.startsWith("new_chat") ? channel : "new_chat";
 
-  // Fetch user gender + looking_for_gender
-  const chatUser = await pgQueryOne<{ gender: string | null; first_name: string; looking_for_gender: string | null; test_user_type: string | null }>(
-    "SELECT gender, first_name, looking_for_gender, test_user_type FROM users WHERE id = $1", [user_id]
-  );
-
-  // Count existing messages to determine conversation phase
+  // Fetch user info + build prompt in parallel where possible
   const messageCount = Array.isArray(history) ? history.length : 0;
-
-  // Get last assistant message for cognitive agreement detection
   let lastAssistantMsg: string | undefined;
   if (Array.isArray(history)) {
     for (let i = history.length - 1; i >= 0; i--) {
@@ -1862,7 +1858,10 @@ app.post("/new-chat/message", async (req, res) => {
     }
   }
 
-  // Build prompt via conversation manager (RAG — injects only relevant context)
+  const chatUser = await pgQueryOne<{ gender: string | null; first_name: string; looking_for_gender: string | null; test_user_type: string | null }>(
+    "SELECT gender, first_name, looking_for_gender, test_user_type FROM users WHERE id = $1", [user_id]
+  );
+
   const { systemPrompt, intent, closingStage } = await buildChatPrompt(
     user_id, message,
     chatUser?.gender ?? null,
@@ -1895,13 +1894,12 @@ app.post("/new-chat/message", async (req, res) => {
   try {
     console.log(`[new-chat] User ${user_id}: received message (${message.length} chars), intent=${intent}, guide=${guide}`);
 
-    // Save user message
-    await pgQueryAll(
+    // Save user message (non-blocking — don't wait before calling OpenAI)
+    const saveUserMsg = pgQueryAll(
       "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES ($1, 'user', $2, $3)",
       [user_id, message, guide]
     );
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const start = Date.now();
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -1915,6 +1913,9 @@ app.post("/new-chat/message", async (req, res) => {
     trackTokens(user_id, `chat_${guide}`, "gpt-4o", response.usage as any);
 
     const reply = response.choices[0]?.message?.content || "";
+
+    // Ensure user message saved before saving reply (preserves order)
+    await saveUserMsg;
 
     // Save assistant reply
     await pgQueryAll(

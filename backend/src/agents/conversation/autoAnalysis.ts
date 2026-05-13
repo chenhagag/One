@@ -15,7 +15,7 @@ import {
   queryAll as pgQueryAll,
 } from "../../db.pg";
 import { buildAnalysisTranscript, computeCoverage } from "./analysisHelpers";
-import { runAnalysisAgent, buildAnalysisInput, saveAnalysisToDb } from "../analysis";
+import { runAnalysisAgent, buildAnalysisInput, saveAnalysisToDb, saveAnalysisRun } from "../analysis";
 import { updateCognitiveScore } from "../../cognitiveScore";
 
 // ── Auto-analysis execution ─────────────────────────────────────
@@ -48,6 +48,11 @@ async function runAnalysis(userId: number, runNumber: number): Promise<void> {
 
     // Save results
     const saved = await saveAnalysisToDb(db, userId, output);
+
+    // Save raw output for admin display
+    if (output._run_data) {
+      await saveAnalysisRun(db, userId, output._run_data.generated_prompt, output._run_data.stage_a_output, output._run_data.stage_b_output, `auto_run_${runNumber}`);
+    }
 
     // Update cognitive score
     const cogScore = await updateCognitiveScore(userId);

@@ -61,8 +61,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
   // Any channel has messages (for sidebar visibility)
   const hasAnyMessages = Object.values(channelMessages).some(arr => arr.length > 0);
 
-  // Load recommendations status
-  useEffect(() => {
+  // Load recommendations status — on mount and whenever returning to home screen
+  function loadRecommendations() {
     fetch(`/api/new-chat/status/${user.id}`)
       .then(r => r.json())
       .then(data => {
@@ -76,12 +76,14 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
             photo_count: data.photo_count || 0,
             has_profile_details: data.has_profile_details || false,
           });
-          // Load chat closed state from server (only general chat has reliable DB state)
           if (data.chat_closed) setClosedChannels(prev => ({ ...prev, "new_chat": true }));
         }
       })
       .catch(() => {});
-  }, [user.id]);
+  }
+
+  useEffect(() => { loadRecommendations(); }, [user.id]);
+  useEffect(() => { if (screen === "home") loadRecommendations(); }, [screen]);
 
   // Load existing conversation history on mount — split by channel
   useEffect(() => {
@@ -434,12 +436,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
                 </>
               )}
 
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Expert recommendation — one at a time, prioritized */}
-            {screen === "home" && (() => {
+              {/* Expert recommendation — one at a time, prioritized */}
+              {screen === "home" && (() => {
               const { has_cognitive, has_taste_info, summary_fields, chat_count } = recommendations;
+              console.log('[REC] recommendations:', JSON.stringify(recommendations));
               const isCouple = (user as any).test_user_type === "Couple Tester";
               // Couples get recommendations earlier
               const conversationAdvanced = isCouple ? chat_count >= 5 : summary_fields >= 4;
@@ -448,6 +448,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
               const chatClosed = closedChannels["new_chat"] || false;
               const chatNotEnough = summary_fields < 8 && chat_count > 0 && !chatClosed;
 
+              console.log('[REC] chatNotEnough:', chatNotEnough, 'chatClosed:', chatClosed, 'conversationAdvanced:', conversationAdvanced, 'cogDone:', cogDoneForCouple, 'tasteDone:', tasteDoneForCouple);
               // Priority 1: General chat not complete — return to chat
               if (chatNotEnough) {
                 return (
@@ -501,6 +502,9 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
               }
               return null;
             })()}
+
+              <div ref={messagesEndRef} />
+            </div>
 
             {/* Suggestions — only on home screen */}
             {screen === "home" && (

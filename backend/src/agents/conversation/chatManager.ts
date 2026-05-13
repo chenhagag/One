@@ -384,13 +384,24 @@ export async function buildChatPrompt(
     const isCoupleTest = testUserType === "Couple Tester";
     const allProfilesText = buildTasteProfileList(profileBank);
     // Still need currentProfile for closing detection
+    // Count profiles shown by matching names from the actual profile bank
+    const profileNames = new Set(profileBank.map(p => {
+      const m = p.text.match(/אני (\S+?)[.,]/);
+      return m ? m[1] : null;
+    }).filter(Boolean));
+
     let profilesShown = 0;
     if (Array.isArray(history)) {
       const shownNames = new Set<string>();
       for (const h of history) {
         if (h.role === "assistant") {
-          const matches = h.content.match(/אני (\S+)\./g);
-          if (matches) for (const m of matches) shownNames.add(m);
+          const matches = h.content.match(/אני (\S+?)[.,]/g);
+          if (matches) {
+            for (const m of matches) {
+              const name = m.match(/אני (\S+?)[.,]/)?.[1];
+              if (name && profileNames.has(name)) shownNames.add(name);
+            }
+          }
         }
       }
       profilesShown = shownNames.size;
@@ -443,7 +454,7 @@ export async function buildChatPrompt(
       }
     } else {
       // Show next profile from the list
-      phaseInstruction = `\n\n## שלב: הצגת פרופיל\nקודם — תגיב בקצרה לתשובת המשתמש ושאל שאלת הרחבה אחת (מה אהבת? מה פחות דיבר אליך?). אל תציג פרופיל חדש באותה הודעה עם שאלת ההרחבה. אל תכתוב "נעבור לפרופיל הבא" כשאתה שואל שאלה.\nאם התשובה כבר מפורטת מספיק — אז כן, עבור ישר לפרופיל הבא מהרשימה. העתק אותו בדיוק. אחרי הפרופיל שאל: עד כמה הוא/היא הטעם שלך מ-1 עד 10?`;
+      phaseInstruction = `\n\n## שלב: הצגת פרופיל\nתגיב בקצרה לתשובת המשתמש ושאל שאלת הרחבה אחת (מה אהבת? מה פחות דיבר אליך?).\nאם התשובה כבר מפורטת מספיק — עבור ישר לפרופיל הבא מהרשימה. העתק אותו בדיוק ושאל: עד כמה הוא/היא הטעם שלך מ-1 עד 10?\n\nכלל חשוב: אל תשאל שאלת הרחבה ביחד עם "נעבור לפרופיל הבא" באותה הודעה. או שאלת הרחבה, או פרופיל הבא — לא שניהם.`;
     }
 
     // Inject all selected profiles — AI picks the next one in order
