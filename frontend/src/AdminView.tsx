@@ -476,7 +476,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   }
 
   // Split traits into visible, internal-use, text (deal_breakers), and deal_breakers
-  const visibleTraits = traits.filter((t: any) => t.calc_type !== "internal_use" && t.calc_type !== "text");
+  const visibleTraits = traits.filter((t: any) => t.calc_type !== "internal_use" && t.calc_type !== "text" && t.internal_name !== "trans");
   const internalTraits = traits.filter((t: any) => t.calc_type === "internal_use");
   const dealBreakers = traits.find((t: any) => t.internal_name === "deal_breakers");
   const advantages = traits.find((t: any) => t.internal_name === "advantages");

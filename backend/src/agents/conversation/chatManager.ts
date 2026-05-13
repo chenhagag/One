@@ -174,13 +174,15 @@ async function getConversationState(userId: number): Promise<ConversationState> 
 }
 
 /** Persist conversation state to DB */
-function saveConversationState(userId: number, state: ConversationState): void {
-  pgQueryOne(
-    `INSERT INTO user_chat_summaries (user_id, summary_json, message_count_at, topic_injection_counts, updated_at)
-     VALUES ($1, '{}'::jsonb, 0, $2::jsonb, NOW())
-     ON CONFLICT (user_id) DO UPDATE SET topic_injection_counts = $2::jsonb, updated_at = NOW()`,
-    [userId, JSON.stringify(state)]
-  ).catch(() => {});
+async function saveConversationState(userId: number, state: ConversationState): Promise<void> {
+  try {
+    await pgQueryOne(
+      `INSERT INTO user_chat_summaries (user_id, summary_json, message_count_at, topic_injection_counts, updated_at)
+       VALUES ($1, '{}'::jsonb, 0, $2::jsonb, NOW())
+       ON CONFLICT (user_id) DO UPDATE SET topic_injection_counts = $2::jsonb, updated_at = NOW()`,
+      [userId, JSON.stringify(state)]
+    );
+  } catch {}
 }
 
 /** Load taste profile index from DB */
@@ -441,7 +443,7 @@ export async function buildChatPrompt(
       }
     } else {
       // Show next profile from the list
-      phaseInstruction = `\n\n## שלב: הצגת פרופיל\nשאל שאלה-שתיים של הרחבה על התגובה של המשתמש (מה אהבת? מה פחות דיבר אליך?). אם התשובה כבר מפורטת — עבור ישר לפרופיל הבא.\nהצג את הפרופיל הבא מהרשימה (לפי הסדר — הפרופיל שעוד לא הוצג). העתק אותו בדיוק. אחרי הפרופיל שאל: עד כמה הוא/היא הטעם שלך מ-1 עד 10?`;
+      phaseInstruction = `\n\n## שלב: הצגת פרופיל\nקודם — תגיב בקצרה לתשובת המשתמש ושאל שאלת הרחבה אחת (מה אהבת? מה פחות דיבר אליך?). אל תציג פרופיל חדש באותה הודעה עם שאלת ההרחבה. אל תכתוב "נעבור לפרופיל הבא" כשאתה שואל שאלה.\nאם התשובה כבר מפורטת מספיק — אז כן, עבור ישר לפרופיל הבא מהרשימה. העתק אותו בדיוק. אחרי הפרופיל שאל: עד כמה הוא/היא הטעם שלך מ-1 עד 10?`;
     }
 
     // Inject all selected profiles — AI picks the next one in order
@@ -491,7 +493,7 @@ export async function buildChatPrompt(
   if (intent === "system" || intent === "profile") {
     // System/profile question — answer briefly, ask to continue
     convState.off_topic_turns++;
-    saveConversationState(userId, convState);
+    await saveConversationState(userId, convState);
     const ctx = intent === "system" ? SYSTEM_CONTEXT : (contextBlock || PROFILE_CONTEXT);
     systemPrompt = buildPromptC(ctx, genderInstruction);
 
@@ -502,13 +504,13 @@ export async function buildChatPrompt(
   } else if (convState.closing_stage === 2) {
     // User responded to insight — final close
     convState.closing_stage = 3;
-    saveConversationState(userId, convState);
+    await saveConversationState(userId, convState);
     systemPrompt = buildPromptEFinal(genderInstruction);
 
   } else if (convState.closing_stage === 1) {
     // All topics done, give insight
     convState.closing_stage = 2;
-    saveConversationState(userId, convState);
+    await saveConversationState(userId, convState);
     systemPrompt = buildPromptEInsight(genderInstruction);
 
   } else {
@@ -523,7 +525,7 @@ export async function buildChatPrompt(
     if (!currentTopic) {
       // All topics done — enter closing stage 1 (insight)
       convState.closing_stage = 1;
-      saveConversationState(userId, convState);
+      await saveConversationState(userId, convState);
       systemPrompt = buildPromptEInsight(genderInstruction);
 
     } else if (convState.turn_in_topic === 0) {
@@ -536,7 +538,7 @@ export async function buildChatPrompt(
       );
       // Advance to follow-up turn
       convState.turn_in_topic = 1;
-      saveConversationState(userId, convState);
+      await saveConversationState(userId, convState);
 
     } else {
       // Follow-up turn — Prompt B
@@ -546,7 +548,7 @@ export async function buildChatPrompt(
       systemPrompt = buildPromptB(fallback, genderInstruction, coupleInstruction);
       // Advance to next topic
       advanceToNextTopic(convState);
-      saveConversationState(userId, convState);
+      await saveConversationState(userId, convState);
     }
   }
 

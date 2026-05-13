@@ -1809,6 +1809,19 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
     );
     const hasProfileDetails = !!(profileRow?.age && profileRow?.city);
 
+    // Check closing states
+    const stateRow = await pgQueryOne<{ topic_injection_counts: any }>(
+      "SELECT topic_injection_counts FROM user_chat_summaries WHERE user_id = $1", [userId]
+    );
+    const convState = stateRow?.topic_injection_counts || {};
+    const chatClosed = (convState.closing_stage ?? 0) >= 3;
+
+    // Cognitive closed: threshold reached
+    const cogClosed = cognitiveCount >= 7;
+
+    // Taste closed: enough profiles shown (6+)
+    const tasteClosed = tasteCount >= 6;
+
     return res.json({
       has_cognitive: cognitiveCount >= 7,
       cognitive_count: cognitiveCount,
@@ -1817,6 +1830,9 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
       summary_fields: summaryFields,
       photo_count: photoCount,
       has_profile_details: hasProfileDetails,
+      chat_closed: chatClosed,
+      cognitive_closed: cogClosed,
+      taste_closed: tasteClosed,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -1918,14 +1934,11 @@ app.post("/new-chat/message", async (req, res) => {
       }).catch(() => {});
     }
 
-    // For general chat, closingStage comes from DB state machine — reliable.
-    // For cognitive/taste, closingStage is threshold-based. Only report closed
-    // if the AI reply actually contains closing text (prevents premature bubbles).
-    let effectiveClosingStage = closingStage;
-    if (guide !== "new_chat" && closingStage >= 3) {
-      const hasClosingText = /תודה/.test(reply);
-      if (!hasClosingText) effectiveClosingStage = 0;
-    }
+    // closingStage comes from buildChatPrompt:
+    // - General chat: DB state machine (closing_stage >= 3 = done)
+    // - Cognitive: threshold reached
+    // - Taste: all profiles done or user said "enough"
+    const effectiveClosingStage = closingStage;
 
     // Trigger auto-analysis based on channel closing
     if (effectiveClosingStage >= 3) {

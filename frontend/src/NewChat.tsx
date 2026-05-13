@@ -76,6 +76,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
             photo_count: data.photo_count || 0,
             has_profile_details: data.has_profile_details || false,
           });
+          // Load chat closed state from server (only general chat has reliable DB state)
+          if (data.chat_closed) setClosedChannels(prev => ({ ...prev, "new_chat": true }));
         }
       })
       .catch(() => {});
@@ -105,7 +107,14 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
           }
           if (key) perChannel[key].push({ role: m.role, content: m.content });
         }
-        setChannelMessages(perChannel);
+        setChannelMessages(prev => {
+          // Don't overwrite channels that already have messages (e.g. greeting just added)
+          const merged = { ...prev };
+          for (const [ch, msgs] of Object.entries(perChannel)) {
+            if (msgs.length > 0) merged[ch] = msgs;
+          }
+          return merged;
+        });
       })
       .catch(() => {});
   }, [user.id]);
@@ -439,8 +448,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
               const chatClosed = closedChannels["new_chat"] || false;
               const chatNotEnough = summary_fields < 8 && chat_count > 0 && !chatClosed;
 
-              // Priority 1: Return to general chat if not enough data and user already started
-              if (chatNotEnough && cogDoneForCouple && tasteDoneForCouple) {
+              // Priority 1: General chat not complete — return to chat
+              if (chatNotEnough) {
                 return (
                   <div style={styles.recommendationBlock}>
                     <p style={styles.recommendationText}>
@@ -465,16 +474,6 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
                   <div style={styles.recommendationBlock}>
                     <p style={styles.recommendationText}>
                       <span style={styles.recommendationBadge}>המלצת המומחה</span> לחץ על "נתח את הטעם שלי לעומק" כדי שנוכל להבין את העדפות הטעם שלך.
-                    </p>
-                  </div>
-                );
-              }
-              // Priority 4: General chat not complete
-              if (chatNotEnough) {
-                return (
-                  <div style={styles.recommendationBlock}>
-                    <p style={styles.recommendationText}>
-                      <span style={styles.recommendationBadge}>המלצת המומחה</span> עדיין לא הגענו להיכרות מספקת כדי למצוא לך התאמה ראויה. לחץ על "בוא נמשיך" כדי להתקדם.
                     </p>
                   </div>
                 );
