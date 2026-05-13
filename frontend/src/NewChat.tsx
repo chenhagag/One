@@ -228,8 +228,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
             <span>מסך ראשי</span>
           </button>
 
-          {/* Back to chat — only shown if any conversation has started */}
-          {hasAnyMessages && (
+          {/* Back to chat — only shown if general chat has started */}
+          {(channelMessages["new_chat"]?.length > 0) && (
             <button
               style={screen === "chat" && channel === "new_chat" ? styles.sidebarItemActive : styles.sidebarItem}
               onClick={() => { setChannel("new_chat"); setScreen("chat"); setMenuOpen(false); }}

@@ -1574,7 +1574,7 @@ app.get("/admin/candidate-matches", async (_req, res) => {
     JOIN users u2 ON u2.id = cm.candidate_user_id
     LEFT JOIN matches m ON (m.user1_id = cm.user_id AND m.user2_id = cm.candidate_user_id)
                         OR (m.user1_id = cm.candidate_user_id AND m.user2_id = cm.user_id)
-    ORDER BY cm.final_score DESC NULLS LAST
+    ORDER BY cm.profile_score DESC NULLS LAST
   `);
   return res.json(rows);
 });
@@ -1863,10 +1863,12 @@ app.post("/new-chat/message", async (req, res) => {
   ];
 
   // Add conversation history.
-  // Cognitive: send full history (AI picks questions from a list — needs to see what it already asked).
-  // General/taste: last 6 messages (code controls questions, less history = faster).
+  // Cognitive: always full history (AI picks questions — needs to see what it already asked).
+  // Taste closing: full history (AI summarizes all reactions — needs full context).
+  // General/taste mid-flow: last 6 messages (code controls questions, less history = faster).
   if (Array.isArray(history)) {
-    const recentHistory = guide === "new_chat_cognitive" ? history : history.slice(-6);
+    const needsFullHistory = guide === "new_chat_cognitive" || guide === "new_chat_taste";
+    const recentHistory = needsFullHistory ? history : history.slice(-6);
     for (const h of recentHistory) {
       if (h.role === "user" || h.role === "assistant") {
         messages.push({ role: h.role, content: h.content });
@@ -1921,7 +1923,7 @@ app.post("/new-chat/message", async (req, res) => {
     // if the AI reply actually contains closing text (prevents premature bubbles).
     let effectiveClosingStage = closingStage;
     if (guide !== "new_chat" && closingStage >= 3) {
-      const hasClosingText = /תודה.{0,40}(עוזר|סגנון|החשיבה|לדייק|הפתיחות|ההתאמה)/s.test(reply);
+      const hasClosingText = /תודה/.test(reply);
       if (!hasClosingText) effectiveClosingStage = 0;
     }
 

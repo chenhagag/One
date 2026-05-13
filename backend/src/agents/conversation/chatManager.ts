@@ -70,17 +70,26 @@ function parseTasteProfiles(raw: string): { id: string; text: string }[] {
  * Curated diverse selection order (indices into the 24-profile array).
  * Covers: intellectual, street, spiritual, mainstream, family, artsy, sensitive, formal.
  */
-const TASTE_SELECTION_ORDER = [0, 3, 9, 14, 11, 17, 21, 5, 12, 16, 7, 19, 22];
+const TASTE_SELECTION_ORDER = [0, 3, 9, 14, 11, 17, 21];
 
 /**
  * For "both" — alternates male and female profiles (indices into combined 48-profile array).
  * Male profiles are indices 0-23, female are 24-47.
  */
-const TASTE_SELECTION_ORDER_BOTH = [0, 24+3, 9, 24+14, 11, 24+17, 21, 24+5, 12, 24+16, 7, 24+19, 22];
+const TASTE_SELECTION_ORDER_BOTH = [0, 24+3, 9, 24+14, 11, 24+17, 21];
 
 /** Shorter selection for couple testers — 5 diverse profiles */
 const TASTE_SELECTION_ORDER_COUPLE = [0, 3, 9, 14, 21];
 const TASTE_SELECTION_ORDER_COUPLE_BOTH = [0, 24+3, 9, 24+14, 21];
+
+/** Build the full list of all profiles for injection into the prompt */
+function buildTasteProfileList(profiles: { id: string; text: string }[]): string {
+  const lines: string[] = [];
+  for (let i = 0; i < profiles.length; i++) {
+    lines.push(`פרופיל ${i + 1}:\n${profiles[i].text}`);
+  }
+  return lines.join("\n\n");
+}
 
 function getTasteProfile(profiles: { id: string; text: string }[], index: number, isBoth: boolean = false, isCouple: boolean = false): { id: string; text: string } | null {
   let order: number[];
@@ -170,6 +179,33 @@ function saveConversationState(userId: number, state: ConversationState): void {
      ON CONFLICT (user_id) DO UPDATE SET topic_injection_counts = $2::jsonb, updated_at = NOW()`,
     [userId, JSON.stringify(state)]
   ).catch(() => {});
+}
+
+/** Load taste profile index from DB */
+async function getTasteProfileIndex(userId: number): Promise<number> {
+  const row = await pgQueryOne<{ topic_injection_counts: any }>(
+    "SELECT topic_injection_counts FROM user_chat_summaries WHERE user_id = $1",
+    [userId]
+  );
+  return row?.topic_injection_counts?.taste_profile_index ?? 0;
+}
+
+/** Save taste profile index to DB */
+function saveTasteProfileIndex(userId: number, index: number): void {
+  // Read existing state and merge
+  pgQueryOne<{ topic_injection_counts: any }>(
+    "SELECT topic_injection_counts FROM user_chat_summaries WHERE user_id = $1",
+    [userId]
+  ).then(row => {
+    const existing = row?.topic_injection_counts || {};
+    const merged = { ...existing, taste_profile_index: index };
+    pgQueryOne(
+      `INSERT INTO user_chat_summaries (user_id, summary_json, message_count_at, topic_injection_counts, updated_at)
+       VALUES ($1, '{}'::jsonb, 0, $2::jsonb, NOW())
+       ON CONFLICT (user_id) DO UPDATE SET topic_injection_counts = $2::jsonb, updated_at = NOW()`,
+      [userId, JSON.stringify(merged)]
+    ).catch(() => {});
+  }).catch(() => {});
 }
 
 /** Total content fields in summary (excluding notable_quotes) */
@@ -337,10 +373,24 @@ export async function buildChatPrompt(
     // We use a "profileStartMsg" threshold to know when profiles begin
     const profileStartMsg = hasPriorTasteInfo ? 1 : 3;
 
-    // Profile index: first profile at profileStartMsg, then +1 per msg
-    const profileIndex = tasteUserMsgCount <= profileStartMsg ? 0 : tasteUserMsgCount - profileStartMsg;
     const isCoupleTest = testUserType === "Couple Tester";
-    const currentProfile = getTasteProfile(profileBank, profileIndex, isBoth, isCoupleTest);
+    const allProfilesText = buildTasteProfileList(profileBank);
+    // Still need currentProfile for closing detection
+    let profilesShown = 0;
+    if (Array.isArray(history)) {
+      const shownNames = new Set<string>();
+      for (const h of history) {
+        if (h.role === "assistant") {
+          const matches = h.content.match(/אני (\S+)\./g);
+          if (matches) for (const m of matches) shownNames.add(m);
+        }
+      }
+      profilesShown = shownNames.size;
+    }
+    const totalProfiles = profileBank.length; // all profiles in the file
+    const TASTE_MIN_PROFILES = 6; // after this many, taste is "done" for recommendations
+    const allProfilesDone = profilesShown >= totalProfiles;
+    const reachedMinimum = profilesShown >= TASTE_MIN_PROFILES;
 
     let phaseInstruction = "";
     if (tasteUserMsgCount === 0) {
@@ -366,28 +416,44 @@ export async function buildChatPrompt(
       }
     } else if (tasteUserMsgCount === profileStartMsg) {
       // User confirmed ready — show first profile
-      phaseInstruction = `\n\n## שלב: פרופיל ראשון\nהמשתמש אישר שהוא מוכן. הצג את הפרופיל ושאל: עד כמה הוא/היא הטעם שלך מ-1 עד 10?`;
-    } else if (!currentProfile) {
+      phaseInstruction = `\n\n## שלב: פרופיל ראשון\nהמשתמש אישר שהוא מוכן. הצג את פרופיל 1 מהרשימה למטה. העתק אותו בדיוק כמו שהוא ושאל: עד כמה הוא/היא הטעם שלך מ-1 עד 10?`;
+    } else if (allProfilesDone) {
       // All profiles shown — summarize + close
-      phaseInstruction = `\n\n## שלב: סיכום וסגירה — חובה לסגור עכשיו\nהצגת מספיק פרופילים. סכם בקצרה (2-3 משפטים) את הדפוס שעולה מהתגובות של המשתמש — מה מושך אותו, מה פחות, איזה סגנון מדבר אליו.\nשאל את המשתמש: "קלטתי נכון? יש משהו שהיית רוצה לדייק?"\nאם המשתמש כבר אישר או תיקן — סיים עם: "תודה על הפתיחות, זה מאוד עוזר לי לדייק את ההתאמה."\nאל תציג עוד פרופילים. אל תמשיך את השיחה אחרי הסגירה.`;
+      phaseInstruction = `\n\n## שלב: סיכום וסגירה — חובה לסגור עכשיו\nהצגת את כל הפרופילים. סכם בקצרה (2-3 משפטים) את הדפוס שעולה מהתגובות של המשתמש — מה מושך אותו, מה פחות, איזה סגנון מדבר אליו.\nשאל את המשתמש: "קלטתי נכון? יש משהו שהיית רוצה לדייק?"\nאם המשתמש כבר אישר או תיקן — סיים עם: "תודה על הפתיחות, זה מאוד עוזר לי לדייק את ההתאמה."\nאל תציג עוד פרופילים. אל תמשיך את השיחה אחרי הסגירה.`;
+    } else if (reachedMinimum && profilesShown === TASTE_MIN_PROFILES) {
+      // Reached minimum — mid-summary + ask if they want more
+      phaseInstruction = `\n\n## שלב: סיכום ביניים\nהצגת ${TASTE_MIN_PROFILES} פרופילים. סכם בקצרה (2-3 משפטים) את הדפוס שעולה מהתגובות — מה מושך אותו, מה פחות.\nשאל את המשתמש: "קלטתי נכון? רוצה להמשיך לעוד כמה פרופילים או שמספיק?"`;
+    } else if (reachedMinimum && !allProfilesDone) {
+      // User chose to continue after mid-summary — check if they said enough
+      const lastUserMsg = message.trim();
+      const wantsToStop = /מספיק|לא|סיימתי|די|נסגור|לא צריך/i.test(lastUserMsg);
+      if (wantsToStop) {
+        phaseInstruction = `\n\n## שלב: סיכום וסגירה — חובה לסגור עכשיו\nהמשתמש ביקש לסיים. סכם בקצרה את הדפוס שעלה ושאל: "קלטתי נכון? יש משהו שהיית רוצה לדייק?"\nאם המשתמש כבר אישר — סיים עם: "תודה על הפתיחות, זה מאוד עוזר לי לדייק את ההתאמה."`;
+      } else {
+        // Continue with more profiles
+        phaseInstruction = `\n\n## שלב: הצגת פרופיל\nהמשתמש רוצה להמשיך. הצג את הפרופיל הבא מהרשימה (לפי הסדר — הפרופיל שעוד לא הוצג). העתק אותו בדיוק. אחרי הפרופיל שאל: עד כמה הוא/היא הטעם שלך מ-1 עד 10?`;
+      }
     } else {
-      phaseInstruction = `\n\n## שלב: הצגת פרופיל\nשאל שאלה-שתיים של הרחבה על התגובה של המשתמש (מה אהבת? מה פחות דיבר אליך?). אם התשובה כבר מפורטת — עבור ישר לפרופיל הבא.\nאחרי ההרחבה, הצג את הפרופיל הבא ושאל: עד כמה הוא/היא הטעם שלך מ-1 עד 10?`;
+      // Show next profile from the list
+      phaseInstruction = `\n\n## שלב: הצגת פרופיל\nשאל שאלה-שתיים של הרחבה על התגובה של המשתמש (מה אהבת? מה פחות דיבר אליך?). אם התשובה כבר מפורטת — עבור ישר לפרופיל הבא.\nהצג את הפרופיל הבא מהרשימה (לפי הסדר — הפרופיל שעוד לא הוצג). העתק אותו בדיוק. אחרי הפרופיל שאל: עד כמה הוא/היא הטעם שלך מ-1 עד 10?`;
     }
 
-    // Inject the single profile — only in profile phases
+    // Inject all selected profiles — AI picks the next one in order
     let profileBlock = "";
-    if (currentProfile && tasteUserMsgCount >= profileStartMsg) {
-      profileBlock = `\n\n## הפרופיל להצגה\n\n${currentProfile.text}`;
+    if (tasteUserMsgCount >= profileStartMsg && !allProfilesDone) {
+      profileBlock = `\n\n## רשימת הפרופילים — חובה לקחת מכאן בלבד!\nהצג פרופיל אחד בכל תור, לפי הסדר. אל תמציא פרופילים. אל תשנה את התוכן. העתק מהרשימה בדיוק.\n\n${allProfilesText}`;
     }
 
     // End of taste test — simple closing, frontend handles navigation
     let navigationInstruction = "";
-    if (!currentProfile && tasteUserMsgCount > 1) {
+    if (allProfilesDone && tasteUserMsgCount > 1) {
       navigationInstruction = `\n\nאחרי הסיכום והחידוד, כתוב: "תודה על הפתיחות, זה מאוד עוזר לי לדייק את ההתאמה."`;
     }
 
     const systemPrompt = TASTE_TEST_PROMPT + genderInstruction + coupleInstruction + phaseInstruction + profileBlock + reentryInstruction + navigationInstruction;
-    const closingStage = (!currentProfile && tasteUserMsgCount > 1) ? 3 : 0;
+    // Taste is "closed" only when all profiles done, OR user said "enough" after mid-summary
+    const wantsToStop = reachedMinimum && /מספיק|לא|סיימתי|די|נסגור|לא צריך/i.test(message.trim());
+    const closingStage = ((allProfilesDone || wantsToStop) && tasteUserMsgCount > 1) ? 3 : 0;
     return { systemPrompt, intent: "general", phase: detectPhase(messageCount), closingStage };
   }
 
