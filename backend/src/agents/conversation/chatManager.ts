@@ -46,6 +46,8 @@ const COGNITIVE_PROMPT = fs.readFileSync(path.join(PROMPTS_DIR, "cognitive-chat.
 const TASTE_TEST_PROMPT = fs.readFileSync(path.join(PROMPTS_DIR, "taste-test-chat.txt"), "utf-8");
 const TASTE_PROFILES_FEMALE = parseTasteProfiles(fs.readFileSync(path.join(PROMPTS_DIR, "taste-profiles-female.txt"), "utf-8"));
 const TASTE_PROFILES_MALE = parseTasteProfiles(fs.readFileSync(path.join(PROMPTS_DIR, "taste-profiles-male.txt"), "utf-8"));
+const TASTE_PROFILES_FEMALE_FF = parseTasteProfiles(fs.readFileSync(path.join(PROMPTS_DIR, "taste-profiles-female-ff.txt"), "utf-8"));
+const TASTE_PROFILES_MALE_MM = parseTasteProfiles(fs.readFileSync(path.join(PROMPTS_DIR, "taste-profiles-male-mm.txt"), "utf-8"));
 
 /** Parse profile file into individual profile objects */
 function parseTasteProfiles(raw: string): { id: string; text: string }[] {
@@ -344,8 +346,12 @@ export async function buildChatPrompt(
     const tasteUserMsgCount = tasteCount; // from getChannelCounts()
 
     // Select the right profile bank
-    const profileBank = lookingForGender === "woman" ? TASTE_PROFILES_FEMALE
-      : lookingForGender === "man" ? TASTE_PROFILES_MALE
+    // Select profile bank: same-sex gets adapted version, otherwise default
+    const isSameSex = gender === lookingForGender;
+    const profileBank = lookingForGender === "woman"
+      ? (isSameSex ? TASTE_PROFILES_FEMALE_FF : TASTE_PROFILES_FEMALE)
+      : lookingForGender === "man"
+      ? (isSameSex ? TASTE_PROFILES_MALE_MM : TASTE_PROFILES_MALE)
       : [...TASTE_PROFILES_MALE, ...TASTE_PROFILES_FEMALE]; // "both" or unknown
 
     // Check for re-entry (user left and came back)
