@@ -439,7 +439,6 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
               {/* Expert recommendation — one at a time, prioritized */}
               {screen === "home" && (() => {
               const { has_cognitive, has_taste_info, summary_fields, chat_count } = recommendations;
-              console.log('[REC] recommendations:', JSON.stringify(recommendations));
               const isCouple = (user as any).test_user_type === "Couple Tester";
               // Couples get recommendations earlier
               const conversationAdvanced = isCouple ? chat_count >= 5 : summary_fields >= 4;
@@ -448,7 +447,6 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
               const chatClosed = closedChannels["new_chat"] || false;
               const chatNotEnough = summary_fields < 8 && chat_count > 0 && !chatClosed;
 
-              console.log('[REC] chatNotEnough:', chatNotEnough, 'chatClosed:', chatClosed, 'conversationAdvanced:', conversationAdvanced, 'cogDone:', cogDoneForCouple, 'tasteDone:', tasteDoneForCouple);
               // Priority 1: General chat not complete — return to chat
               if (chatNotEnough) {
                 return (

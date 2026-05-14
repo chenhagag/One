@@ -277,7 +277,8 @@ app.post("/analyze", async (req, res) => {
 // PHOTO UPLOAD
 // ════════════════════════════════════════════════════════════════
 
-const uploadsDir = path.join(__dirname, "../../uploads");
+const uploadsDir = process.env.NODE_ENV === "production" ? "/app/data/uploads" : path.join(__dirname, "../../uploads");
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 const upload = multer({
   storage: multer.diskStorage({
     destination: uploadsDir,
