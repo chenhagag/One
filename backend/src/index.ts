@@ -604,6 +604,63 @@ app.get("/users/:id/profile-status", async (req, res) => {
 // ADMIN — Data exploration endpoints
 // ════════════════════════════════════════════════════════════════
 
+// POST /admin/users/:id/inject-conversation — Inject conversation history for testing
+app.post("/admin/users/:id/inject-conversation", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const { channel, messages } = req.body;
+  if (!channel || !Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: "channel and messages[] required" });
+  }
+  const validChannels = ["new_chat", "new_chat_cognitive", "new_chat_taste"];
+  if (!validChannels.includes(channel)) {
+    return res.status(400).json({ error: "Invalid channel. Must be: " + validChannels.join(", ") });
+  }
+  const userCheck = await pgQueryOne("SELECT id FROM users WHERE id = $1", [userId]);
+  if (!userCheck) return res.status(404).json({ error: "User not found" });
+
+  let inserted = 0;
+  for (const m of messages) {
+    const role = m.role === "user" ? "user" : "assistant";
+    const content = (m.content || "").trim();
+    if (!content) continue;
+    await pgQueryAll(
+      "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES ($1, $2, $3, $4)",
+      [userId, role, content, channel]
+    );
+    inserted++;
+  }
+  console.log(`[admin] Injected ${inserted} messages for user ${userId} in channel ${channel}`);
+  return res.json({ inserted, channel });
+});
+
+// GET /users/:id/couple-insights — Get couple insights for user-facing display
+app.get("/users/:id/couple-insights", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const row = await pgQueryOne<{ couple_insights: string | null }>(
+    "SELECT couple_insights FROM users WHERE id = $1", [userId]
+  );
+  return res.json({ couple_insights: row?.couple_insights || null });
+});
+
+// PATCH /admin/users/:id — Update user fields (admin)
+app.patch("/admin/users/:id", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const allowed = ["partner_name", "test_user_type", "first_name", "couple_insights"];
+  const updates: string[] = [];
+  const values: any[] = [];
+  let i = 1;
+  for (const key of allowed) {
+    if (key in req.body) {
+      updates.push(`${key} = $${i++}`);
+      values.push(req.body[key] || null);
+    }
+  }
+  if (updates.length === 0) return res.status(400).json({ error: "No valid fields" });
+  values.push(userId);
+  await pgQueryAll(`UPDATE users SET ${updates.join(", ")}, updated_at = NOW() WHERE id = $${i}`, values);
+  return res.json({ updated: true });
+});
+
 // POST /admin/users/:id/freeze — Freeze/suspend a user
 app.post("/admin/users/:id/freeze", async (req, res) => {
   const userId = parseInt(req.params.id, 10);

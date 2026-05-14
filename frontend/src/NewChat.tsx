@@ -42,7 +42,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
   const [sending, setSending] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [channel, setChannel] = useState<string>("new_chat");
-  const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "profile_view" | "insights" | "bug_report" | "settings">("home");
+  const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "profile_view" | "insights" | "couple_insights" | "bug_report" | "settings">("home");
+  const [coupleInsights, setCoupleInsights] = useState<string | null>(null);
   const [bugText, setBugText] = useState("");
   const [bugSent, setBugSent] = useState(false);
   const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean }>({ has_cognitive: true, has_taste_info: true, chat_count: 0, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false });
@@ -84,6 +85,13 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
 
   useEffect(() => { loadRecommendations(); }, [user.id]);
   useEffect(() => { if (screen === "home") loadRecommendations(); }, [screen]);
+
+  // Load couple insights
+  useEffect(() => {
+    fetch(`/api/users/${user.id}/couple-insights`).then(r => r.json()).then(d => {
+      if (d.couple_insights) setCoupleInsights(d.couple_insights);
+    }).catch(() => {});
+  }, [user.id]);
 
   // Load existing conversation history on mount — split by channel
   useEffect(() => {
@@ -271,6 +279,16 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
               <span>{item.label}</span>
             </button>
           ))}
+          {/* Couple insights — only for couple testers with insights */}
+          {coupleInsights && (
+            <button
+              style={screen === "couple_insights" ? styles.sidebarItemActive : styles.sidebarItem}
+              onClick={() => { setScreen("couple_insights"); setMenuOpen(false); }}
+            >
+              <span style={{ fontSize: 16 }}>💕</span>
+              <span>כרטיס התאמה</span>
+            </button>
+          )}
         </div>
 
         <div style={styles.sidebarBottom}>
@@ -342,6 +360,18 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
               >
                 {bugSent ? "נשלח בהצלחה ✓" : "שלח דיווח"}
               </button>
+            </div>
+          </div>
+        )}
+
+        {screen === "couple_insights" && coupleInsights && (
+          <div style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
+            <div style={{ maxWidth: 600, margin: "0 auto", padding: "32px 24px" }}>
+              <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", marginBottom: 4 }}>💕 כרטיס התאמה</h2>
+              <p style={{ fontSize: 13, color: "#888", marginBottom: 20 }}>סיכום ותובנות על הזוגיות שלכם</p>
+              <div style={{ fontSize: 15, lineHeight: 1.8, color: "#333", whiteSpace: "pre-wrap" }}>
+                {coupleInsights}
+              </div>
             </div>
           </div>
         )}

@@ -50,6 +50,174 @@ const s: Record<string, React.CSSProperties> = {
   scrollWrap: { overflowX: "auto" as const },
 };
 
+function CoupleInsightsEditor({ userId, value, onSave }: { userId: number; value: string; onSave: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState(value);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const r = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ couple_insights: text.trim() || null }),
+      });
+      if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 2000); onSave(); }
+    } catch {}
+    finally { setSaving(false); }
+  }
+
+  if (!open) {
+    return (
+      <div style={{ marginTop: 16 }}>
+        <button
+          style={{ padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: value ? "#d4edda" : "#f0f4ff", color: value ? "#155724" : "#6366f1", border: `1px solid ${value ? "#a5d6a7" : "#6366f1"}`, borderRadius: 4 }}
+          onClick={() => setOpen(true)}
+        >
+          {value ? "ערוך תובנות זוגיות ✓" : "הוסף תובנות זוגיות"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 16, padding: 16, background: "#f8f9fa", borderRadius: 8, border: "1px solid #e0e0e8" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <strong style={{ fontSize: 14 }}>תובנות זוגיות</strong>
+        <button style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16 }} onClick={() => setOpen(false)}>✕</button>
+      </div>
+      <textarea
+        style={{ width: "100%", minHeight: 200, padding: 10, fontSize: 13, fontFamily: "inherit", border: "1px solid #ddd", borderRadius: 6, resize: "vertical", boxSizing: "border-box", direction: "rtl", lineHeight: 1.7 }}
+        value={text}
+        onChange={e => setText(e.target.value)}
+        placeholder="כתוב כאן תובנות על הזוגיות..."
+      />
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
+        <button
+          style={{ padding: "6px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#28a745", color: "#fff", border: "none", borderRadius: 4, opacity: saving ? 0.5 : 1 }}
+          onClick={handleSave}
+          disabled={saving}
+        >
+          {saving ? "שומר..." : saved ? "נשמר ✓" : "שמור"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function InjectConversation({ userId, userName, onDone }: { userId: number; userName: string; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [channel, setChannel] = useState("new_chat");
+  const [text, setText] = useState("");
+  const [injecting, setInjecting] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  const channelLabels: Record<string, string> = {
+    new_chat: "צ'אט כללי",
+    new_chat_cognitive: "סגנון חשיבה",
+    new_chat_taste: "ניתוח טעם",
+  };
+
+  async function handleInject() {
+    if (!text.trim()) return;
+    // Parse text: each line = message. Lines starting with "user:" or "assistant:" set the role.
+    // Default alternates: first line = assistant, second = user, etc.
+    const lines = text.split("\n").filter(l => l.trim());
+    const messages: { role: string; content: string }[] = [];
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (/^(user|משתמש)\s*:/i.test(trimmed)) {
+        messages.push({ role: "user", content: trimmed.replace(/^(user|משתמש)\s*:\s*/i, "") });
+      } else if (/^(assistant|מערכת|ai)\s*:/i.test(trimmed)) {
+        messages.push({ role: "assistant", content: trimmed.replace(/^(assistant|מערכת|ai)\s*:\s*/i, "") });
+      } else {
+        // Alternate: even lines = assistant, odd = user
+        messages.push({ role: messages.length % 2 === 0 ? "assistant" : "user", content: trimmed });
+      }
+    }
+    if (messages.length === 0) return;
+    setInjecting(true);
+    setResult(null);
+    try {
+      const r = await fetch(`/api/admin/users/${userId}/inject-conversation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel, messages }),
+      });
+      const data = await r.json();
+      if (r.ok) {
+        setResult(`הוזרקו ${data.inserted} הודעות ל-${channelLabels[channel]}`);
+        setText("");
+        onDone();
+      } else {
+        setResult(`שגיאה: ${data.error}`);
+      }
+    } catch { setResult("שגיאת רשת"); }
+    finally { setInjecting(false); }
+  }
+
+  if (!open) {
+    return (
+      <div style={{ marginTop: 16 }}>
+        <button
+          style={{ padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#f0f4ff", color: "#6366f1", border: "1px solid #6366f1", borderRadius: 4 }}
+          onClick={() => setOpen(true)}
+        >
+          הטמעת שיחה
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 16, padding: 16, background: "#f8f9fa", borderRadius: 8, border: "1px solid #e0e0e8" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <strong style={{ fontSize: 14 }}>הטמעת שיחה — {userName}</strong>
+        <button style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16 }} onClick={() => setOpen(false)}>✕</button>
+      </div>
+
+      <div style={{ marginBottom: 10 }}>
+        <label style={{ fontSize: 12, fontWeight: 600, marginRight: 8 }}>ערוץ:</label>
+        {Object.entries(channelLabels).map(([key, label]) => (
+          <label key={key} style={{ fontSize: 12, marginRight: 12, cursor: "pointer" }}>
+            <input type="radio" name="inject-channel" value={key} checked={channel === key} onChange={() => setChannel(key)} style={{ marginRight: 4 }} />
+            {label}
+          </label>
+        ))}
+      </div>
+
+      <textarea
+        style={{ width: "100%", minHeight: 150, padding: 10, fontSize: 12, fontFamily: "monospace", border: "1px solid #ddd", borderRadius: 6, resize: "vertical", boxSizing: "border-box" }}
+        placeholder={"assistant: שלום, אני מומחה ההתאמה שלך\nuser: היי\nassistant: ספר לי על עצמך\nuser: אני בן 30 מתל אביב\n\nאו פשוט שורות מתחלפות (assistant, user, assistant, user...)"}
+        value={text}
+        onChange={e => setText(e.target.value)}
+      />
+
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
+        <button
+          style={{ padding: "6px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#6366f1", color: "#fff", border: "none", borderRadius: 4, opacity: injecting ? 0.5 : 1 }}
+          onClick={handleInject}
+          disabled={injecting || !text.trim()}
+        >
+          {injecting ? "מזריק..." : "הזרק שיחה"}
+        </button>
+        {result && <span style={{ fontSize: 12, color: result.startsWith("שגיאה") ? "#dc3545" : "#28a745" }}>{result}</span>}
+      </div>
+    </div>
+  );
+}
+
+function PartnerCell({ userId, value }: { userId: number; value: string }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(value);
+  if (editing) {
+    return <input autoFocus style={{ border: "1px solid #6366f1", borderRadius: 4, padding: "2px 6px", fontSize: 12, width: 70 }} value={val} onChange={e => setVal(e.target.value)} onBlur={() => { setEditing(false); if (val.trim() !== value) fetch(`/api/admin/users/${userId}`, { method: "PATCH", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ partner_name: val.trim() }) }).then(r => { if (!r.ok) console.error("Failed to save partner_name"); }).catch(e => console.error("Save error:", e)); }} onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />;
+  }
+  return <span>{val || "-"} <span style={{ cursor: "pointer", fontSize: 10, opacity: 0.5 }} onClick={() => setEditing(true)}>✏️</span></span>;
+}
+
 export default function AdminView({ onBack, onStartChat, onViewDashboard, onViewNewChat }: { onBack: () => void; onStartChat?: (user: { id: number; first_name: string; email: string }) => void; onViewDashboard?: (user: { id: number; first_name: string; email: string }) => void; onViewNewChat?: (user: { id: number; first_name: string; email: string }) => void }) {
   const [tab, setTab] = useState<Tab>("overview");
 
@@ -155,6 +323,7 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
       <th style={s.th}>Status</th>
       <th style={s.th}>Matchable</th>
       <th style={s.th}>Test Type</th>
+      <th style={s.th}>Partner</th>
       <th style={s.th}>Flags</th>
       <th style={s.th}>Total Cost</th>
       <th style={s.th}>Conversation</th>
@@ -170,19 +339,19 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
     return (
       <tr
         key={u.id}
-        onClick={() => setSelectedUserId(u.id)}
-        style={{ cursor: "pointer", background: u.user_status === "frozen" ? "#fff0f0" : "" }}
+        style={{ background: u.user_status === "frozen" ? "#fff0f0" : "" }}
         onMouseEnter={(e) => (e.currentTarget.style.background = "#f0f4ff")}
         onMouseLeave={(e) => (e.currentTarget.style.background = u.user_status === "frozen" ? "#fff0f0" : "")}
       >
         <td style={s.td}>{u.id}</td>
-        <td style={s.td}><strong>{u.first_name}</strong></td>
+        <td style={{ ...s.td, cursor: "pointer" }} onClick={() => setSelectedUserId(u.id)}><strong style={{ color: "#6366f1" }}>{u.first_name}</strong></td>
         <td style={s.td}>{u.email}</td>
         <td style={s.td}>{u.age || "-"}</td>
         <td style={s.td}><span style={s.badge}>{u.gender || "-"}</span></td>
         <td style={s.td}><span style={{ ...s.badge, background: u.user_status === "frozen" ? "#f8d7da" : "" }}>{u.user_status || "-"}</span></td>
         <td style={s.td}>{u.is_matchable ? "Yes" : "No"}</td>
         <td style={s.td}><span style={{ ...s.badge, fontSize: 10, background: u.test_user_type === "Couple Tester" ? "#d4edda" : u.test_user_type ? "#cfe2ff" : "" }}>{u.test_user_type || "-"}</span></td>
+        <td style={s.td}><PartnerCell userId={u.id} value={u.partner_name || ""} /></td>
         <td style={s.td}>
           {flags.map(f => (
             <span key={f} style={{
@@ -1377,6 +1546,24 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
             >
               {copied === "all" ? "Copied!" : "Copy All"}
             </button>
+            <button
+              style={{ padding: "3px 10px", fontSize: 11, cursor: "pointer", background: "#e8f5e9", border: "1px solid #a5d6a7", borderRadius: 4 }}
+              onClick={() => {
+                const userName = user?.first_name || `user_${userId}`;
+                const channelFileNames: Record<string, string> = { interviewer: "Lab", psychologist: "Depth", new_chat: "General Chat", new_chat_cognitive: "Thinking", new_chat_taste: "Taste" };
+                for (const g of channelGroups) {
+                  const text = g.msgs.map((m: any) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`).join("\n\n");
+                  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+                  const a = document.createElement("a");
+                  a.href = URL.createObjectURL(blob);
+                  a.download = `${userName}-${channelFileNames[g.key] || g.key}.txt`;
+                  a.click();
+                  URL.revokeObjectURL(a.href);
+                }
+              }}
+            >
+              Download All
+            </button>
           </div>
           {transcriptOpen && (
             <>
@@ -1424,6 +1611,12 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
         </>
         );
       })()}
+
+      {/* Couple Insights Editor */}
+      {user.test_user_type === "Couple Tester" && <CoupleInsightsEditor userId={userId} value={user.couple_insights || ""} onSave={loadUserData} />}
+
+      {/* Inject Conversation */}
+      <InjectConversation userId={userId} userName={user.first_name} onDone={loadUserData} />
 
       {/* Analysis Debug View */}
       {analysisRun?.exists && (

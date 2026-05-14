@@ -459,6 +459,14 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       ) THEN
         ALTER TABLE users ADD COLUMN analysis_run_count INTEGER DEFAULT 0;
       END IF;
+
+      -- Couple insights: long-form relationship insights text for couple testers
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'couple_insights'
+      ) THEN
+        ALTER TABLE users ADD COLUMN couple_insights TEXT;
+      END IF;
     END $$;
   `);
 
