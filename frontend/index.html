@@ -18,6 +18,11 @@
       if ("serviceWorker" in navigator) {
         navigator.serviceWorker.register("/sw.js").catch(() => {});
       }
+      // Capture beforeinstallprompt early — it may fire before React mounts
+      window.addEventListener("beforeinstallprompt", function(e) {
+        e.preventDefault();
+        window.__pwaInstallPrompt = e;
+      });
     </script>
   </body>
 </html>

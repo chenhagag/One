@@ -49,6 +49,12 @@ export default function PWAInstallFlow({ userName, gender, testUserType, onCompl
     }
 
     // Android / Chrome: capture beforeinstallprompt
+    // Check if already captured globally (event may fire before React mounts)
+    const w = window as any;
+    if (w.__pwaInstallPrompt) {
+      promptRef.current = w.__pwaInstallPrompt;
+      setDeferredPrompt(w.__pwaInstallPrompt);
+    }
     const handler = (e: Event) => {
       e.preventDefault();
       promptRef.current = e;
@@ -215,13 +221,13 @@ export default function PWAInstallFlow({ userName, gender, testUserType, onCompl
         </div>
       )}
 
-      {/* No prompt available (desktop or unsupported) — show generic message */}
+      {/* No prompt available — waiting or unsupported */}
       {!deferredPrompt && !showIOSGuide && (
         <div style={s.genericCard}>
           <p style={{ margin: 0, fontSize: 14, color: "#666", textAlign: "center", lineHeight: 1.6 }}>
             {isFemale
-              ? "לחוויה הטובה ביותר, פתחי את הקישור בטלפון הנייד"
-              : "לחוויה הטובה ביותר, פתח את הקישור בטלפון הנייד"}
+              ? "ניתן גם להוסיף לאתר למסך הבית דרך תפריט הדפדפן"
+              : "ניתן גם להוסיף את האתר למסך הבית דרך תפריט הדפדפן"}
           </p>
         </div>
       )}
