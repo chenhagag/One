@@ -35,10 +35,10 @@ export default function AuthScreen({ onEmailLogin }: AuthScreenProps) {
     }
   }
 
-  // Apple first on iOS, Google first otherwise
+  // Apple only on iOS (first), Google everywhere
   const buttons = isIOS
     ? (["apple", "google"] as const)
-    : (["google", "apple"] as const);
+    : (["google"] as const);
 
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6">
