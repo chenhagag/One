@@ -98,7 +98,7 @@ export default function PWAInstallFlow({ userName, gender, testUserType, onCompl
         opacity: fadeIn ? 1 : 0, transition: "opacity 0.6s ease",
       }}>
         <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <img src="/heartIcon.jpg" alt="" style={{ width: 56, height: 56, borderRadius: 14, marginBottom: 12 }} />
+          <img src="/heartIcon.jpg" alt="" style={{ width: 56, height: 56, borderRadius: 14, marginBottom: 12, display: "block", margin: "0 auto 12px" }} />
           <h2 style={{ fontSize: 26, fontWeight: 700, color: "#1a1a2e", marginBottom: 0 }}>
             {userName}, {isFemale ? "ברוכה הבאה" : "ברוך הבא"} ל-One
           </h2>
@@ -330,6 +330,7 @@ const s: Record<string, React.CSSProperties> = {
     overflow: "hidden",
     boxShadow: "0 4px 20px rgba(99,102,241,0.2)",
     marginBottom: 24,
+    alignSelf: "center",
   },
   logo: {
     width: "100%",
