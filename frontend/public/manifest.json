@@ -1,0 +1,22 @@
+{
+  "name": "One — Find Your Perfect Match",
+  "short_name": "One",
+  "description": "מערכת התאמה חכמה שמכירה אותך לעומק",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#6366f1",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/heartIcon.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "/heartIcon.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}

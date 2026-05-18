@@ -5,6 +5,7 @@ import Result from "./Result";
 import AdminView from "./AdminView";
 import NewChat from "./NewChat";
 import Insights from "./Insights";
+import PWAInstallFlow from "./PWAInstallFlow";
 
 type View =
   | "landing"
@@ -326,77 +327,14 @@ export default function App() {
         <Register onSuccess={handleRegisterSuccess} />
       )}
 
-      {/* Welcome / Onboarding — only after fresh registration */}
+      {/* Welcome / PWA Install — after fresh registration */}
       {view === "welcome" && user && (
-        <div dir="rtl" style={{ maxWidth: 520, margin: "0 auto", padding: "40px 20px" }}>
-          <h2 style={{ fontSize: 26, marginBottom: 16, textAlign: "center" }}>
-            {user.first_name}, {user.gender === "woman" ? "ברוכה הבאה" : "ברוך הבא"} ל-One
-          </h2>
-          <div style={{ background: "#f8f9fa", borderRadius: 12, padding: 24, marginBottom: 20, lineHeight: 1.8, fontSize: 15, color: "#333" }}>
-            {user.test_user_type === "Couple Tester" ? (
-              <>
-                <p style={{ marginTop: 0 }}>
-                  <strong>One</strong> היא מערכת שידוכים חכמה שמתאימה בין אנשים ברמה עמוקה — על בסיס ניתוח אישיותי העולה מהיכרות באמצעות שיחה עם צ'אט AI.
-                </p>
-                <p>
-                  אנחנו כרגע בשלבי אימון המערכת על זוגות אמיתיים, כך שתלמד לדייק התאמות עבור משתמשים אמיתיים בהמשך ולמצוא מה באמת מחבר בין זוגות.
-                </p>
-                <p>
-                  כל מה ש{user.gender === "woman" ? "תספרי נשאר חסוי לחלוטין ולעיני ה-AI בלבד. ככל שתעני" : "תספר נשאר חסוי לחלוטין ולעיני ה-AI בלבד. ככל שתענה"} בצורה כנה ופתוחה יותר - נוכל לדייק יותר את התוצאות.
-                </p>
-                <p>
-                  בסיום התהליך - נוכל להציג {user.gender === "woman" ? "לך" : "לך"} תובנות על {user.gender === "woman" ? "עצמך" : "עצמך"} ועל הזוגיות {user.gender === "woman" ? "שלך" : "שלך"} :)
-                </p>
-              </>
-            ) : (
-              <>
-                <p style={{ marginTop: 0 }}>
-                  <strong>One</strong> היא מערכת שידוכים חכמה שמתאימה בין אנשים ברמה עמוקה — בלי החלקות, בלי שיפוטיות חיצונית.
-                </p>
-                <p>
-                  המערכת תכיר {user.gender === "woman" ? "אותך" : "אותך"} באמצעות שיחה שוטפת עם צ'אט AI.
-                </p>
-                <p>
-                  כל מה ש{user.gender === "woman" ? "תספרי נשאר חסוי לחלוטין ולא מופיע בפרופיל. ככל שתהיי יותר כנה ופתוחה" : "תספר נשאר חסוי לחלוטין ולא מופיע בפרופיל. ככל שתהיה יותר כן ופתוח"}, כך ההתאמה תהיה מדויקת יותר.
-                </p>
-              </>
-            )}
-            <p style={{ color: "#888", fontSize: 13 }}>
-              המערכת בשלבי בנייה ובדיקות — ייתכנו באגים קטנים. נשמח לשמוע אם נתקלת בבעיה.
-            </p>
-            <p style={{ fontWeight: 600, color: "#6C63FF", marginBottom: 0 }}>
-              תודה רבה על שיתוף הפעולה והעזרה!
-            </p>
-          </div>
-
-          {/* הנחיות התקנה כאפליקציה */}
-          <div style={{ background: "#e8f4fd", borderRadius: 10, padding: 16, marginBottom: 20, fontSize: 13, lineHeight: 1.8, border: "1px solid #bee5eb" }}>
-            <strong style={{ fontSize: 14 }}>להתקין כאפליקציה על הטלפון:</strong>
-
-            <p style={{ marginBottom: 4, marginTop: 10 }}><strong>באייפון (Safari):</strong></p>
-            <ol style={{ margin: 0, paddingRight: 20, paddingLeft: 0 }}>
-              <li>פתחו את הלינק בדפדפן Safari.</li>
-              <li>לחצו על כפתור השיתוף (הריבוע עם החץ כלפי מעלה בתחתית המסך).</li>
-              <li>גללו מעט למטה ובחרו "הוספה למסך הבית" (Add to Home Screen).</li>
-              <li>לחצו על "הוספה" (Add) בפינה העליונה.</li>
-            </ol>
-
-            <p style={{ marginBottom: 4, marginTop: 12 }}><strong>באנדרואיד (Chrome):</strong></p>
-            <ol style={{ margin: 0, paddingRight: 20, paddingLeft: 0 }}>
-              <li>פתחו את הלינק בדפדפן Chrome.</li>
-              <li>לחצו על שלוש הנקודות בפינה העליונה (או התחתונה).</li>
-              <li>בחרו "התקנת אפליקציה" (Install app) או "הוספה למסך הבית".</li>
-              <li>אשרו את הפעולה בחלונית שתיפתח.</li>
-            </ol>
-          </div>
-
-          <button
-            style={{ width: "100%", padding: 16, fontSize: 17, fontWeight: 600, background: "#6C63FF", color: "#fff", border: "none", borderRadius: 30, cursor: "pointer" }}
-            onClick={() => setView("new_chat")}
-          >
-            להמשיך לאפליקציה
-          </button>
-        </div>
+        <PWAInstallFlow
+          userName={user.first_name}
+          gender={user.gender}
+          testUserType={(user as any).test_user_type}
+          onComplete={() => setView("new_chat")}
+        />
       )}
 
       {/* Result display */}
