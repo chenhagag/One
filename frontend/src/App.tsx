@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Register from "./Register";
 import ProfileEdit from "./ProfileEdit";
 import Result from "./Result";
@@ -6,6 +6,10 @@ import AdminView from "./AdminView";
 import NewChat from "./NewChat";
 import Insights from "./Insights";
 import PWAInstallFlow from "./PWAInstallFlow";
+import AuthScreen from "./AuthScreen";
+import AuthCallback from "./AuthCallback";
+import ProfileSetup from "./ProfileSetup";
+import { supabase } from "./lib/supabase";
 
 type View =
   | "landing"
@@ -18,7 +22,10 @@ type View =
   | "admin"
   | "new_chat"
   | "insights"
-  | "pwa_install";
+  | "pwa_install"
+  | "auth"
+  | "auth_callback"
+  | "profile_setup";
 
 // Full user type matching the expanded DB schema
 export interface User {
@@ -165,7 +172,7 @@ export default function App() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [autoLoginDone, setAutoLoginDone] = useState(false);
 
-  // ── Auto-login on mount ────────────────────────────────────────
+  // ── Auto-login on mount: Supabase session + legacy fallback ────
   useEffect(() => {
     // Check for secret admin path in URL hash
     if (window.location.hash === `#${ADMIN_SECRET_PATH}`) {
@@ -174,27 +181,75 @@ export default function App() {
       return;
     }
 
-    const saved = getSavedSession();
-    if (!saved) {
+    // Check for OAuth callback (Supabase puts tokens in URL hash)
+    if (window.location.pathname === "/auth/callback" || window.location.hash.includes("access_token")) {
+      setView("auth_callback");
       setAutoLoginDone(true);
       return;
     }
 
-    // Try to restore session from saved email
-    fetch("/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: saved.email }),
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (data.id) {
-          setUser(data);
-          setView("new_chat");
+    // Try Supabase session first
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session) {
+        try {
+          const res = await fetch("/api/auth/sync", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setUser(data);
+            saveSession(data);
+            if (data.profile_complete === false) {
+              setView("profile_setup");
+            } else {
+              setView("new_chat");
+            }
+            setAutoLoginDone(true);
+            return;
+          }
+        } catch {
+          // Fall through to legacy check
         }
-      })
-      .catch(() => {})
-      .finally(() => setAutoLoginDone(true));
+      }
+
+      // Fallback: legacy localStorage session
+      const saved = getSavedSession();
+      if (saved) {
+        try {
+          const res = await fetch("/api/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: saved.email }),
+          });
+          const data = await res.json();
+          if (data.id) {
+            setUser(data);
+            setView("new_chat");
+          }
+        } catch {
+          // Ignore — show landing
+        }
+      }
+
+      setAutoLoginDone(true);
+    });
+
+    // Listen for auth state changes (e.g., sign-out from another tab)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event) => {
+        if (event === "SIGNED_OUT") {
+          clearSession();
+          setUser(null);
+          setView("auth");
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
   }, []);
 
   // Check if should show PWA install (mobile + not standalone)
@@ -240,10 +295,36 @@ export default function App() {
 
   // ── Logout ─────────────────────────────────────────────────────
   function handleLogout() {
+    supabase.auth.signOut().catch(() => {});
     clearSession();
     setUser(null);
     setAnalysis(null);
-    setView("landing");
+    setView("auth");
+  }
+
+  // ── OAuth callback handlers ───────────────────────────────────
+  const handleAuthSuccess = useCallback((u: User, profileComplete: boolean) => {
+    saveSession(u);
+    setUser(u);
+    if (!profileComplete) {
+      setView("profile_setup");
+    } else if (shouldShowPWAInstall()) {
+      setView("pwa_install");
+    } else {
+      setView("new_chat");
+    }
+  }, []);
+
+  const handleAuthError = useCallback((message: string) => {
+    console.error("[auth callback]", message);
+    setView("auth");
+  }, []);
+
+  // ── Profile setup complete ────────────────────────────────────
+  function handleProfileSetupComplete(u: User) {
+    saveSession(u);
+    setUser(u);
+    setView(shouldShowPWAInstall() ? "pwa_install" : "new_chat");
   }
 
   // ── Don't render until auto-login check completes ──────────────
@@ -256,7 +337,7 @@ export default function App() {
   }
 
   // Hide header in full-screen views
-  const showHeader = view !== "landing" && view !== "admin" && view !== "welcome" && view !== "new_chat" && view !== "insights";
+  const showHeader = view !== "landing" && view !== "admin" && view !== "welcome" && view !== "new_chat" && view !== "insights" && view !== "auth" && view !== "auth_callback" && view !== "profile_setup";
 
   return (
     <div style={view === "admin" ? { ...styles.app, maxWidth: "100%" } : view === "new_chat" ? { ...styles.app, maxWidth: "100%", padding: 0 } : styles.app}>
@@ -276,26 +357,19 @@ export default function App() {
         </div>
       )}
 
-      {/* Landing — choose Register or Login */}
-      {view === "landing" && (
-        <div style={styles.landingContainer}>
-          <h1 style={styles.landingTitle}>One</h1>
-          <p style={styles.landingSubtitle}>Find your one perfect match</p>
-          <div style={styles.landingBtnRow}>
-            <button
-              style={{ ...styles.landingBtn, background: "#6C63FF", color: "#fff" }}
-              onClick={() => setView("register")}
-            >
-              Register
-            </button>
-            <button
-              style={{ ...styles.landingBtn, background: "#fff", color: "#6C63FF", border: "2px solid #6C63FF" }}
-              onClick={() => setView("login")}
-            >
-              Login
-            </button>
-          </div>
-        </div>
+      {/* Auth screen — OAuth buttons (new default landing) */}
+      {(view === "landing" || view === "auth") && (
+        <AuthScreen onEmailLogin={() => setView("login")} />
+      )}
+
+      {/* OAuth callback — handles redirect from Google/Apple */}
+      {view === "auth_callback" && (
+        <AuthCallback onSuccess={handleAuthSuccess} onError={handleAuthError} />
+      )}
+
+      {/* Profile setup — after first OAuth sign-in */}
+      {view === "profile_setup" && user && (
+        <ProfileSetup user={user} onComplete={handleProfileSetupComplete} />
       )}
 
       {/* Login form */}
@@ -417,6 +491,7 @@ export default function App() {
           onBack={() => setView("admin")}
           onNavigate={(v) => setView(v as View)}
           onUserUpdate={(u) => setUser(u)}
+          onLogout={handleLogout}
         />
       )}
 

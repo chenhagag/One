@@ -13,6 +13,7 @@ interface NewChatProps {
   onBack: () => void;
   onNavigate?: (view: string) => void;
   onUserUpdate?: (u: User) => void;
+  onLogout?: () => void;
 }
 
 const TOPIC_OPTIONS = [
@@ -32,7 +33,7 @@ const SIDEBAR_ITEMS: { icon: string; label: string; action?: string }[] = [
   { icon: "⚙️", label: "הגדרות", action: "settings" },
 ];
 
-export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewChatProps) {
+export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogout }: NewChatProps) {
   const [channelMessages, setChannelMessages] = useState<Record<string, Message[]>>({
     new_chat: [],
     new_chat_cognitive: [],
@@ -48,6 +49,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
   const [bugSent, setBugSent] = useState(false);
   const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean }>({ has_cognitive: true, has_taste_info: true, chat_count: 0, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false });
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -292,9 +294,18 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate }: NewC
         </div>
 
         <div style={styles.sidebarBottom}>
-          <div style={styles.userArea}>
-            <div style={styles.avatar}>{user.first_name.charAt(0)}</div>
-            <span style={styles.userName}>{user.first_name}</span>
+          <div style={{ position: "relative" }}>
+            <div style={{ ...styles.userArea, cursor: "pointer" }} onClick={() => setShowUserMenu(!showUserMenu)}>
+              <div style={styles.avatar}>{user.first_name.charAt(0)}</div>
+              <span style={styles.userName}>{user.first_name}</span>
+            </div>
+            {showUserMenu && (
+              <div style={styles.userMenu}>
+                <button style={styles.userMenuItem} onClick={() => { setShowUserMenu(false); onLogout?.(); }}>
+                  התנתק
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -767,6 +778,32 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
   },
   userName: { fontSize: 13, fontWeight: 500, color: "#333" },
+  userMenu: {
+    position: "absolute" as const,
+    bottom: "100%",
+    right: 0,
+    marginBottom: 6,
+    background: "#fff",
+    border: "1px solid #e5e7eb",
+    borderRadius: 10,
+    boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+    padding: 4,
+    zIndex: 100,
+    minWidth: 120,
+  },
+  userMenuItem: {
+    display: "block",
+    width: "100%",
+    padding: "8px 14px",
+    fontSize: 14,
+    color: "#ef4444",
+    fontWeight: 500,
+    background: "none",
+    border: "none",
+    borderRadius: 8,
+    cursor: "pointer",
+    textAlign: "right" as const,
+  },
 
   // Main
   main: {
