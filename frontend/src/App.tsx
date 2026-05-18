@@ -17,7 +17,8 @@ type View =
   | "done"
   | "admin"
   | "new_chat"
-  | "insights";
+  | "insights"
+  | "pwa_install";
 
 // Full user type matching the expanded DB schema
 export interface User {
@@ -196,6 +197,13 @@ export default function App() {
       .finally(() => setAutoLoginDone(true));
   }, []);
 
+  // Check if should show PWA install (mobile + not standalone)
+  function shouldShowPWAInstall(): boolean {
+    const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
+    const isStandalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
+    return isMobile && !isStandalone;
+  }
+
   // ── Login handler ──────────────────────────────────────────────
   async function handleLogin() {
     if (!loginEmail.trim()) { setLoginError("Please enter your email"); return; }
@@ -215,7 +223,7 @@ export default function App() {
       }
       saveSession(data);
       setUser(data);
-      setView("new_chat");
+      setView(shouldShowPWAInstall() ? "pwa_install" : "new_chat");
     } catch {
       setLoginError("Could not reach the server");
     } finally {
@@ -329,6 +337,16 @@ export default function App() {
 
       {/* Welcome / PWA Install — after fresh registration */}
       {view === "welcome" && user && (
+        <PWAInstallFlow
+          userName={user.first_name}
+          gender={user.gender}
+          testUserType={(user as any).test_user_type}
+          onComplete={() => setView("new_chat")}
+        />
+      )}
+
+      {/* PWA Install — after login on mobile */}
+      {view === "pwa_install" && user && (
         <PWAInstallFlow
           userName={user.first_name}
           gender={user.gender}

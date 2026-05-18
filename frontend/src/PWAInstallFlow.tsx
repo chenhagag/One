@@ -190,7 +190,7 @@ export default function PWAInstallFlow({ userName, gender, testUserType, onCompl
           <div style={s.iosStep}>
             <div style={s.iosStepNum}>1</div>
             <div style={s.iosStepText}>
-              {isFemale ? "לחצי" : "לחץ"} על כפתור השיתוף
+              {isFemale ? "לחצי" : "לחץ"} על כפתור השיתוף (Share)
               <span style={s.iosIcon}>
                 <ShareIcon />
               </span>
