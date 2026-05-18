@@ -1,12 +1,16 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
-if (!supabaseUrl || !supabaseAnonKey) {
+const hasSupabase = !!(supabaseUrl && supabaseAnonKey);
+
+if (!hasSupabase) {
   console.warn(
     "Supabase env vars not set (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY). OAuth login will not work."
   );
 }
 
-export const supabase = createClient(supabaseUrl ?? "", supabaseAnonKey ?? "");
+export const supabase: SupabaseClient | null = hasSupabase
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null;

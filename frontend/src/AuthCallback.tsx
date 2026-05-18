@@ -17,6 +17,7 @@ export default function AuthCallback({ onSuccess, onError }: AuthCallbackProps) 
       try {
         // Supabase auto-reads tokens from the URL hash on init,
         // but we call getSession() to be explicit and wait for it.
+        if (!supabase) { if (!cancelled) onError("OAuth not configured"); return; }
         const {
           data: { session },
           error: sessionError,

@@ -16,6 +16,7 @@ export default function AuthScreen({ onEmailLogin }: AuthScreenProps) {
     setError("");
 
     try {
+      if (!supabase) { setError("OAuth not configured"); setLoading(null); return; }
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
         options: {

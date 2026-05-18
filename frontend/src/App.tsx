@@ -188,31 +188,34 @@ export default function App() {
       return;
     }
 
-    // Try Supabase session first
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session) {
-        try {
-          const res = await fetch("/api/auth/sync", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${session.access_token}`,
-            },
-          });
-          if (res.ok) {
-            const data = await res.json();
-            setUser(data);
-            saveSession(data);
-            if (data.profile_complete === false) {
-              setView("profile_setup");
-            } else {
-              setView("new_chat");
+    // Try Supabase session first (only if configured)
+    const initAuth = async () => {
+      if (supabase) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          try {
+            const res = await fetch("/api/auth/sync", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${session.access_token}`,
+              },
+            });
+            if (res.ok) {
+              const data = await res.json();
+              setUser(data);
+              saveSession(data);
+              if (data.profile_complete === false) {
+                setView("profile_setup");
+              } else {
+                setView("new_chat");
+              }
+              setAutoLoginDone(true);
+              return;
             }
-            setAutoLoginDone(true);
-            return;
+          } catch {
+            // Fall through to legacy check
           }
-        } catch {
-          // Fall through to legacy check
         }
       }
 
@@ -236,9 +239,11 @@ export default function App() {
       }
 
       setAutoLoginDone(true);
-    });
+    };
+    initAuth();
 
-    // Listen for auth state changes (e.g., sign-out from another tab)
+    // Listen for auth state changes (only if Supabase configured)
+    if (!supabase) return;
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event) => {
         if (event === "SIGNED_OUT") {
@@ -295,7 +300,7 @@ export default function App() {
 
   // ── Logout ─────────────────────────────────────────────────────
   function handleLogout() {
-    supabase.auth.signOut().catch(() => {});
+    supabase?.auth.signOut().catch(() => {});
     clearSession();
     setUser(null);
     setAnalysis(null);
