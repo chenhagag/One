@@ -1,6 +1,151 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-05-12
+## Latest Session: 2026-05-12 to 2026-05-18
+
+### What We Worked On
+
+#### 1. Rename MatchMe → One
+- All frontend UI references updated across App.tsx, NewChat.tsx, Register.tsx, index.html
+- "הוא מערכת" → "היא מערכת" (grammatical fix)
+
+#### 2. Welcome Screen Gender Adaptation
+- "ברוך הבא" / "ברוכה הבאה" based on user.gender
+- All body text adapted: "תספרי"/"תעני" for women, "תספר"/"תענה" for men
+
+#### 3. User Name in Greeting
+- "היי נוי, תודה רבה..." instead of "היי, תודה רבה..."
+- Both couple tester and regular greetings updated
+
+#### 4. Response Speed Optimization
+- `max_tokens` reduced from 500 to 300 (chat responses are 100-150 tokens)
+- Global OpenAI client (reused across requests, not created per request)
+- User message DB save runs parallel to OpenAI call
+
+#### 5. Home Screen Disclaimer
+- "המערכת בשלבי בנייה. הצ'אט עלול עדיין להרגיש קצת רובוטי או תקוע — תודה על ההבנה."
+
+#### 6. Cognitive Chat Fixes
+- Full history sent (not `slice(-6)`) — prevents question repetition
+- Prompt updated: "6 questions max", "never repeat a question already asked"
+- Threshold: 7 messages (6 questions + intro) for both couples and regular
+- Stronger closing instruction: "חובה לסגור עכשיו", "אל תשאל שאלה נוספת"
+
+#### 7. Post-Close Channel Bubbles
+- Backend returns `closing_stage` in API response
+- Frontend shows bubbles for incomplete channels after conversation closes
+- "בוא נמשיך להכיר" hidden when general chat already closed
+
+#### 8. Expert Recommendation System Overhaul
+- Recommendations reload on every home screen visit (not just mount)
+- Moved recommendation inside chatArea div (was hidden by layout)
+- Priority order: (1) "בוא נמשיך" if chat incomplete, (2) cognitive, (3) taste, (4) all done message
+- Respects closed channels — no "בוא נמשיך" after general chat closed
+- All-done message: "סיימת את כל השלבים, תודה רבה..."
+- Conditional photo/profile prompt for couples vs singles
+
+#### 9. Auto-Analysis Rework (Two Runs)
+- Run 1: Triggers when general chat closes — even without cognitive/taste
+- Run 2: Triggers when all channels done (cognitive ≥5 + taste ≥5)
+- Max 2 automatic runs (tracked via `analysis_run_count` column)
+- Auto-analysis now saves raw output to `analysis_runs` table (visible in admin)
+
+#### 10. Taste Test — Major Overhaul
+- **All profiles in prompt**: 13 selected profiles injected into every prompt (AI picks from list, no inventions)
+- **Profile counting**: counts names from history matching actual profile bank (prevents false matches like "אני מבינה.")
+- **Mid-summary after 6 profiles**: "קלטתי נכון? רוצה להמשיך?" — user can continue or stop
+- **Follow-up separation**: "don't show new profile together with follow-up question"
+- **"Don't ask if ready for next"**: removed "מוכנה לפרופיל הבא?" spam
+- **"Don't ask if they want to meet"**: profiles are for taste analysis, not real people
+- **Closing bubbles**: only on actual close (not mid-summary)
+- **Stronger closing instruction**: "חובה לסגור עכשיו"
+- **Full history on taste**: sent to OpenAI always (not just at closing)
+- **Removed ages from profiles**: "אני יעל. אוהבת..." instead of "אני יעל, 32. אוהבת..."
+
+#### 11. Same-Sex Taste Profiles
+- 4 profile files: female (default), female-ff (woman→woman), male (default), male-mm (man→man)
+- Full gender adaptation in text (adjectives, pronouns, not just "מחפש/ת")
+- Code selects profile bank based on `gender` + `looking_for_gender`
+- Removed AI gender adaptation instruction (was causing confusion)
+
+#### 12. Closing Stage & Bubble Fixes
+- Removed regex check on closing — trust `closingStage` from `buildChatPrompt`
+- `saveConversationState` now awaited (prevents lost `closing_stage=3`)
+- `closedChannels` loaded from API on mount (`chat_closed` from DB state machine)
+- Cognitive/taste `closedChannels` set only from real-time API responses
+
+#### 13. Greeting Fix
+- Greeting message no longer disappears — history load doesn't overwrite channels with existing messages
+
+#### 14. "חזרה לשיחה" Button
+- Only shown when general chat (`new_chat`) has messages (not any channel)
+
+#### 15. Profile View — Photo Upload
+- Extracted `ProfileView` component with photo loading from API
+- Photos displayed in grid, auto-refresh after upload, delete button
+- Vite proxy for `/uploads` in dev mode
+- Age displayed without "גיל" prefix
+- Production uploads to Railway Volume (`/app/data/uploads`)
+
+#### 16. Old Chat History Mapping
+- `psychologist` (שיחת עומק) → displayed in general chat
+- `interviewer` (שיחת מעבדה) → displayed in cognitive chat
+- Read-only mapping in frontend — zero DB changes
+
+#### 17. Admin Enhancements
+- Partner name column: editable with pencil icon (click-to-edit, PATCH API)
+- Download All: downloads each chat channel as separate text file
+- Inject Conversation: paste chat history per channel for test users
+- Couple Insights Editor: write/edit long-form relationship insights for couple testers
+- Trans trait hidden from admin display
+- Candidate matches sorted by `profile_score` instead of `final_score`
+- `PATCH /admin/users/:id` supports `partner_name`, `test_user_type`, `first_name`, `couple_insights`
+- User row click: only name navigates to user detail (not entire row)
+
+#### 18. Couple Insights Feature
+- New DB column: `couple_insights TEXT` on users
+- Admin: editor for long-form relationship insights
+- User sidebar: "כרטיס התאמה" button appears when `couple_insights` exists
+- User screen: scrollable rich-text display with pre-wrap formatting
+- API: `GET /users/:id/couple-insights`
+
+#### 19. PWA Install Flow
+- New `PWAInstallFlow` component replaces static welcome screen
+- Mobile: polished install screen with Android native prompt / iOS Safari guide
+- Desktop: welcome text with app explanation (no install instructions)
+- Standalone mode: auto-skip to main app
+- PWA manifest.json + minimal service worker for installability
+- iOS instructions with Share icon SVG + bouncing arrow animation
+- Login on mobile also shows PWA install screen
+- Feature cards, gradient buttons, trust badges, fade-in animation
+
+### New Files Created
+- `backend/src/agents/conversation/microTopics.ts` — 14 micro-topics with state machine
+- `backend/src/agents/conversation/promptTemplates.ts` — Prompt A/B/C/D/E templates
+- `backend/src/agents/conversation/prompts/taste-profiles-female-ff.txt` — Same-sex female profiles
+- `backend/src/agents/conversation/prompts/taste-profiles-male-mm.txt` — Same-sex male profiles
+- `frontend/src/PWAInstallFlow.tsx` — PWA installation flow component
+- `frontend/public/manifest.json` — PWA manifest
+- `frontend/public/sw.js` — Minimal service worker
+
+### Files Deleted
+- `backend/src/agents/conversation/prompts/topic-intro.txt`
+- `backend/src/agents/conversation/prompts/topic-relationships.txt`
+- `backend/src/agents/conversation/prompts/topic-values.txt`
+- `backend/src/agents/conversation/prompts/topic-culture.txt`
+
+### Key Architectural Changes
+- Micro-topics + prompt templates replaced topic-based RAG (code controls questions, not AI)
+- Taste test: all profiles in prompt instead of one-at-a-time injection
+- Profile counting from history instead of message count
+- Auto-analysis: two-run system (after chat close + after all channels)
+- Recommendations reload on every home screen visit
+- `saveConversationState` is now awaited (not fire-and-forget)
+- PWA support: manifest, service worker, install flow
+
+### Version Tag
+- `v0.9-pre-mvp` — tagged as last stable version before MVP UI overhaul
+
+## Previous Session: 2026-05-12
 
 ### What We Worked On
 
