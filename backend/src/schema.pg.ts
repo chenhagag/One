@@ -467,7 +467,36 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       ) THEN
         ALTER TABLE users ADD COLUMN couple_insights TEXT;
       END IF;
+
+      -- Supabase Auth: UUID linking to Supabase auth user
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'supabase_uid'
+      ) THEN
+        ALTER TABLE users ADD COLUMN supabase_uid UUID UNIQUE;
+      END IF;
+
+      -- Auth provider: tracks how the user signed up (email, google, apple)
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'auth_provider'
+      ) THEN
+        ALTER TABLE users ADD COLUMN auth_provider TEXT DEFAULT 'email';
+      END IF;
+
+      -- Profile complete: false for OAuth users who haven't filled profile yet
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'profile_complete'
+      ) THEN
+        ALTER TABLE users ADD COLUMN profile_complete BOOLEAN DEFAULT TRUE;
+      END IF;
     END $$;
+  `);
+
+  // Index for fast lookup by supabase_uid
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_users_supabase_uid ON users(supabase_uid);
   `);
 
   // Add topic_injection_counts to user_chat_summaries if missing

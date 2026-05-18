@@ -7,7 +7,7 @@ export default function WelcomeScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>MatchMe</Text>
-      <Text style={styles.subtitle}>Find your perfect match</Text>
+      <Text style={styles.subtitle}>Find your one perfect match</Text>
 
       <Pressable
         style={styles.button}

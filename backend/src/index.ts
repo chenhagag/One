@@ -23,6 +23,7 @@ import { shouldSummarize, getUserSummary, runSummarization } from "./agents/conv
 import { maybeAutoAnalyze, maybeAutoAnalyzeAfterChat, maybeAutoAnalyzeAfterAll } from "./agents/conversation/autoAnalysis";
 import OpenAI from "openai";
 import { trackTokens } from "./tokenTracker";
+import { requireAuth } from "./auth";
 
 dotenv.config();
 
@@ -83,6 +84,59 @@ app.post("/login", async (req, res) => {
   } catch (err: any) {
     console.error("[login]", err.message);
     return res.status(500).json({ error: "Login failed" });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
+// OAUTH SYNC — Supabase Auth → local users table
+// ════════════════════════════════════════════════════════════════
+
+app.post("/auth/sync", requireAuth, async (req, res) => {
+  const { sub: supabaseUid, email, user_metadata, app_metadata } = req.auth!;
+
+  if (!supabaseUid || !email) {
+    return res.status(400).json({ error: "Token missing sub or email" });
+  }
+
+  const provider = app_metadata?.provider || "oauth";
+  const fullName =
+    user_metadata?.full_name || user_metadata?.name || email.split("@")[0];
+
+  try {
+    // 1. Check if already linked by supabase_uid
+    let user = await pgQueryOne<any>(
+      "SELECT * FROM users WHERE supabase_uid = $1",
+      [supabaseUid]
+    );
+    if (user) {
+      return res.json({ ...user, profile_complete: user.profile_complete ?? true });
+    }
+
+    // 2. Check if existing user by email (legacy → link OAuth identity)
+    user = await pgQueryOne<any>(
+      "SELECT * FROM users WHERE email = $1",
+      [email.trim().toLowerCase()]
+    );
+    if (user) {
+      await pgQueryAll(
+        `UPDATE users SET supabase_uid = $1, auth_provider = $2, updated_at = NOW() WHERE id = $3`,
+        [supabaseUid, provider, user.id]
+      );
+      return res.json({ ...user, supabase_uid: supabaseUid, auth_provider: provider, profile_complete: user.profile_complete ?? true });
+    }
+
+    // 3. Brand new user — create minimal row, profile_complete = false
+    const newUser = await pgQueryOne<any>(
+      `INSERT INTO users (first_name, email, supabase_uid, auth_provider, profile_complete)
+       VALUES ($1, $2, $3, $4, false)
+       RETURNING *`,
+      [fullName.trim(), email.trim().toLowerCase(), supabaseUid, provider]
+    );
+
+    return res.status(201).json(newUser);
+  } catch (err: any) {
+    console.error("[auth/sync]", err.message);
+    return res.status(500).json({ error: "Failed to sync user" });
   }
 });
 

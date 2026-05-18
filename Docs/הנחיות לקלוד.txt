@@ -1,6 +1,71 @@
-התחרטתי לגבי השמירה בצ'אטים נפרדים. אני רוצה שכל אחת מהבועות תפתח בצ'אט נפרד עם היסטוריה רציפה נפרדת. גם בהיסטורית השיחות הם ישמרו באופן נפרד. 
-כלומר, תהיה היסטוריה לכל צ'אט + היסטוריה משולבת שתשלח לניתוח (עם הפרדה בין צ'אט לצ'אט). חשוב לשמור על ההפרדה כי ייתכן שבהמשך נרצה להפריד לניתוחים נפרדים לפי כל צ'אט.
-עם זאת - כל הצ'אטים יעבדו עם אותו הפרומפט בדיוק. כלומר ידעו להתנהג אותו הדבר, החוויה של המשתמש תהיה שיחה עם אותו צ'אט שמכיר אותם ועשה איתם את כל השלבים האחרים. 
-אפשר בעצם להשתמש בפרומפט הקיים לכל הצ'אטים ולהפריד רק את ההיסטוריה.  אבל- כן לשמור איזשהו דגל שאומר באיזה צ'אט אנחנו נמצאים כרגע כי אולי נרצה קצת לעדכן את ההתנהגויות שלנו לפי הצ'אט הנוכחי.
+d succeeds. Everything compiles and bundles correctly.
+
+● All code is implemented and building cleanly. Here's a complete summary of everything that was done:
+
+Implementation Complete
+
+Files Created (6 new files)
+
+┌───────────────────────────────┬───────────────────────────────────────────────────────────┐│             File              │                          Purpose                          │├───────────────────────────────┼───────────────────────────────────────────────────────────┤│ backend/src/auth.ts           │ JWT middleware — requireAuth and optionalAuth for Express │├───────────────────────────────┼───────────────────────────────────────────────────────────┤│ frontend/src/lib/supabase.ts  │ Supabase client initialization                            │├───────────────────────────────┼───────────────────────────────────────────────────────────┤│ frontend/src/lib/api.ts       │ Fetch wrapper that auto-attaches JWT to API calls         │├───────────────────────────────┼───────────────────────────────────────────────────────────┤│ frontend/src/AuthScreen.tsx   │ Premium login screen with Google + Apple OAuth buttons    │├───────────────────────────────┼───────────────────────────────────────────────────────────┤│ frontend/src/AuthCallback.tsx │ Handles OAuth redirect, syncs user to backend             │├───────────────────────────────┼───────────────────────────────────────────────────────────┤│ frontend/src/ProfileSetup.tsx │ Post-OAuth profile completion form                        │└───────────────────────────────┴───────────────────────────────────────────────────────────┘
+
+Files Modified (6 files)
+
+┌──────────────────────────┬─────────────────────────────────────────────────────────────────────────────────────────┐│           File           │                                         Change                                          │├──────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────┤│ backend/src/index.ts     │ Added POST /auth/sync endpoint + imported auth middleware                               │├──────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────┤│ backend/src/schema.pg.ts │ Added supabase_uid, auth_provider, profile_complete columns                             │├──────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────┤│ frontend/src/App.tsx     │ Supabase session listener, new views (auth, auth_callback, profile_setup), OAuth logout │├──────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────┤│ frontend/src/main.tsx    │ Import main.css for Tailwind                                                            │├──────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────┤│ frontend/vite.config.ts  │ (Restored — Tailwind uses PostCSS, not Vite plugin)                                     │└──────────────────────────┴─────────────────────────────────────────────────────────────────────────────────────────┘
+
+Config Files Created
+
+┌─────────────────────────────┬─────────────────────────────┐│            File             │           Purpose           │├─────────────────────────────┼─────────────────────────────┤│ frontend/tailwind.config.js │ Tailwind v3 config          │├─────────────────────────────┼─────────────────────────────┤│ frontend/postcss.config.js  │ PostCSS config for Tailwind │├─────────────────────────────┼─────────────────────────────┤│ frontend/src/main.css       │ Tailwind directives         │├─────────────────────────────┼─────────────────────────────┤│ frontend/.env.example       │ Supabase env var template   │└─────────────────────────────┴─────────────────────────────┘
+
+Dependencies Added
+
+Backend: jsonwebtoken, @types/jsonwebtoken
+
+Frontend: @supabase/supabase-js, tailwindcss@3, postcss, autoprefixer
+
+What You Need To Do Next (manual steps)
+
+Create Supabase Project (free)
+
+Go to https://supabase.com → New Project
+
+Go to Authentication → Providers → Enable Google and Apple
+
+Copy from Settings → API: Project URL, anon public key, JWT Secret
+
+Set Environment Variables
+
+Frontend — create frontend/.env:VITE_SUPABASE_URL=https://your-project.supabase.coVITE_SUPABASE_ANON_KEY=eyJ...your-anon-key
+
+Backend — add to backend/.env:SUPABASE_JWT_SECRET=your-jwt-secret-from-supabase
+
+Google OAuth Setup
+
+Google Cloud Console → APIs & Credentials → Create OAuth 2.0 Client ID
+
+Authorized redirect URI: https://.supabase.co/auth/v1/callback
+
+Paste Client ID + Secret into Supabase dashboard → Google provider
+
+Apple Sign-In Web Setup
+
+Apple Developer Account ($99/yr) → Certificates, Identifiers & Profiles
+
+Create App ID: com.one.dating, enable "Sign in with Apple"
+
+Create Services ID: com.one.dating.web, enable "Sign in with Apple"- Domains: your production domain + .supabase.co- Return URL: https://.supabase.co/auth/v1/callback
+
+Create Key: enable "Sign in with Apple", download .p8 file
+
+In Supabase dashboard → Apple provider: paste Services ID, .p8 contents, Key ID, Team ID
+
+Add Redirect URLs in Supabase
+
+Dashboard → Authentication → URL Configuration → Redirect URLs:
+
+http://localhost:3000/auth/callback (dev)
+
+https://your-production-domain.com/auth/callback (prod)
+
+✻ Brewed for 15m 44s
 
 
