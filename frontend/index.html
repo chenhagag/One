@@ -19,10 +19,14 @@
         navigator.serviceWorker.register("/sw.js").catch(() => {});
       }
       // Capture beforeinstallprompt early — it may fire before React mounts
+      window.__pwaInstallPromptFired = false;
       window.addEventListener("beforeinstallprompt", function(e) {
         e.preventDefault();
         window.__pwaInstallPrompt = e;
+        window.__pwaInstallPromptFired = true;
+        console.log("[PWA] beforeinstallprompt captured globally");
       });
+      console.log("[PWA] listener registered, UA:", navigator.userAgent);
     </script>
   </body>
 </html>
