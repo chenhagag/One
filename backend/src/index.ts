@@ -55,7 +55,14 @@ app.use((req, _res, next) => {
 
 // ── Serve frontend static build ──────────────────────────────────
 const frontendDist = path.join(__dirname, "../../frontend/dist");
-app.use(express.static(frontendDist));
+// Prevent Safari from caching index.html (causes blank page after deploys)
+app.use(express.static(frontendDist, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith(".html")) {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    }
+  },
+}));
 
 // ════════════════════════════════════════════════════════════════
 // LOGIN
@@ -2085,6 +2092,7 @@ app.post("/new-chat/message", async (req, res) => {
 // Any GET request that didn't match an API route or static file gets
 // the frontend's index.html — lets React Router handle client-side routing.
 app.get("*", (_req, res) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   const indexPath = path.join(frontendDist, "index.html");
   res.sendFile(indexPath, (err) => {
     if (err) {
