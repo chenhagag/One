@@ -309,6 +309,9 @@ export default function App() {
 
   // ── OAuth callback handlers ───────────────────────────────────
   const handleAuthSuccess = useCallback((u: User, profileComplete: boolean) => {
+    // Clean URL so refresh doesn't re-trigger auth callback
+    window.history.replaceState({}, "", "/");
+    console.log("[auth] success, user:", JSON.stringify(u));
     saveSession(u);
     setUser(u);
     if (!profileComplete) {
@@ -322,6 +325,7 @@ export default function App() {
 
   const handleAuthError = useCallback((message: string) => {
     console.error("[auth callback]", message);
+    window.history.replaceState({}, "", "/");
     setView("auth");
   }, []);
 

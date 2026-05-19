@@ -699,20 +699,30 @@ app.get("/users/:id/couple-insights", async (req, res) => {
 // PATCH /admin/users/:id — Update user fields (admin)
 app.patch("/admin/users/:id", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
-  const allowed = ["partner_name", "test_user_type", "first_name", "couple_insights"];
+  const allowed = [
+    "partner_name", "test_user_type", "first_name", "couple_insights",
+    "age", "gender", "looking_for_gender", "city", "height",
+    "self_style", "desired_age_min", "desired_age_max", "age_flexibility",
+    "desired_height_min", "desired_height_max", "height_flexibility",
+    "desired_location_range", "profile_complete",
+  ];
   const updates: string[] = [];
   const values: any[] = [];
   let i = 1;
   for (const key of allowed) {
     if (key in req.body) {
+      let val = req.body[key];
+      // JSON-encode arrays (e.g. self_style)
+      if (Array.isArray(val)) val = JSON.stringify(val);
       updates.push(`${key} = $${i++}`);
-      values.push(req.body[key] || null);
+      values.push(val ?? null);
     }
   }
   if (updates.length === 0) return res.status(400).json({ error: "No valid fields" });
   values.push(userId);
   await pgQueryAll(`UPDATE users SET ${updates.join(", ")}, updated_at = NOW() WHERE id = $${i}`, values);
-  return res.json({ updated: true });
+  const updated = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [userId]);
+  return res.json(updated);
 });
 
 // POST /admin/users/:id/freeze — Freeze/suspend a user
