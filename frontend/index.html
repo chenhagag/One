@@ -12,8 +12,16 @@
     <title>One</title>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <!-- Loading indicator — visible immediately while JS loads -->
+    <div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui;color:#aaa">Loading...</div></div>
+    <script>
+      // Force unregister old service workers (they cache stale JS on Safari)
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          regs.forEach(function(r) { r.unregister(); });
+        });
+      }
+    </script>
     <script>
       // Global error catcher — shows JS crashes on-screen (for iPhone debugging)
       window.onerror = function(msg, src, line, col, err) {
@@ -29,19 +37,15 @@
         document.body.appendChild(d);
       });
     </script>
+    <script type="module" src="/src/main.tsx"></script>
     <script>
-      if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("/sw.js").catch(() => {});
-      }
       // Capture beforeinstallprompt early — it may fire before React mounts
       window.__pwaInstallPromptFired = false;
       window.addEventListener("beforeinstallprompt", function(e) {
         e.preventDefault();
         window.__pwaInstallPrompt = e;
         window.__pwaInstallPromptFired = true;
-        console.log("[PWA] beforeinstallprompt captured globally");
       });
-      console.log("[PWA] listener registered, UA:", navigator.userAgent);
     </script>
   </body>
 </html>

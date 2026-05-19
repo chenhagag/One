@@ -10,6 +10,7 @@ export default function AuthScreen({ onEmailLogin }: AuthScreenProps) {
   const [error, setError] = useState("");
 
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isSafari = isIOS || (/^((?!chrome|android).)*safari/i.test(navigator.userAgent));
 
   async function handleOAuth(provider: "google" | "apple") {
     setLoading(provider);
@@ -51,10 +52,13 @@ export default function AuthScreen({ onEmailLogin }: AuthScreenProps) {
     }
   }
 
-  // Apple only on iOS (first), Google everywhere
-  const buttons = isIOS
-    ? (["apple", "google"] as const)
-    : (["google"] as const);
+  // Safari/iOS: hide Google OAuth (Safari ITP blocks it), show only email
+  // Other browsers: show Google (and Apple on iOS)
+  const buttons: ("google" | "apple")[] = isSafari
+    ? []
+    : isIOS
+      ? ["apple", "google"]
+      : ["google"];
 
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6">
@@ -78,44 +82,51 @@ export default function AuthScreen({ onEmailLogin }: AuthScreenProps) {
         <p className="text-base text-gray-400">Find your perfect match</p>
       </div>
 
-      {/* OAuth buttons */}
-      <div className="flex w-full max-w-xs flex-col gap-3">
-        {buttons.map((provider) =>
-          provider === "apple" ? (
-            <button
-              key="apple"
-              onClick={() => handleOAuth("apple")}
-              disabled={!!loading}
-              className="flex h-[52px] w-full items-center justify-center gap-3 rounded-xl bg-black text-[15px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-50"
-            >
-              <AppleLogo />
-              Continue with Apple
-            </button>
-          ) : (
-            <button
-              key="google"
-              onClick={() => handleOAuth("google")}
-              disabled={!!loading}
-              className="flex h-[52px] w-full items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white text-[15px] font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50"
-            >
-              <GoogleLogo />
-              Continue with Google
-            </button>
-          )
-        )}
-      </div>
+      {/* OAuth buttons (hidden on Safari — ITP blocks Google OAuth) */}
+      {buttons.length > 0 && (
+        <>
+          <div className="flex w-full max-w-xs flex-col gap-3">
+            {buttons.map((provider) =>
+              provider === "apple" ? (
+                <button
+                  key="apple"
+                  onClick={() => handleOAuth("apple")}
+                  disabled={!!loading}
+                  className="flex h-[52px] w-full items-center justify-center gap-3 rounded-xl bg-black text-[15px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-50"
+                >
+                  <AppleLogo />
+                  Continue with Apple
+                </button>
+              ) : (
+                <button
+                  key="google"
+                  onClick={() => handleOAuth("google")}
+                  disabled={!!loading}
+                  className="flex h-[52px] w-full items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white text-[15px] font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50"
+                >
+                  <GoogleLogo />
+                  Continue with Google
+                </button>
+              )
+            )}
+          </div>
 
-      {/* Divider */}
-      <div className="my-6 flex w-full max-w-xs items-center gap-3">
-        <div className="h-px flex-1 bg-gray-200" />
-        <span className="text-xs text-gray-400">or</span>
-        <div className="h-px flex-1 bg-gray-200" />
-      </div>
+          {/* Divider */}
+          <div className="my-6 flex w-full max-w-xs items-center gap-3">
+            <div className="h-px flex-1 bg-gray-200" />
+            <span className="text-xs text-gray-400">or</span>
+            <div className="h-px flex-1 bg-gray-200" />
+          </div>
+        </>
+      )}
 
-      {/* Legacy email login */}
+      {/* Email login — primary on Safari, secondary elsewhere */}
       <button
         onClick={onEmailLogin}
-        className="text-sm text-gray-400 transition-colors hover:text-gray-600"
+        className={buttons.length > 0
+          ? "text-sm text-gray-400 transition-colors hover:text-gray-600"
+          : "flex h-[52px] w-full max-w-xs items-center justify-center gap-3 rounded-xl bg-gray-900 text-[15px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
+        }
       >
         Continue with email
       </button>
