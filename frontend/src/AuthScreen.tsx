@@ -17,6 +17,13 @@ export default function AuthScreen({ onEmailLogin }: AuthScreenProps) {
 
     try {
       if (!supabase) { setError("OAuth not configured"); setLoading(null); return; }
+
+      // Timeout: if OAuth doesn't redirect within 8s, something is blocked
+      const timeout = setTimeout(() => {
+        setError("Connection timed out. Try using email login instead.");
+        setLoading(null);
+      }, 8000);
+
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
@@ -24,6 +31,7 @@ export default function AuthScreen({ onEmailLogin }: AuthScreenProps) {
         },
       });
 
+      clearTimeout(timeout);
       if (oauthError) {
         setError(oauthError.message);
         setLoading(null);

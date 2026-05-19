@@ -13,105 +13,94 @@ export default function AuthCallback({ onSuccess, onError }: AuthCallbackProps) 
 
   useEffect(() => {
     let cancelled = false;
+    let done = false;
 
-    async function handleCallback() {
-      try {
-        if (!supabase) { if (!cancelled) onError("OAuth not configured"); return; }
+    // Global timeout — if nothing works in 10s, give up
+    const globalTimeout = setTimeout(() => {
+      if (!done && !cancelled) {
+        done = true;
+        const msg = "Sign-in timed out. Please try again.";
+        setErrorMsg(msg);
+        onError(msg);
+      }
+    }, 10000);
 
-        console.log("[auth-callback] URL:", window.location.href);
-        console.log("[auth-callback] hash:", window.location.hash ? "present" : "empty");
+    async function syncUser(accessToken: string) {
+      if (done || cancelled) return;
+      setStatus("Setting up your account...");
 
-        // Wait for Supabase to process the URL hash/params
-        // onAuthStateChange fires when Supabase picks up the tokens from the URL
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event, session) => {
-            console.log("[auth-callback] auth event:", event, "session:", !!session);
+      const res = await fetch("/auth/sync", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
 
-            if (event === "SIGNED_IN" && session) {
-              subscription.unsubscribe();
+      console.log("[auth-callback] /auth/sync status:", res.status);
 
-              if (cancelled) return;
-              setStatus("Setting up your account...");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const msg = data.error || `Failed to sync account (${res.status})`;
+        console.error("[auth-callback]", msg);
+        if (!cancelled) { done = true; setErrorMsg(msg); onError(msg); }
+        return;
+      }
 
-              try {
-                const res = await fetch("/auth/sync", {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${session.access_token}`,
-                  },
-                });
-
-                console.log("[auth-callback] /auth/sync status:", res.status);
-
-                if (!res.ok) {
-                  const data = await res.json().catch(() => ({}));
-                  const msg = data.error || `Failed to sync account (${res.status})`;
-                  console.error("[auth-callback]", msg);
-                  if (!cancelled) { setErrorMsg(msg); onError(msg); }
-                  return;
-                }
-
-                const user = await res.json();
-                console.log("[auth-callback] user synced:", user.id, user.email);
-                if (!cancelled) {
-                  onSuccess(user, user.profile_complete !== false);
-                }
-              } catch (err: any) {
-                const msg = err.message || "Failed to sync account";
-                console.error("[auth-callback] sync error:", msg);
-                if (!cancelled) { setErrorMsg(msg); onError(msg); }
-              }
-            }
-          }
-        );
-
-        // Also try getSession as fallback (in case event already fired)
-        setTimeout(async () => {
-          if (cancelled) return;
-          const { data: { session } } = await supabase!.auth.getSession();
-          console.log("[auth-callback] fallback getSession:", !!session);
-          if (session) {
-            // Trigger the same flow
-            subscription.unsubscribe();
-            setStatus("Setting up your account...");
-
-            const res = await fetch("/auth/sync", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${session.access_token}`,
-              },
-            });
-
-            if (!res.ok) {
-              const data = await res.json().catch(() => ({}));
-              const msg = data.error || `Failed to sync account (${res.status})`;
-              if (!cancelled) { setErrorMsg(msg); onError(msg); }
-              return;
-            }
-
-            const user = await res.json();
-            if (!cancelled) {
-              onSuccess(user, user.profile_complete !== false);
-            }
-          } else if (!cancelled) {
-            const msg = "No session found after sign-in";
-            console.error("[auth-callback]", msg);
-            setErrorMsg(msg);
-            onError(msg);
-          }
-        }, 1500);
-
-      } catch (err: any) {
-        const msg = err.message || "Something went wrong. Please try again.";
-        console.error("[auth-callback] error:", msg);
-        if (!cancelled) { setErrorMsg(msg); onError(msg); }
+      const user = await res.json();
+      console.log("[auth-callback] user synced:", user.id, user.email);
+      if (!cancelled) {
+        done = true;
+        onSuccess(user, user.profile_complete !== false);
       }
     }
 
+    async function handleCallback() {
+      if (!supabase) {
+        done = true;
+        onError("OAuth not configured");
+        return;
+      }
+
+      console.log("[auth-callback] URL:", window.location.href);
+
+      // Listen for auth state change (handles PKCE code exchange)
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        async (event, session) => {
+          console.log("[auth-callback] auth event:", event, "session:", !!session);
+          if (session && !done) {
+            subscription.unsubscribe();
+            await syncUser(session.access_token);
+          }
+        }
+      );
+
+      // Also try getSession after a short delay (in case event already fired)
+      setTimeout(async () => {
+        if (done || cancelled) return;
+        try {
+          const result = await Promise.race([
+            supabase!.auth.getSession(),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+          ]);
+          const session = result && "data" in result ? result.data.session : null;
+          console.log("[auth-callback] fallback getSession:", !!session);
+          if (session && !done) {
+            subscription.unsubscribe();
+            await syncUser(session.access_token);
+          }
+        } catch {
+          // Supabase blocked — global timeout will handle
+        }
+      }, 1500);
+    }
+
     handleCallback();
-    return () => { cancelled = true; };
+
+    return () => {
+      cancelled = true;
+      clearTimeout(globalTimeout);
+    };
   }, [onSuccess, onError]);
 
   return (

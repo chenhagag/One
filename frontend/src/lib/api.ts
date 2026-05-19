@@ -14,11 +14,17 @@ export async function apiFetch(
   };
 
   if (supabase) {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (session?.access_token) {
-      headers["Authorization"] = `Bearer ${session.access_token}`;
+    try {
+      const result = await Promise.race([
+        supabase.auth.getSession(),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
+      ]);
+      const session = result && "data" in result ? result.data.session : null;
+      if (session?.access_token) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
+      }
+    } catch {
+      // Supabase blocked — continue without JWT
     }
   }
 
