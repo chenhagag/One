@@ -18,15 +18,18 @@ export default function AuthScreen({ onEmailLogin }: AuthScreenProps) {
     try {
       if (!supabase) { setError("OAuth not configured"); setLoading(null); return; }
 
-      // Timeout: if OAuth doesn't redirect within 8s, something is blocked
-      const timeout = setTimeout(() => {
-        setError("Connection timed out. Try using email login instead.");
-        setLoading(null);
-      }, 8000);
-
       const redirectTo = `${window.location.origin}/auth/callback`;
-      console.log("[auth-screen] signInWithOAuth provider:", provider, "redirectTo:", redirectTo);
-      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+
+      // Show debug info on screen (visible on iPhone)
+      setError(`DEBUG: origin=${window.location.origin} redirectTo=${redirectTo}`);
+
+      // Timeout: if OAuth doesn't redirect within 10s, something is blocked
+      const timeout = setTimeout(() => {
+        setError("Connection timed out. Safari may be blocking the redirect. Try email login.");
+        setLoading(null);
+      }, 10000);
+
+      const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
           redirectTo,
@@ -34,13 +37,19 @@ export default function AuthScreen({ onEmailLogin }: AuthScreenProps) {
       });
 
       clearTimeout(timeout);
+
+      // Show the URL Supabase is trying to redirect to
+      if (data?.url) {
+        setError(`DEBUG: Supabase redirect URL = ${data.url.substring(0, 120)}...`);
+      }
+
       if (oauthError) {
-        setError(oauthError.message);
+        setError(`OAuth error: ${oauthError.message}`);
         setLoading(null);
       }
       // If successful, the browser redirects — no further action needed
-    } catch {
-      setError("Could not connect to auth service");
+    } catch (err: any) {
+      setError(`Exception: ${err.message}`);
       setLoading(null);
     }
   }
