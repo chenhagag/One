@@ -188,34 +188,42 @@ export default function App() {
       return;
     }
 
-    // Try Supabase session first (only if configured)
+    // Try Supabase session first (only if configured), with timeout
     const initAuth = async () => {
       if (supabase) {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          try {
-            const res = await fetch("/auth/sync", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${session.access_token}`,
-              },
-            });
-            if (res.ok) {
-              const data = await res.json();
-              setUser(data);
-              saveSession(data);
-              if (data.profile_complete === false) {
-                setView("profile_setup");
-              } else {
-                setView("new_chat");
+        try {
+          const sessionResult = await Promise.race([
+            supabase.auth.getSession(),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+          ]);
+          const session = sessionResult && "data" in sessionResult ? sessionResult.data.session : null;
+          if (session) {
+            try {
+              const res = await fetch("/auth/sync", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${session.access_token}`,
+                },
+              });
+              if (res.ok) {
+                const data = await res.json();
+                setUser(data);
+                saveSession(data);
+                if (data.profile_complete === false) {
+                  setView("profile_setup");
+                } else {
+                  setView("new_chat");
+                }
+                setAutoLoginDone(true);
+                return;
               }
-              setAutoLoginDone(true);
-              return;
+            } catch {
+              // Fall through to legacy check
             }
-          } catch {
-            // Fall through to legacy check
           }
+        } catch {
+          // Supabase blocked or failed — fall through
         }
       }
 
