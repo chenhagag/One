@@ -22,5 +22,5 @@ export async function apiFetch(
     }
   }
 
-  return fetch(path, { ...options, headers });
+  return fetch(`/api${path}`, { ...options, headers });
 }

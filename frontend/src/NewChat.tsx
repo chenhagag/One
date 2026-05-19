@@ -296,7 +296,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         <div style={styles.sidebarBottom}>
           <div style={{ position: "relative" }}>
             <div style={{ ...styles.userArea, cursor: "pointer" }} onClick={() => setShowUserMenu(!showUserMenu)}>
-              <div style={styles.avatar}>{user.first_name.charAt(0)}</div>
+              <div style={styles.avatar}>{(user.first_name || "?").charAt(0)}</div>
               <span style={styles.userName}>{user.first_name}</span>
             </div>
             {showUserMenu && (
@@ -652,7 +652,7 @@ function ProfileView({ user }: { user: User }) {
           ))}
           {photos.length === 0 && (
             <div style={{ width: 100, height: 100, borderRadius: 10, background: "#e0e0e8", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span style={{ fontSize: 36, color: "#aaa" }}>{user.first_name.charAt(0)}</span>
+              <span style={{ fontSize: 36, color: "#aaa" }}>{(user.first_name || "?").charAt(0)}</span>
             </div>
           )}
         </div>
