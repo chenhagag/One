@@ -18,7 +18,6 @@ export const supabase: SupabaseClient | null = hasSupabase
         detectSessionInUrl: true,
         autoRefreshToken: true,
         persistSession: true,
-        storage: window.localStorage,
       },
     })
   : null;
