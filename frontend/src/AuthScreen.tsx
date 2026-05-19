@@ -20,36 +20,33 @@ export default function AuthScreen({ onEmailLogin }: AuthScreenProps) {
 
       const redirectTo = `${window.location.origin}/auth/callback`;
 
-      // Show debug info on screen (visible on iPhone)
-      setError(`DEBUG: origin=${window.location.origin} redirectTo=${redirectTo}`);
-
-      // Timeout: if OAuth doesn't redirect within 10s, something is blocked
-      const timeout = setTimeout(() => {
-        setError("Connection timed out. Safari may be blocking the redirect. Try email login.");
-        setLoading(null);
-      }, 10000);
-
+      // skipBrowserRedirect: true — get the URL back instead of letting
+      // Supabase redirect automatically. Safari ITP blocks the automatic
+      // redirect because it involves Supabase's third-party domain.
+      // We redirect manually with window.location.href which always works.
       const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
           redirectTo,
+          skipBrowserRedirect: true,
         },
       });
 
-      clearTimeout(timeout);
-
-      // Show the URL Supabase is trying to redirect to
-      if (data?.url) {
-        setError(`DEBUG: Supabase redirect URL = ${data.url.substring(0, 120)}...`);
+      if (oauthError) {
+        setError(`Sign-in failed: ${oauthError.message}`);
+        setLoading(null);
+        return;
       }
 
-      if (oauthError) {
-        setError(`OAuth error: ${oauthError.message}`);
+      if (data?.url) {
+        // Manual redirect — works on all browsers including Safari
+        window.location.href = data.url;
+      } else {
+        setError("Could not get sign-in URL. Please try email login.");
         setLoading(null);
       }
-      // If successful, the browser redirects — no further action needed
     } catch (err: any) {
-      setError(`Exception: ${err.message}`);
+      setError(`Could not connect to auth service: ${err.message}`);
       setLoading(null);
     }
   }
