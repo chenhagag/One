@@ -31,7 +31,7 @@ export default function AuthCallback({ onSuccess, onError }: AuthCallbackProps) 
         setStatus("Setting up your account...");
 
         // Sync with our backend
-        const res = await fetch("/api/auth/sync", {
+        const res = await fetch("/auth/sync", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

@@ -194,7 +194,7 @@ export default function App() {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
           try {
-            const res = await fetch("/api/auth/sync", {
+            const res = await fetch("/auth/sync", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
