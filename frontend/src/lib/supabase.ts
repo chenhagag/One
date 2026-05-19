@@ -17,6 +17,8 @@ export const supabase: SupabaseClient | null = hasSupabase
         flowType: "pkce",
         detectSessionInUrl: true,
         autoRefreshToken: true,
+        persistSession: true,
+        storage: window.localStorage,
       },
     })
   : null;
