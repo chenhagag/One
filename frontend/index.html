@@ -15,6 +15,21 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
+      // Global error catcher — shows JS crashes on-screen (for iPhone debugging)
+      window.onerror = function(msg, src, line, col, err) {
+        var d = document.createElement("div");
+        d.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:99999;background:#ff0;color:#000;padding:12px;font:12px monospace;white-space:pre-wrap;word-break:break-all";
+        d.textContent = "JS ERROR: " + msg + "\nSource: " + src + ":" + line + ":" + col + "\n" + (err && err.stack ? err.stack : "");
+        document.body.appendChild(d);
+      };
+      window.addEventListener("unhandledrejection", function(e) {
+        var d = document.createElement("div");
+        d.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:99999;background:#ff0;color:#000;padding:12px;font:12px monospace;white-space:pre-wrap;word-break:break-all";
+        d.textContent = "UNHANDLED PROMISE: " + (e.reason && e.reason.stack ? e.reason.stack : e.reason);
+        document.body.appendChild(d);
+      });
+    </script>
+    <script>
       if ("serviceWorker" in navigator) {
         navigator.serviceWorker.register("/sw.js").catch(() => {});
       }
