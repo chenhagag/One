@@ -10,6 +10,7 @@ import AuthScreen from "./AuthScreen";
 import AuthCallback from "./AuthCallback";
 import ProfileSetup from "./ProfileSetup";
 import { supabase } from "./lib/supabase";
+import { saveSupabaseTokens, clearSupabaseTokens } from "./lib/api";
 
 type View =
   | "landing"
@@ -198,6 +199,8 @@ export default function App() {
           ]);
           const session = sessionResult && "data" in sessionResult ? sessionResult.data.session : null;
           if (session) {
+            // Persist tokens in our own storage (Safari ITP resilience)
+            saveSupabaseTokens(session.access_token, session.refresh_token);
             try {
               const res = await fetch("/auth/sync", {
                 method: "POST",
@@ -310,6 +313,7 @@ export default function App() {
   function handleLogout() {
     supabase?.auth.signOut().catch(() => {});
     clearSession();
+    clearSupabaseTokens();
     setUser(null);
     setAnalysis(null);
     setView("auth");

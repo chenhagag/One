@@ -24,10 +24,12 @@ export default function AuthScreen({ onEmailLogin }: AuthScreenProps) {
         setLoading(null);
       }, 8000);
 
+      const redirectTo = `${window.location.origin}/auth/callback`;
+      console.log("[auth-screen] signInWithOAuth provider:", provider, "redirectTo:", redirectTo);
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo,
         },
       });
 
