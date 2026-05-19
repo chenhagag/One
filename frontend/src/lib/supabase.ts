@@ -12,5 +12,11 @@ if (!hasSupabase) {
 }
 
 export const supabase: SupabaseClient | null = hasSupabase
-  ? createClient(supabaseUrl, supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        flowType: "pkce",
+        detectSessionInUrl: true,
+        autoRefreshToken: true,
+      },
+    })
   : null;

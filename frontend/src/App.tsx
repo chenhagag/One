@@ -182,7 +182,7 @@ export default function App() {
     }
 
     // Check for OAuth callback (Supabase puts tokens in URL hash)
-    if (window.location.pathname === "/auth/callback" || window.location.hash.includes("access_token")) {
+    if (window.location.pathname === "/auth/callback" || window.location.hash.includes("access_token") || window.location.search.includes("code=")) {
       setView("auth_callback");
       setAutoLoginDone(true);
       return;
