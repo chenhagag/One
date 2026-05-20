@@ -73,7 +73,7 @@ export default function AuthScreen() {
       const res = await fetch("/auth/magic-link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmed }),
+        body: JSON.stringify({ email: trimmed, redirectTo: `${window.location.origin}/auth/callback` }),
       });
 
       const data = await res.json();

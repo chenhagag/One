@@ -99,7 +99,7 @@ app.post("/login", async (req, res) => {
 // ════════════════════════════════════════════════════════════════
 
 app.post("/auth/magic-link", async (req, res) => {
-  const { email } = req.body;
+  const { email, redirectTo } = req.body;
   if (!email) return res.status(400).json({ error: "email is required" });
 
   const supabaseUrl = process.env.SUPABASE_URL;
@@ -110,8 +110,11 @@ app.post("/auth/magic-link", async (req, res) => {
   }
 
   try {
-    // Use Supabase Admin API to send magic link server-side
-    const response = await fetch(`${supabaseUrl}/auth/v1/magiclink`, {
+    // Use Supabase Admin API to send magic link server-side.
+    // redirect_to must be a query parameter (not in body).
+    const callbackUrl = redirectTo || `${req.protocol}://${req.get("host")}/auth/callback`;
+    const otpUrl = `${supabaseUrl}/auth/v1/magiclink?redirect_to=${encodeURIComponent(callbackUrl)}`;
+    const response = await fetch(otpUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
