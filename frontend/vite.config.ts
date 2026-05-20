@@ -16,6 +16,9 @@ export default defineConfig({
       "/auth/magic-link": {
         target: "http://localhost:3001",
       },
+      "/auth/exchange-code": {
+        target: "http://localhost:3001",
+      },
       "/uploads": {
         target: "http://localhost:3001",
       },

@@ -69,67 +69,79 @@ export default function AuthCallback({ onSuccess, onError }: AuthCallbackProps) 
     }
 
     async function handleCallback() {
-      if (!supabase) {
-        fail("OAuth not configured");
-        return;
-      }
-
       const url = new URL(window.location.href);
       const code = url.searchParams.get("code");
       const hashParams = new URLSearchParams(url.hash.replace("#", ""));
       const hashAccessToken = hashParams.get("access_token");
       const hashRefreshToken = hashParams.get("refresh_token");
 
-      // Strategy 1: Listen for auth state change FIRST
-      // detectSessionInUrl auto-exchanges the code in the background.
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        async (_event, session) => {
-          if (session && !done) {
-            subscription.unsubscribe();
-            await syncUser(session.access_token, session.refresh_token);
-          }
-        }
-      );
-
-      // Strategy 2: Hash fragment token (implicit flow fallback)
+      // Strategy 1: Hash fragment token (implicit flow)
       if (hashAccessToken) {
         await syncUser(hashAccessToken, hashRefreshToken || undefined);
-        subscription.unsubscribe();
         return;
       }
 
-      // Strategy 3: Manual PKCE code exchange
+      // Strategy 2: Server-side code exchange (works on Safari — bypasses ITP)
       if (code) {
         setStatus("Verifying your identity...");
         try {
-          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-          if (!error && data.session) {
-            subscription.unsubscribe();
-            await syncUser(data.session.access_token, data.session.refresh_token);
+          const res = await fetch("/auth/exchange-code", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code }),
+          });
+          const data = await res.json();
+          if (res.ok && data.access_token) {
+            await syncUser(data.access_token, data.refresh_token);
             return;
           }
         } catch {
-          // detectSessionInUrl may still fire via onAuthStateChange
+          // Fall through to client-side strategies
         }
       }
 
-      // Strategy 4: getSession fallback after a short delay
-      setTimeout(async () => {
-        if (done || cancelled) return;
-        try {
-          const result = await Promise.race([
-            supabase!.auth.getSession(),
-            new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
-          ]);
-          const session = result && "data" in result ? result.data.session : null;
-          if (session && !done) {
-            subscription.unsubscribe();
-            await syncUser(session.access_token, session.refresh_token);
+      // Strategy 3: Client-side Supabase exchange (Chrome/Android)
+      if (supabase) {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (_event, session) => {
+            if (session && !done) {
+              subscription.unsubscribe();
+              await syncUser(session.access_token, session.refresh_token);
+            }
           }
-        } catch {
-          // Will hit global timeout
+        );
+
+        if (code) {
+          try {
+            const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+            if (!error && data.session) {
+              subscription.unsubscribe();
+              await syncUser(data.session.access_token, data.session.refresh_token);
+              return;
+            }
+          } catch {
+            // onAuthStateChange may still fire
+          }
         }
-      }, 1500);
+
+        // Strategy 4: getSession fallback
+        setTimeout(async () => {
+          if (done || cancelled) return;
+          try {
+            const result = await Promise.race([
+              supabase!.auth.getSession(),
+              new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+            ]);
+            const session = result && "data" in result ? result.data.session : null;
+            if (session && !done) {
+              subscription.unsubscribe();
+              await syncUser(session.access_token, session.refresh_token);
+            }
+          } catch {
+            // Will hit global timeout
+          }
+        }, 1500);
+      }
     }
 
     handleCallback();
