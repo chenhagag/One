@@ -33,7 +33,7 @@
 
 import Database from "better-sqlite3";
 import { queryAll, withTransaction } from "./db.pg";
-import { COGNITIVE_TRAIT_WEIGHTS } from "./cognitiveScore";
+
 
 // ══════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -76,11 +76,8 @@ const HEIGHT_TOL: Record<string, number> = { not_flexible: 2, slightly_flexible:
 const APPROVAL_RATE_TOLERANCE = 30;
 
 // Cognitive profile is a FIXED filter — always applied, no effective_weight gate.
-// Weighted average of cognitive traits (analytical_reasoning x2); tolerance ±7.
-const COGNITIVE_PROFILE_TOLERANCE = 7;
-
-// Resolved at runtime from COGNITIVE_TRAIT_WEIGHTS (imported from cognitiveScore.ts)
-let COGNITIVE_TRAIT_WEIGHT_IDS: [number, number][] = [];
+// Uses users.cognitive_score (0–100, normalized) directly. Tolerance ±10.
+const COGNITIVE_PROFILE_TOLERANCE = 10;
 
 // Personal filter traits — resolved dynamically in runStage1.
 // Format: [trait_definition_id, allowed_score_range on 0–100 scale]
@@ -108,6 +105,7 @@ interface User {
   height_flexibility: string;
   desired_location_range: string;
   initial_attraction_signal: number | null; // 0–100 scale
+  cognitive_score: number | null; // 0–100, normalized
   updated_at: string;
 }
 
@@ -193,11 +191,6 @@ export async function runStage1(_db: Database.Database, options?: { skipMatchabl
     extraversion: tid("extraversion"),
   };
 
-  // Cognitive profile: resolve weighted trait IDs from names
-  COGNITIVE_TRAIT_WEIGHT_IDS = COGNITIVE_TRAIT_WEIGHTS
-    .map(([name, weight]) => [tid(name), weight] as [number, number])
-    .filter(([id]) => id !== -1);
-
   const lookTraitDefs = await queryAll<{ id: number; internal_name: string }>(
     "SELECT id, internal_name FROM look_trait_definitions"
   );
@@ -220,7 +213,7 @@ export async function runStage1(_db: Database.Database, options?: { skipMatchabl
     SELECT u.id, u.age, u.gender, u.looking_for_gender, u.city, u.height,
            u.desired_age_min, u.desired_age_max, u.age_flexibility,
            u.desired_height_min, u.desired_height_max, u.height_flexibility,
-           u.desired_location_range, u.initial_attraction_signal, u.updated_at
+           u.desired_location_range, u.initial_attraction_signal, u.cognitive_score, u.updated_at
     FROM users u
     ${whereClause}
   `);
@@ -328,7 +321,7 @@ export async function runStage1(_db: Database.Database, options?: { skipMatchabl
       }
 
       const passes = options?.skipAllFilters
-        ? passesCognitiveFilter(a, b, getUserTrait)
+        ? passesCognitiveFilter(a, b)
         : passesAllFilters(a, b, getUserTrait, getUserLookTrait, getRegion, getNearbyRegions);
 
       if (passes) {
@@ -400,7 +393,7 @@ function passesAllFilters(
   if (!passesApprovalFilter(a, b)) return false;
 
   // Fixed filter: cognitive profile weighted avg ±20 (always applied, no effective_weight gate)
-  if (!passesCognitiveFilter(a, b, getTrait)) return false;
+  if (!passesCognitiveFilter(a, b)) return false;
 
   if (!passesSexualIdentityFilter(a, b, getTrait)) return false;
 
@@ -470,33 +463,11 @@ function passesApprovalFilter(a: User, b: User): boolean {
 }
 
 // ── 5b. Cognitive profile (FIXED filter — always applied) ────────
-// Computes a weighted cognitive profile score (analytical_reasoning x2)
-// for each user, then checks if the scores are within ±7.
+// Uses users.cognitive_score (0–100, normalized) directly.
 // This is a fixed compatibility filter, not gated by effective_weight.
-function passesCognitiveFilter(
-  a: User, b: User,
-  getTrait: (uid: number, tid: number) => TraitScore | null,
-): boolean {
-  const avgA = cognitiveWeightedAvg(a.id, getTrait);
-  const avgB = cognitiveWeightedAvg(b.id, getTrait);
-  if (avgA == null || avgB == null) return true; // no data → don't filter out
-  return Math.abs(avgA - avgB) <= COGNITIVE_PROFILE_TOLERANCE;
-}
-
-function cognitiveWeightedAvg(
-  userId: number,
-  getTrait: (uid: number, tid: number) => TraitScore | null,
-): number | null {
-  let sumW = 0;
-  let sumC = 0;
-  for (const [traitId, weight] of COGNITIVE_TRAIT_WEIGHT_IDS) {
-    const t = getTrait(userId, traitId);
-    if (!t) continue;
-    sumW += t.score * t.confidence * weight;
-    sumC += t.confidence * weight;
-  }
-  if (sumC === 0) return null;
-  return sumW / sumC;
+function passesCognitiveFilter(a: User, b: User): boolean {
+  if (a.cognitive_score == null || b.cognitive_score == null) return true; // no data → don't filter out
+  return Math.abs(a.cognitive_score - b.cognitive_score) <= COGNITIVE_PROFILE_TOLERANCE;
 }
 
 // ── 6. Sexual identity ──────────────────────────────────────────

@@ -15,7 +15,6 @@ import { saveSupabaseTokens, clearSupabaseTokens } from "./lib/api";
 type View =
   | "landing"
   | "register"
-  | "login"
   | "welcome"
   | "profile_edit"
   | "result"
@@ -145,21 +144,6 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     border: "none",
   },
-  loginForm: {
-    maxWidth: 360,
-    margin: "0 auto",
-    textAlign: "right" as const,
-  },
-  loginInput: {
-    width: "100%",
-    padding: "12px 14px",
-    fontSize: 15,
-    border: "1px solid #ddd",
-    borderRadius: 8,
-    boxSizing: "border-box" as const,
-    marginBottom: 12,
-    direction: "ltr" as const,
-  },
 };
 
 // ── App ─────────────────────────────────────────────────────────
@@ -168,9 +152,6 @@ export default function App() {
   const [view, setView] = useState<View>("landing");
   const [user, setUser] = useState<User | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginError, setLoginError] = useState("");
-  const [loginLoading, setLoginLoading] = useState(false);
   const [autoLoginDone, setAutoLoginDone] = useState(false);
 
   // ── Auto-login on mount: Supabase session + legacy fallback ────
@@ -275,33 +256,6 @@ export default function App() {
     return isMobile && !isStandalone;
   }
 
-  // ── Login handler ──────────────────────────────────────────────
-  async function handleLogin() {
-    if (!loginEmail.trim()) { setLoginError("Please enter your email"); return; }
-    setLoginLoading(true);
-    setLoginError("");
-
-    try {
-      const res = await fetch("/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: loginEmail.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setLoginError(data.error || "Login failed");
-        return;
-      }
-      saveSession(data);
-      setUser(data);
-      setView(shouldShowPWAInstall() ? "pwa_install" : "new_chat");
-    } catch {
-      setLoginError("Could not reach the server");
-    } finally {
-      setLoginLoading(false);
-    }
-  }
-
   // ── Successful registration ────────────────────────────────────
   function handleRegisterSuccess(u: User) {
     saveSession(u);
@@ -380,7 +334,7 @@ export default function App() {
 
       {/* Auth screen — OAuth buttons (new default landing) */}
       {(view === "landing" || view === "auth") && (
-        <AuthScreen onEmailLogin={() => setView("login")} />
+        <AuthScreen />
       )}
 
       {/* OAuth callback — handles redirect from Google/Apple */}
@@ -393,39 +347,7 @@ export default function App() {
         <ProfileSetup user={user} onComplete={handleProfileSetupComplete} />
       )}
 
-      {/* Login form */}
-      {view === "login" && (
-        <div>
-          <h2 style={{ textAlign: "center", marginBottom: 24 }}>Login</h2>
-          <div style={styles.loginForm}>
-            <input
-              style={styles.loginInput}
-              type="email"
-              placeholder="Enter your email"
-              value={loginEmail}
-              onChange={e => setLoginEmail(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleLogin()}
-              autoFocus
-            />
-            {loginError && <p style={{ color: "#E53935", fontSize: 13, marginBottom: 8 }}>{loginError}</p>}
-            <button
-              style={{ ...styles.landingBtn, background: "#6C63FF", color: "#fff", width: "100%" }}
-              onClick={handleLogin}
-              disabled={loginLoading}
-            >
-              {loginLoading ? "..." : "Login"}
-            </button>
-            <p style={{ textAlign: "center", marginTop: 16, fontSize: 13, color: "#888" }}>
-              Don't have an account?{" "}
-              <span style={{ color: "#6C63FF", cursor: "pointer" }} onClick={() => { setView("register"); setLoginError(""); }}>
-                Register
-              </span>
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Registration form */}
+      {/* Registration form (legacy fallback) */}
       {view === "register" && (
         <Register onSuccess={handleRegisterSuccess} />
       )}

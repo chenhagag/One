@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { supabase } from "./lib/supabase";
 
-interface AuthScreenProps {
-  onEmailLogin: () => void;
-}
-
-export default function AuthScreen({ onEmailLogin }: AuthScreenProps) {
+export default function AuthScreen() {
   const [loading, setLoading] = useState<"google" | "apple" | null>(null);
   const [error, setError] = useState("");
+
+  // Magic link state
+  const [email, setEmail] = useState("");
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [magicLinkLoading, setMagicLinkLoading] = useState(false);
 
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   const isSafari = isIOS || (/^((?!chrome|android).)*safari/i.test(navigator.userAgent));
@@ -21,10 +22,6 @@ export default function AuthScreen({ onEmailLogin }: AuthScreenProps) {
 
       const redirectTo = `${window.location.origin}/auth/callback`;
 
-      // skipBrowserRedirect: true — get the URL back instead of letting
-      // Supabase redirect automatically. Safari ITP blocks the automatic
-      // redirect because it involves Supabase's third-party domain.
-      // We redirect manually with window.location.href which always works.
       const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
@@ -40,7 +37,6 @@ export default function AuthScreen({ onEmailLogin }: AuthScreenProps) {
       }
 
       if (data?.url) {
-        // Manual redirect — works on all browsers including Safari
         window.location.href = data.url;
       } else {
         setError("Could not get sign-in URL. Please try email login.");
@@ -52,6 +48,47 @@ export default function AuthScreen({ onEmailLogin }: AuthScreenProps) {
     }
   }
 
+  async function handleMagicLink() {
+    const trimmed = email.trim();
+    if (!trimmed) {
+      setError("הזינו כתובת אימייל");
+      return;
+    }
+    // Basic email validation
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setError("כתובת האימייל לא תקינה");
+      return;
+    }
+
+    if (!supabase) {
+      setError("Authentication service is not configured");
+      return;
+    }
+
+    setMagicLinkLoading(true);
+    setError("");
+
+    try {
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email: trimmed,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (otpError) {
+        setError(`שליחת הלינק נכשלה: ${otpError.message}`);
+        return;
+      }
+
+      setMagicLinkSent(true);
+    } catch (err: any) {
+      setError(`לא הצלחנו להתחבר לשירות: ${err.message}`);
+    } finally {
+      setMagicLinkLoading(false);
+    }
+  }
+
   // Safari/iOS: hide Google OAuth (Safari ITP blocks it), show only email
   // Other browsers: show Google (and Apple on iOS)
   const buttons: ("google" | "apple")[] = isSafari
@@ -59,6 +96,35 @@ export default function AuthScreen({ onEmailLogin }: AuthScreenProps) {
     : isIOS
       ? ["apple", "google"]
       : ["google"];
+
+  // ── Magic link sent — success screen ──
+  if (magicLinkSent) {
+    return (
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6">
+        <div className="mb-6 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-50">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 2L11 13" /><path d="M22 2L15 22L11 13L2 9L22 2Z" />
+            </svg>
+          </div>
+          <h1 className="mb-2 text-2xl font-bold text-gray-900">שלחנו לך לינק להתחברות</h1>
+          <p className="text-base text-gray-500" dir="rtl">
+            בדקו את תיבת המייל שלכם ב-<span className="font-medium text-gray-700">{email.trim()}</span> ולחצו על הלינק כדי להיכנס.
+          </p>
+          <p className="mt-3 text-sm text-gray-400" dir="rtl">
+            לא קיבלתם? בדקו בספאם או נסו שוב.
+          </p>
+        </div>
+
+        <button
+          onClick={() => { setMagicLinkSent(false); setError(""); }}
+          className="mt-4 text-sm text-gray-400 transition-colors hover:text-gray-600"
+        >
+          חזרה למסך ההתחברות
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6">
@@ -120,20 +186,34 @@ export default function AuthScreen({ onEmailLogin }: AuthScreenProps) {
         </>
       )}
 
-      {/* Email login — primary on Safari, secondary elsewhere */}
-      <button
-        onClick={onEmailLogin}
-        className={buttons.length > 0
-          ? "text-sm text-gray-400 transition-colors hover:text-gray-600"
-          : "flex h-[52px] w-full max-w-xs items-center justify-center gap-3 rounded-xl bg-gray-900 text-[15px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
-        }
-      >
-        Continue with email
-      </button>
+      {/* Email Magic Link input */}
+      <div className="flex w-full max-w-xs flex-col gap-3">
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => { setEmail(e.target.value); setError(""); }}
+          onKeyDown={(e) => e.key === "Enter" && handleMagicLink()}
+          placeholder="הזינו אימייל"
+          dir="rtl"
+          className="h-[52px] w-full rounded-xl border border-gray-200 bg-white px-4 text-[15px] text-gray-700 outline-none transition-colors placeholder:text-gray-400 focus:border-gray-400"
+          disabled={magicLinkLoading}
+        />
+        <button
+          onClick={handleMagicLink}
+          disabled={magicLinkLoading}
+          className="flex h-[52px] w-full items-center justify-center rounded-xl bg-gray-900 text-[15px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-50"
+        >
+          {magicLinkLoading ? (
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+          ) : (
+            "שלחו לי לינק להתחברות"
+          )}
+        </button>
+      </div>
 
       {/* Error message */}
       {error && (
-        <div className="mt-6 w-full max-w-xs rounded-lg bg-red-50 px-4 py-3 text-center text-sm text-red-600">
+        <div className="mt-6 w-full max-w-xs rounded-lg bg-red-50 px-4 py-3 text-center text-sm text-red-600" dir="rtl">
           {error}
         </div>
       )}

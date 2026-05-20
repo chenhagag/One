@@ -11,23 +11,14 @@ interface AuthCallbackProps {
 export default function AuthCallback({ onSuccess, onError }: AuthCallbackProps) {
   const [status, setStatus] = useState("Signing you in...");
   const [errorMsg, setErrorMsg] = useState("");
-  const [debugLog, setDebugLog] = useState<string[]>([]);
-
-  // On-screen debug logger (visible on iPhone without dev tools)
-  function log(msg: string) {
-    console.log("[auth-callback]", msg);
-    setDebugLog((prev) => [...prev, `${new Date().toLocaleTimeString()} ${msg}`]);
-  }
 
   useEffect(() => {
     let cancelled = false;
     let done = false;
 
-    // Global timeout — if nothing works in 15s, give up
     const globalTimeout = setTimeout(() => {
       if (!done && !cancelled) {
         done = true;
-        log("TIMEOUT — no session in 15s");
         const msg = "Sign-in timed out. Please try again.";
         setErrorMsg(msg);
         onError(msg);
@@ -38,7 +29,6 @@ export default function AuthCallback({ onSuccess, onError }: AuthCallbackProps) 
       if (done || cancelled) return;
       done = true;
       clearTimeout(globalTimeout);
-      log(`SUCCESS user=${user.id} email=${user.email}`);
       onSuccess(user, profileComplete);
     }
 
@@ -46,7 +36,6 @@ export default function AuthCallback({ onSuccess, onError }: AuthCallbackProps) 
       if (done || cancelled) return;
       done = true;
       clearTimeout(globalTimeout);
-      log(`FAIL: ${msg}`);
       setErrorMsg(msg);
       onError(msg);
     }
@@ -55,11 +44,8 @@ export default function AuthCallback({ onSuccess, onError }: AuthCallbackProps) 
       if (done || cancelled) return;
       setStatus("Setting up your account...");
 
-      // Persist tokens in our own localStorage — immune to Safari ITP
       saveSupabaseTokens(accessToken, refreshToken);
-      log("tokens saved to localStorage");
 
-      log("calling /auth/sync...");
       try {
         const res = await fetch("/auth/sync", {
           method: "POST",
@@ -69,8 +55,6 @@ export default function AuthCallback({ onSuccess, onError }: AuthCallbackProps) 
           },
         });
 
-        log(`/auth/sync → ${res.status}`);
-
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           fail(data.error || `Sync failed (${res.status})`);
@@ -78,7 +62,6 @@ export default function AuthCallback({ onSuccess, onError }: AuthCallbackProps) 
         }
 
         const user = await res.json();
-        log(`synced: id=${user.id} email=${user.email}`);
         finish(user, user.profile_complete !== false);
       } catch (err: any) {
         fail(`Network error: ${err.message}`);
@@ -97,40 +80,10 @@ export default function AuthCallback({ onSuccess, onError }: AuthCallbackProps) 
       const hashAccessToken = hashParams.get("access_token");
       const hashRefreshToken = hashParams.get("refresh_token");
 
-      log(`URL: ${window.location.href}`);
-      log(`code=${!!code} hash_token=${!!hashAccessToken}`);
-
-      // ── Strategy 1: PKCE code exchange (primary for Safari) ──────
-      if (code) {
-        log("Strategy 1: PKCE code exchange...");
-        setStatus("Verifying your identity...");
-        try {
-          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-          if (error) {
-            log(`PKCE exchange error: ${error.message}`);
-            // Don't fail yet — fall through to other strategies
-          } else if (data.session) {
-            log("PKCE exchange SUCCESS");
-            await syncUser(data.session.access_token, data.session.refresh_token);
-            return;
-          }
-        } catch (err: any) {
-          log(`PKCE exchange exception: ${err.message}`);
-        }
-      }
-
-      // ── Strategy 2: Hash fragment token (implicit flow fallback) ──
-      if (hashAccessToken) {
-        log("Strategy 2: hash fragment token");
-        await syncUser(hashAccessToken, hashRefreshToken || undefined);
-        return;
-      }
-
-      // ── Strategy 3: onAuthStateChange + getSession fallback ──────
-      log("Strategy 3: waiting for auth state change...");
+      // Strategy 1: Listen for auth state change FIRST
+      // detectSessionInUrl auto-exchanges the code in the background.
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        async (event, session) => {
-          log(`auth event: ${event} session=${!!session}`);
+        async (_event, session) => {
           if (session && !done) {
             subscription.unsubscribe();
             await syncUser(session.access_token, session.refresh_token);
@@ -138,25 +91,45 @@ export default function AuthCallback({ onSuccess, onError }: AuthCallbackProps) 
         }
       );
 
-      // Also try getSession after a short delay
+      // Strategy 2: Hash fragment token (implicit flow fallback)
+      if (hashAccessToken) {
+        await syncUser(hashAccessToken, hashRefreshToken || undefined);
+        subscription.unsubscribe();
+        return;
+      }
+
+      // Strategy 3: Manual PKCE code exchange
+      if (code) {
+        setStatus("Verifying your identity...");
+        try {
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+          if (!error && data.session) {
+            subscription.unsubscribe();
+            await syncUser(data.session.access_token, data.session.refresh_token);
+            return;
+          }
+        } catch {
+          // detectSessionInUrl may still fire via onAuthStateChange
+        }
+      }
+
+      // Strategy 4: getSession fallback after a short delay
       setTimeout(async () => {
         if (done || cancelled) return;
-        log("trying getSession fallback...");
         try {
           const result = await Promise.race([
             supabase!.auth.getSession(),
             new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
           ]);
           const session = result && "data" in result ? result.data.session : null;
-          log(`getSession → session=${!!session}`);
           if (session && !done) {
             subscription.unsubscribe();
             await syncUser(session.access_token, session.refresh_token);
           }
-        } catch (err: any) {
-          log(`getSession failed: ${err.message}`);
+        } catch {
+          // Will hit global timeout
         }
-      }, 1000);
+      }, 1500);
     }
 
     handleCallback();
@@ -184,18 +157,6 @@ export default function AuthCallback({ onSuccess, onError }: AuthCallbackProps) 
           </div>
         )}
       </div>
-      {/* Debug log — visible on iPhone for troubleshooting */}
-      {debugLog.length > 0 && (
-        <div style={{
-          position: "fixed", bottom: 0, left: 0, right: 0,
-          maxHeight: "40vh", overflow: "auto",
-          background: "#111", color: "#0f0", fontSize: 11,
-          fontFamily: "monospace", padding: 8, lineHeight: 1.4,
-          whiteSpace: "pre-wrap", wordBreak: "break-all",
-        }}>
-          {debugLog.map((line, i) => <div key={i}>{line}</div>)}
-        </div>
-      )}
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );

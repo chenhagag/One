@@ -1,6 +1,207 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-05-12 to 2026-05-18
+## Latest Session: 2026-05-19 (Magic Link Auth)
+
+### What We Worked On
+
+#### 1. Supabase Magic Link Authentication
+- **Goal**: Replace the old no-auth email login/register flow with real Supabase Magic Link authentication
+- **Old flow**: User enters email → instantly "logged in" without any verification (backend just looked up email in DB)
+- **New flow**: User enters email → Supabase sends magic link → user clicks link → PKCE code exchange → `/auth/sync` → authenticated session
+- Uses `supabase.auth.signInWithOtp()` with `emailRedirectTo` pointing to `/auth/callback`
+- Works for both new users (→ ProfileSetup) and existing users (→ straight to app)
+- No backend changes needed — existing `AuthCallback.tsx` and `/auth/sync` handle magic link the same as OAuth
+
+#### 2. AuthScreen Rewrite
+- Removed `onEmailLogin` prop (no longer navigates to separate login view)
+- Email input + "שלחו לי לינק להתחברות" button directly on AuthScreen
+- Success screen: "שלחנו לך לינק להתחברות" with email confirmation + "חזרה" button
+- Error states: invalid email, send failure, service not configured
+- Hebrew UI text, RTL layout
+- OAuth buttons (Google/Apple) unchanged — still shown based on browser/platform
+
+#### 3. App.tsx Cleanup
+- Removed old `handleLogin()` function (no-auth email lookup)
+- Removed old login view JSX (email input + "Login" button + "Register" link)
+- Removed `loginEmail`, `loginError`, `loginLoading` state variables
+- Removed `"login"` from View type
+- Removed unused `loginForm`/`loginInput` styles
+- `Register.tsx` kept as legacy fallback (still in code, not primary path)
+
+### Current Status — Magic Link
+- **Code complete** — frontend builds clean
+- **Pending**: Supabase dashboard verification (Email provider enabled, redirect URLs configured)
+- **Testing**: User is checking Supabase dashboard settings now
+
+### Files Modified
+- `frontend/src/AuthScreen.tsx` — Major rewrite: magic link flow replaces "Continue with email" button
+- `frontend/src/App.tsx` — Removed old login view, cleaned up unused state/styles
+
+### What Was NOT Changed
+- `AuthCallback.tsx` — already handles PKCE code exchange (works for magic link)
+- `/auth/sync` backend endpoint — already handles new vs existing users
+- `ProfileSetup.tsx` — used for new magic link users (same as OAuth)
+- `Register.tsx` — kept as legacy fallback
+- Google/Apple OAuth — untouched
+- Backend endpoints (`/login`, `/register`) — kept for backward compatibility
+
+### Supabase Dashboard Config Needed
+1. Authentication → Providers → Email: enable Magic Link sign-in
+2. Authentication → URL Configuration: add `http://localhost:3000/auth/callback` + production URL
+3. Optional: customize email template to Hebrew
+
+---
+
+## Previous Session: 2026-05-19 (Safari OAuth Battle + Final Decision)
+
+### What We Worked On
+
+#### 1. Safari OAuth — Deep Debugging (6 commits)
+- **Problem**: Google OAuth on Safari consistently fails due to ITP (Intelligent Tracking Prevention) blocking Supabase's third-party domain
+- **Attempts that didn't work**:
+  - Explicit PKCE code exchange + custom token storage + debug panel
+  - `skipBrowserRedirect: true` + manual `window.location.href` redirect
+  - Global error catcher in `index.html` for Safari debugging
+  - Visible debug info on Google sign-in button
+- **Root cause**: Safari ITP blocks all cross-origin storage/redirects to Supabase domain — no client-side workaround possible without custom domain
+- **Final decision**: **Hide Google OAuth on Safari entirely** — Safari users see email login as primary option
+- Detection: `isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)`
+- Google button hidden on Safari, email login promoted
+
+#### 2. Stale Service Worker Fix
+- **Problem**: After deploys, Safari showed blank page — old service worker served cached `index.html`
+- **Fix**: Force-unregister all service workers on page load in `index.html`
+- Added loading indicator in HTML (visible before React mounts)
+
+#### 3. HTML Caching Disabled
+- Added `Cache-Control: no-cache, no-store, must-revalidate` meta tags to `index.html`
+- Backend serves `index.html` with cache-busting headers (`Pragma: no-cache`, `Expires: 0`)
+- Prevents Safari from serving stale HTML after Railway deploys
+
+### Current Status — Auth
+- **Working**: Google OAuth on desktop (Chrome, etc.) + Android Chrome
+- **Working**: Email login everywhere (desktop, Android, iOS Safari)
+- **Google OAuth hidden on Safari** — until Supabase custom domain is set up
+- **Future fix**: Supabase custom domain (same-origin) would bypass Safari ITP entirely
+
+### Files Modified
+- `frontend/src/AuthScreen.tsx` — Safari detection, hide Google OAuth on Safari, cleanup debug code
+- `frontend/index.html` — Force SW unregister, loading indicator, no-cache meta tags, error catcher
+- `backend/src/index.ts` — Cache-busting headers for index.html serving
+
+---
+
+## Previous Session: 2026-05-18/19 (Auth + PWA)
+
+### What We Worked On
+
+#### 1. Android PWA Install Fix
+- **Problem**: `beforeinstallprompt` fired before React mounted — install button never appeared
+- **Fix**: Global event capture in `index.html` → stored on `window.__pwaInstallPrompt`
+- Component checks for pre-captured prompt on mount
+- **Problem**: PWA icons were 80x78 JPG but manifest declared 192x192 + 512x512 → Chrome refused to fire event
+- **Fix**: Generated proper PNG icons (192x192, 512x512) with sharp-cli, updated manifest with `maskable` purpose
+- Fallback text changed from "open on mobile" to "add via browser menu"
+
+#### 2. Logout from Sidebar
+- Added `onLogout` prop to NewChat, popup menu on avatar click with "התנתק" button
+- App.tsx passes `handleLogout` to NewChat
+
+#### 3. Supabase OAuth Integration (Google + Apple)
+- Committed all auth code from previous session (was untracked)
+- Made Supabase optional — app works without OAuth env vars configured
+- Set up Supabase project, configured env vars locally + Railway
+- Apple login hidden on non-iOS devices (Google only on Android/desktop)
+
+#### 4. Auth Debugging — Multiple Issues Fixed
+- **ES256 algorithm**: Supabase uses ES256 (not HS256) — switched from JWT secret to JWKS verification via `jwks-rsa`
+- **API path mismatch**: Frontend called `/api/auth/sync` but backend route is `/auth/sync` — fixed paths + added `/auth` to Vite proxy
+- **PATCH endpoint incomplete**: `/admin/users/:id` only accepted 4 fields, returned `{updated: true}` instead of user object — expanded to accept all profile fields, returns full user
+- **URL not cleaned after OAuth**: `/auth/callback` stayed in URL causing re-trigger on refresh — now `replaceState("/")`
+- **first_name undefined crash**: `user.first_name.charAt(0)` crashed when OAuth user had no name — added fallback
+
+#### 5. Safari/iOS Compatibility
+- **Problem**: Safari ITP blocks Supabase connections (third-party domain), causing infinite loading
+- **Fix**: Added timeouts to ALL Supabase calls:
+  - `initAuth` (App.tsx): 3s timeout on getSession
+  - `apiFetch` (api.ts): 2s timeout on getSession, continues without JWT
+  - `AuthScreen`: 8s timeout on signInWithOAuth
+  - `AuthCallback`: 10s global timeout + 3s on getSession fallback
+- **PKCE flow**: Switched from implicit to PKCE (`flowType: "pkce"`) for better Safari support
+- **Reverted explicit localStorage**: `storage: window.localStorage` broke Safari — Supabase uses localStorage by default
+
+### Current Status — Auth
+- **Working**: Google OAuth on desktop (Chrome, etc.) + Android Chrome
+- **Working**: Email login everywhere (desktop, Android, iOS)
+- **NOT working**: Google OAuth on iOS Safari — Safari ITP blocks Supabase domain
+- **Fix needed**: Supabase custom domain (same-origin) to bypass Safari ITP, OR accept email-only on iOS
+
+### Files Created
+- `frontend/public/icon-192.png` — PWA icon 192x192
+- `frontend/public/icon-512.png` — PWA icon 512x512
+
+### Files Modified
+- `frontend/index.html` — Global beforeinstallprompt capture + debug logs
+- `frontend/public/manifest.json` — Proper PNG icons with maskable purpose
+- `frontend/src/PWAInstallFlow.tsx` — Check window.__pwaInstallPrompt, center logo
+- `frontend/src/NewChat.tsx` — onLogout prop, user menu, first_name fallback
+- `frontend/src/App.tsx` — onLogout to NewChat, URL cleanup, PKCE detection, session timeout
+- `frontend/src/lib/supabase.ts` — Optional client, PKCE flow, persistSession
+- `frontend/src/lib/api.ts` — getSession timeout, restore /api prefix
+- `frontend/src/AuthScreen.tsx` — Apple only on iOS, OAuth timeout
+- `frontend/src/AuthCallback.tsx` — Timeouts, debug logs, cleaner flow
+- `backend/src/auth.ts` — JWKS (ES256) verification via jwks-rsa
+- `backend/src/index.ts` — PATCH accepts all profile fields, returns full user
+- `frontend/vite.config.ts` — Added /auth proxy
+
+### Dependencies Added
+- Backend: `jwks-rsa` (JWKS public key fetching for ES256)
+
+---
+
+## Previous Session: 2026-05-18 (evening)
+
+### What We Worked On
+
+#### 1. Android PWA Install Fix
+- **Problem**: On Android, `beforeinstallprompt` event fired before React mounted — PWAInstallFlow component missed it, showed generic fallback instead of install button
+- **Fix**: Added global event capture in `index.html` — stores event on `window.__pwaInstallPrompt`
+- Component now checks for pre-captured prompt on mount before attaching listener
+- Fallback text changed from "open on mobile" (wrong when already on mobile) to "add via browser menu"
+
+#### 2. Logout from Sidebar
+- Added `onLogout` prop to NewChat component
+- Clicking user avatar (bottom of sidebar) opens popup menu with "התנתק" button
+- Red text, positioned above avatar, closes on click
+- App.tsx passes `handleLogout` to NewChat
+
+#### 3. Supabase Auth — Commit & Deploy
+- All auth code from previous session (Google + Apple OAuth) was untracked in Git
+- Committed and pushed all new/modified files to unblock Railway build
+- Files: AuthScreen, AuthCallback, ProfileSetup, auth.ts, supabase client, API wrapper, Tailwind config
+
+### Files Modified
+- `frontend/index.html` — Global `beforeinstallprompt` capture
+- `frontend/src/PWAInstallFlow.tsx` — Check `window.__pwaInstallPrompt` on mount, better fallback text
+- `frontend/src/NewChat.tsx` — `onLogout` prop, user menu popup, styles
+- `frontend/src/App.tsx` — Pass `onLogout={handleLogout}` to NewChat
+
+### Files Committed (from previous auth session)
+- `backend/src/auth.ts` — JWT middleware (requireAuth, optionalAuth)
+- `backend/src/index.ts` — POST /auth/sync endpoint
+- `backend/src/schema.pg.ts` — supabase_uid, auth_provider, profile_complete columns
+- `frontend/src/AuthScreen.tsx` — Google + Apple OAuth login screen
+- `frontend/src/AuthCallback.tsx` — OAuth redirect handler
+- `frontend/src/ProfileSetup.tsx` — Post-OAuth profile form
+- `frontend/src/lib/supabase.ts` — Supabase client
+- `frontend/src/lib/api.ts` — Fetch wrapper with JWT
+- `frontend/src/main.css` — Tailwind directives
+- `frontend/tailwind.config.js`, `frontend/postcss.config.js` — Tailwind setup
+- `frontend/.env.example` — Supabase env var template
+
+---
+
+## Previous Session: 2026-05-12 to 2026-05-18
 
 ### What We Worked On
 
