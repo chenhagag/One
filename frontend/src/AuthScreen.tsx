@@ -6,6 +6,7 @@ export default function AuthScreen() {
   const [error, setError] = useState("");
 
   // Magic link state
+  const [showEmailForm, setShowEmailForm] = useState(false);
   const [email, setEmail] = useState("");
   const [magicLinkSent, setMagicLinkSent] = useState(false);
   const [magicLinkLoading, setMagicLinkLoading] = useState(false);
@@ -54,7 +55,6 @@ export default function AuthScreen() {
       setError("הזינו כתובת אימייל");
       return;
     }
-    // Basic email validation
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
       setError("כתובת האימייל לא תקינה");
       return;
@@ -89,14 +89,6 @@ export default function AuthScreen() {
     }
   }
 
-  // Safari/iOS: hide Google OAuth (Safari ITP blocks it), show only email
-  // Other browsers: show Google (and Apple on iOS)
-  const buttons: ("google" | "apple")[] = isSafari
-    ? []
-    : isIOS
-      ? ["apple", "google"]
-      : ["google"];
-
   // ── Magic link sent — success screen ──
   if (magicLinkSent) {
     return (
@@ -126,6 +118,63 @@ export default function AuthScreen() {
     );
   }
 
+  // ── Email form screen (after clicking "Login / Register") ──
+  if (showEmailForm) {
+    return (
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6">
+        <div className="mb-10 text-center">
+          <h1 className="mb-2 text-5xl font-bold tracking-tight text-gray-900">One</h1>
+          <p className="text-base text-gray-400">Find your perfect match</p>
+        </div>
+
+        <div className="flex w-full max-w-xs flex-col gap-3">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => { setEmail(e.target.value); setError(""); }}
+            onKeyDown={(e) => e.key === "Enter" && handleMagicLink()}
+            placeholder="הזינו אימייל"
+            dir="rtl"
+            autoFocus
+            className="h-[52px] w-full rounded-xl border border-gray-200 bg-white px-4 text-[15px] text-gray-700 outline-none transition-colors placeholder:text-gray-400 focus:border-gray-400"
+            disabled={magicLinkLoading}
+          />
+          <button
+            onClick={handleMagicLink}
+            disabled={magicLinkLoading}
+            className="flex h-[52px] w-full items-center justify-center rounded-xl bg-gray-900 text-[15px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-50"
+          >
+            {magicLinkLoading ? (
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            ) : (
+              "שלחו לי לינק להתחברות"
+            )}
+          </button>
+        </div>
+
+        {error && (
+          <div className="mt-6 w-full max-w-xs rounded-lg bg-red-50 px-4 py-3 text-center text-sm text-red-600" dir="rtl">
+            {error}
+          </div>
+        )}
+
+        <button
+          onClick={() => { setShowEmailForm(false); setError(""); }}
+          className="mt-6 text-sm text-gray-400 transition-colors hover:text-gray-600"
+        >
+          חזרה
+        </button>
+
+        <p className="mt-auto pt-12 text-center text-xs text-gray-300">
+          By continuing, you agree to our Terms of Service
+          <br />
+          and Privacy Policy.
+        </p>
+      </div>
+    );
+  }
+
+  // ── Main landing screen ──
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6">
       {/* Loading overlay */}
@@ -148,68 +197,42 @@ export default function AuthScreen() {
         <p className="text-base text-gray-400">Find your perfect match</p>
       </div>
 
-      {/* OAuth buttons (hidden on Safari — ITP blocks Google OAuth) */}
-      {buttons.length > 0 && (
+      {isSafari ? (
+        /* Safari: only email magic link button */
+        <button
+          onClick={() => setShowEmailForm(true)}
+          className="flex h-[52px] w-full max-w-xs items-center justify-center gap-3 rounded-xl bg-gray-900 text-[15px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
+        >
+          המשך עם אימייל
+        </button>
+      ) : (
+        /* Other browsers: Google OAuth + email fallback */
         <>
           <div className="flex w-full max-w-xs flex-col gap-3">
-            {buttons.map((provider) =>
-              provider === "apple" ? (
-                <button
-                  key="apple"
-                  onClick={() => handleOAuth("apple")}
-                  disabled={!!loading}
-                  className="flex h-[52px] w-full items-center justify-center gap-3 rounded-xl bg-black text-[15px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-50"
-                >
-                  <AppleLogo />
-                  Continue with Apple
-                </button>
-              ) : (
-                <button
-                  key="google"
-                  onClick={() => handleOAuth("google")}
-                  disabled={!!loading}
-                  className="flex h-[52px] w-full items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white text-[15px] font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50"
-                >
-                  <GoogleLogo />
-                  Continue with Google
-                </button>
-              )
-            )}
+            <button
+              onClick={() => handleOAuth("google")}
+              disabled={!!loading}
+              className="flex h-[52px] w-full items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white text-[15px] font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50"
+            >
+              <GoogleLogo />
+              Continue with Google
+            </button>
           </div>
 
-          {/* Divider */}
           <div className="my-6 flex w-full max-w-xs items-center gap-3">
             <div className="h-px flex-1 bg-gray-200" />
             <span className="text-xs text-gray-400">or</span>
             <div className="h-px flex-1 bg-gray-200" />
           </div>
+
+          <button
+            onClick={() => setShowEmailForm(true)}
+            className="text-sm text-gray-400 transition-colors hover:text-gray-600"
+          >
+            Login / Register with email
+          </button>
         </>
       )}
-
-      {/* Email Magic Link input */}
-      <div className="flex w-full max-w-xs flex-col gap-3">
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => { setEmail(e.target.value); setError(""); }}
-          onKeyDown={(e) => e.key === "Enter" && handleMagicLink()}
-          placeholder="הזינו אימייל"
-          dir="rtl"
-          className="h-[52px] w-full rounded-xl border border-gray-200 bg-white px-4 text-[15px] text-gray-700 outline-none transition-colors placeholder:text-gray-400 focus:border-gray-400"
-          disabled={magicLinkLoading}
-        />
-        <button
-          onClick={handleMagicLink}
-          disabled={magicLinkLoading}
-          className="flex h-[52px] w-full items-center justify-center rounded-xl bg-gray-900 text-[15px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-50"
-        >
-          {magicLinkLoading ? (
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-          ) : (
-            "שלחו לי לינק להתחברות"
-          )}
-        </button>
-      </div>
 
       {/* Error message */}
       {error && (
