@@ -69,20 +69,17 @@ export default function AuthScreen() {
     setError("");
 
     try {
-      const result = await Promise.race([
-        supabase.auth.signInWithOtp({
-          email: trimmed,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
-          },
-        }),
-        new Promise<{ error: { message: string } }>((resolve) =>
-          setTimeout(() => resolve({ error: { message: "הבקשה נמשכה יותר מדי זמן, נסו שוב" } }), 10000)
-        ),
-      ]);
+      // Send magic link via our backend (bypasses Safari ITP blocking Supabase)
+      const res = await fetch("/auth/magic-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed }),
+      });
 
-      if (result.error) {
-        setError(`שליחת הלינק נכשלה: ${result.error.message}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(`שליחת הלינק נכשלה: ${data.error || "Unknown error"}`);
         return;
       }
 

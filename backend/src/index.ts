@@ -95,6 +95,50 @@ app.post("/login", async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════
+// MAGIC LINK — Server-side OTP to bypass Safari ITP
+// ════════════════════════════════════════════════════════════════
+
+app.post("/auth/magic-link", async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: "email is required" });
+
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return res.status(500).json({ error: "Supabase not configured on server" });
+  }
+
+  try {
+    // Use Supabase Admin API to send magic link server-side
+    const response = await fetch(`${supabaseUrl}/auth/v1/magiclink`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+      },
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+      }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      console.error("[magic-link] Supabase error:", response.status, data);
+      return res.status(response.status).json({
+        error: data.error_description || data.msg || data.error || "Failed to send magic link",
+      });
+    }
+
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error("[magic-link] Error:", err.message);
+    return res.status(500).json({ error: "Failed to send magic link" });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
 // OAUTH SYNC — Supabase Auth → local users table
 // ════════════════════════════════════════════════════════════════
 
