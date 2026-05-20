@@ -69,15 +69,20 @@ export default function AuthScreen() {
     setError("");
 
     try {
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email: trimmed,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
+      const result = await Promise.race([
+        supabase.auth.signInWithOtp({
+          email: trimmed,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+          },
+        }),
+        new Promise<{ error: { message: string } }>((resolve) =>
+          setTimeout(() => resolve({ error: { message: "הבקשה נמשכה יותר מדי זמן, נסו שוב" } }), 10000)
+        ),
+      ]);
 
-      if (otpError) {
-        setError(`שליחת הלינק נכשלה: ${otpError.message}`);
+      if (result.error) {
+        setError(`שליחת הלינק נכשלה: ${result.error.message}`);
         return;
       }
 
