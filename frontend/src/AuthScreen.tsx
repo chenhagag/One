@@ -68,6 +68,9 @@ export default function AuthScreen() {
     setMagicLinkLoading(true);
     setError("");
 
+    // Save email for resend on expired link
+    localStorage.setItem("user_login_email", trimmed);
+
     try {
       // Send magic link via our backend (bypasses Safari ITP blocking Supabase)
       const res = await fetch("/auth/magic-link", {
