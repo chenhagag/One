@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
@@ -23,7 +24,7 @@ import { shouldSummarize, getUserSummary, runSummarization } from "./agents/conv
 import { maybeAutoAnalyze, maybeAutoAnalyzeAfterChat, maybeAutoAnalyzeAfterAll } from "./agents/conversation/autoAnalysis";
 import OpenAI from "openai";
 import { trackTokens } from "./tokenTracker";
-import { requireAuth } from "./auth";
+import { requireAuth, optionalAuth } from "./auth";
 
 dotenv.config();
 
@@ -39,6 +40,25 @@ const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+
+// ── Rate limiting ───────────────────────────────────────────────
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later." },
+});
+
+const aiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "יותר מדי בקשות. נסו שוב בעוד דקה." },
+});
+
+app.use(generalLimiter);
 
 // ── /api prefix rewrite ─────────────────────────────────────────
 // In dev, Vite's proxy strips "/api" before forwarding to the backend.
@@ -405,7 +425,7 @@ app.post("/users", async (req, res) => {
 // It does NOT update user_traits or user_look_traits.
 // ════════════════════════════════════════════════════════════════
 
-app.post("/analyze", async (req, res) => {
+app.post("/analyze", aiLimiter, async (req, res) => {
   const { user_id, answer } = req.body;
 
   if (!user_id || !answer) {
@@ -585,7 +605,7 @@ app.get("/admin/users/:id/full-transcript", async (req, res) => {
 // POST /analyze-profile — Submit a conversation answer and run trait analysis
 // Stores the answer, builds cumulative transcript, runs analysis agent, saves traits.
 // Incremental: each call adds to the user's profile, null values don't overwrite existing data.
-app.post("/analyze-profile", async (req, res) => {
+app.post("/analyze-profile", aiLimiter, async (req, res) => {
   const { user_id: rawUserId, answer } = req.body;
 
   if (!rawUserId || !answer) {
@@ -1728,8 +1748,16 @@ app.get("/admin/users/:id/candidate-matches", async (req, res) => {
 
 const VALID_RATINGS = new Set(["miss", "possible", "bullseye"]);
 
-app.post("/matches/:id/rate", async (req, res) => {
-  const { user_id, rating } = req.body;
+app.post("/matches/:id/rate", optionalAuth, async (req, res) => {
+  const { rating } = req.body;
+  let { user_id } = req.body;
+
+  // If JWT is present, resolve user_id from token (prevents ID spoofing)
+  if (req.auth?.sub) {
+    const authUser = await pgQueryOne<any>("SELECT id FROM users WHERE supabase_uid = $1", [req.auth.sub]);
+    if (!authUser) return res.status(401).json({ error: "User not found" });
+    user_id = authUser.id;
+  }
 
   if (!user_id || !rating) {
     return res.status(400).json({ error: "user_id and rating are required" });
@@ -2068,7 +2096,7 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
   }
 });
 
-app.post("/new-chat/message", async (req, res) => {
+app.post("/new-chat/message", aiLimiter, async (req, res) => {
   const { user_id, message, history, channel } = req.body;
   if (!user_id || !message) return res.status(400).json({ error: "user_id and message required" });
 
