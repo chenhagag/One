@@ -612,9 +612,16 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 // ── Settings View component ────────────────────────────────────
 
 function SettingsView({ user }: { user: User }) {
-  const [photoAI, setPhotoAI] = useState(user.photo_ai_consent || false);
+  const [photoAI, setPhotoAI] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    fetch(`/users/${user.id}`).then(r => r.json()).then(data => {
+      setPhotoAI(!!data.photo_ai_consent);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [user.id]);
 
   async function togglePhotoAI(checked: boolean) {
     setPhotoAI(checked);
@@ -644,7 +651,7 @@ function SettingsView({ user }: { user: User }) {
               type="checkbox"
               checked={photoAI}
               onChange={(e) => togglePhotoAI(e.target.checked)}
-              disabled={saving}
+              disabled={saving || loading}
               style={{ marginTop: 4, width: 18, height: 18, cursor: "pointer", accentColor: "#111827", flexShrink: 0 }}
             />
             <span>
