@@ -48,6 +48,8 @@ export interface User {
   height_flexibility?: string;
   desired_location_range?: string;
   test_user_type?: string;
+  consent_accepted?: boolean;
+  photo_ai_consent?: boolean;
 }
 
 // Simplified user type for Chat/Result (legacy components use .name)

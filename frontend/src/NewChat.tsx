@@ -387,15 +387,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           </div>
         )}
 
-        {screen === "settings" && (
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", direction: "rtl" }}>
-            <div style={{ textAlign: "center", padding: 24 }}>
-              <div style={{ fontSize: 40, marginBottom: 16 }}>⚙️</div>
-              <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", marginBottom: 8 }}>הגדרות</h2>
-              <p style={{ fontSize: 14, color: "#888" }}>המסך עוד בבנייה, בקרוב יהיה זמין!</p>
-            </div>
-          </div>
-        )}
+        {screen === "settings" && <SettingsView user={user} />}
 
         {screen === ("taste_test" as any) && (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", direction: "rtl" }}>
@@ -612,6 +604,58 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           <div style={styles.disclaimer}>השיחה מנוהלת על ידי בינה מלאכותית לצורך הכרות והתאמה</div>
         </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Settings View component ────────────────────────────────────
+
+function SettingsView({ user }: { user: User }) {
+  const [photoAI, setPhotoAI] = useState(user.photo_ai_consent || false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  async function togglePhotoAI(checked: boolean) {
+    setPhotoAI(checked);
+    setSaving(true);
+    setSaved(false);
+    try {
+      await fetch(`/admin/users/${user.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ photo_ai_consent: checked }),
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch { /* ignore */ }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <div style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
+      <div style={{ maxWidth: 400, margin: "0 auto", padding: "32px 24px" }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", marginBottom: 24 }}>הגדרות</h2>
+
+        <div style={{ background: "#f9fafb", borderRadius: 12, padding: "16px 20px" }}>
+          <h3 style={{ fontSize: 15, fontWeight: 600, color: "#111827", margin: "0 0 12px" }}>פרטיות תמונות</h3>
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 14, color: "#374151", lineHeight: 1.6 }}>
+            <input
+              type="checkbox"
+              checked={photoAI}
+              onChange={(e) => togglePhotoAI(e.target.checked)}
+              disabled={saving}
+              style={{ marginTop: 4, width: 18, height: 18, cursor: "pointer", accentColor: "#111827", flexShrink: 0 }}
+            />
+            <span>
+              אני מאשר/ת ל־One להשתמש ב־AI כדי לנתח את תמונות הפרופיל שלי, לצורך שיפור התאמות ותובנות המבוססות גם על מאפיינים חזותיים.
+            </span>
+          </label>
+          <p style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.5, margin: "8px 0 0", paddingRight: 28 }}>
+            ניתוח תמונות ב־AI הוא אופציונלי. ללא אישור, התמונות ישמשו להצגה בפרופיל בלבד.
+          </p>
+          {saved && <p style={{ fontSize: 12, color: "#22c55e", margin: "8px 0 0", paddingRight: 28 }}>נשמר בהצלחה</p>}
+        </div>
       </div>
     </div>
   );

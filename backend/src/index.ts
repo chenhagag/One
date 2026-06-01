@@ -916,11 +916,12 @@ app.delete("/admin/users/:id", async (req, res) => {
   result.candidates   = (await pgQueryAll(
     "DELETE FROM candidate_matches WHERE user_id = $1 OR candidate_user_id = $1", [userId]
   )).length;
-  await pgQueryAll("DELETE FROM users WHERE id = $1", [userId]);
-
-  // user_photos is now in pg too (FK cascades via users delete above would also work,
-  // but we do it explicitly to match other deletes and collect count).
+  // Delete from remaining FK tables before deleting the user row
   await pgQueryAll("DELETE FROM user_photos WHERE user_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM user_chat_summaries WHERE user_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM bug_reports WHERE user_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM token_usage WHERE user_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM users WHERE id = $1", [userId]);
 
   console.log(`[admin] Deleted user ${userId} (${user.first_name} <${user.email}>):`, result);
   return res.json({ deleted: true, user_id: userId, ...result });
