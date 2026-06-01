@@ -621,6 +621,11 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
 function ProfileView({ user }: { user: User }) {
   const [photos, setPhotos] = useState<{ id: number; url: string }[]>([]);
+  const [showPhotoConsent, setShowPhotoConsent] = useState(false);
+  const [consentProfile, setConsentProfile] = useState(false);
+  const [consentAI, setConsentAI] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [photoConsentGiven, setPhotoConsentGiven] = useState(false);
 
   function loadPhotos() {
     fetch(`/api/users/${user.id}/photos`).then(r => r.json()).then(data => {
@@ -629,6 +634,45 @@ function ProfileView({ user }: { user: User }) {
   }
 
   useEffect(() => { loadPhotos(); }, [user.id]);
+
+  // Check if user already gave photo consent (has photos = already consented)
+  useEffect(() => {
+    if (photos.length > 0) setPhotoConsentGiven(true);
+  }, [photos]);
+
+  async function uploadFile(file: File) {
+    const form = new FormData();
+    form.append("photo", file);
+    try {
+      await fetch(`/api/users/${user.id}/photos`, { method: "POST", body: form });
+      loadPhotos();
+    } catch { alert("שגיאה בהעלאת התמונה"); }
+  }
+
+  function handleFileSelect(file: File) {
+    if (photoConsentGiven) {
+      uploadFile(file);
+    } else {
+      setPendingFile(file);
+      setShowPhotoConsent(true);
+    }
+  }
+
+  function handleConsentConfirm() {
+    if (!consentProfile) return;
+    setPhotoConsentGiven(true);
+    setShowPhotoConsent(false);
+    // Save AI consent preference to backend
+    fetch(`/admin/users/${user.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ photo_ai_consent: consentAI }),
+    }).catch(() => {});
+    if (pendingFile) {
+      uploadFile(pendingFile);
+      setPendingFile(null);
+    }
+  }
 
   return (
     <div style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
@@ -663,18 +707,82 @@ function ProfileView({ user }: { user: User }) {
           background: "#6366f1", color: "#fff", borderRadius: 8, cursor: "pointer",
         }}>
           העלאת תמונה
-          <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
+          <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => {
             const file = e.target.files?.[0];
             if (!file) return;
-            const form = new FormData();
-            form.append("photo", file);
-            try {
-              await fetch(`/api/users/${user.id}/photos`, { method: "POST", body: form });
-              loadPhotos();
-            } catch { alert("שגיאה בהעלאת התמונה"); }
+            handleFileSelect(file);
+            e.target.value = "";
           }} />
         </label>
       </div>
+
+      {/* Photo consent modal */}
+      {showPhotoConsent && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 1000, padding: 16,
+        }}>
+          <div style={{
+            background: "#fff", borderRadius: 16, padding: "28px 24px",
+            maxWidth: 380, width: "100%", direction: "rtl", textAlign: "right",
+          }}>
+            <p style={{ fontSize: 14, color: "#4b5563", lineHeight: 1.7, margin: "0 0 20px" }}>
+              התמונה תשמש להצגה בפרופיל שלך וליצירת התאמות בתוך האפליקציה. היא לא תפורסם מחוץ ל־One ולא תימכר לצדדים שלישיים.
+            </p>
+
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 14, color: "#111827", lineHeight: 1.6, marginBottom: 14 }}>
+              <input
+                type="checkbox"
+                checked={consentProfile}
+                onChange={(e) => setConsentProfile(e.target.checked)}
+                style={{ marginTop: 4, width: 18, height: 18, cursor: "pointer", accentColor: "#111827", flexShrink: 0 }}
+              />
+              <span>אני מאשר/ת העלאה ושימוש בתמונת הפרופיל שלי לצורך השתתפות במאגר ההתאמות של One.</span>
+            </label>
+
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 14, color: "#111827", lineHeight: 1.6, marginBottom: 8 }}>
+              <input
+                type="checkbox"
+                checked={consentAI}
+                onChange={(e) => setConsentAI(e.target.checked)}
+                style={{ marginTop: 4, width: 18, height: 18, cursor: "pointer", accentColor: "#111827", flexShrink: 0 }}
+              />
+              <span>אני מאשר/ת ל־One להשתמש ב־AI כדי לנתח את תמונת הפרופיל שלי, לצורך שיפור התאמות ותובנות המבוססות גם על מאפיינים חזותיים.</span>
+            </label>
+
+            <p style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.6, margin: "0 0 20px", paddingRight: 28 }}>
+              * ניתוח התמונה ב־AI הוא אופציונלי. אפשר להשתתף במאגר ההתאמות גם בלי לאשר ניתוח AI של התמונה. במקרה כזה התמונה תשמש להצגה בפרופיל בלבד, ו־One לא תשתמש בה כדי לשפר התאמות על בסיס מראה.
+            </p>
+
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={handleConsentConfirm}
+                disabled={!consentProfile}
+                style={{
+                  flex: 1, height: 44, borderRadius: 10,
+                  background: consentProfile ? "#111827" : "#d1d5db",
+                  color: "#fff", fontSize: 14, fontWeight: 500, border: "none",
+                  cursor: consentProfile ? "pointer" : "not-allowed",
+                  transition: "background 0.2s",
+                }}
+              >
+                אישור והעלאה
+              </button>
+              <button
+                onClick={() => { setShowPhotoConsent(false); setPendingFile(null); }}
+                style={{
+                  flex: 1, height: 44, borderRadius: 10,
+                  background: "#fff", color: "#6b7280", fontSize: 14,
+                  border: "1px solid #e5e7eb", cursor: "pointer",
+                }}
+              >
+                ביטול
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

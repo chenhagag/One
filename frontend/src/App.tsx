@@ -9,6 +9,7 @@ import PWAInstallFlow from "./PWAInstallFlow";
 import AuthScreen from "./AuthScreen";
 import AuthCallback from "./AuthCallback";
 import ProfileSetup from "./ProfileSetup";
+import ConsentScreen from "./ConsentScreen";
 import { supabase } from "./lib/supabase";
 import { saveSupabaseTokens, clearSupabaseTokens } from "./lib/api";
 
@@ -25,7 +26,8 @@ type View =
   | "pwa_install"
   | "auth"
   | "auth_callback"
-  | "profile_setup";
+  | "profile_setup"
+  | "consent";
 
 // Full user type matching the expanded DB schema
 export interface User {
@@ -68,6 +70,7 @@ export interface AnalysisResult {
 
 // ── Secret admin path ───────────────────────────────────────────
 const ADMIN_SECRET_PATH = "admin-secure-access-2026-chen";
+const ADMIN_EMAIL = "chen.hagag@gmail.com";
 
 // ── localStorage helpers ────────────────────────────────────────
 function saveSession(user: User) {
@@ -156,8 +159,9 @@ export default function App() {
 
   // ── Auto-login on mount: Supabase session + legacy fallback ────
   useEffect(() => {
-    // Check for secret admin path in URL hash
-    if (window.location.hash === `#${ADMIN_SECRET_PATH}`) {
+    // Check for secret admin path in URL hash — defer to after auth check
+    const isAdminRequest = window.location.hash === `#${ADMIN_SECRET_PATH}`;
+    if (isAdminRequest && window.location.hostname === "localhost") {
       setView("admin");
       setAutoLoginDone(true);
       return;
@@ -194,8 +198,12 @@ export default function App() {
                 const data = await res.json();
                 setUser(data);
                 saveSession(data);
-                if (data.profile_complete === false) {
+                if (isAdminRequest && data.email === ADMIN_EMAIL) {
+                  setView("admin");
+                } else if (data.profile_complete === false) {
                   setView("profile_setup");
+                } else if (!data.consent_accepted) {
+                  setView("consent");
                 } else {
                   setView("new_chat");
                 }
@@ -223,7 +231,11 @@ export default function App() {
           const data = await res.json();
           if (data.id) {
             setUser(data);
-            setView("new_chat");
+            if (isAdminRequest && data.email === ADMIN_EMAIL) {
+              setView("admin");
+            } else {
+              setView("new_chat");
+            }
           }
         } catch {
           // Ignore — show landing
@@ -282,6 +294,8 @@ export default function App() {
     setUser(u);
     if (!profileComplete) {
       setView("profile_setup");
+    } else if (!u.consent_accepted) {
+      setView("consent");
     } else if (shouldShowPWAInstall()) {
       setView("pwa_install");
     } else {
@@ -297,6 +311,12 @@ export default function App() {
 
   // ── Profile setup complete ────────────────────────────────────
   function handleProfileSetupComplete(u: User) {
+    saveSession(u);
+    setUser(u);
+    setView("consent");
+  }
+
+  function handleConsentComplete(u: User) {
     saveSession(u);
     setUser(u);
     setView(shouldShowPWAInstall() ? "pwa_install" : "new_chat");
@@ -345,6 +365,11 @@ export default function App() {
       {/* Profile setup — after first OAuth sign-in */}
       {view === "profile_setup" && user && (
         <ProfileSetup user={user} onComplete={handleProfileSetupComplete} />
+      )}
+
+      {/* Consent — after profile setup, before entering app */}
+      {view === "consent" && user && (
+        <ConsentScreen user={user} onComplete={handleConsentComplete} />
       )}
 
       {/* Registration form (legacy fallback) */}

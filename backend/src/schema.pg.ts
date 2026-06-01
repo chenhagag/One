@@ -491,6 +491,22 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       ) THEN
         ALTER TABLE users ADD COLUMN profile_complete BOOLEAN DEFAULT TRUE;
       END IF;
+
+      -- Consent accepted: user agreed to terms/privacy/AI usage
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'consent_accepted'
+      ) THEN
+        ALTER TABLE users ADD COLUMN consent_accepted BOOLEAN DEFAULT FALSE;
+      END IF;
+
+      -- Photo AI consent: user agreed to AI analysis of their photos
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'photo_ai_consent'
+      ) THEN
+        ALTER TABLE users ADD COLUMN photo_ai_consent BOOLEAN DEFAULT FALSE;
+      END IF;
     END $$;
   `);
 

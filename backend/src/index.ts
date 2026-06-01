@@ -808,7 +808,7 @@ app.patch("/admin/users/:id", async (req, res) => {
     "age", "gender", "looking_for_gender", "city", "height",
     "self_style", "desired_age_min", "desired_age_max", "age_flexibility",
     "desired_height_min", "desired_height_max", "height_flexibility",
-    "desired_location_range", "profile_complete",
+    "desired_location_range", "profile_complete", "consent_accepted", "photo_ai_consent",
   ];
   const updates: string[] = [];
   const values: any[] = [];
