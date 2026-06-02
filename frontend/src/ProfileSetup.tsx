@@ -183,6 +183,7 @@ export default function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
               <datalist id="setup-city-list">
                 {cities.map(c => <option key={c.city_name} value={c.city_name} />)}
               </datalist>
+              <p style={{ fontSize: 11, color: "#aaa", marginTop: -10, marginBottom: 8 }}>אם העיר שלך לא מופיעה — אפשר לבחור עיר קרובה</p>
             </div>
           </div>
 
