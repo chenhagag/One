@@ -39,8 +39,13 @@ export default function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
   const [partnerName, setPartnerName] = useState("");
 
   const [enums, setEnums] = useState<Record<string, EnumOption[]>>({});
+  const [cities, setCities] = useState<{ city_name: string; region: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetch("/api/cities").then(r => r.json()).then(setCities).catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch("/api/admin/enum-options")
@@ -174,7 +179,10 @@ export default function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
             </div>
             <div style={{ flex: 1 }}>
               <label style={s.label}>עיר</label>
-              <input style={s.input} value={city} onChange={(e) => setCity(e.target.value)} placeholder="עיר מגורים" />
+              <input style={s.input} value={city} onChange={(e) => setCity(e.target.value)} placeholder="עיר מגורים" list="setup-city-list" autoComplete="off" />
+              <datalist id="setup-city-list">
+                {cities.map(c => <option key={c.city_name} value={c.city_name} />)}
+              </datalist>
             </div>
           </div>
 
