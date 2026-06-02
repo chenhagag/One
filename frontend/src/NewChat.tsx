@@ -546,11 +546,11 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               {screen === "home" && (() => {
               const { has_cognitive, has_taste_info, summary_fields, chat_count } = recommendations;
               const isCouple = (user as any).test_user_type === "Couple Tester";
-              // Couples get recommendations earlier
-              const conversationAdvanced = isCouple ? chat_count >= 5 : summary_fields >= 4;
+              const chatClosed = closedChannels["new_chat"] || false;
+              // Couples get recommendations earlier; chat closed = definitely advanced
+              const conversationAdvanced = chatClosed || (isCouple ? chat_count >= 5 : summary_fields >= 4);
               const cogDoneForCouple = isCouple ? recommendations.cognitive_count >= 3 : has_cognitive;
               const tasteDoneForCouple = isCouple ? recommendations.cognitive_count >= 3 && has_taste_info : has_taste_info;
-              const chatClosed = closedChannels["new_chat"] || false;
               const chatNotEnough = summary_fields < 8 && chat_count > 0 && !chatClosed;
 
               // Priority 1: General chat not complete — return to chat
