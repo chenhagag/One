@@ -80,6 +80,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             has_profile_details: data.has_profile_details || false,
           });
           if (data.chat_closed) setClosedChannels(prev => ({ ...prev, "new_chat": true }));
+          if (data.cognitive_closed) setClosedChannels(prev => ({ ...prev, "new_chat_cognitive": true }));
+          if (data.taste_closed) setClosedChannels(prev => ({ ...prev, "new_chat_taste": true }));
         }
       })
       .catch(() => {});
@@ -357,7 +359,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         {/* Header — mobile menu toggle + context title */}
         <div style={styles.header}>
           <button className="nc-menu-btn" style={styles.menuBtn} onClick={() => setMenuOpen(!menuOpen)}>☰</button>
-          <span style={styles.headerTitle}>
+          <span style={{ ...styles.headerTitle, flex: 1 }}>
             {screen === "home" ? "One" :
              screen === "chat" ? (channel === "new_chat" ? "שיחת היכרות" : channel === "new_chat_cognitive" ? "סגנון חשיבה" : channel === "new_chat_taste" ? "בדיקת טעם" : "שיחה") :
              screen === "profile_edit" ? "הפרטים שלי" :
@@ -367,6 +369,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
              screen === "bug_report" ? "דווח על באג" :
              screen === "settings" ? "הגדרות" : "One"}
           </span>
+          {/* Mobile user avatar — opens sidebar with user menu */}
+          <div className="nc-menu-btn" style={{ ...styles.avatar, width: 28, height: 28, fontSize: 12, cursor: "pointer" }} onClick={() => setMenuOpen(true)}>
+            {(user.first_name || "?").charAt(0)}
+          </div>
         </div>
 
         {/* Sub-screens: profile edit / insights */}
@@ -1203,6 +1209,9 @@ const styles: Record<string, React.CSSProperties> = {
     height: 48,
     borderRadius: 12,
     marginBottom: 16,
+    display: "block",
+    marginLeft: "auto",
+    marginRight: "auto",
   },
   welcomeTitle: {
     fontSize: 24,
