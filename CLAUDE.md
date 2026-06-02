@@ -44,8 +44,8 @@ No React Router — uses state-based view switching in `App.tsx`:
 
 ### New Chat (Primary User Interface)
 - `NewChat.tsx` — Main user-facing screen with sidebar + chat
-- Sub-screens: ProfileEdit, Insights, BugReport, Settings, ProfileView, CoupleInsights
-- Sidebar always visible (toggle on mobile)
+- Sub-screens: ProfileEdit (includes photos), Insights, Feedback ("עזרו לנו להשתפר"), Settings, CoupleInsights
+- Sidebar always visible (toggle on mobile), mobile header has user avatar for logout
 - `chatManager.ts` — Micro-topic state machine + prompt templates + intent detection
 - **Each channel has separate history** — `Record<string, Message[]>` keyed by channel name
 - Home screen shows expert recommendations (reloads on every visit)
@@ -132,6 +132,13 @@ general, turn 1 → Prompt B (follow-up, then advance to next topic)
 - Email updates toggle (default: on, `email_updates`)
 - WhatsApp updates toggle + phone input (default: off, `whatsapp_updates`, `whatsapp_phone`)
 - Delete account with double confirmation
+- All toggles auto-save on change (no save button)
+
+### Feedback Screen ("עזרו לנו להשתפר")
+- Category chips: 🐛 bug / 💡 idea / 💬 general / ⚙️ request
+- Dynamic textarea placeholder per category
+- Category stored as `[bug]`/`[idea]`/`[general]`/`[request]` prefix in `report_text`
+- Admin: filter by category, badge per report
 
 ### Matching Pool
 - `in_matching_pool BOOLEAN DEFAULT FALSE` — manual admin control
@@ -192,11 +199,11 @@ general, turn 1 → Prompt B (follow-up, then advance to next topic)
 | `PWAInstallFlow.tsx` | PWA installation flow (mobile/desktop) |
 | `AdminView.tsx` | Admin panel (~3000 lines) |
 | `Insights.tsx` | User-facing personality insights |
-| `ProfileEdit.tsx` | Personal details form |
-| `Register.tsx` | Registration form |
+| `ProfileEdit.tsx` | Personal details + photos + preferences (merged profile screen) |
+| `Register.tsx` | Registration form (legacy) |
 | `AuthScreen.tsx` | Google + Apple OAuth + Magic Link login |
 | `AuthCallback.tsx` | OAuth/Magic Link redirect handler + expired link resend |
-| `ProfileSetup.tsx` | Post-OAuth profile completion |
+| `ProfileSetup.tsx` | Post-OAuth "נתוני פתיחה" — name, age, city, gender, status |
 | `ConsentScreen.tsx` | Terms/privacy/AI consent screen |
 | `lib/supabase.ts` | Supabase client init |
 | `lib/api.ts` | Fetch wrapper with JWT auth |
@@ -251,6 +258,9 @@ Cognitive(×3), External(×3), Communication(×2), Emotional-Social(×1), Big Fi
 - **DO NOT use real users for testing** — always create fresh test users
 - **DO NOT git add/commit/push unless explicitly asked**
 - **saveConversationState must be awaited** — fire-and-forget caused lost closing states
+- **Frontend fetch calls MUST use `/api/` prefix** — Vite proxy routes `/api/*` to backend; without it, requests go to Vite and return HTML
+- **ProfileSetup: don't pre-fill name** from OAuth/email — user must enter their own name
+- **`has_profile_details`** requires age + city + at least 1 photo
 
 ## API Endpoints (Key)
 | Method | Path | Purpose |
