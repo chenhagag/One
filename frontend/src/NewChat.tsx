@@ -142,19 +142,23 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
     }
   }, [screen]);
 
-  // Mobile virtual keyboard handling — resize container to visible viewport
+  // Mobile keyboard: scroll input into view when keyboard opens
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
-    const container = document.getElementById("nc-root");
-    if (!container) return;
 
+    let prevHeight = vv.height;
     function onResize() {
       if (!vv) return;
-      // Set height to the actual visible viewport (excludes keyboard)
-      container!.style.height = `${vv.height}px`;
-      // Scroll to bottom when keyboard opens
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+      const keyboardOpened = vv.height < prevHeight - 50;
+      prevHeight = vv.height;
+      if (keyboardOpened) {
+        // Scroll the focused input into view after keyboard settles
+        setTimeout(() => {
+          document.activeElement?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }, 100);
+      }
     }
     vv.addEventListener("resize", onResize);
     return () => vv.removeEventListener("resize", onResize);
@@ -247,6 +251,22 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           .nc-input-area { padding: 10px 16px 12px !important; }
           .nc-suggestions { padding: 0 16px 8px !important; }
         }
+        /* Typing indicator animation */
+        @keyframes nc-bounce {
+          0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+          30% { transform: translateY(-6px); opacity: 1; }
+        }
+        .nc-typing-dot {
+          animation: nc-bounce 1.4s infinite ease-in-out;
+        }
+        /* Screen transition */
+        .nc-screen-fade {
+          animation: nc-fadeIn 0.2s ease-out;
+        }
+        @keyframes nc-fadeIn {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
       `}</style>
 
       {/* Mobile overlay */}
@@ -276,7 +296,9 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               onClick={() => { setChannel("new_chat"); setScreen("chat"); setMenuOpen(false); }}
             >
               <span style={{ fontSize: 16 }}>💬</span>
-              <span>חזרה לשיחה</span>
+              <span style={{ flex: 1 }}>חזרה לשיחה</span>
+              {/* Sidebar badge: completed channel indicator */}
+              {closedChannels["new_chat"] && <span style={styles.completedBadge}>✓</span>}
             </button>
           )}
 
@@ -332,26 +354,36 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
       {/* Main Area */}
       <div style={styles.main}>
-        {/* Header — mobile menu toggle */}
+        {/* Header — mobile menu toggle + context title */}
         <div style={styles.header}>
           <button className="nc-menu-btn" style={styles.menuBtn} onClick={() => setMenuOpen(!menuOpen)}>☰</button>
+          <span style={styles.headerTitle}>
+            {screen === "home" ? "One" :
+             screen === "chat" ? (channel === "new_chat" ? "שיחת היכרות" : channel === "new_chat_cognitive" ? "סגנון חשיבה" : channel === "new_chat_taste" ? "בדיקת טעם" : "שיחה") :
+             screen === "profile_edit" ? "הפרטים שלי" :
+             screen === "profile_view" ? "פרופיל" :
+             screen === "insights" ? "תובנות על עצמי" :
+             screen === "couple_insights" ? "כרטיס התאמה" :
+             screen === "bug_report" ? "דווח על באג" :
+             screen === "settings" ? "הגדרות" : "One"}
+          </span>
         </div>
 
         {/* Sub-screens: profile edit / insights */}
         {screen === "profile_edit" && (
-          <div style={{ flex: 1, overflowY: "auto" }}>
+          <div className="nc-screen-fade" key="profile_edit" style={{ flex: 1, overflowY: "auto" }}>
             <ProfileEdit user={user} onBack={() => setScreen("home")} onUserUpdate={onUserUpdate} />
           </div>
         )}
 
         {screen === "insights" && (
-          <div style={{ flex: 1, overflowY: "auto" }}>
+          <div className="nc-screen-fade" key="insights" style={{ flex: 1, overflowY: "auto" }}>
             <Insights user={user} onBack={() => setScreen("home")} />
           </div>
         )}
 
         {screen === "bug_report" && (
-          <div style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
+          <div className="nc-screen-fade" key="bug_report" style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
             <div style={{ maxWidth: 500, margin: "0 auto", padding: "32px 24px" }}>
               <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", marginTop: 0, marginBottom: 8 }}>דווח על באג</h2>
               <p style={{ fontSize: 14, color: "#666", marginBottom: 20 }}>נתקלת בבעיה? ספר/י לנו ונטפל בזה בהקדם.</p>
@@ -396,7 +428,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         )}
 
         {screen === "couple_insights" && coupleInsights && (
-          <div style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
+          <div className="nc-screen-fade" key="couple_insights" style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
             <div style={{ maxWidth: 600, margin: "0 auto", padding: "32px 24px" }}>
               <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", marginBottom: 4 }}>💕 כרטיס התאמה</h2>
               <p style={{ fontSize: 13, color: "#888", marginBottom: 20 }}>סיכום ותובנות על הזוגיות שלכם</p>
@@ -425,7 +457,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         {/* Chat Area — home + chat screens */}
         {(screen === "home" || screen === "chat") && (
           <>
-            <div className="nc-chat-area" style={styles.chatArea}>
+            <div className="nc-chat-area nc-screen-fade" key={`chat-${screen}-${channel}`} style={styles.chatArea}>
               {screen === "home" && (
                 <div style={styles.welcomeBlock}>
                   <img src="/heartIcon.jpg" alt="" style={styles.welcomeIcon} />
@@ -455,7 +487,12 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
                   {sending && (
                     <div style={styles.assistantMsgRow}>
-                      <div style={{ ...styles.assistantBubble, color: "#999" }}>...</div>
+                      <img src="/heartIcon.jpg" alt="" style={styles.assistantIcon} />
+                      <div style={{ ...styles.assistantBubble, display: "flex", alignItems: "center", gap: 4, padding: "14px 20px" }}>
+                        <span className="nc-typing-dot" style={{ ...styles.typingDot, animationDelay: "0s" }} />
+                        <span className="nc-typing-dot" style={{ ...styles.typingDot, animationDelay: "0.2s" }} />
+                        <span className="nc-typing-dot" style={{ ...styles.typingDot, animationDelay: "0.4s" }} />
+                      </div>
                     </div>
                   )}
 
@@ -574,19 +611,21 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 }}>
                   <span style={{ fontSize: 14 }}>💬</span> {(channelMessages["new_chat"]?.length ?? 0) > 0 ? "בוא נמשיך" : "בוא נתחיל"}
                 </button>
-                {TOPIC_OPTIONS.map((s, i) => (
-                  <button key={i} style={styles.suggestionBtn} onClick={() => {
+                {TOPIC_OPTIONS.map((s, i) => {
+                  const isChannelDone = s.channel ? (closedChannels[s.channel] || (s.channel === "new_chat_cognitive" && recommendations.has_cognitive) || (s.channel === "new_chat_taste" && recommendations.has_taste_info)) : false;
+                  return (
+                  <button key={i} style={{ ...styles.suggestionBtn, ...(isChannelDone ? { borderColor: "#22c55e", color: "#22c55e" } : {}) }} onClick={() => {
                     if (s.channel && channelMessages[s.channel]?.length > 0) {
-                      // Already has history — just switch to that channel
                       setChannel(s.channel);
                       setScreen("chat");
                     } else {
                       sendMessage(s.text, s.channel);
                     }
                   }}>
-                    <span style={{ fontSize: 14, opacity: 0.6 }}>{s.icon}</span> {s.text}
+                    <span style={{ fontSize: 14, opacity: 0.6 }}>{isChannelDone ? "✓" : s.icon}</span> {s.text}
                   </button>
-                ))}
+                  );
+                })}
               </div>
             )}
           </>
@@ -1304,5 +1343,20 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#aaa",
     textAlign: "center",
     marginTop: 8,
+  },
+  // Typing indicator dots
+  typingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: "50%",
+    background: "#999",
+    display: "inline-block",
+  },
+  // Sidebar completed channel badge
+  completedBadge: {
+    fontSize: 12,
+    color: "#22c55e",
+    fontWeight: 700,
+    marginRight: 4,
   },
 };
