@@ -199,9 +199,9 @@ export default function AuthScreen() {
 
       {/* Logo + tagline */}
       <div className="mb-16 text-center">
-        <div className="mb-2 flex items-center justify-center gap-3">
-          <img src="/heartIcon.jpg" alt="" style={{ width: 40, height: 40, borderRadius: 10 }} />
+        <div className="mb-2 flex items-center justify-center gap-2">
           <h1 className="text-5xl font-bold tracking-tight text-gray-900" style={{ margin: 0 }}>One</h1>
+          <img src="/heartIcon.jpg" alt="" style={{ width: 26, height: 26, borderRadius: "50%" }} />
         </div>
         <p className="text-base text-gray-400">Find your one perfect match</p>
       </div>
