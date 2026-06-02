@@ -1,6 +1,90 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-06-01–02 (Staging Environment + Security + Consent + Matching Pool)
+## Latest Session: 2026-06-02 (MVP UI Overhaul)
+
+### What We Did
+
+#### 1. Mobile Safari Viewport Fix
+- **Root cause**: `100vh` on Safari includes browser chrome (address bar + toolbar), causing chat to overflow
+- Changed to `100dvh` + `position: fixed` on container
+- Added `visualViewport` resize handler for virtual keyboard (scroll-into-view, not resize)
+- `viewport-fit=cover` + `safe-area-inset-bottom` for notched iPhones
+- `flexShrink: 0` on header/input to prevent layout collapse
+
+#### 2. UI Polish — Sidebar Badges, Header, Typing, Transitions
+- **Sidebar badges**: ✓ green checkmark on completed channels + "הפרטים שלי" when profile complete
+- **Home screen badges**: green border + ✓ on completed suggestion buttons (cognitive, taste)
+- **Header title**: shows current screen/channel name (שיחת היכרות / סגנון חשיבה / הגדרות / etc.)
+- **Typing indicator**: animated bouncing dots instead of static "..."
+- **Screen transitions**: fade-in + slide animation when switching screens
+
+#### 3. Mobile Logout
+- User avatar in header (mobile only) opens dropdown with "התנתק" button
+- Click-outside overlay to dismiss dropdown
+
+#### 4. Recommendation Logic Fixes
+- Fixed: `closedChannels` now reads `cognitive_closed` and `taste_closed` from status API (not just `chat_closed`)
+- Fixed: `chatClosed` implies `conversationAdvanced` — user who finished all topics gets cognitive recommendation even with low `summary_fields`
+- Backend: `chat_closed` now true when `closing_stage >= 1` OR `topic_index >= 14`
+
+#### 5. Merged ProfileEdit + ProfileView → Single "הפרטים שלי" Screen
+- Combined photos + personal details + preferences into one screen with 👤 icon
+- Removed "פרופיל" sidebar item and `ProfileView` component
+- **Photos redesign**: grid 3×2 (104px tiles), tap-to-select with purple highlight, "הסרת תמונה" button overlay (no permanent X), upload "+" tile with "הוספה" text, photo counter (X/6)
+- Cards with subtle `boxShadow` instead of borders, rounded corners (16px)
+- Consent modal updated to match new design language
+
+#### 6. "עזרו לנו להשתפר" — Feedback Screen (was "דווח על באג")
+- Sidebar: ✨ icon, renamed to "עזרו לנו להשתפר"
+- Category chips: 🐛 משהו לא עובד / 💡 רעיון / 💬 שיתוף כללי / ⚙️ בקשה מהמערכת
+- Dynamic textarea placeholder per category
+- Category prefix `[bug]`/`[idea]`/`[general]`/`[request]` in report_text
+- **Admin**: tab renamed to "משוב ודיווחים", filter chips with counts, category badge per report
+
+#### 7. ProfileSetup Improvements
+- Added age + city fields (in one row) after name
+- City autocomplete with datalist (same as ProfileEdit)
+- Don't pre-fill name from OAuth/email — user enters their own name
+- Default `desired_location_range` changed to `bit_further`
+- Title: "נתוני פתיחה" with subtitle "כמה פרטים טכניים, כדי שהמערכת תדע לכוון לאנשים הרלוונטיים עבורך."
+
+#### 8. Location Range Options Updated
+- "העיר שלי בלבד" (`my_city`)
+- "האזור שלי בלבד" (`my_area`)
+- "האזור שלי + מרחק נסיעה סביר" (`bit_further`) — **new default**
+- "כל הארץ" (`whole_country`)
+- DB migration: `ALTER TABLE users ALTER COLUMN desired_location_range SET DEFAULT 'bit_further'`
+
+#### 9. Settings Screen Fix
+- Fixed missing `/api` prefix on 3 fetch calls (load, save, delete) — requests were going to Vite instead of backend
+
+#### 10. Auth Screen Updates
+- Tagline: "Find your one perfect match" (was "Find your perfect match")
+- Heart logo bubble (22px, round) after tagline text
+
+#### 11. Home Screen Disclaimer Updated
+- New MVP text explaining system is in early version
+- Clickable link "✨ עזרו לנו להשתפר" navigates to feedback screen
+
+### Files Modified
+- `frontend/src/NewChat.tsx` — Viewport fix, badges, header, typing, transitions, mobile logout, merged screens, feedback redesign, settings fix, disclaimer
+- `frontend/src/ProfileEdit.tsx` — Full rewrite: merged with ProfileView, new photo UI, card design
+- `frontend/src/ProfileSetup.tsx` — Age/city fields, city autocomplete, no name pre-fill, new title
+- `frontend/src/AuthScreen.tsx` — Logo + tagline update
+- `frontend/src/AdminView.tsx` — Feedback tab with category filters and badges
+- `frontend/index.html` — Viewport meta tag (viewport-fit=cover)
+- `backend/src/index.ts` — chat_closed logic, don't pre-fill name from OAuth, has_profile_details includes photos
+- `backend/src/schema.pg.ts` — desired_location_range default migration
+
+### Key Design Decisions
+- Photos: tap-to-select pattern instead of always-visible delete button — cleaner look, prevents accidental deletions
+- Feedback categories embedded as prefix in report_text — no DB schema change needed, parseable in admin
+- `has_profile_details` now requires age + city + at least 1 photo
+- Settings auto-save on toggle (no save button needed) — was already implemented, just broken by missing `/api` prefix
+
+---
+
+## Previous Session: 2026-06-01–02 (Staging Environment + Security + Consent + Matching Pool)
 
 ### Deployment
 - All changes tested on staging, then merged to main (fast-forward) and deployed to production on 2026-06-02
