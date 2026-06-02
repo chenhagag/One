@@ -128,8 +128,11 @@ export default function AuthScreen() {
     return (
       <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6">
         <div className="mb-10 text-center">
-          <h1 className="mb-2 text-5xl font-bold tracking-tight text-gray-900">One</h1>
-          <p className="text-base text-gray-400">Find your perfect match</p>
+          <div className="mb-2 flex items-center justify-center gap-2">
+            <h1 className="text-5xl font-bold tracking-tight text-gray-900" style={{ margin: 0 }}>One</h1>
+            <img src="/heartIcon.jpg" alt="" style={{ width: 26, height: 26, borderRadius: "50%" }} />
+          </div>
+          <p className="text-base text-gray-400">Find your one perfect match</p>
         </div>
 
         <div className="flex w-full max-w-xs flex-col gap-3">
@@ -196,10 +199,11 @@ export default function AuthScreen() {
 
       {/* Logo + tagline */}
       <div className="mb-16 text-center">
-        <h1 className="mb-2 text-5xl font-bold tracking-tight text-gray-900">
-          One
-        </h1>
-        <p className="text-base text-gray-400">Find your perfect match</p>
+        <div className="mb-2 flex items-center justify-center gap-3">
+          <img src="/heartIcon.jpg" alt="" style={{ width: 40, height: 40, borderRadius: 10 }} />
+          <h1 className="text-5xl font-bold tracking-tight text-gray-900" style={{ margin: 0 }}>One</h1>
+        </div>
+        <p className="text-base text-gray-400">Find your one perfect match</p>
       </div>
 
       {isSafari ? (
