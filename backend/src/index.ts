@@ -2114,7 +2114,10 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
       "SELECT topic_injection_counts FROM user_chat_summaries WHERE user_id = $1", [userId]
     );
     const convState = stateRow?.topic_injection_counts || {};
-    const chatClosed = (convState.closing_stage ?? 0) >= 3;
+    const closingStage = convState.closing_stage ?? 0;
+    // Chat closed: closing_stage >= 1 (closing started) OR all 14 topics covered
+    const chatClosed = closingStage >= 1 || (convState.current_topic_index !== undefined && convState.current_topic_index >= 14);
+    console.log(`[status] user=${userId} closing_stage=${closingStage} topic_idx=${convState.current_topic_index} chatClosed=${chatClosed} summary_fields=${summaryFields}`);
 
     // Cognitive closed: threshold reached
     const cogClosed = cognitiveCount >= 7;

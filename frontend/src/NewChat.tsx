@@ -273,6 +273,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
       {/* Mobile overlay */}
       {menuOpen && <div style={styles.overlay} onClick={() => setMenuOpen(false)} />}
+      {showUserMenu && <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 99 }} onClick={() => setShowUserMenu(false)} />}
 
       {/* Sidebar */}
       <div className={`nc-sidebar${menuOpen ? " open" : ""}`} style={styles.sidebar}>
@@ -369,9 +370,18 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
              screen === "bug_report" ? "דווח על באג" :
              screen === "settings" ? "הגדרות" : "One"}
           </span>
-          {/* Mobile user avatar — opens sidebar with user menu */}
-          <div className="nc-menu-btn" style={{ ...styles.avatar, width: 28, height: 28, fontSize: 12, cursor: "pointer" }} onClick={() => setMenuOpen(true)}>
-            {(user.first_name || "?").charAt(0)}
+          {/* Mobile user avatar + logout dropdown */}
+          <div className="nc-menu-btn" style={{ position: "relative" }}>
+            <div style={{ ...styles.avatar, width: 28, height: 28, fontSize: 12, cursor: "pointer" }} onClick={() => setShowUserMenu(!showUserMenu)}>
+              {(user.first_name || "?").charAt(0)}
+            </div>
+            {showUserMenu && (
+              <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 6, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", padding: 4, zIndex: 100, minWidth: 120 }}>
+                <button style={{ display: "block", width: "100%", padding: "8px 14px", fontSize: 14, color: "#ef4444", fontWeight: 500, background: "none", border: "none", borderRadius: 8, cursor: "pointer", textAlign: "right", whiteSpace: "nowrap" }} onClick={() => { setShowUserMenu(false); onLogout?.(); }}>
+                  התנתק
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
