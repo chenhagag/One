@@ -34,7 +34,7 @@ export default function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
   const [desiredHeightMax, setDesiredHeightMax] = useState("");
   const [heightFlex, setHeightFlex] = useState("slightly_flexible");
   const [locationRange, setLocationRange] = useState("my_area");
-  const [testUserType, setTestUserType] = useState("");
+  const [testUserType, setTestUserType] = useState("User Experience Tester");
   const [partnerName, setPartnerName] = useState("");
 
   const [enums, setEnums] = useState<Record<string, EnumOption[]>>({});
@@ -191,11 +191,10 @@ export default function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
             ))}
           </select>
 
-          <label style={s.label}>סוג משתמש לבדיקות</label>
+          <label style={s.label}>סטטוס</label>
           <select style={s.select} value={testUserType} onChange={(e) => { setTestUserType(e.target.value); if (e.target.value !== "Couple Tester") setPartnerName(""); }}>
-            <option value="">בחר/י</option>
-            <option value="Couple Tester">אני בזוגיות ועוזר/ת בבדיקות שידוך</option>
-            <option value="User Experience Tester">אני רווק/ה ועוזר/ת בבדיקות מערכת</option>
+            <option value="User Experience Tester">אני רווק/ה שמשתתף/ת ב-MVP</option>
+            <option value="Couple Tester">אני בזוגיות ועוזר/ת לאימון המערכת</option>
           </select>
 
           {testUserType === "Couple Tester" && (

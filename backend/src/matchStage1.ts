@@ -77,7 +77,7 @@ const APPROVAL_RATE_TOLERANCE = 30;
 
 // Cognitive profile is a FIXED filter — always applied, no effective_weight gate.
 // Uses users.cognitive_score (0–100, normalized) directly. Tolerance ±10.
-const COGNITIVE_PROFILE_TOLERANCE = 10;
+const COGNITIVE_PROFILE_TOLERANCE = 15;
 
 // Personal filter traits — resolved dynamically in runStage1.
 // Format: [trait_definition_id, allowed_score_range on 0–100 scale]
@@ -171,7 +171,7 @@ export async function runStage1(_db: Database.Database, options?: { skipMatchabl
   // 1. Load eligible users from pg
   const whereClause = (options?.skipAllFilters || options?.skipMatchableFilter)
     ? "WHERE u.valid_person = TRUE"
-    : "WHERE u.is_matchable = TRUE AND u.valid_person = TRUE AND u.user_status = 'waiting_match'";
+    : "WHERE u.in_matching_pool = TRUE AND u.is_matchable = TRUE AND u.valid_person = TRUE AND u.user_status = 'waiting_match'";
 
   // 0. Resolve trait IDs dynamically from pg (no hardcoded IDs)
   const traitDefs = await queryAll<{ id: number; internal_name: string; trait_group: string | null }>(

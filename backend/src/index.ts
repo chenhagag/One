@@ -829,7 +829,7 @@ app.patch("/admin/users/:id", async (req, res) => {
     "self_style", "desired_age_min", "desired_age_max", "age_flexibility",
     "desired_height_min", "desired_height_max", "height_flexibility",
     "desired_location_range", "profile_complete", "consent_accepted", "photo_ai_consent",
-    "email_updates", "whatsapp_updates", "whatsapp_phone",
+    "email_updates", "whatsapp_updates", "whatsapp_phone", "in_matching_pool",
   ];
   const updates: string[] = [];
   const values: any[] = [];
@@ -1351,6 +1351,46 @@ app.get("/admin/users/:id/analysis-run", async (req, res) => {
   return res.json({ exists: true, ...run });
 });
 
+// GET /admin/users/:id/analysis-status — Analysis run count + messages since last analysis
+app.get("/admin/users/:id/analysis-status", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+
+  const user = await pgQueryOne<{ analysis_run_count: number }>(
+    "SELECT COALESCE(analysis_run_count, 0) as analysis_run_count FROM users WHERE id = $1",
+    [userId]
+  );
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  // Get all analysis runs with timestamps
+  const runs = await pgQueryAll<{ id: number; run_label: string; created_at: string }>(
+    "SELECT id, run_label, created_at FROM analysis_runs WHERE user_id = $1 ORDER BY created_at DESC",
+    [userId]
+  );
+
+  // Count messages since last analysis
+  let messagesSinceLastAnalysis = 0;
+  if (runs.length > 0) {
+    const lastRunTime = runs[0].created_at;
+    const countResult = await pgQueryOne<{ count: string }>(
+      "SELECT COUNT(*)::int as count FROM conversation_messages WHERE user_id = $1 AND role = 'user' AND created_at > $2",
+      [userId, lastRunTime]
+    );
+    messagesSinceLastAnalysis = parseInt(countResult?.count || "0", 10);
+  } else {
+    const countResult = await pgQueryOne<{ count: string }>(
+      "SELECT COUNT(*)::int as count FROM conversation_messages WHERE user_id = $1 AND role = 'user'",
+      [userId]
+    );
+    messagesSinceLastAnalysis = parseInt(countResult?.count || "0", 10);
+  }
+
+  return res.json({
+    run_count: user.analysis_run_count,
+    runs: runs.map(r => ({ id: r.id, label: r.run_label, date: r.created_at })),
+    messages_since_last: messagesSinceLastAnalysis,
+  });
+});
+
 // GET /admin/users/:id/token-usage — Per-user token usage breakdown
 app.get("/admin/users/:id/token-usage", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
@@ -1473,7 +1513,7 @@ app.post("/admin/reset-matches", async (_req, res) => {
 //   - Does NOT add a new profile row (no new answer)
 //   - Uses ALL existing answers to build transcript
 //   - Designed for testing prompt/logic improvements on existing data
-app.post("/admin/users/:id/reanalyze", async (req, res) => {
+app.post("/admin/users/:id/reanalyze", aiLimiter, async (req, res) => {
   const user_id = parseInt(req.params.id, 10);
   if (!Number.isFinite(user_id) || user_id <= 0) {
     return res.status(400).json({ error: `Invalid user_id: ${req.params.id}` });
@@ -1542,7 +1582,7 @@ app.post("/admin/users/:id/reanalyze", async (req, res) => {
 });
 
 // POST /admin/users/:id/cognitive-test — Run experimental cognitive test prompt (display only)
-app.post("/admin/users/:id/cognitive-test", async (req, res) => {
+app.post("/admin/users/:id/cognitive-test", aiLimiter, async (req, res) => {
   const user_id = parseInt(req.params.id, 10);
   if (!Number.isFinite(user_id) || user_id <= 0) {
     return res.status(400).json({ error: `Invalid user_id: ${req.params.id}` });
@@ -1583,7 +1623,7 @@ app.post("/admin/users/:id/cognitive-test", async (req, res) => {
 });
 
 // POST /admin/users/:id/reanalyze-group — Run a single trait group analysis
-app.post("/admin/users/:id/reanalyze-group", async (req, res) => {
+app.post("/admin/users/:id/reanalyze-group", aiLimiter, async (req, res) => {
   const user_id = parseInt(req.params.id, 10);
   if (!Number.isFinite(user_id) || user_id <= 0) {
     return res.status(400).json({ error: `Invalid user_id: ${req.params.id}` });

@@ -1,6 +1,168 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-05-19 (Magic Link Auth)
+## Latest Session: 2026-06-01–02 (Staging Environment + Security + Consent + Matching Pool)
+
+### What We Did
+
+#### 1. Staging Environment Setup
+- Created `staging` branch from `main` — Railway auto-deploys from it
+- New Railway environment with separate PostgreSQL instance
+- Copied production data to staging via `pg_dump` / `psql` (PostgreSQL 18 tools)
+- Local dev (`backend/.env`) now points to **staging DB** by default (zephyr)
+- Shared Supabase project across both environments (same auth)
+
+#### 2. Expired Magic Link Handling
+- AuthScreen saves email to `localStorage` before sending magic link
+- AuthCallback detects `otp_expired` / `access_denied` in URL hash
+- Shows Hebrew error UI: "הקישור פג תוקף" with pre-filled email + resend button
+- Handles email scanners that consume OTP links before user clicks
+
+#### 3. Consent Screens
+- **General consent** (`ConsentScreen.tsx`): shown after registration, before entering app
+  - New DB field: `consent_accepted BOOLEAN DEFAULT FALSE`
+  - Existing users see consent on next login (default false)
+  - Blocks access until accepted (checked in auth flow + auto-login)
+- **Photo upload consent** (modal in ProfileView): shown on first photo upload
+  - Checkbox 1 (required): profile display consent
+  - Checkbox 2 (optional): AI analysis consent → `photo_ai_consent` DB field
+  - Subsequent uploads skip the modal
+
+#### 4. Settings Screen (was placeholder)
+- **Photo AI consent toggle** — loads current value from DB, saveable
+- **Email updates** — checkbox, default on (`email_updates BOOLEAN DEFAULT TRUE`)
+- **WhatsApp updates** — checkbox, default off, shows phone input when enabled (`whatsapp_updates`, `whatsapp_phone`)
+- **Delete account** — red section, double confirmation, calls DELETE endpoint then logs out
+
+#### 5. Admin Security — Email-Based Access
+- Admin panel now requires `chen.hagag@gmail.com` (production + staging)
+- Localhost: hash only (no email check) for development
+- `ADMIN_EMAIL` constant in App.tsx — easy to change
+
+#### 6. Rate Limiting
+- **General**: 100 requests / 15 min per IP (all routes)
+- **AI**: 10 requests / min per IP on OpenAI routes:
+  - `/new-chat/message`, `/analyze`, `/analyze-profile`
+  - `/admin/users/:id/reanalyze`, `/admin/users/:id/cognitive-test`, `/admin/users/:id/reanalyze-group`
+- Package: `express-rate-limit`
+
+#### 7. Match Endpoint Security (ID Enumeration Prevention)
+- `POST /matches/:id/rate` now uses `optionalAuth` middleware
+- If JWT present: `user_id` resolved from token (ignores body value)
+- Fallback to body `user_id` for legacy login compatibility
+
+#### 8. User Deletion Fix
+- Fixed FK violation: now deletes from `user_photos`, `user_chat_summaries`, `bug_reports`, `token_usage` before deleting user row
+
+#### 9. Matching Pool — Manual Control
+- New DB field: `in_matching_pool BOOLEAN DEFAULT FALSE`
+- `matchStage1.ts` now filters by `in_matching_pool = TRUE` (in addition to `is_matchable`)
+- Admin: "כניסה למאגר" / "הוצאה מהמאגר" button per user (replaces old toggle-matchable)
+- Default: no user in pool — manual admin control only (for now)
+- Future: will auto-set when `is_matchable` becomes true
+
+#### 10. Analysis Status in Admin
+- New API: `GET /admin/users/:id/analysis-status`
+- Shows in admin user detail: how many analysis runs, labels, dates
+- Highlights new messages since last analysis (orange if > 0, green if none)
+
+#### 11. Admin Cleanup
+- Removed "צפייה בממשק השיחה החדש" button
+- Removed "חזרה לשיחה" button
+- Removed toggle-matchable button (replaced by matching pool control)
+
+#### 12. Chat UX — Auto-Focus Input
+- After AI responds, cursor automatically returns to chat input field
+
+### New Files
+- `frontend/src/ConsentScreen.tsx` — General consent screen
+
+### Files Modified
+- `frontend/src/App.tsx` — Consent flow, admin email check, User interface fields
+- `frontend/src/NewChat.tsx` — Photo consent modal, settings screen, chat auto-focus
+- `frontend/src/AuthScreen.tsx` — Save email to localStorage for resend
+- `frontend/src/AuthCallback.tsx` — Expired link detection + resend UI
+- `frontend/src/AdminView.tsx` — Analysis status, matching pool button, removed old buttons
+- `backend/src/index.ts` — Rate limiting, auth import, PATCH fields, analysis-status API, user deletion fix
+- `backend/src/matchStage1.ts` — Filter by `in_matching_pool`
+- `backend/src/schema.pg.ts` — consent_accepted, photo_ai_consent, email_updates, whatsapp_updates, whatsapp_phone, in_matching_pool
+- `backend/src/auth.ts` — optionalAuth exported
+
+### DB Columns Added (users table)
+- `consent_accepted BOOLEAN DEFAULT FALSE`
+- `photo_ai_consent BOOLEAN DEFAULT FALSE`
+- `email_updates BOOLEAN DEFAULT TRUE`
+- `whatsapp_updates BOOLEAN DEFAULT FALSE`
+- `whatsapp_phone TEXT`
+- `in_matching_pool BOOLEAN DEFAULT FALSE`
+
+### Dependencies Added
+- `express-rate-limit` (backend)
+
+### Infrastructure
+- Staging environment on Railway (branch `staging`, separate PostgreSQL)
+- PostgreSQL 18 CLI tools installed locally at `C:\pgsql\pgsql\bin\`
+
+---
+
+## Previous Session: 2026-05-19–20 (Magic Link Auth + Safari ITP + Cognitive Filter)
+
+### What We Did
+
+#### 1. Magic Link Authentication
+- Replaced old no-auth email login with Supabase Magic Link
+- Flow: enter email → receive link → click → authenticated session
+- New/existing users handled automatically via `/auth/sync`
+
+#### 2. Safari ITP — Full Server-Side Workaround
+- Safari ITP blocks ALL direct calls to Supabase domain (third-party)
+- Created three backend endpoints to bypass ITP:
+  - `POST /auth/magic-link` — sends magic link email via Supabase Admin API server-side
+  - `POST /auth/exchange-code` — exchanges PKCE code for session server-side
+  - `POST /auth/sync` — already existed, syncs Supabase user to local DB
+- AuthCallback tries server-side exchange first, falls back to client-side Supabase SDK
+
+#### 3. AuthScreen — Three-Screen Flow
+- **Chrome/Android**: Google OAuth button (big) + "Login / Register with email" link (small)
+- **Safari/iOS**: Only "המשך עם אימייל" button (Google OAuth blocked by ITP)
+- **Email form**: Email input + "שלחו לי לינק להתחברות" → success screen
+- **Debug panel removed** from AuthCallback (was green-on-black terminal look)
+
+#### 4. Cognitive Filter — Use DB Score Directly
+- `matchStage1.ts` was computing its own cognitive weighted average (different weights, no normalization) that didn't match admin display
+- Now uses `users.cognitive_score` directly — same number admin sees
+- Tolerance currently set to ±15
+
+#### 5. Infrastructure
+- Domain `joinone.io` configured (Railway custom domain + Supabase Site URL)
+- SMTP via Resend with `noreply@joinone.io` sender
+- `SUPABASE_SERVICE_ROLE_KEY` added to Railway + local env
+
+### Current Status
+- **Working**: Magic Link on Galaxy (Android Chrome) — full end-to-end
+- **Working**: Magic Link on desktop browsers
+- **Working**: Google OAuth on desktop Chrome / Android Chrome
+- **NOT working**: Magic Link callback on iPhone Safari — email sends, but clicking link leads to blank page or back to login. Server-side code exchange deployed but not yet tested.
+- **NOT working**: Google OAuth on Safari (ITP blocks it — hidden for now)
+- **NOT working**: Android PWA Install — Google Play Protect shows "unsafe app blocked"
+
+### Next Steps (Planned)
+1. **iPhone Safari auth**: Consider setting up `auth.joinone.io` as Supabase custom domain (same-origin) to bypass ITP entirely
+2. **Google Play Store**: Publish as TWA to eliminate Play Protect warning — wraps existing PWA, no code changes, requires $25 Google Play Developer account
+3. **Test server-side code exchange** on iPhone Safari (deployed but untested)
+
+### Files Modified
+- `backend/src/index.ts` — `POST /auth/magic-link`, `POST /auth/exchange-code` endpoints
+- `backend/src/matchStage1.ts` — Cognitive filter uses `users.cognitive_score` directly
+- `frontend/src/AuthScreen.tsx` — Three-screen flow (landing → email form → success)
+- `frontend/src/AuthCallback.tsx` — Server-side exchange first, removed debug panel
+- `frontend/vite.config.ts` — Added `/auth/magic-link`, `/auth/exchange-code` proxies
+
+### Environment Variables Added
+- `SUPABASE_SERVICE_ROLE_KEY` — Backend: Supabase service role key for Admin API
+
+---
+
+## Previous Session: 2026-05-19 (Magic Link Auth)
 
 ### What We Worked On
 

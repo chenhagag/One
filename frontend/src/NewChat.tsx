@@ -196,6 +196,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
       setMessagesForChannel(effectiveChannel, prev => [...prev, { role: "assistant", content: errorMsg }]);
     } finally {
       setSending(false);
+      setTimeout(() => inputRef.current?.focus(), 50);
     }
   }
 

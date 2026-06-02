@@ -440,6 +440,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   const [showEvidenceScores, setShowEvidenceScores] = useState(false);
   const [runningGroup, setRunningGroup] = useState<string | null>(null);
   const [lookTraitEdits, setLookTraitEdits] = useState<Record<number, string>>({});
+  const [analysisStatus, setAnalysisStatus] = useState<{ run_count: number; runs: { id: number; label: string; date: string }[]; messages_since_last: number } | null>(null);
   const [savingLookTraits, setSavingLookTraits] = useState(false);
   const [lookTraitsSaved, setLookTraitsSaved] = useState(false);
 
@@ -589,6 +590,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
     fetch(`/api/admin/users/${userId}/token-usage`).then(r => r.json()).then(setTokenUsage).catch(() => {});
     fetch(`/api/admin/users/${userId}/full-transcript`).then(r => r.json()).then(setTranscript).catch(() => {});
     fetch(`/api/admin/users/${userId}/analysis-run`).then(r => r.json()).then(setAnalysisRun).catch(() => {});
+    fetch(`/api/admin/users/${userId}/analysis-status`).then(r => r.json()).then(setAnalysisStatus).catch(() => {});
   }, [userId]);
 
   // Navigate to another user's profile from match candidates
@@ -957,22 +959,6 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
               צפייה במסך המשתמש
             </button>
           )}
-          {onViewNewChat && (
-            <button
-              style={{ padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", background: "#6366f1", color: "#fff", border: "none", borderRadius: 6 }}
-              onClick={() => onViewNewChat({ id: user.id, first_name: user.first_name, email: user.email })}
-            >
-              צפייה בממשק השיחה החדש
-            </button>
-          )}
-          {onStartChat && !coverage?.profile_complete && user.is_real_user !== 0 && (
-            <button
-              style={{ padding: "4px 12px", fontSize: 12, cursor: "pointer", background: "#1a73e8", color: "#fff", border: "none", borderRadius: 4 }}
-              onClick={() => onStartChat({ id: user.id, first_name: user.first_name, email: user.email })}
-            >
-              חזרה לשיחה
-            </button>
-          )}
           <button
             style={{
               padding: "4px 12px", fontSize: 12, cursor: "pointer", border: "none", borderRadius: 4,
@@ -1023,41 +1009,38 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
       <p style={{ ...s.sub, marginBottom: 8 }}>
         Status: <strong>{user.user_status}</strong> |
         Readiness: <strong>{coverage?.readiness_score != null ? `${Math.round(coverage.readiness_score * 100)}%` : "-"}</strong> |
-        Matchable: <strong style={{ color: user.is_matchable ? "#28a745" : "#dc3545" }}>{user.is_matchable ? "Yes" : "No"}</strong>
+        Matchable: <strong style={{ color: user.is_matchable ? "#28a745" : "#dc3545" }}>{user.is_matchable ? "Yes" : "No"}</strong> |
+        <strong style={{ color: user.in_matching_pool ? "#28a745" : "#dc3545" }}>
+          {user.in_matching_pool ? "במאגר ההתאמות" : "לא במאגר"}
+        </strong>
         <button
           style={{
             marginLeft: 6,
-            padding: "1px 8px",
-            fontSize: 10,
+            padding: "2px 10px",
+            fontSize: 11,
             fontWeight: 600,
             cursor: "pointer",
             border: "1px solid",
             borderRadius: 4,
-            background: user.is_matchable ? "#fff3cd" : "#d4edda",
-            borderColor: user.is_matchable ? "#ffc107" : "#28a745",
-            color: user.is_matchable ? "#856404" : "#155724",
+            background: user.in_matching_pool ? "#fee2e2" : "#d1fae5",
+            borderColor: user.in_matching_pool ? "#dc3545" : "#28a745",
+            color: user.in_matching_pool ? "#991b1b" : "#155724",
           }}
           onClick={async () => {
+            const newVal = !user.in_matching_pool;
             try {
-              const res = await fetch(`/api/admin/users/${user.id}/toggle-matchable`, { method: "POST" });
-              const data = await res.json();
-              if (!res.ok) {
-                alert(`Error: ${data.error || res.statusText}`);
-                return;
+              const res = await fetch(`/api/admin/users/${user.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ in_matching_pool: newVal }),
+              });
+              if (res.ok) {
+                setUser((prev: any) => prev ? { ...prev, in_matching_pool: newVal } : prev);
               }
-              // Refresh user data
-              setUser((prev: any) => prev ? { ...prev, is_matchable: data.is_matchable } : prev);
-              if (data.forced) {
-                alert(`Forced matchable = TRUE for user ${user.id}`);
-              } else {
-                alert(`Recalculated: matchable = ${data.is_matchable} (readiness: ${Math.round((data.readiness_score ?? 0) * 100)}%)`);
-              }
-            } catch (err: any) {
-              alert("Failed to toggle matchable: " + (err?.message || "network error"));
-            }
+            } catch { /* ignore */ }
           }}
         >
-          {user.is_matchable ? "Recalculate" : "Force Matchable"}
+          {user.in_matching_pool ? "הוצאה מהמאגר" : "כניסה למאגר"}
         </button>
          |
         Profile complete: <strong>{coverage?.profile_complete ? "Yes" : "No"}</strong> |
@@ -1284,6 +1267,33 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
           <p style={{ fontSize: 11, color: "#888", margin: "0 0 8px" }}>
             Effective = system_weight × user_weight × weight_confidence
           </p>
+          {/* Analysis status */}
+          {analysisStatus && (
+            <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 6, padding: "10px 14px", marginBottom: 12, fontSize: 12 }}>
+              <div style={{ fontWeight: 600, color: "#0c4a6e", marginBottom: 6 }}>
+                סטטוס ניתוח — {analysisStatus.run_count === 0 ? "טרם בוצע" : `${analysisStatus.run_count} הרצות`}
+              </div>
+              {analysisStatus.runs.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  {analysisStatus.runs.map((r, i) => (
+                    <div key={r.id} style={{ color: "#334155" }}>
+                      ניתוח #{analysisStatus.runs.length - i}
+                      {r.label && <span style={{ color: "#64748b" }}> ({r.label})</span>}
+                      {" — "}{new Date(r.date).toLocaleDateString("he-IL")} {new Date(r.date).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
+                    </div>
+                  ))}
+                  <div style={{ marginTop: 4, color: analysisStatus.messages_since_last > 0 ? "#b45309" : "#16a34a", fontWeight: 500 }}>
+                    {analysisStatus.messages_since_last > 0
+                      ? `${analysisStatus.messages_since_last} הודעות חדשות מאז הניתוח האחרון`
+                      : "אין הודעות חדשות מאז הניתוח האחרון"}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ color: "#64748b" }}>לא בוצעו ניתוחים עדיין</div>
+              )}
+            </div>
+          )}
+
           {/* Analysis toolbar — always visible */}
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
             <button

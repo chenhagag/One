@@ -531,6 +531,14 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       ) THEN
         ALTER TABLE users ADD COLUMN whatsapp_phone TEXT;
       END IF;
+
+      -- In matching pool: manually controlled flag for matching eligibility
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'in_matching_pool'
+      ) THEN
+        ALTER TABLE users ADD COLUMN in_matching_pool BOOLEAN DEFAULT FALSE;
+      END IF;
     END $$;
   `);
 
