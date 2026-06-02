@@ -387,7 +387,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           </div>
         )}
 
-        {screen === "settings" && <SettingsView user={user} />}
+        {screen === "settings" && <SettingsView user={user} onLogout={onLogout} />}
 
         {screen === ("taste_test" as any) && (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", direction: "rtl" }}>
@@ -611,27 +611,34 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
 // ── Settings View component ────────────────────────────────────
 
-function SettingsView({ user }: { user: User }) {
+function SettingsView({ user, onLogout }: { user: User; onLogout?: () => void }) {
   const [photoAI, setPhotoAI] = useState(false);
+  const [emailUpdates, setEmailUpdates] = useState(true);
+  const [whatsappUpdates, setWhatsappUpdates] = useState(false);
+  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetch(`/users/${user.id}`).then(r => r.json()).then(data => {
       setPhotoAI(!!data.photo_ai_consent);
+      setEmailUpdates(data.email_updates !== false);
+      setWhatsappUpdates(!!data.whatsapp_updates);
+      setPhone(data.whatsapp_phone || "");
     }).catch(() => {}).finally(() => setLoading(false));
   }, [user.id]);
 
-  async function togglePhotoAI(checked: boolean) {
-    setPhotoAI(checked);
+  async function saveSetting(fields: Record<string, any>) {
     setSaving(true);
     setSaved(false);
     try {
       await fetch(`/admin/users/${user.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ photo_ai_consent: checked }),
+        body: JSON.stringify(fields),
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -639,29 +646,144 @@ function SettingsView({ user }: { user: User }) {
     finally { setSaving(false); }
   }
 
+  async function handleDeleteAccount() {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/admin/users/${user.id}`, { method: "DELETE" });
+      if (res.ok) {
+        onLogout?.();
+      } else {
+        alert("מחיקה נכשלה, נסו שוב");
+      }
+    } catch {
+      alert("שגיאת רשת, נסו שוב");
+    } finally {
+      setDeleting(false);
+      setDeleteConfirm(false);
+    }
+  }
+
+  const sectionStyle: React.CSSProperties = { background: "#f9fafb", borderRadius: 12, padding: "16px 20px", marginBottom: 16 };
+  const titleStyle: React.CSSProperties = { fontSize: 15, fontWeight: 600, color: "#111827", margin: "0 0 12px" };
+  const labelStyle: React.CSSProperties = { display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 14, color: "#374151", lineHeight: 1.6 };
+  const checkboxStyle: React.CSSProperties = { marginTop: 4, width: 18, height: 18, cursor: "pointer", accentColor: "#111827", flexShrink: 0 };
+  const hintStyle: React.CSSProperties = { fontSize: 12, color: "#9ca3af", lineHeight: 1.5, margin: "8px 0 0", paddingRight: 28 };
+
   return (
     <div style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
       <div style={{ maxWidth: 400, margin: "0 auto", padding: "32px 24px" }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", marginBottom: 24 }}>הגדרות</h2>
 
-        <div style={{ background: "#f9fafb", borderRadius: 12, padding: "16px 20px" }}>
-          <h3 style={{ fontSize: 15, fontWeight: 600, color: "#111827", margin: "0 0 12px" }}>פרטיות תמונות</h3>
-          <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 14, color: "#374151", lineHeight: 1.6 }}>
-            <input
-              type="checkbox"
-              checked={photoAI}
-              onChange={(e) => togglePhotoAI(e.target.checked)}
-              disabled={saving || loading}
-              style={{ marginTop: 4, width: 18, height: 18, cursor: "pointer", accentColor: "#111827", flexShrink: 0 }}
-            />
-            <span>
-              אני מאשר/ת ל־One להשתמש ב־AI כדי לנתח את תמונות הפרופיל שלי, לצורך שיפור התאמות ותובנות המבוססות גם על מאפיינים חזותיים.
-            </span>
+        {/* Photo AI consent */}
+        <div style={sectionStyle}>
+          <h3 style={titleStyle}>פרטיות תמונות</h3>
+          <label style={labelStyle}>
+            <input type="checkbox" checked={photoAI} disabled={saving || loading}
+              onChange={(e) => { setPhotoAI(e.target.checked); saveSetting({ photo_ai_consent: e.target.checked }); }}
+              style={checkboxStyle} />
+            <span>אני מאשר/ת ל־One להשתמש ב־AI כדי לנתח את תמונות הפרופיל שלי, לצורך שיפור התאמות ותובנות.</span>
           </label>
-          <p style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.5, margin: "8px 0 0", paddingRight: 28 }}>
-            ניתוח תמונות ב־AI הוא אופציונלי. ללא אישור, התמונות ישמשו להצגה בפרופיל בלבד.
+          <p style={hintStyle}>ניתוח תמונות ב־AI הוא אופציונלי. ללא אישור, התמונות ישמשו להצגה בפרופיל בלבד.</p>
+        </div>
+
+        {/* Notifications */}
+        <div style={sectionStyle}>
+          <h3 style={titleStyle}>התראות ועדכונים</h3>
+          <label style={{ ...labelStyle, marginBottom: 14 }}>
+            <input type="checkbox" checked={emailUpdates} disabled={saving || loading}
+              onChange={(e) => { setEmailUpdates(e.target.checked); saveSetting({ email_updates: e.target.checked }); }}
+              style={checkboxStyle} />
+            <span>אני מאשר/ת קבלת עדכונים במייל על התאמות וחדשות</span>
+          </label>
+          <label style={labelStyle}>
+            <input type="checkbox" checked={whatsappUpdates} disabled={saving || loading}
+              onChange={(e) => {
+                setWhatsappUpdates(e.target.checked);
+                if (!e.target.checked) saveSetting({ whatsapp_updates: false });
+              }}
+              style={checkboxStyle} />
+            <span>אני מאשר/ת קבלת עדכונים בוואטסאפ</span>
+          </label>
+          {whatsappUpdates && (
+            <div style={{ marginTop: 10, paddingRight: 28 }}>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="מספר טלפון (למשל 0501234567)"
+                dir="ltr"
+                style={{
+                  width: "100%", height: 40, borderRadius: 8, border: "1px solid #e5e7eb",
+                  padding: "0 12px", fontSize: 14, color: "#374151", outline: "none", boxSizing: "border-box",
+                }}
+              />
+              <button
+                onClick={() => {
+                  if (!phone.trim()) return;
+                  saveSetting({ whatsapp_updates: true, whatsapp_phone: phone.trim() });
+                }}
+                disabled={saving || !phone.trim()}
+                style={{
+                  marginTop: 8, padding: "6px 16px", borderRadius: 8,
+                  background: phone.trim() ? "#111827" : "#d1d5db", color: "#fff",
+                  fontSize: 13, fontWeight: 500, border: "none",
+                  cursor: phone.trim() ? "pointer" : "not-allowed",
+                }}
+              >
+                שמירה
+              </button>
+            </div>
+          )}
+        </div>
+
+        {saved && <p style={{ fontSize: 12, color: "#22c55e", textAlign: "center", margin: "0 0 16px" }}>נשמר בהצלחה</p>}
+
+        {/* Delete account */}
+        <div style={{ ...sectionStyle, background: "#fef2f2", marginTop: 32 }}>
+          <h3 style={{ ...titleStyle, color: "#991b1b" }}>מחיקת חשבון</h3>
+          <p style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.6, margin: "0 0 12px" }}>
+            מחיקת החשבון תסיר את כל המידע שלך לצמיתות — כולל שיחות, תמונות, תובנות והתאמות. לא ניתן לשחזר את המידע לאחר המחיקה.
           </p>
-          {saved && <p style={{ fontSize: 12, color: "#22c55e", margin: "8px 0 0", paddingRight: 28 }}>נשמר בהצלחה</p>}
+          {!deleteConfirm ? (
+            <button
+              onClick={() => setDeleteConfirm(true)}
+              style={{
+                padding: "8px 20px", borderRadius: 8, background: "#fff",
+                color: "#dc2626", fontSize: 13, fontWeight: 600,
+                border: "1px solid #fecaca", cursor: "pointer",
+              }}
+            >
+              מחיקת החשבון שלי
+            </button>
+          ) : (
+            <div>
+              <p style={{ fontSize: 14, fontWeight: 600, color: "#dc2626", margin: "0 0 10px" }}>
+                בטוח/ה? הפעולה הזו בלתי הפיכה.
+              </p>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={deleting}
+                  style={{
+                    padding: "8px 20px", borderRadius: 8, background: "#dc2626",
+                    color: "#fff", fontSize: 13, fontWeight: 600, border: "none",
+                    cursor: "pointer", opacity: deleting ? 0.5 : 1,
+                  }}
+                >
+                  {deleting ? "מוחק..." : "כן, מחקו את החשבון"}
+                </button>
+                <button
+                  onClick={() => setDeleteConfirm(false)}
+                  style={{
+                    padding: "8px 20px", borderRadius: 8, background: "#fff",
+                    color: "#6b7280", fontSize: 13, border: "1px solid #e5e7eb", cursor: "pointer",
+                  }}
+                >
+                  ביטול
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

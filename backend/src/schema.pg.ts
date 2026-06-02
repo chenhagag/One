@@ -507,6 +507,30 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       ) THEN
         ALTER TABLE users ADD COLUMN photo_ai_consent BOOLEAN DEFAULT FALSE;
       END IF;
+
+      -- Email updates consent (default true)
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'email_updates'
+      ) THEN
+        ALTER TABLE users ADD COLUMN email_updates BOOLEAN DEFAULT TRUE;
+      END IF;
+
+      -- WhatsApp updates consent
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'whatsapp_updates'
+      ) THEN
+        ALTER TABLE users ADD COLUMN whatsapp_updates BOOLEAN DEFAULT FALSE;
+      END IF;
+
+      -- WhatsApp phone number
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'whatsapp_phone'
+      ) THEN
+        ALTER TABLE users ADD COLUMN whatsapp_phone TEXT;
+      END IF;
     END $$;
   `);
 
