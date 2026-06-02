@@ -1362,8 +1362,8 @@ app.get("/admin/users/:id/analysis-status", async (req, res) => {
   if (!user) return res.status(404).json({ error: "User not found" });
 
   // Get all analysis runs with timestamps
-  const runs = await pgQueryAll<{ id: number; run_label: string; created_at: string }>(
-    "SELECT id, run_label, created_at FROM analysis_runs WHERE user_id = $1 ORDER BY created_at DESC",
+  const runs = await pgQueryAll<{ id: number; action_type: string; created_at: string }>(
+    "SELECT id, action_type, created_at FROM analysis_runs WHERE user_id = $1 ORDER BY created_at DESC",
     [userId]
   );
 
@@ -1386,7 +1386,7 @@ app.get("/admin/users/:id/analysis-status", async (req, res) => {
 
   return res.json({
     run_count: user.analysis_run_count,
-    runs: runs.map(r => ({ id: r.id, label: r.run_label, date: r.created_at })),
+    runs: runs.map(r => ({ id: r.id, label: r.action_type, date: r.created_at })),
     messages_since_last: messagesSinceLastAnalysis,
   });
 });
