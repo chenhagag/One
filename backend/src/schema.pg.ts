@@ -108,7 +108,7 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       desired_height_min        INTEGER,
       desired_height_max        INTEGER,
       height_flexibility        TEXT DEFAULT 'slightly_flexible',
-      desired_location_range    TEXT DEFAULT 'my_area',
+      desired_location_range    TEXT DEFAULT 'bit_further',
       user_status               TEXT DEFAULT 'waiting_match',
       is_real_user              BOOLEAN DEFAULT TRUE,
       is_matchable              BOOLEAN DEFAULT FALSE,
@@ -540,6 +540,11 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
         ALTER TABLE users ADD COLUMN in_matching_pool BOOLEAN DEFAULT FALSE;
       END IF;
     END $$;
+  `);
+
+  // Change desired_location_range default from 'my_area' to 'bit_further'
+  await pool.query(`
+    ALTER TABLE users ALTER COLUMN desired_location_range SET DEFAULT 'bit_further';
   `);
 
   // Index for fast lookup by supabase_uid

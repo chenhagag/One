@@ -251,11 +251,12 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
     }
 
     // 3. Brand new user — create minimal row, profile_complete = false
+    // Don't pre-fill first_name from OAuth — let user enter it in ProfileSetup
     const newUser = await pgQueryOne<any>(
       `INSERT INTO users (first_name, email, supabase_uid, auth_provider, profile_complete)
        VALUES ($1, $2, $3, $4, false)
        RETURNING *`,
-      [fullName.trim(), email.trim().toLowerCase(), supabaseUid, provider]
+      ["", email.trim().toLowerCase(), supabaseUid, provider]
     );
 
     return res.status(201).json(newUser);
@@ -2107,7 +2108,7 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
     const profileRow = await pgQueryOne<{ age: number | null; city: string | null }>(
       "SELECT age, city FROM users WHERE id = $1", [userId]
     );
-    const hasProfileDetails = !!(profileRow?.age && profileRow?.city);
+    const hasProfileDetails = !!(profileRow?.age && profileRow?.city && photoCount >= 1);
 
     // Check closing states
     const stateRow = await pgQueryOne<{ topic_injection_counts: any }>(

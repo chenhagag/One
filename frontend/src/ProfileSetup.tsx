@@ -20,7 +20,8 @@ interface ProfileSetupProps {
 }
 
 export default function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
-  const [firstName, setFirstName] = useState(user.first_name || "");
+  // Don't pre-fill from user object — let user type their own name
+  const [firstName, setFirstName] = useState("");
   const [age, setAge] = useState("");
   const [gender, setGender] = useState("");
   const [lookingForGender, setLookingForGender] = useState("");
@@ -33,7 +34,7 @@ export default function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
   const [desiredHeightMin, setDesiredHeightMin] = useState("");
   const [desiredHeightMax, setDesiredHeightMax] = useState("");
   const [heightFlex, setHeightFlex] = useState("slightly_flexible");
-  const [locationRange, setLocationRange] = useState("my_area");
+  const [locationRange, setLocationRange] = useState("bit_further");
   const [testUserType, setTestUserType] = useState("User Experience Tester");
   const [partnerName, setPartnerName] = useState("");
 
@@ -165,6 +166,17 @@ export default function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
             placeholder="השם שלך"
             required
           />
+
+          <div style={{ display: "flex", gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <label style={s.label}>גיל</label>
+              <input style={s.input} type="number" min="18" max="99" value={age} onChange={(e) => setAge(e.target.value)} placeholder="גיל" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={s.label}>עיר</label>
+              <input style={s.input} value={city} onChange={(e) => setCity(e.target.value)} placeholder="עיר מגורים" />
+            </div>
+          </div>
 
           <label style={s.label}>מגדר</label>
           <select style={s.select} value={gender} onChange={(e) => setGender(e.target.value)}>

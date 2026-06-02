@@ -237,7 +237,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
           ["config", "Config"],
           ["candidates", "Candidate Matches"],
           ["matches", "Matched"],
-          ["bugs", "Bug Reports"],
+          ["bugs", "משוב ודיווחים"],
         ] as [Tab, string][]).map(([key, label]) => (
           <button
             key={key}
@@ -2850,11 +2850,25 @@ function CandidateMatchesTab() {
 // BUG REPORTS TAB
 // ════════════════════════════════════════════════════════════════
 
+const FEEDBACK_CATEGORIES: Record<string, { icon: string; label: string; color: string }> = {
+  bug: { icon: "🐛", label: "באג", color: "#ef4444" },
+  idea: { icon: "💡", label: "רעיון", color: "#f59e0b" },
+  general: { icon: "💬", label: "שיתוף", color: "#6366f1" },
+  request: { icon: "⚙️", label: "בקשה", color: "#3b82f6" },
+};
+
+function parseFeedbackCategory(text: string): { category: string | null; body: string } {
+  const match = text.match(/^\[(bug|idea|general|request)\]\s*/);
+  if (match) return { category: match[1], body: text.slice(match[0].length) };
+  return { category: null, body: text };
+}
+
 function BugReportsTab() {
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editText, setEditText] = useState("");
+  const [filterCat, setFilterCat] = useState<string>("all");
 
   useEffect(() => {
     loadReports();
@@ -2894,23 +2908,52 @@ function BugReportsTab() {
 
   if (loading) return <p>Loading...</p>;
 
+  const filtered = filterCat === "all" ? reports : reports.filter(r => parseFeedbackCategory(r.report_text).category === filterCat);
+
   return (
     <div>
-      <h3 style={{ margin: "0 0 16px" }}>Bug Reports ({reports.length})</h3>
-      {reports.length === 0 ? (
-        <p style={{ color: "#888" }}>No bug reports yet.</p>
+      <h3 style={{ margin: "0 0 12px" }}>משוב ודיווחים ({reports.length})</h3>
+
+      {/* Filter chips */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+        <button
+          style={{ padding: "4px 12px", fontSize: 12, borderRadius: 12, border: filterCat === "all" ? "1px solid #6366f1" : "1px solid #ddd", background: filterCat === "all" ? "#f0f0ff" : "#fff", color: filterCat === "all" ? "#6366f1" : "#666", cursor: "pointer", fontWeight: filterCat === "all" ? 600 : 400 }}
+          onClick={() => setFilterCat("all")}
+        >הכל ({reports.length})</button>
+        {Object.entries(FEEDBACK_CATEGORIES).map(([key, cat]) => {
+          const count = reports.filter(r => parseFeedbackCategory(r.report_text).category === key).length;
+          return (
+            <button
+              key={key}
+              style={{ padding: "4px 12px", fontSize: 12, borderRadius: 12, border: filterCat === key ? `1px solid ${cat.color}` : "1px solid #ddd", background: filterCat === key ? `${cat.color}15` : "#fff", color: filterCat === key ? cat.color : "#666", cursor: "pointer", fontWeight: filterCat === key ? 600 : 400 }}
+              onClick={() => setFilterCat(key)}
+            >{cat.icon} {cat.label} ({count})</button>
+          );
+        })}
+      </div>
+
+      {filtered.length === 0 ? (
+        <p style={{ color: "#888" }}>אין דיווחים{filterCat !== "all" ? " בקטגוריה זו" : ""}.</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {reports.map(r => (
+          {filtered.map(r => {
+            const { category, body } = parseFeedbackCategory(r.report_text);
+            const catInfo = category ? FEEDBACK_CATEGORIES[category] : null;
+            return (
             <div key={r.id} style={{
               background: "#fff", border: "1px solid #e5e5e5", borderRadius: 8,
               padding: 16, position: "relative",
             }}>
               {/* Header */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <strong style={{ fontSize: 13 }}>{r.first_name || "Anonymous"}</strong>
-                  {r.email && <span style={{ fontSize: 11, color: "#888", marginLeft: 8 }}>{r.email}</span>}
+                  {r.email && <span style={{ fontSize: 11, color: "#888" }}>{r.email}</span>}
+                  {catInfo && (
+                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: `${catInfo.color}15`, color: catInfo.color, fontWeight: 600 }}>
+                      {catInfo.icon} {catInfo.label}
+                    </span>
+                  )}
                 </div>
                 <span style={{ fontSize: 11, color: "#aaa" }}>
                   {r.created_at ? new Date(r.created_at).toLocaleString("he-IL") : ""}
@@ -2946,7 +2989,7 @@ function BugReportsTab() {
                 </div>
               ) : (
                 <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap", direction: "rtl" }}>
-                  {r.report_text}
+                  {body}
                 </p>
               )}
 
@@ -2968,7 +3011,8 @@ function BugReportsTab() {
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

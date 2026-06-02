@@ -25,11 +25,10 @@ const TOPIC_OPTIONS = [
 ];
 
 const SIDEBAR_ITEMS: { icon: string; label: string; action?: string }[] = [
-  { icon: "📋", label: "הפרטים שלי", action: "profile_edit" },
-  { icon: "👤", label: "פרופיל", action: "profile_view" },
+  { icon: "👤", label: "הפרטים שלי", action: "profile_edit" },
   { icon: "💡", label: "תובנות על עצמי", action: "insights" },
   { icon: "🎯", label: "בדיקת טעם חיצוני", action: "taste_test" },
-  { icon: "🐛", label: "דווח על באג", action: "bug_report" },
+  { icon: "✨", label: "עזרו לנו להשתפר", action: "bug_report" },
   { icon: "⚙️", label: "הגדרות", action: "settings" },
 ];
 
@@ -43,10 +42,11 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [sending, setSending] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [channel, setChannel] = useState<string>("new_chat");
-  const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "profile_view" | "insights" | "couple_insights" | "bug_report" | "settings">("home");
+  const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "insights" | "couple_insights" | "bug_report" | "settings">("home");
   const [coupleInsights, setCoupleInsights] = useState<string | null>(null);
   const [bugText, setBugText] = useState("");
   const [bugSent, setBugSent] = useState(false);
+  const [feedbackCategory, setFeedbackCategory] = useState<string>("");
   const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean }>({ has_cognitive: true, has_taste_info: true, chat_count: 0, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false });
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -323,7 +323,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               }}
             >
               <span style={{ fontSize: 16 }}>{item.icon}</span>
-              <span>{item.label}</span>
+              <span style={{ flex: 1 }}>{item.label}</span>
+              {item.action === "profile_edit" && recommendations.has_profile_details && <span style={styles.completedBadge}>✓</span>}
             </button>
           ))}
           {/* Couple insights — only for couple testers with insights */}
@@ -364,10 +365,9 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             {screen === "home" ? "One" :
              screen === "chat" ? (channel === "new_chat" ? "שיחת היכרות" : channel === "new_chat_cognitive" ? "סגנון חשיבה" : channel === "new_chat_taste" ? "בדיקת טעם" : "שיחה") :
              screen === "profile_edit" ? "הפרטים שלי" :
-             screen === "profile_view" ? "פרופיל" :
              screen === "insights" ? "תובנות על עצמי" :
              screen === "couple_insights" ? "כרטיס התאמה" :
-             screen === "bug_report" ? "דווח על באג" :
+             screen === "bug_report" ? "עזרו לנו להשתפר" :
              screen === "settings" ? "הגדרות" : "One"}
           </span>
           {/* Mobile user avatar + logout dropdown */}
@@ -400,45 +400,87 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
         {screen === "bug_report" && (
           <div className="nc-screen-fade" key="bug_report" style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
-            <div style={{ maxWidth: 500, margin: "0 auto", padding: "32px 24px" }}>
-              <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", marginTop: 0, marginBottom: 8 }}>דווח על באג</h2>
-              <p style={{ fontSize: 14, color: "#666", marginBottom: 20 }}>נתקלת בבעיה? ספר/י לנו ונטפל בזה בהקדם.</p>
-              <textarea
-                style={{
-                  width: "100%", minHeight: 120, padding: 14, fontSize: 14,
-                  border: "1px solid #e0e0e8", borderRadius: 10, background: "#f5f5fa",
-                  color: "#1a1a2e", resize: "vertical", outline: "none",
-                  fontFamily: "inherit", direction: "rtl", boxSizing: "border-box",
-                }}
-                placeholder="תאר/י את הבאג שנתקלת בו..."
-                value={bugText}
-                onChange={e => setBugText(e.target.value)}
-                disabled={bugSent}
-              />
-              <button
-                style={{
-                  marginTop: 12, padding: "12px 24px", fontSize: 15, fontWeight: 600,
-                  background: bugSent ? "#28a745" : "#6366f1", color: "#fff",
-                  border: "none", borderRadius: 10, cursor: bugText.trim() && !bugSent ? "pointer" : "default",
-                  opacity: bugText.trim() && !bugSent ? 1 : 0.5,
-                }}
-                disabled={!bugText.trim() || bugSent}
-                onClick={async () => {
-                  if (!bugText.trim()) return;
-                  try {
-                    await fetch("/api/report-bug", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ user_id: user.id, report_text: bugText.trim() }),
-                    });
-                    setBugSent(true);
-                    setBugText("");
-                    setTimeout(() => { setBugSent(false); setScreen("home"); }, 2000);
-                  } catch {}
-                }}
-              >
-                {bugSent ? "נשלח בהצלחה ✓" : "שלח דיווח"}
-              </button>
+            <div style={{ maxWidth: 500, margin: "0 auto", padding: "24px 20px" }}>
+
+              {/* Card wrapper */}
+              <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", padding: "24px 20px" }}>
+                <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a2e", marginTop: 0, marginBottom: 6 }}>עזרו לנו להשתפר</h2>
+                <p style={{ fontSize: 13, color: "#888", marginBottom: 20, marginTop: 0 }}>נשמח לשמוע מכם</p>
+
+                {/* Category chips */}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
+                  {[
+                    { value: "bug", icon: "🐛", label: "משהו לא עובד" },
+                    { value: "idea", icon: "💡", label: "רעיון / הצעה" },
+                    { value: "general", icon: "💬", label: "שיתוף כללי" },
+                    { value: "request", icon: "⚙️", label: "בקשה מהמערכת" },
+                  ].map(cat => (
+                    <button
+                      key={cat.value}
+                      type="button"
+                      style={{
+                        padding: "9px 16px", borderRadius: 12, fontSize: 13, cursor: "pointer",
+                        border: "none",
+                        background: feedbackCategory === cat.value ? "#6366f1" : "#f5f5fa",
+                        color: feedbackCategory === cat.value ? "#fff" : "#555",
+                        fontWeight: feedbackCategory === cat.value ? 600 : 400,
+                        fontFamily: "inherit",
+                      }}
+                      onClick={() => setFeedbackCategory(cat.value)}
+                    >
+                      {cat.icon} {cat.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Dynamic textarea */}
+                <textarea
+                  style={{
+                    width: "100%", minHeight: 120, padding: 14, fontSize: 14,
+                    border: "1px solid #e8e8f0", borderRadius: 12, background: "#fafaff",
+                    color: "#1a1a2e", resize: "vertical", outline: "none",
+                    fontFamily: "inherit", direction: "rtl", boxSizing: "border-box",
+                  }}
+                  placeholder={
+                    feedbackCategory === "bug" ? "מה קרה? באיזה מסך? ננסה לשחזר ולתקן..." :
+                    feedbackCategory === "idea" ? "איזה רעיון יש לך? נשמח לשמוע..." :
+                    feedbackCategory === "general" ? "מה רצית לשתף?" :
+                    feedbackCategory === "request" ? "מה היית רוצה שהמערכת תעשה?" :
+                    "בחר/י קטגוריה למעלה וכתוב/י כאן..."
+                  }
+                  value={bugText}
+                  onChange={e => setBugText(e.target.value)}
+                  disabled={bugSent}
+                />
+
+                {/* Submit */}
+                <button
+                  style={{
+                    marginTop: 14, width: "100%", padding: "13px 24px", fontSize: 15, fontWeight: 600,
+                    background: bugSent ? "#22c55e" : "#6366f1", color: "#fff",
+                    border: "none", borderRadius: 12, cursor: bugText.trim() && feedbackCategory && !bugSent ? "pointer" : "default",
+                    opacity: bugText.trim() && feedbackCategory && !bugSent ? 1 : 0.4,
+                    fontFamily: "inherit",
+                  }}
+                  disabled={!bugText.trim() || !feedbackCategory || bugSent}
+                  onClick={async () => {
+                    if (!bugText.trim() || !feedbackCategory) return;
+                    try {
+                      await fetch("/api/report-bug", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ user_id: user.id, report_text: `[${feedbackCategory}] ${bugText.trim()}` }),
+                      });
+                      setBugSent(true);
+                      setBugText("");
+                      setFeedbackCategory("");
+                      setTimeout(() => { setBugSent(false); setScreen("home"); }, 2000);
+                    } catch {}
+                  }}
+                >
+                  {bugSent ? "נשלח בהצלחה" : "שליחה"}
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -467,9 +509,6 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           </div>
         )}
 
-        {/* Profile View */}
-        {screen === "profile_view" && <ProfileView user={user} />}
-
         {/* Chat Area — home + chat screens */}
         {(screen === "home" || screen === "chat") && (
           <>
@@ -485,7 +524,9 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     אני כאן כדי להבין אותך לעומק ולסייע לך למצוא את ההתאמה המושלמת עבורך.
                   </p>
                   <p style={{ fontSize: 12, color: "#999", marginTop: 12, lineHeight: 1.5 }}>
-                    המערכת בשלבי בנייה. הצ'אט עלול עדיין להרגיש קצת רובוטי או תקוע — תודה על ההבנה.
+                    אנחנו נמצאים כרגע בגרסה ראשונית (MVP), המערכת עדיין לומדת ומתפתחת, ולכן לא הכל עובד מושלם והצ'אט עשוי לפעמים לגמגם קצת — תודה על ההבנה.
+                    <br />
+                    נתקלתם בבאג? יש לכם בקשה, רעיון או הערה? נשמח לשמוע מכם במסך <span style={{ color: "#6366f1", cursor: "pointer", textDecoration: "underline" }} onClick={() => setScreen("bug_report")}>✨ עזרו לנו להשתפר</span>.
                   </p>
                 </div>
               )}
@@ -592,12 +633,12 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     <p style={styles.recommendationText}>
                       סיימת את כל השלבים, תודה רבה, עזרת לי מאוד לשפר את עצמי! נחזור אליך בקרוב עם תובנות על הזוגיות שלך :)
                     </p>
-                    {(!hasPhotos || !hasDetails) && (
+                    {!hasDetails && (
                       <p style={{ ...styles.recommendationText, marginTop: 8 }}>
                         <span style={styles.recommendationBadge}>המלצת המומחה</span>
                         {isCouple
-                          ? " אם אתם מעוניינים לעזור לי להתאמן ולבחון גם התאמה חיצונית ביניכם — העלו תמונות במסך הפרופיל. תודה רבה!"
-                          : ` להשלמת הפרופיל ${!hasPhotos ? "יש להעלות תמונות" : ""}${!hasPhotos && !hasDetails ? " ו" : ""}${!hasDetails ? "להשלים פרטים אישיים" : ""} במסך הפרופיל.`
+                          ? " אם אתם מעוניינים לעזור לי להתאמן ולבחון גם התאמה חיצונית ביניכם — השלימו את הפרטים והעלו תמונות במסך \"הפרטים שלי\". תודה רבה!"
+                          : " להשלמת הפרופיל, היכנס/י ל\"הפרטים שלי\" כדי להעלות תמונות ולהשלים את הפרטים האישיים."
                         }
                       </p>
                     )}
@@ -698,7 +739,7 @@ function SettingsView({ user, onLogout }: { user: User; onLogout?: () => void })
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    fetch(`/users/${user.id}`).then(r => r.json()).then(data => {
+    fetch(`/api/users/${user.id}`).then(r => r.json()).then(data => {
       setPhotoAI(!!data.photo_ai_consent);
       setEmailUpdates(data.email_updates !== false);
       setWhatsappUpdates(!!data.whatsapp_updates);
@@ -710,7 +751,7 @@ function SettingsView({ user, onLogout }: { user: User; onLogout?: () => void })
     setSaving(true);
     setSaved(false);
     try {
-      await fetch(`/admin/users/${user.id}`, {
+      await fetch(`/api/admin/users/${user.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(fields),
@@ -724,7 +765,7 @@ function SettingsView({ user, onLogout }: { user: User; onLogout?: () => void })
   async function handleDeleteAccount() {
     setDeleting(true);
     try {
-      const res = await fetch(`/admin/users/${user.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/users/${user.id}`, { method: "DELETE" });
       if (res.ok) {
         onLogout?.();
       } else {
@@ -861,176 +902,6 @@ function SettingsView({ user, onLogout }: { user: User; onLogout?: () => void })
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-// ── Profile View component ──────────────────────────────────────
-
-function ProfileView({ user }: { user: User }) {
-  const [photos, setPhotos] = useState<{ id: number; url: string }[]>([]);
-  const [showPhotoConsent, setShowPhotoConsent] = useState(false);
-  const [consentProfile, setConsentProfile] = useState(false);
-  const [consentAI, setConsentAI] = useState(false);
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [photoConsentGiven, setPhotoConsentGiven] = useState(false);
-
-  function loadPhotos() {
-    fetch(`/api/users/${user.id}/photos`).then(r => r.json()).then(data => {
-      if (data.photos) setPhotos(data.photos);
-    }).catch(() => {});
-  }
-
-  useEffect(() => { loadPhotos(); }, [user.id]);
-
-  // Check if user already gave photo consent (has photos = already consented)
-  useEffect(() => {
-    if (photos.length > 0) setPhotoConsentGiven(true);
-  }, [photos]);
-
-  async function uploadFile(file: File) {
-    const form = new FormData();
-    form.append("photo", file);
-    try {
-      await fetch(`/api/users/${user.id}/photos`, { method: "POST", body: form });
-      loadPhotos();
-    } catch { alert("שגיאה בהעלאת התמונה"); }
-  }
-
-  function handleFileSelect(file: File) {
-    if (photoConsentGiven) {
-      uploadFile(file);
-    } else {
-      setPendingFile(file);
-      setShowPhotoConsent(true);
-    }
-  }
-
-  function handleConsentConfirm() {
-    if (!consentProfile) return;
-    setPhotoConsentGiven(true);
-    setShowPhotoConsent(false);
-    // Save AI consent preference to backend
-    fetch(`/admin/users/${user.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ photo_ai_consent: consentAI }),
-    }).catch(() => {});
-    if (pendingFile) {
-      uploadFile(pendingFile);
-      setPendingFile(null);
-    }
-  }
-
-  return (
-    <div style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
-      <div style={{ maxWidth: 400, margin: "0 auto", padding: "32px 24px", textAlign: "center" }}>
-        <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", marginBottom: 4 }}>{user.first_name}</h2>
-        {user.age && <p style={{ fontSize: 15, color: "#666", margin: "0 0 16px" }}>{user.age}</p>}
-
-        {/* Photos grid */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginBottom: 16 }}>
-          {photos.map(p => (
-            <div key={p.id} style={{ position: "relative", width: 100, height: 100, borderRadius: 10, overflow: "hidden", background: "#e0e0e8" }}>
-              <img src={p.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              <button
-                style={{ position: "absolute", top: 2, left: 2, background: "rgba(0,0,0,0.5)", color: "#fff", border: "none", borderRadius: "50%", width: 22, height: 22, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-                onClick={async () => {
-                  await fetch(`/api/users/${user.id}/photos/${p.id}`, { method: "DELETE" });
-                  loadPhotos();
-                }}
-              >✕</button>
-            </div>
-          ))}
-          {photos.length === 0 && (
-            <div style={{ width: 100, height: 100, borderRadius: 10, background: "#e0e0e8", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span style={{ fontSize: 36, color: "#aaa" }}>{(user.first_name || "?").charAt(0)}</span>
-            </div>
-          )}
-        </div>
-
-        <p style={{ fontSize: 12, color: "#6366f1", marginBottom: 12 }}>רצוי להעלות 3 תמונות לפחות</p>
-        <label style={{
-          display: "inline-block", padding: "8px 20px", fontSize: 13, fontWeight: 600,
-          background: "#6366f1", color: "#fff", borderRadius: 8, cursor: "pointer",
-        }}>
-          העלאת תמונה
-          <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (!file) return;
-            handleFileSelect(file);
-            e.target.value = "";
-          }} />
-        </label>
-      </div>
-
-      {/* Photo consent modal */}
-      {showPhotoConsent && (
-        <div style={{
-          position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 1000, padding: 16,
-        }}>
-          <div style={{
-            background: "#fff", borderRadius: 16, padding: "28px 24px",
-            maxWidth: 380, width: "100%", direction: "rtl", textAlign: "right",
-          }}>
-            <p style={{ fontSize: 14, color: "#4b5563", lineHeight: 1.7, margin: "0 0 20px" }}>
-              התמונה תשמש להצגה בפרופיל שלך וליצירת התאמות בתוך האפליקציה. היא לא תפורסם מחוץ ל־One ולא תימכר לצדדים שלישיים.
-            </p>
-
-            <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 14, color: "#111827", lineHeight: 1.6, marginBottom: 14 }}>
-              <input
-                type="checkbox"
-                checked={consentProfile}
-                onChange={(e) => setConsentProfile(e.target.checked)}
-                style={{ marginTop: 4, width: 18, height: 18, cursor: "pointer", accentColor: "#111827", flexShrink: 0 }}
-              />
-              <span>אני מאשר/ת העלאה ושימוש בתמונת הפרופיל שלי לצורך השתתפות במאגר ההתאמות של One.</span>
-            </label>
-
-            <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 14, color: "#111827", lineHeight: 1.6, marginBottom: 8 }}>
-              <input
-                type="checkbox"
-                checked={consentAI}
-                onChange={(e) => setConsentAI(e.target.checked)}
-                style={{ marginTop: 4, width: 18, height: 18, cursor: "pointer", accentColor: "#111827", flexShrink: 0 }}
-              />
-              <span>אני מאשר/ת ל־One להשתמש ב־AI כדי לנתח את תמונת הפרופיל שלי, לצורך שיפור התאמות ותובנות המבוססות גם על מאפיינים חזותיים.</span>
-            </label>
-
-            <p style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.6, margin: "0 0 20px", paddingRight: 28 }}>
-              * ניתוח התמונה ב־AI הוא אופציונלי. אפשר להשתתף במאגר ההתאמות גם בלי לאשר ניתוח AI של התמונה. במקרה כזה התמונה תשמש להצגה בפרופיל בלבד, ו־One לא תשתמש בה כדי לשפר התאמות על בסיס מראה.
-            </p>
-
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                onClick={handleConsentConfirm}
-                disabled={!consentProfile}
-                style={{
-                  flex: 1, height: 44, borderRadius: 10,
-                  background: consentProfile ? "#111827" : "#d1d5db",
-                  color: "#fff", fontSize: 14, fontWeight: 500, border: "none",
-                  cursor: consentProfile ? "pointer" : "not-allowed",
-                  transition: "background 0.2s",
-                }}
-              >
-                אישור והעלאה
-              </button>
-              <button
-                onClick={() => { setShowPhotoConsent(false); setPendingFile(null); }}
-                style={{
-                  flex: 1, height: 44, borderRadius: 10,
-                  background: "#fff", color: "#6b7280", fontSize: 14,
-                  border: "1px solid #e5e7eb", cursor: "pointer",
-                }}
-              >
-                ביטול
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
