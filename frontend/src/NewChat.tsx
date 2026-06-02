@@ -142,6 +142,24 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
     }
   }, [screen]);
 
+  // Mobile virtual keyboard handling — resize container to visible viewport
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const container = document.getElementById("nc-root");
+    if (!container) return;
+
+    function onResize() {
+      if (!vv) return;
+      // Set height to the actual visible viewport (excludes keyboard)
+      container!.style.height = `${vv.height}px`;
+      // Scroll to bottom when keyboard opens
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+    }
+    vv.addEventListener("resize", onResize);
+    return () => vv.removeEventListener("resize", onResize);
+  }, []);
+
   async function sendMessage(text?: string, channelOverride?: string) {
     const msg = (text ?? input).trim();
     if (!msg || sending) return;
@@ -208,7 +226,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   }
 
   return (
-    <div style={styles.container}>
+    <div id="nc-root" style={styles.container}>
       {/* Responsive CSS */}
       <style>{`
         .nc-sidebar { display: flex !important; }
@@ -218,6 +236,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             display: none !important;
             position: fixed;
             top: 0; right: 0;
+            height: 100dvh;
             height: 100vh;
             z-index: 1000;
             box-shadow: -2px 0 12px rgba(0,0,0,0.15);
@@ -966,10 +985,16 @@ function ProfileView({ user }: { user: User }) {
 const styles: Record<string, React.CSSProperties> = {
   container: {
     display: "flex",
-    height: "100vh",
+    height: "100dvh",
     direction: "rtl",
     fontFamily: "'Segoe UI', 'Arial', sans-serif",
     background: "#f9fafb",
+    overflow: "hidden",
+    position: "fixed" as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
 
   overlay: {
@@ -1101,6 +1126,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     alignItems: "center",
     gap: 10,
+    flexShrink: 0,
   },
   menuBtn: {
     background: "none",
@@ -1234,9 +1260,10 @@ const styles: Record<string, React.CSSProperties> = {
 
   // Input
   inputArea: {
-    padding: "12px 40px 16px",
+    padding: "12px 40px calc(16px + env(safe-area-inset-bottom, 0px))",
     background: "#fff",
     borderTop: "1px solid #e5e7eb",
+    flexShrink: 0,
   },
   inputRow: {
     display: "flex",
