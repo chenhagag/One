@@ -543,7 +543,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               <div className="nc-suggestions" style={styles.suggestions}>
                 <button style={{ ...styles.suggestionBtn, background: "#6366f1", color: "#fff", border: "1px solid #6366f1" }} onClick={() => {
                   setChannel("new_chat");
-                  if (channelMessages["new_chat"].length === 0) {
+                  if ((channelMessages["new_chat"]?.length ?? 0) === 0) {
                     const g = user.gender === "woman";
                     const isCouple = (user as any).test_user_type === "Couple Tester";
                     const greeting = isCouple
@@ -553,7 +553,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   }
                   setScreen("chat");
                 }}>
-                  <span style={{ fontSize: 14 }}>💬</span> {channelMessages["new_chat"].length > 0 ? "בוא נמשיך" : "בוא נתחיל"}
+                  <span style={{ fontSize: 14 }}>💬</span> {(channelMessages["new_chat"]?.length ?? 0) > 0 ? "בוא נמשיך" : "בוא נתחיל"}
                 </button>
                 {TOPIC_OPTIONS.map((s, i) => (
                   <button key={i} style={styles.suggestionBtn} onClick={() => {

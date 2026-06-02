@@ -322,6 +322,7 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
       <th style={s.th}>Gender</th>
       <th style={s.th}>Status</th>
       <th style={s.th}>Matchable</th>
+      <th style={s.th}>במאגר</th>
       <th style={s.th}>Test Type</th>
       <th style={s.th}>Partner</th>
       <th style={s.th}>Flags</th>
@@ -350,6 +351,7 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
         <td style={s.td}><span style={s.badge}>{u.gender || "-"}</span></td>
         <td style={s.td}><span style={{ ...s.badge, background: u.user_status === "frozen" ? "#f8d7da" : "" }}>{u.user_status || "-"}</span></td>
         <td style={s.td}>{u.is_matchable ? "Yes" : "No"}</td>
+        <td style={s.td}><span style={{ color: u.in_matching_pool ? "#16a34a" : "#dc2626", fontWeight: 600 }}>{u.in_matching_pool ? "כן" : "לא"}</span></td>
         <td style={s.td}><span style={{ ...s.badge, fontSize: 10, background: u.test_user_type === "Couple Tester" ? "#d4edda" : u.test_user_type ? "#cfe2ff" : "" }}>{u.test_user_type || "-"}</span></td>
         <td style={s.td}><PartnerCell userId={u.id} value={u.partner_name || ""} /></td>
         <td style={s.td}>
