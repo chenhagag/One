@@ -2,6 +2,9 @@
 
 ## Latest Session: 2026-06-02 (MVP UI Overhaul)
 
+### Deployment
+- All changes tested on staging, then pushed to both main (production) and staging on 2026-06-02
+
 ### What We Did
 
 #### 1. Mobile Safari Viewport Fix
@@ -66,12 +69,19 @@
 - New MVP text explaining system is in early version
 - Clickable link "✨ עזרו לנו להשתפר" navigates to feedback screen
 
+#### 12. Consent Screen Fix
+- Fixed missing `/api` prefix on PATCH call — consent was failing silently
+
+#### 13. City Hint Text
+- Added "אם העיר שלך לא מופיעה — אפשר לבחור עיר קרובה" under city field in both ProfileSetup and ProfileEdit
+
 ### Files Modified
 - `frontend/src/NewChat.tsx` — Viewport fix, badges, header, typing, transitions, mobile logout, merged screens, feedback redesign, settings fix, disclaimer
-- `frontend/src/ProfileEdit.tsx` — Full rewrite: merged with ProfileView, new photo UI, card design
-- `frontend/src/ProfileSetup.tsx` — Age/city fields, city autocomplete, no name pre-fill, new title
+- `frontend/src/ProfileEdit.tsx` — Full rewrite: merged with ProfileView, new photo UI, card design, city hint
+- `frontend/src/ProfileSetup.tsx` — Age/city fields, city autocomplete, no name pre-fill, new title, city hint
 - `frontend/src/AuthScreen.tsx` — Logo + tagline update
 - `frontend/src/AdminView.tsx` — Feedback tab with category filters and badges
+- `frontend/src/ConsentScreen.tsx` — Fixed missing /api prefix
 - `frontend/index.html` — Viewport meta tag (viewport-fit=cover)
 - `backend/src/index.ts` — chat_closed logic, don't pre-fill name from OAuth, has_profile_details includes photos
 - `backend/src/schema.pg.ts` — desired_location_range default migration
