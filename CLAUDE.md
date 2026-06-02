@@ -7,10 +7,12 @@ One (formerly MatchMe) is a matchmaking platform that uses AI conversations to b
 - **Backend**: Node.js + Express + TypeScript (port 3001 dev / PORT env in prod)
 - **Frontend**: React 18 + Vite + inline styles (port 3000 dev, served statically by backend in prod)
 - **Mobile**: PWA (Progressive Web App) — manifest.json + service worker
+- **Auth**: Supabase (Google OAuth + Magic Link) — JWT verified on backend
 - **AI**: OpenAI GPT-4o for conversation and trait analysis, GPT-4o-mini for summarization
 - **Database**: PostgreSQL (production, Railway)
-- **Deployment**: Railway (auto-deploy from GitHub push)
+- **Deployment**: Railway (auto-deploy from GitHub push) — `main` → production, `staging` → staging
 - **File Storage**: Railway Volume at `/app/data/uploads` (production), local `uploads/` (dev)
+- **Rate Limiting**: `express-rate-limit` — 300 req/15min general, 30 req/min AI routes
 
 ## Architecture Overview
 
@@ -37,8 +39,8 @@ Analysis agent → user_traits (DB) → matching → candidate_matches → match
 
 ### Frontend Routing
 No React Router — uses state-based view switching in `App.tsx`:
-- `View` type: "landing" | "register" | "login" | "welcome" | "pwa_install" | "new_chat" | "admin" | etc.
-- Admin access: URL hash `#admin-secure-access-2026-chen`
+- `View` type: "landing" | "register" | "welcome" | "pwa_install" | "new_chat" | "admin" | "auth" | "auth_callback" | "profile_setup" | "consent" | etc.
+- Admin access: URL hash `#admin-secure-access-2026-chen` + must be logged in as `chen.hagag@gmail.com` (prod/staging only, localhost unrestricted)
 
 ### New Chat (Primary User Interface)
 - `NewChat.tsx` — Main user-facing screen with sidebar + chat
@@ -116,6 +118,31 @@ general, turn 1 → Prompt B (follow-up, then advance to next topic)
 - **Couple Insights**: `couple_insights TEXT` column — long-form relationship insights
 - User sees "כרטיס התאמה" button in sidebar when insights exist
 
+### Consent System
+- **General consent** (`ConsentScreen.tsx`): shown after registration, before entering app
+  - `consent_accepted BOOLEAN DEFAULT FALSE` — blocks access until accepted
+  - Gender-adapted Hebrew text (תשתפי/תשתף, מאשרת/מאשר)
+- **Photo upload consent** (modal in `ProfileView`): shown on first photo upload
+  - Checkbox 1 (required): profile display consent
+  - Checkbox 2 (optional): AI analysis consent → `photo_ai_consent` field
+  - Changeable later in Settings screen
+
+### Settings Screen
+- Photo AI consent toggle (loads from DB)
+- Email updates toggle (default: on, `email_updates`)
+- WhatsApp updates toggle + phone input (default: off, `whatsapp_updates`, `whatsapp_phone`)
+- Delete account with double confirmation
+
+### Matching Pool
+- `in_matching_pool BOOLEAN DEFAULT FALSE` — manual admin control
+- `matchStage1.ts` filters by `in_matching_pool = TRUE` (in addition to `is_matchable`)
+- Admin: "כניסה למאגר" / "הוצאה מהמאגר" toggle per user
+- Future: will auto-set when `is_matchable` becomes true
+
+### Rate Limiting
+- General: 300 requests / 15 min per IP (admin routes excluded)
+- AI: 30 requests / min per IP on OpenAI routes (`/new-chat/message`, `/analyze`, `/analyze-profile`, admin reanalyze/cognitive-test)
+
 ### PWA Support
 - `manifest.json` + minimal `sw.js` for installability
 - `PWAInstallFlow` component: Android native prompt / iOS Safari guide
@@ -167,9 +194,15 @@ general, turn 1 → Prompt B (follow-up, then advance to next topic)
 | `Insights.tsx` | User-facing personality insights |
 | `ProfileEdit.tsx` | Personal details form |
 | `Register.tsx` | Registration form |
+| `AuthScreen.tsx` | Google + Apple OAuth + Magic Link login |
+| `AuthCallback.tsx` | OAuth/Magic Link redirect handler + expired link resend |
+| `ProfileSetup.tsx` | Post-OAuth profile completion |
+| `ConsentScreen.tsx` | Terms/privacy/AI consent screen |
+| `lib/supabase.ts` | Supabase client init |
+| `lib/api.ts` | Fetch wrapper with JWT auth |
 
 ## Database Tables (Key)
-- `users` — Registration + system fields (is_matchable, cognitive_score, auto_analyzed, analysis_run_count, couple_insights, partner_name, etc.)
+- `users` — Registration + system fields (is_matchable, in_matching_pool, cognitive_score, auto_analyzed, analysis_run_count, couple_insights, partner_name, consent_accepted, photo_ai_consent, email_updates, whatsapp_updates, whatsapp_phone, supabase_uid, auth_provider, profile_complete)
 - `trait_definitions` — 60+ trait configs (trait_group, weight, calc_type, sensitivity)
 - `user_traits` — Per-user scores (score 0-100, confidence 0-1)
 - `look_trait_definitions` — External/visual trait configs
@@ -243,11 +276,22 @@ cd frontend && npm install && npm run dev  # Runs on :3000, proxies /api → :30
 cd frontend && npm run build        # Output in dist/, served by backend
 ```
 
+## Environments
+- **Production**: branch `main`, domain `joinone.io`, DB at `nozomi.proxy.rlwy.net`
+- **Staging**: branch `staging`, Railway auto-generated URL, DB at `zephyr.proxy.rlwy.net`
+- **Local dev**: `backend/.env` points to staging DB by default
+- Shared Supabase project for auth across all environments
+
 ## Environment Variables
 - `OPENAI_API_KEY` — Required
 - `DATABASE_URL` — PostgreSQL connection string (Railway)
 - `PORT` — Server port (default 5000)
 - `NODE_ENV` — production enables SSL for PG + Railway Volume path
+- `SUPABASE_JWT_SECRET` — Backend: Supabase JWT verification secret
+- `SUPABASE_SERVICE_ROLE_KEY` — Backend: Supabase service role key for Admin API
+- `SUPABASE_URL` — Backend: Supabase project URL
+- `VITE_SUPABASE_URL` — Frontend: Supabase project URL
+- `VITE_SUPABASE_ANON_KEY` — Frontend: Supabase anon/public key
 
 ## Common Issues
 - Node version must be 18+ (nvm: `nvm use 22`)

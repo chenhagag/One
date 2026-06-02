@@ -2,6 +2,9 @@
 
 ## Latest Session: 2026-06-01–02 (Staging Environment + Security + Consent + Matching Pool)
 
+### Deployment
+- All changes tested on staging, then merged to main (fast-forward) and deployed to production on 2026-06-02
+
 ### What We Did
 
 #### 1. Staging Environment Setup
