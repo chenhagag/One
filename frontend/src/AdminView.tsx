@@ -292,6 +292,8 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [filterPool, setFilterPool] = useState<"all" | "in" | "out">("all");
+  const [filterGender, setFilterGender] = useState<"all" | "man" | "woman">("all");
 
   useEffect(() => {
     fetch("/api/admin/users")
@@ -307,11 +309,20 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
     return <UserDetail userId={selectedUserId} onBack={() => setSelectedUserId(null)} onStartChat={onStartChat} onViewDashboard={onViewDashboard} onViewNewChat={onViewNewChat} />;
   }
 
+  // Apply filters
+  const filtered = users.filter((u: any) => {
+    if (filterPool === "in" && !u.in_matching_pool) return false;
+    if (filterPool === "out" && u.in_matching_pool) return false;
+    if (filterGender === "man" && u.gender !== "man") return false;
+    if (filterGender === "woman" && u.gender !== "woman") return false;
+    return true;
+  });
+
   // Split users into flagged sections
-  const flaggedToxic = users.filter((u: any) => u.flag_toxic);
-  const flaggedTroll = users.filter((u: any) => u.flag_troll && !u.flag_toxic);
-  const flaggedIdentity = users.filter((u: any) => u.flag_identity && !u.flag_toxic && !u.flag_troll);
-  const unflagged = users.filter((u: any) => !u.flag_toxic && !u.flag_troll && !u.flag_identity);
+  const flaggedToxic = filtered.filter((u: any) => u.flag_toxic);
+  const flaggedTroll = filtered.filter((u: any) => u.flag_troll && !u.flag_toxic);
+  const flaggedIdentity = filtered.filter((u: any) => u.flag_identity && !u.flag_toxic && !u.flag_troll);
+  const unflagged = filtered.filter((u: any) => !u.flag_toxic && !u.flag_troll && !u.flag_identity);
 
   const userHeaders = (
     <tr>
@@ -387,14 +398,34 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
     );
   }
 
+  const filterBtnStyle = (active: boolean): React.CSSProperties => ({
+    padding: "4px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer",
+    border: "1px solid", borderRadius: 4,
+    background: active ? "#111827" : "#fff",
+    color: active ? "#fff" : "#374151",
+    borderColor: active ? "#111827" : "#d1d5db",
+  });
+
   return (
     <div style={s.scrollWrap}>
       <p style={s.sub}>
-        {users.length} users — click a row to view full profile
+        {filtered.length}/{users.length} users — click a row to view full profile
         <span style={{ marginLeft: 16, fontWeight: 600 }}>
-          Flagged: {flaggedToxic.length + flaggedTroll.length + flaggedIdentity.length} | Frozen: {users.filter((u: any) => u.user_status === "frozen").length}
+          Flagged: {flaggedToxic.length + flaggedTroll.length + flaggedIdentity.length} | Frozen: {filtered.filter((u: any) => u.user_status === "frozen").length}
         </span>
       </p>
+
+      {/* Filters */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ fontSize: 12, color: "#6b7280", marginLeft: 4 }}>מאגר:</span>
+        <button style={filterBtnStyle(filterPool === "all")} onClick={() => setFilterPool("all")}>הכל</button>
+        <button style={filterBtnStyle(filterPool === "in")} onClick={() => setFilterPool("in")}>במאגר</button>
+        <button style={filterBtnStyle(filterPool === "out")} onClick={() => setFilterPool("out")}>לא במאגר</button>
+        <span style={{ fontSize: 12, color: "#6b7280", marginRight: 12, marginLeft: 4 }}>מגדר:</span>
+        <button style={filterBtnStyle(filterGender === "all")} onClick={() => setFilterGender("all")}>הכל</button>
+        <button style={filterBtnStyle(filterGender === "woman")} onClick={() => setFilterGender("woman")}>נשים</button>
+        <button style={filterBtnStyle(filterGender === "man")} onClick={() => setFilterGender("man")}>גברים</button>
+      </div>
 
       {/* Flagged sections at top */}
       <FlaggedSection title="Users flagged as toxic" color="#dc3545" list={flaggedToxic} />
@@ -1028,7 +1059,9 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
             borderColor: user.in_matching_pool ? "#dc3545" : "#28a745",
             color: user.in_matching_pool ? "#991b1b" : "#155724",
           }}
-          onClick={async () => {
+          onClick={async (e) => {
+            const btn = e.currentTarget;
+            btn.disabled = true;
             const newVal = !user.in_matching_pool;
             try {
               const res = await fetch(`/api/admin/users/${user.id}`, {
@@ -1037,12 +1070,16 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                 body: JSON.stringify({ in_matching_pool: newVal }),
               });
               if (res.ok) {
-                setUser((prev: any) => prev ? { ...prev, in_matching_pool: newVal } : prev);
+                setData((prev: any) => prev ? { ...prev, user: { ...prev.user, in_matching_pool: newVal } } : prev);
+              } else {
+                const text = await res.text();
+                alert(`שמירה נכשלה: ${res.status} ${text}`);
               }
-            } catch { /* ignore */ }
+            } catch (err: any) { alert(`שגיאת רשת: ${err.message}`); }
+            finally { btn.disabled = false; }
           }}
         >
-          {user.in_matching_pool ? "הוצאה מהמאגר" : "כניסה למאגר"}
+          {user.in_matching_pool ? "✓ הוצאה מהמאגר" : "⊕ כניסה למאגר"}
         </button>
          |
         Profile complete: <strong>{coverage?.profile_complete ? "Yes" : "No"}</strong> |
@@ -1280,7 +1317,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                   {analysisStatus.runs.map((r, i) => (
                     <div key={r.id} style={{ color: "#334155" }}>
                       ניתוח #{analysisStatus.runs.length - i}
-                      {r.label && <span style={{ color: "#64748b" }}> ({r.label})</span>}
+                      {r.label && <span style={{ color: "#64748b" }}> ({r.label?.includes("auto") ? "אוטומטי" : "ידני"})</span>}
                       {" — "}{new Date(r.date).toLocaleDateString("he-IL")} {new Date(r.date).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
                     </div>
                   ))}

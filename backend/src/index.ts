@@ -44,15 +44,16 @@ app.use(express.json());
 // ── Rate limiting ───────────────────────────────────────────────
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => req.path.startsWith("/admin") || req.path.startsWith("/api/admin"),
   message: { error: "Too many requests, please try again later." },
 });
 
 const aiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 10,
+  max: 30,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "יותר מדי בקשות. נסו שוב בעוד דקה." },
@@ -1385,7 +1386,7 @@ app.get("/admin/users/:id/analysis-status", async (req, res) => {
   }
 
   return res.json({
-    run_count: user.analysis_run_count,
+    run_count: runs.length,
     runs: runs.map(r => ({ id: r.id, label: r.action_type, date: r.created_at })),
     messages_since_last: messagesSinceLastAnalysis,
   });
