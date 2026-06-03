@@ -97,7 +97,7 @@ export default function AuthScreen() {
   // ── Magic link sent — success screen ──
   if (magicLinkSent) {
     return (
-      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6">
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6 pt-[env(safe-area-inset-top,0px)]">
         <div className="mb-6 text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-50">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -126,7 +126,7 @@ export default function AuthScreen() {
   // ── Email form screen (after clicking "Login / Register") ──
   if (showEmailForm) {
     return (
-      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6">
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6 pt-[env(safe-area-inset-top,0px)]">
         <div className="mb-10 text-center">
           <h1 className="mb-2 text-5xl font-bold tracking-tight text-gray-900">One</h1>
           <div className="flex items-center justify-center gap-1.5">
@@ -184,7 +184,7 @@ export default function AuthScreen() {
 
   // ── Main landing screen ──
   return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6">
+    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6 pt-[env(safe-area-inset-top,0px)]">
       {/* Loading overlay */}
       {loading && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">

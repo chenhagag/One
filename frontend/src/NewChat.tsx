@@ -153,13 +153,23 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
     function onResize() {
       if (!vv) return;
       const keyboardOpened = vv.height < prevHeight - 50;
+      const keyboardClosed = vv.height > prevHeight + 50;
       prevHeight = vv.height;
+
+      // iOS standalone: adjust container to visual viewport so content isn't pushed behind keyboard
+      const isStandalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
+      const root = document.getElementById("nc-root");
+      if (isStandalone && root) {
+        root.style.height = `${vv.height}px`;
+      }
+
       if (keyboardOpened) {
-        // Scroll the focused input into view after keyboard settles
         setTimeout(() => {
-          document.activeElement?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
           messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
         }, 100);
+      }
+      if (keyboardClosed && isStandalone && root) {
+        root.style.height = "100dvh";
       }
     }
     vv.addEventListener("resize", onResize);
@@ -241,9 +251,9 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           .nc-sidebar {
             display: none !important;
             position: fixed;
-            top: 0; right: 0;
-            height: 100dvh;
-            height: 100vh;
+            top: env(safe-area-inset-top, 0px); right: 0;
+            height: calc(100dvh - env(safe-area-inset-top, 0px));
+            height: calc(100vh - env(safe-area-inset-top, 0px));
             z-index: 1000;
             box-shadow: -2px 0 12px rgba(0,0,0,0.15);
           }
@@ -921,6 +931,7 @@ const styles: Record<string, React.CSSProperties> = {
     left: 0,
     right: 0,
     bottom: 0,
+    paddingTop: "env(safe-area-inset-top, 0px)",
   },
 
   overlay: {

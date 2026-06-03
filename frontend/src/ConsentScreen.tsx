@@ -43,7 +43,7 @@ export default function ConsentScreen({ user, onComplete }: ConsentScreenProps) 
     <div style={{
       display: "flex", minHeight: "100dvh", flexDirection: "column",
       alignItems: "center", justifyContent: "center", background: "#fff",
-      padding: "0 24px",
+      padding: "env(safe-area-inset-top, 0px) 24px 0",
     }}>
       <div style={{ maxWidth: 400, width: "100%", textAlign: "right" }} dir="rtl">
         <h1 style={{ fontSize: 24, fontWeight: 700, color: "#111827", marginBottom: 24, textAlign: "center" }}>
