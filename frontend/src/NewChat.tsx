@@ -145,48 +145,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   }, [screen]);
 
   // Mobile keyboard: scroll input into view when keyboard opens
-  // iOS standalone: prevent page from scrolling up when keyboard opens
-  useEffect(() => {
-    const isStandalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
-    if (!isStandalone) return;
-
-    // Keep page pinned to top — iOS pushes fixed elements when keyboard opens
-    function preventScroll() {
-      if (window.scrollY !== 0) window.scrollTo(0, 0);
-    }
-
-    // On focus: lock scroll position, resize container to visible area
-    function onFocusIn() {
-      window.scrollTo(0, 0);
-      document.addEventListener("scroll", preventScroll, { passive: false });
-      // Resize container after keyboard settles
-      setTimeout(() => {
-        const vv = window.visualViewport;
-        const root = document.getElementById("nc-root");
-        if (vv && root) {
-          root.style.height = `${vv.height}px`;
-        }
-        window.scrollTo(0, 0);
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 300);
-    }
-
-    // On blur: restore container height
-    function onFocusOut() {
-      document.removeEventListener("scroll", preventScroll);
-      const root = document.getElementById("nc-root");
-      if (root) root.style.height = "";
-      setTimeout(() => window.scrollTo(0, 0), 100);
-    }
-
-    document.addEventListener("focusin", onFocusIn);
-    document.addEventListener("focusout", onFocusOut);
-    return () => {
-      document.removeEventListener("focusin", onFocusIn);
-      document.removeEventListener("focusout", onFocusOut);
-      document.removeEventListener("scroll", preventScroll);
-    };
-  }, []);
+  // iOS standalone keyboard handling: no JS tricks, handled via CSS only
 
   async function sendMessage(text?: string, channelOverride?: string) {
     const msg = (text ?? input).trim();
@@ -274,6 +233,15 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           .nc-chat-area { padding: 16px 16px !important; }
           .nc-input-area { padding: 10px 16px 12px !important; }
           .nc-suggestions { padding: 0 16px 8px !important; }
+        }
+        /* iOS standalone: keep input pinned above keyboard */
+        @supports (-webkit-touch-callout: none) {
+          @media (display-mode: standalone) {
+            .nc-input-area {
+              position: sticky !important;
+              bottom: 0 !important;
+            }
+          }
         }
         /* Typing indicator animation */
         @keyframes nc-bounce {
