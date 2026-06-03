@@ -12,8 +12,7 @@ export default function AuthScreen() {
   const [magicLinkLoading, setMagicLinkLoading] = useState(false);
 
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  const isProduction = window.location.hostname === "joinone.io";
-  const isSafari = isProduction && (isIOS || (/^((?!chrome|android).)*safari/i.test(navigator.userAgent)));
+  const isSafari = isIOS || (/^((?!chrome|android).)*safari/i.test(navigator.userAgent));
 
   async function handleOAuth(provider: "google" | "apple") {
     setLoading(provider);
