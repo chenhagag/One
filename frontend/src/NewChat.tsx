@@ -148,32 +148,38 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
+    const isStandalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
 
-    let prevHeight = vv.height;
     function onResize() {
       if (!vv) return;
-      const keyboardOpened = vv.height < prevHeight - 50;
-      const keyboardClosed = vv.height > prevHeight + 50;
-      prevHeight = vv.height;
-
-      // iOS standalone: adjust container to visual viewport so content isn't pushed behind keyboard
-      const isStandalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
       const root = document.getElementById("nc-root");
-      if (isStandalone && root) {
+      if (!root) return;
+
+      if (isStandalone) {
+        // iOS standalone: keyboard pushes webview up. Compensate with transform + height.
         root.style.height = `${vv.height}px`;
+        root.style.transform = `translateY(${vv.offsetTop}px)`;
       }
 
-      if (keyboardOpened) {
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-        }, 100);
-      }
-      if (keyboardClosed && isStandalone && root) {
-        root.style.height = "100dvh";
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    }
+
+    function onScroll() {
+      if (!vv || !isStandalone) return;
+      const root = document.getElementById("nc-root");
+      if (root) {
+        root.style.transform = `translateY(${vv.offsetTop}px)`;
       }
     }
+
     vv.addEventListener("resize", onResize);
-    return () => vv.removeEventListener("resize", onResize);
+    vv.addEventListener("scroll", onScroll);
+    return () => {
+      vv.removeEventListener("resize", onResize);
+      vv.removeEventListener("scroll", onScroll);
+    };
   }, []);
 
   async function sendMessage(text?: string, channelOverride?: string) {
