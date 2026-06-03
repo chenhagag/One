@@ -145,40 +145,46 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   }, [screen]);
 
   // Mobile keyboard: scroll input into view when keyboard opens
+  // iOS standalone: prevent page from scrolling up when keyboard opens
   useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
     const isStandalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
+    if (!isStandalone) return;
 
-    function onResize() {
-      if (!vv) return;
-      const root = document.getElementById("nc-root");
-      if (!root) return;
+    // Keep page pinned to top — iOS pushes fixed elements when keyboard opens
+    function preventScroll() {
+      if (window.scrollY !== 0) window.scrollTo(0, 0);
+    }
 
-      if (isStandalone) {
-        // iOS standalone: keyboard pushes webview up. Compensate with transform + height.
-        root.style.height = `${vv.height}px`;
-        root.style.transform = `translateY(${vv.offsetTop}px)`;
-      }
-
+    // On focus: lock scroll position, resize container to visible area
+    function onFocusIn() {
+      window.scrollTo(0, 0);
+      document.addEventListener("scroll", preventScroll, { passive: false });
+      // Resize container after keyboard settles
       setTimeout(() => {
+        const vv = window.visualViewport;
+        const root = document.getElementById("nc-root");
+        if (vv && root) {
+          root.style.height = `${vv.height}px`;
+        }
+        window.scrollTo(0, 0);
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 100);
+      }, 300);
     }
 
-    function onScroll() {
-      if (!vv || !isStandalone) return;
+    // On blur: restore container height
+    function onFocusOut() {
+      document.removeEventListener("scroll", preventScroll);
       const root = document.getElementById("nc-root");
-      if (root) {
-        root.style.transform = `translateY(${vv.offsetTop}px)`;
-      }
+      if (root) root.style.height = "";
+      setTimeout(() => window.scrollTo(0, 0), 100);
     }
 
-    vv.addEventListener("resize", onResize);
-    vv.addEventListener("scroll", onScroll);
+    document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("focusout", onFocusOut);
     return () => {
-      vv.removeEventListener("resize", onResize);
-      vv.removeEventListener("scroll", onScroll);
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("focusout", onFocusOut);
+      document.removeEventListener("scroll", preventScroll);
     };
   }, []);
 
