@@ -229,7 +229,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: "'Segoe UI', 'Arial', sans-serif",
   },
   content: {
-    maxWidth: 600,
+    maxWidth: 720,
     margin: "0 auto",
     padding: "32px 24px",
   },

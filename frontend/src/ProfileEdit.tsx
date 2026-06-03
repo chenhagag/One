@@ -436,7 +436,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
 const s: Record<string, React.CSSProperties> = {
   wrapper: {
     direction: "rtl",
-    maxWidth: 520,
+    maxWidth: 720,
     margin: "0 auto",
     padding: "24px 20px 40px",
     fontFamily: "'Segoe UI', 'Arial', sans-serif",

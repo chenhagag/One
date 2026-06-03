@@ -234,6 +234,11 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           .nc-input-area { padding: 10px 16px 12px !important; }
           .nc-suggestions { padding: 0 16px 8px !important; }
         }
+        /* Desktop: widen sub-screens */
+        @media (min-width: 769px) {
+          .nc-sub-screen { max-width: 720px !important; }
+          .nc-sub-screen-narrow { max-width: 560px !important; }
+        }
         /* iOS standalone: keep input pinned above keyboard */
         @supports (-webkit-touch-callout: none) {
           @media (display-mode: standalone) {
@@ -390,7 +395,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
         {screen === "bug_report" && (
           <div className="nc-screen-fade" key="bug_report" style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
-            <div style={{ maxWidth: 500, margin: "0 auto", padding: "24px 20px" }}>
+            <div className="nc-sub-screen-narrow" style={{ maxWidth: 500, margin: "0 auto", padding: "24px 20px" }}>
 
               {/* Card wrapper */}
               <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", padding: "24px 20px" }}>
@@ -477,7 +482,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
         {screen === "couple_insights" && coupleInsights && (
           <div className="nc-screen-fade" key="couple_insights" style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
-            <div style={{ maxWidth: 600, margin: "0 auto", padding: "32px 24px" }}>
+            <div className="nc-sub-screen" style={{ maxWidth: 600, margin: "0 auto", padding: "32px 24px" }}>
               <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", marginBottom: 4 }}>💕 כרטיס התאמה</h2>
               <p style={{ fontSize: 13, color: "#888", marginBottom: 20 }}>סיכום ותובנות על הזוגיות שלכם</p>
               <div style={{ fontSize: 15, lineHeight: 1.8, color: "#333", whiteSpace: "pre-wrap" }}>
@@ -777,7 +782,7 @@ function SettingsView({ user, onLogout }: { user: User; onLogout?: () => void })
 
   return (
     <div style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
-      <div style={{ maxWidth: 400, margin: "0 auto", padding: "32px 24px" }}>
+      <div className="nc-sub-screen-narrow" style={{ maxWidth: 400, margin: "0 auto", padding: "32px 24px" }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", marginBottom: 24 }}>הגדרות</h2>
 
         {/* Photo AI consent */}
