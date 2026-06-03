@@ -2259,6 +2259,18 @@ app.post("/new-chat/message", aiLimiter, async (req, res) => {
   }
 });
 
+// ── Legal pages (static HTML, no auth) ──────────────────────────
+app.get("/privacy", (_req, res) => {
+  res.sendFile(path.join(frontendDist, "privacy.html"), (err) => {
+    if (err) res.status(404).send("Page not found");
+  });
+});
+app.get("/terms", (_req, res) => {
+  res.sendFile(path.join(frontendDist, "terms.html"), (err) => {
+    if (err) res.status(404).send("Page not found");
+  });
+});
+
 // ── SPA catch-all ────────────────────────────────────────────────
 // Any GET request that didn't match an API route or static file gets
 // the frontend's index.html — lets React Router handle client-side routing.
