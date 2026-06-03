@@ -155,7 +155,7 @@ export default function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
   };
 
   return (
-    <div style={{ maxWidth: 600, margin: "0 auto", padding: "40px 20px", fontFamily: "system-ui, sans-serif" }}>
+    <div style={{ maxWidth: 680, margin: "0 auto", padding: "40px 20px", fontFamily: "system-ui, sans-serif" }}>
       <form onSubmit={handleSubmit} dir="rtl">
         <h2 style={{ marginTop: 0, marginBottom: 8, fontSize: 22 }}>נתוני פתיחה</h2>
         <p style={{ color: "#666", marginBottom: 32, marginTop: 0 }}>
