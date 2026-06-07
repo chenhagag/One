@@ -513,15 +513,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   <img src="/heartIcon.jpg" alt="" style={styles.welcomeIcon} />
                   <h2 style={styles.welcomeTitle}>ברוכים הבאים ל-One</h2>
                   <p style={styles.welcomeText}>
-                    העוזר האישי שלך להכרויות מדויקות ומשמעותיות.
+                    העוזר האישי שלך למציאת התאמה מדויקת ומשמעותית.
                   </p>
                   <p style={styles.welcomeText}>
-                    אני כאן כדי להבין אותך לעומק ולסייע לך למצוא את ההתאמה המושלמת עבורך.
-                  </p>
-                  <p style={{ fontSize: 12, color: "#999", marginTop: 12, lineHeight: 1.5 }}>
-                    אנחנו נמצאים כרגע בגרסה ראשונית (MVP), המערכת עדיין לומדת ומתפתחת, ולכן לא הכל עובד מושלם והצ'אט עשוי לפעמים לגמגם קצת — תודה על ההבנה.
-                    <br />
-                    נתקלתם בבאג? יש לכם בקשה, רעיון או הערה? נשמח לשמוע מכם במסך <span style={{ color: "#6366f1", cursor: "pointer", textDecoration: "underline" }} onClick={() => setScreen("bug_report")}>✨ עזרו לנו להשתפר</span>.
+                    איך זה עובד? נעבור יחד תהליך היכרות באמצעות שיחה, ובסיומו המערכת תמצא עבורך התאמה אחת מדויקת, המבוססת על התאמה פסיכולוגית ואישיותית עמוקה.
                   </p>
                 </div>
               )}
@@ -625,9 +620,21 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 const hasDetails = recommendations.has_profile_details;
                 return (
                   <div style={styles.recommendationBlock}>
-                    <p style={styles.recommendationText}>
-                      סיימת את כל השלבים, תודה רבה, עזרת לי מאוד לשפר את עצמי! נחזור אליך בקרוב עם תובנות על הזוגיות שלך :)
-                    </p>
+                    {isCouple ? (
+                      <p style={styles.recommendationText}>
+                        סיימת את כל השלבים, תודה רבה, עזרת לי מאוד לשפר את עצמי! נחזור אליך בקרוב עם תובנות על הזוגיות שלך :)
+                      </p>
+                    ) : (
+                      <p style={{ ...styles.recommendationText, lineHeight: 1.7 }}>
+                        כל השלבים הושלמו בהצלחה.
+                        <br />
+                        כעת המערכת מבצעת ניתוח מעמיק של המאפיינים שלך ומתחילה בחיפוש. נשלח לך עדכון ברגע שתעלה התאמה רלוונטית ומדויקת.
+                        <br /><br />
+                        <span style={{ fontSize: 12, color: "#999" }}>
+                          אנחנו נמצאים כרגע בגרסת הרצה ראשונית (MVP) ובונים את קהילת המשתמשים שלנו, כך שהתהליך עשוי לקחת קצת זמן. ב-One אנחנו מעדיפים איכות על פני מהירות, ולכן לא מתפשרים על התאמות בינוניות.
+                        </span>
+                      </p>
+                    )}
                     {!hasDetails && (
                       <p style={{ ...styles.recommendationText, marginTop: 8 }}>
                         <span style={styles.recommendationBadge}>המלצת המומחה</span>
