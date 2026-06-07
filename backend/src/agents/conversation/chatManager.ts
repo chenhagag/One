@@ -343,6 +343,29 @@ export async function buildChatPrompt(
     return { systemPrompt, intent: "general", phase: detectPhase(messageCount), closingStage };
   }
 
+  // Q&A channels — separate chats for "about me", "how system works", "questions", "insights discussion"
+  const QA_CHANNELS = ["qa_about_me", "qa_system", "qa_general", "qa_insights"];
+  if (QA_CHANNELS.includes(channel)) {
+    let contextBlock = "";
+    if (channel === "qa_about_me" || channel === "qa_insights") {
+      const safeProfile = await getSafeUserProfile(userId);
+      const profileText = formatSafeProfileForPrompt(safeProfile);
+      if (profileText.trim()) {
+        contextBlock = PROFILE_CONTEXT + "\n\n## פרופיל המשתמש\n" + profileText;
+      } else if (userSummary) {
+        const summaryText = formatSummaryForPrompt(userSummary);
+        contextBlock = PROFILE_CONTEXT + "\n\n## מה שלמדתי מהשיחה (טרם בוצע ניתוח רשמי)\n" + summaryText + "\n\nהערה: זה מבוסס על מה שהמשתמש שיתף בשיחה. עדיין לא בוצע ניתוח אישיות מלא.";
+      } else {
+        contextBlock = PROFILE_CONTEXT + "\n\nאין עדיין נתוני פרופיל מובנים. שתף רשמים כלליים מהשיחה ועודד להמשיך לשוחח.";
+      }
+    } else {
+      // qa_system or qa_general
+      contextBlock = SYSTEM_CONTEXT;
+    }
+    const systemPrompt = contextBlock + "\n\n" + genderInstruction + coupleInstruction;
+    return { systemPrompt, intent: "general" as ChatIntent, phase: detectPhase(messageCount), closingStage: 0 };
+  }
+
   // Taste test channel — slim prompt + one profile at a time
   if (channel === "new_chat_taste") {
     const tasteUserMsgCount = tasteCount; // from getChannelCounts()

@@ -20,6 +20,7 @@ import { runStage2, runMatchmaking } from "./matchStage2";
 import { runAnalysisAgent, runSingleGroupAnalysis, getAvailableGroups, buildAnalysisInput, saveAnalysisToDb, saveAnalysisRun, getLatestAnalysisRun } from "./agents/analysis";
 import { computeCoverage, buildAnalysisTranscript } from "./agents/conversation";
 import { buildChatPrompt } from "./agents/conversation/chatManager";
+import { getDetailedUserProfile } from "./safeOutputLayer";
 import { shouldSummarize, getUserSummary, runSummarization } from "./agents/conversation/summarizer";
 import { maybeAutoAnalyze, maybeAutoAnalyzeAfterChat, maybeAutoAnalyzeAfterAll } from "./agents/conversation/autoAnalysis";
 import OpenAI from "openai";
@@ -2157,12 +2158,102 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
   }
 });
 
+// GET /users/:id/matching-progress — Dashboard data for waiting state
+app.get("/users/:id/matching-progress", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  if (!userId) return res.status(400).json({ error: "invalid id" });
+
+  try {
+    const userRow = await pgQueryOne<{ looking_for_gender: string | null }>(
+      "SELECT looking_for_gender FROM users WHERE id = $1", [userId]
+    );
+    const targetGender = userRow?.looking_for_gender;
+
+    // Count all valid profiles of target gender (broad count for display)
+    let totalPoolProfiles = 0;
+    if (targetGender && targetGender !== "both") {
+      const r = await pgQueryOne<{ count: string }>(
+        "SELECT COUNT(*) as count FROM users WHERE gender = $1 AND valid_person = TRUE AND id != $2",
+        [targetGender, userId]
+      );
+      totalPoolProfiles = parseInt(r?.count || "0", 10);
+    } else {
+      // "both" or not set — count all valid users
+      const r = await pgQueryOne<{ count: string }>(
+        "SELECT COUNT(*) as count FROM users WHERE valid_person = TRUE AND id != $1",
+        [userId]
+      );
+      totalPoolProfiles = parseInt(r?.count || "0", 10);
+    }
+
+    // Count candidate_matches for this user (passed screening)
+    const cmResult = await pgQueryOne<{ count: string }>(
+      "SELECT COUNT(*) as count FROM candidate_matches WHERE (user_id = $1 OR candidate_user_id = $1) AND filtering_passed = TRUE",
+      [userId]
+    );
+    let scannedProfiles = parseInt(cmResult?.count || "0", 10);
+
+    // If no matches have been computed yet but there are profiles in the pool, show pool count as "scanned"
+    if (scannedProfiles === 0 && totalPoolProfiles > 3) {
+      scannedProfiles = totalPoolProfiles;
+    }
+
+    // Pad very low numbers slightly (minimum 3 if there are any)
+    if (scannedProfiles > 0 && scannedProfiles < 3) {
+      scannedProfiles = 3;
+    }
+
+    const statusText = "בחינת התאמה פסיכולוגית...";
+
+    return res.json({
+      total_pool_profiles: totalPoolProfiles,
+      scanned_profiles: scannedProfiles,
+      status_text: statusText,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /users/:id/detailed-traits — Detailed trait data for Insights screen
+app.get("/users/:id/detailed-traits", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  if (!userId) return res.status(400).json({ error: "invalid id" });
+
+  try {
+    const profile = await getDetailedUserProfile(userId);
+    return res.json(profile);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /users/:id/fine-tune-answer — Save fine-tuning question answer
+app.post("/users/:id/fine-tune-answer", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const { question_key, answer } = req.body;
+  if (!userId || !question_key || answer == null) return res.status(400).json({ error: "missing fields" });
+
+  try {
+    // Store as a note on the user for now (simple approach)
+    // Format: fine_tune_answers JSON in user_chat_summaries or a simple column
+    // For MVP: store in conversation_messages as a system-generated message
+    await pgQueryAll(
+      "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES ($1, 'user', $2, 'fine_tune')",
+      [userId, `[${question_key}] ${answer}`]
+    );
+    return res.json({ ok: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 app.post("/new-chat/message", aiLimiter, async (req, res) => {
   const { user_id, message, history, channel } = req.body;
   if (!user_id || !message) return res.status(400).json({ error: "user_id and message required" });
 
-  // Validate channel — must start with new_chat
-  const guide = typeof channel === "string" && channel.startsWith("new_chat") ? channel : "new_chat";
+  // Validate channel — must start with new_chat or qa_
+  const guide = typeof channel === "string" && (channel.startsWith("new_chat") || channel.startsWith("qa_")) ? channel : "new_chat";
 
   // Fetch user info + build prompt in parallel where possible
   const messageCount = Array.isArray(history) ? history.length : 0;
@@ -2197,7 +2288,7 @@ app.post("/new-chat/message", aiLimiter, async (req, res) => {
   // Taste closing: full history (AI summarizes all reactions — needs full context).
   // General/taste mid-flow: last 6 messages (code controls questions, less history = faster).
   if (Array.isArray(history)) {
-    const needsFullHistory = guide === "new_chat_cognitive" || guide === "new_chat_taste";
+    const needsFullHistory = guide === "new_chat_cognitive" || guide === "new_chat_taste" || guide.startsWith("qa_");
     const recentHistory = needsFullHistory ? history : history.slice(-6);
     for (const h of recentHistory) {
       if (h.role === "user" || h.role === "assistant") {

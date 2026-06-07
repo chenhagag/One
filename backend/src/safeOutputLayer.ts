@@ -147,6 +147,142 @@ export async function getSafeUserProfile(userId: number): Promise<SafeUserProfil
 /**
  * Format safe profile data as a text block for injection into a prompt.
  */
+// ── Detailed profile for Insights screen ──
+
+export interface DetailedUserProfile {
+  mbti: {
+    type: string | null;
+    description: string | null;
+    alternateType: string | null;
+    alternateDescription: string | null;
+    dimensions: {
+      extraversion: number | null;
+      sensing: number | null;
+      intuition: number | null;
+      thinking: number | null;
+      feeling: number | null;
+      judging: number | null;
+      perceiving: number | null;
+    };
+  };
+  allValues: { name: string; he: string; score: number; description: string; relationship: string }[];
+  allBigFive: { name: string; he: string; score: number; description: string; relationship: string }[];
+}
+
+function computeAlternateMbtiType(traits: Map<string, number>): string | null {
+  const ext = traits.get("extraversion");
+  const sen = traits.get("sensing");
+  const int_ = traits.get("intuition");
+  const thi = traits.get("thinking");
+  const fee = traits.get("feeling");
+  const jud = traits.get("judging");
+  const per = traits.get("perceiving");
+
+  // Check if any dimension is borderline (within 5 points of 50 or pair difference <= 10)
+  const isBorderline = (a: number | undefined, b: number | undefined, threshold: number) => {
+    if (a == null && b == null) return false;
+    if (a != null && b == null) return Math.abs(a - 50) <= 5;
+    if (a == null && b != null) return Math.abs(b - 50) <= 5;
+    return Math.abs(a! - b!) <= 10;
+  };
+
+  const eiBorderline = ext != null && Math.abs(ext - 50) <= 5;
+  const snBorderline = isBorderline(sen, int_, 10);
+  const adjT = (thi ?? 0) + 10;
+  const tfBorderline = thi != null && fee != null && Math.abs(adjT - fee) <= 10;
+  const jpBorderline = isBorderline(jud, per, 10);
+
+  if (!eiBorderline && !snBorderline && !tfBorderline && !jpBorderline) return null;
+
+  // Flip the most borderline dimension
+  const primary = computeMbtiType(traits);
+  if (!primary || primary.includes("X")) return null;
+
+  // Try flipping each borderline dimension and return the first alternate
+  const flips: [boolean, number, string, string][] = [
+    [eiBorderline, 0, "E", "I"],
+    [snBorderline, 1, "S", "N"],
+    [tfBorderline, 2, "T", "F"],
+    [jpBorderline, 3, "J", "P"],
+  ];
+
+  for (const [isBorder, idx, a, b] of flips) {
+    if (isBorder) {
+      const chars = primary.split("");
+      chars[idx] = chars[idx] === a ? b : a;
+      const alt = chars.join("");
+      if (alt !== primary && MBTI_DESCRIPTIONS[alt]) return alt;
+    }
+  }
+
+  return null;
+}
+
+export async function getDetailedUserProfile(userId: number): Promise<DetailedUserProfile> {
+  const rows = await queryAll<{ internal_name: string; display_name_he: string; score: number; confidence: number }>(
+    `SELECT td.internal_name, td.display_name_he, ut.score, ut.confidence
+     FROM user_traits ut
+     JOIN trait_definitions td ON td.id = ut.trait_definition_id
+     WHERE ut.user_id = $1`,
+    [userId]
+  );
+
+  const traitMap = new Map<string, number>();
+  for (const r of rows) {
+    if (r.score != null) traitMap.set(r.internal_name, r.score);
+  }
+
+  const mbtiType = computeMbtiType(traitMap);
+  const alternateType = computeAlternateMbtiType(traitMap);
+
+  const schwartzNames = Object.keys(VALUE_INFO);
+  const allValues = schwartzNames
+    .filter(name => traitMap.has(name))
+    .map(name => ({
+      name,
+      he: VALUE_INFO[name].he,
+      score: traitMap.get(name)!,
+      description: VALUE_INFO[name].desc,
+      relationship: VALUE_INFO[name].relationship,
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const bigFiveNames = Object.keys(BIG_FIVE_INFO);
+  const allBigFive = bigFiveNames
+    .filter(name => traitMap.has(name))
+    .map(name => ({
+      name,
+      he: BIG_FIVE_INFO[name].he,
+      score: traitMap.get(name)!,
+      description: BIG_FIVE_INFO[name].desc,
+      relationship: BIG_FIVE_INFO[name].relationship,
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  return {
+    mbti: {
+      type: mbtiType,
+      description: mbtiType ? (MBTI_DESCRIPTIONS[mbtiType] ?? null) : null,
+      alternateType,
+      alternateDescription: alternateType ? (MBTI_DESCRIPTIONS[alternateType] ?? null) : null,
+      dimensions: {
+        extraversion: traitMap.get("extraversion") ?? null,
+        sensing: traitMap.get("sensing") ?? null,
+        intuition: traitMap.get("intuition") ?? null,
+        thinking: traitMap.get("thinking") ?? null,
+        feeling: traitMap.get("feeling") ?? null,
+        judging: traitMap.get("judging") ?? null,
+        perceiving: traitMap.get("perceiving") ?? null,
+      },
+    },
+    allValues,
+    allBigFive,
+  };
+}
+
+/**
+ * Format safe profile data as a text block for injection into a prompt.
+ */
 export function formatSafeProfileForPrompt(profile: SafeUserProfile): string {
   const parts: string[] = [];
 

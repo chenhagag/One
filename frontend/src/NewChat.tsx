@@ -16,12 +16,12 @@ interface NewChatProps {
   onLogout?: () => void;
 }
 
-const TOPIC_OPTIONS = [
+const TOPIC_OPTIONS: { icon: string; text: string; channel?: string }[] = [
   { icon: "🧠", text: "בוא נבין את סגנון החשיבה שלי", channel: "new_chat_cognitive" },
   { icon: "🔍", text: "נתח את הטעם שלי לעומק", channel: "new_chat_taste" },
-  { icon: "🎯", text: "איך אתה מוצא לי התאמה מדויקת?" },
-  { icon: "❓", text: "יש לי שאלה לגבי התהליך" },
-  { icon: "📋", text: "מה למדת עליי עד עכשיו?" },
+  { icon: "🎯", text: "איך אתה מוצא לי התאמה מדויקת?", channel: "qa_system" },
+  { icon: "❓", text: "יש לי שאלה לגבי התהליך", channel: "qa_general" },
+  { icon: "📋", text: "מה למדת עליי עד עכשיו?", channel: "qa_about_me" },
 ];
 
 const SIDEBAR_ITEMS: { icon: string; label: string; action?: string }[] = [
@@ -37,6 +37,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
     new_chat: [],
     new_chat_cognitive: [],
     new_chat_taste: [],
+    qa_about_me: [],
+    qa_system: [],
+    qa_general: [],
+    qa_insights: [],
   });
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -49,6 +53,13 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [feedbackCategory, setFeedbackCategory] = useState<string>("");
   const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean }>({ has_cognitive: true, has_taste_info: true, chat_count: 0, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false });
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
+  const [matchingProgress, setMatchingProgress] = useState<{ total_pool_profiles: number; scanned_profiles: number; status_text: string } | null>(null);
+  const [insightCard, setInsightCard] = useState<{ mbti: { type: string | null; description: string | null }; allValues: { name: string; he: string; score: number; description: string }[]; allBigFive: { name: string; he: string; score: number; description: string }[] } | null>(null);
+  const [fineTuneAnswered, setFineTuneAnswered] = useState<boolean>(() => localStorage.getItem(`fine_tune_${user.id}`) === "true");
+  const [insightRotation, setInsightRotation] = useState<number>(() => {
+    const v = localStorage.getItem(`insight_rotation_${user.id}`);
+    return v ? parseInt(v, 10) : 0;
+  });
   const [showUserMenu, setShowUserMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -82,6 +93,21 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           if (data.chat_closed) setClosedChannels(prev => ({ ...prev, "new_chat": true }));
           if (data.cognitive_closed) setClosedChannels(prev => ({ ...prev, "new_chat_cognitive": true }));
           if (data.taste_closed) setClosedChannels(prev => ({ ...prev, "new_chat_taste": true }));
+
+          // Load dashboard data when all channels are done
+          const allDone = data.chat_closed && data.has_cognitive && data.has_taste_info;
+          if (allDone) {
+            fetch(`/api/users/${user.id}/matching-progress`).then(r => r.json()).then(mp => {
+              if (mp.scanned_profiles !== undefined) setMatchingProgress(mp);
+            }).catch(() => {});
+            fetch(`/api/users/${user.id}/detailed-traits`).then(r => r.json()).then(dt => {
+              if (dt.mbti || dt.allValues || dt.allBigFive) setInsightCard(dt);
+            }).catch(() => {});
+            // Advance insight rotation
+            const nextRotation = insightRotation + 1;
+            setInsightRotation(nextRotation);
+            localStorage.setItem(`insight_rotation_${user.id}`, String(nextRotation));
+          }
         }
       })
       .catch(() => {});
@@ -107,12 +133,18 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           new_chat: [],
           new_chat_cognitive: [],
           new_chat_taste: [],
+          qa_about_me: [],
+          qa_system: [],
+          qa_general: [],
+          qa_insights: [],
         };
         for (const m of data.messages) {
           const ct = m.chat_type as string;
           if (!ct) continue;
           let key: string | null = null;
-          if (ct.startsWith("new_chat")) {
+          if (ct.startsWith("qa_")) {
+            key = ct in perChannel ? ct : null;
+          } else if (ct.startsWith("new_chat")) {
             key = ct in perChannel ? ct : "new_chat";
           } else if (ct === "psychologist") {
             key = "new_chat";
@@ -358,7 +390,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           <button className="nc-menu-btn" style={styles.menuBtn} onClick={() => setMenuOpen(!menuOpen)}>☰</button>
           <span style={{ ...styles.headerTitle, flex: 1 }}>
             {screen === "home" ? "One" :
-             screen === "chat" ? (channel === "new_chat" ? "שיחת היכרות" : channel === "new_chat_cognitive" ? "סגנון חשיבה" : channel === "new_chat_taste" ? "בדיקת טעם" : "שיחה") :
+             screen === "chat" ? (channel === "new_chat" ? "שיחת היכרות" : channel === "new_chat_cognitive" ? "סגנון חשיבה" : channel === "new_chat_taste" ? "בדיקת טעם" : channel === "qa_about_me" ? "מה למדת עליי" : channel === "qa_system" ? "איך המערכת עובדת" : channel === "qa_general" ? "שאלות ותשובות" : channel === "qa_insights" ? "דיון על התובנות" : "שיחה") :
              screen === "profile_edit" ? "הפרטים שלי" :
              screen === "insights" ? "תובנות על עצמי" :
              screen === "couple_insights" ? "כרטיס התאמה" :
@@ -389,7 +421,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
         {screen === "insights" && (
           <div className="nc-screen-fade" key="insights" style={{ flex: 1, overflowY: "auto" }}>
-            <Insights user={user} onBack={() => setScreen("home")} />
+            <Insights user={user} onBack={() => setScreen("home")} onOpenChat={(msg, ch) => sendMessage(msg, ch)} />
           </div>
         )}
 
@@ -643,6 +675,118 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           : " להשלמת הפרופיל, היכנס/י ל\"הפרטים שלי\" כדי להעלות תמונות ולהשלים את הפרטים האישיים."
                         }
                       </p>
+                    )}
+
+                    {/* ── Dashboard: Progress Pulse ── */}
+                    {!isCouple && matchingProgress && (
+                      <div style={styles.dashboardCard}>
+                        <p style={styles.dashboardTitle}>האלגוריתם בעבודה ⚙️</p>
+                        {matchingProgress.scanned_profiles > 0 && (
+                          <p style={styles.dashboardMetric}>
+                            📊 <strong>{matchingProgress.scanned_profiles}</strong> פרופילים נבדקו מול המאפיינים שלך
+                          </p>
+                        )}
+                        {matchingProgress.total_pool_profiles > 0 && (
+                          <p style={styles.dashboardMetric}>
+                            👥 <strong>{matchingProgress.total_pool_profiles}</strong> פרופילים במאגר
+                          </p>
+                        )}
+                        <p style={styles.dashboardStatus}>{matchingProgress.status_text} 🔍</p>
+                      </div>
+                    )}
+
+                    {/* ── Dashboard: Insight Drip Feed ── */}
+                    {!isCouple && insightCard && (() => {
+                      const rot = insightRotation % 3;
+                      let emoji = "";
+                      let title = "";
+                      let text = "";
+                      let hasContent = false;
+
+                      if (rot === 0 && insightCard.mbti?.type) {
+                        emoji = "🧠";
+                        title = `טיפוס MBTI: ${insightCard.mbti.type}`;
+                        text = insightCard.mbti.description || "";
+                        hasContent = true;
+                      } else if ((rot === 1 || (rot === 0 && !insightCard.mbti?.type)) && insightCard.allValues?.length > 0) {
+                        const top = insightCard.allValues.filter((v: any) => v.score > 60).slice(0, 2);
+                        if (top.length > 0) {
+                          emoji = "💎";
+                          title = "הערכים המובילים שלך";
+                          text = top.map((v: any) => `${v.he} — ${v.description}`).join(". ");
+                          hasContent = true;
+                        }
+                      }
+                      if (!hasContent && insightCard.allBigFive?.length > 0) {
+                        const top = insightCard.allBigFive.filter((v: any) => v.score > 60).slice(0, 2);
+                        if (top.length > 0) {
+                          emoji = "🎭";
+                          title = "תכונות אישיות בולטות";
+                          text = top.map((v: any) => `${v.he} — ${v.description}`).join(". ");
+                          hasContent = true;
+                        }
+                      }
+
+                      if (!hasContent) return null;
+
+                      return (
+                        <div style={styles.dashboardCard}>
+                          <p style={styles.dashboardTitle}>מה ה-AI למד עליך?</p>
+                          <div style={styles.insightCardContent}>
+                            <span style={{ fontSize: 22 }}>{emoji}</span>
+                            <div style={{ flex: 1 }}>
+                              <p style={styles.insightCardTitle}>{title}</p>
+                              <p style={styles.insightCardText}>{text}</p>
+                            </div>
+                          </div>
+                          <button
+                            style={styles.insightCardBtn}
+                            onClick={() => setScreen("insights")}
+                          >
+                            לקריאת הניתוח המלא →
+                          </button>
+                        </div>
+                      );
+                    })()}
+
+                    {/* ── Dashboard: Fine-Tuning Question ── */}
+                    {!isCouple && !fineTuneAnswered && (
+                      <div style={styles.dashboardCard}>
+                        <div style={styles.fineTuneBubble}>
+                          <span style={{ fontSize: 16 }}>💬</span>
+                          <p style={styles.fineTuneText}>
+                            היי, אני רוצה לדייק משהו קטן. האם {user.gender === "woman" ? "היית מסתדרת" : "היית מסתדר"} עם בן/בת זוג שלא {user.gender === "woman" ? "אוהבת" : "אוהב"} בעלי חיים?
+                          </p>
+                        </div>
+                        <div style={styles.fineTuneChips}>
+                          <button style={styles.chipBtn} onClick={() => {
+                            fetch(`/api/users/${user.id}/fine-tune-answer`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question_key: "pet_compatibility", answer: "no" }) }).catch(() => {});
+                            setFineTuneAnswered(true);
+                            localStorage.setItem(`fine_tune_${user.id}`, "true");
+                          }}>
+                            ממש לא, {user.gender === "woman" ? "היא חייבת" : "הוא חייב"} לאהוב
+                          </button>
+                          <button style={styles.chipBtn} onClick={() => {
+                            fetch(`/api/users/${user.id}/fine-tune-answer`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question_key: "pet_compatibility", answer: "yes" }) }).catch(() => {});
+                            setFineTuneAnswered(true);
+                            localStorage.setItem(`fine_tune_${user.id}`, "true");
+                          }}>
+                            {user.gender === "woman" ? "יכולה להסתדר" : "יכול להסתדר"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {!isCouple && fineTuneAnswered && (
+                      <div style={{ ...styles.dashboardCard, textAlign: "center" }}>
+                        <p style={{ fontSize: 13, color: "#22c55e", margin: 0 }}>✓ תודה! הנתון עודכן ומקצר לנו טווחים.</p>
+                      </div>
+                    )}
+
+                    {/* ── Dashboard: Feedback Footer ── */}
+                    {!isCouple && (
+                      <button style={styles.feedbackFooter} onClick={() => setScreen("bug_report")}>
+                        💡 יש לך רעיון לפיצ'ר? משהו לא עובד חלק? נשמח לשמוע במסך המשוב שלנו
+                      </button>
                     )}
                   </div>
                 );
@@ -1251,5 +1395,105 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#22c55e",
     fontWeight: 700,
     marginRight: 4,
+  },
+  // Dashboard styles
+  dashboardCard: {
+    background: "#fff",
+    border: "1px solid #e5e7eb",
+    borderRadius: 12,
+    padding: "16px 20px",
+    marginTop: 12,
+    direction: "rtl" as const,
+  },
+  dashboardTitle: {
+    fontSize: 15,
+    fontWeight: 700,
+    color: "#1a1a2e",
+    margin: "0 0 10px 0",
+  },
+  dashboardMetric: {
+    fontSize: 13,
+    color: "#555",
+    margin: "0 0 6px 0",
+    lineHeight: 1.6,
+  },
+  dashboardStatus: {
+    fontSize: 12,
+    color: "#94a3b8",
+    margin: "8px 0 0 0",
+    fontStyle: "italic" as const,
+  },
+  insightCardContent: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  insightCardTitle: {
+    fontSize: 14,
+    fontWeight: 600,
+    color: "#1a1a2e",
+    margin: "0 0 4px 0",
+  },
+  insightCardText: {
+    fontSize: 13,
+    color: "#777",
+    lineHeight: 1.5,
+    margin: 0,
+  },
+  insightCardBtn: {
+    display: "block",
+    marginTop: 10,
+    background: "none",
+    border: "none",
+    color: "#6366f1",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+    padding: 0,
+    fontFamily: "inherit",
+  },
+  fineTuneBubble: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  fineTuneText: {
+    fontSize: 13,
+    color: "#555",
+    lineHeight: 1.6,
+    margin: 0,
+    flex: 1,
+  },
+  fineTuneChips: {
+    display: "flex",
+    gap: 8,
+    marginTop: 12,
+    flexWrap: "wrap" as const,
+  },
+  chipBtn: {
+    padding: "8px 16px",
+    borderRadius: 20,
+    border: "1px solid #c7d2fe",
+    background: "#f0f0ff",
+    color: "#4f46e5",
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: "pointer",
+    fontFamily: "inherit",
+    transition: "background 0.15s",
+  },
+  feedbackFooter: {
+    display: "block",
+    width: "100%",
+    marginTop: 12,
+    padding: "12px 16px",
+    background: "transparent",
+    border: "none",
+    color: "#94a3b8",
+    fontSize: 12,
+    cursor: "pointer",
+    textAlign: "center" as const,
+    fontFamily: "inherit",
+    lineHeight: 1.5,
   },
 };

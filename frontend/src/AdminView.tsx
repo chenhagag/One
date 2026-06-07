@@ -1568,6 +1568,16 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
         if (cognitiveMsgs.length > 0) channelGroups.push({ key: "new_chat_cognitive", label: `סגנון חשיבה (${cognitiveMsgs.length})`, color: "#0ea5e9", msgs: cognitiveMsgs });
         if (tasteMsgs.length > 0) channelGroups.push({ key: "new_chat_taste", label: `ניתוח טעם (${tasteMsgs.length})`, color: "#ec4899", msgs: tasteMsgs });
 
+        // Q&A channels (grouped as "צ'אטים נוספים")
+        const qaAboutMeMsgs = transcript.messages.filter((m: any) => m.chat_type === "qa_about_me");
+        const qaSystemMsgs = transcript.messages.filter((m: any) => m.chat_type === "qa_system");
+        const qaGeneralMsgs = transcript.messages.filter((m: any) => m.chat_type === "qa_general");
+        const qaInsightsMsgs = transcript.messages.filter((m: any) => m.chat_type === "qa_insights");
+        if (qaAboutMeMsgs.length > 0) channelGroups.push({ key: "qa_about_me", label: `מה למדת עליי (${qaAboutMeMsgs.length})`, color: "#10b981", msgs: qaAboutMeMsgs });
+        if (qaSystemMsgs.length > 0) channelGroups.push({ key: "qa_system", label: `איך המערכת עובדת (${qaSystemMsgs.length})`, color: "#14b8a6", msgs: qaSystemMsgs });
+        if (qaGeneralMsgs.length > 0) channelGroups.push({ key: "qa_general", label: `שאלות ותשובות (${qaGeneralMsgs.length})`, color: "#8b5cf6", msgs: qaGeneralMsgs });
+        if (qaInsightsMsgs.length > 0) channelGroups.push({ key: "qa_insights", label: `דיון תובנות (${qaInsightsMsgs.length})`, color: "#f97316", msgs: qaInsightsMsgs });
+
         const filteredMsgs = transcriptTab === "all" ? transcript.messages
           : (channelGroups.find(g => g.key === transcriptTab)?.msgs || transcript.messages);
         return (
@@ -1608,7 +1618,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
               style={{ padding: "3px 10px", fontSize: 11, cursor: "pointer", background: "#e8f5e9", border: "1px solid #a5d6a7", borderRadius: 4 }}
               onClick={() => {
                 const userName = user?.first_name || `user_${userId}`;
-                const channelFileNames: Record<string, string> = { interviewer: "Lab", psychologist: "Depth", new_chat: "General Chat", new_chat_cognitive: "Thinking", new_chat_taste: "Taste" };
+                const channelFileNames: Record<string, string> = { interviewer: "Lab", psychologist: "Depth", new_chat: "General Chat", new_chat_cognitive: "Thinking", new_chat_taste: "Taste", qa_about_me: "QA-AboutMe", qa_system: "QA-System", qa_general: "QA-General", qa_insights: "QA-Insights" };
                 for (const g of channelGroups) {
                   const text = g.msgs.map((m: any) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`).join("\n\n");
                   const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
