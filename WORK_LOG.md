@@ -1,6 +1,101 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-06-02 (MVP UI Overhaul)
+## Latest Session: 2026-06-07 (iOS Fixes + Device Tracking + UI Updates)
+
+### Deployment
+- All changes pushed to both main (production) and staging
+
+### What We Did
+
+#### 1. iOS Standalone (PWA) Safe-Area Fix
+- Added `safe-area-inset-top` padding to main container, sidebar, auth screens, consent screen
+- iOS PWA was cutting off the top (header/menu inaccessible) — now respects notch/status bar
+- Sidebar mobile: positioned below safe area
+
+#### 2. iOS Standalone Keyboard Fix
+- Problem: when tapping input, entire screen jumped up hiding the chat
+- Tried multiple JS approaches (visualViewport resize, scrollTo lock, transform offset) — all caused worse issues
+- Solution: CSS-only `position: sticky` on input area for iOS standalone mode — works cleanly
+
+#### 3. Desktop Layout — Wider Sub-Screens
+- ProfileEdit: maxWidth 520 → 720px
+- Insights: maxWidth 600 → 720px
+- Settings: 400 → 560px (desktop only via CSS class)
+- Feedback: 500 → 560px (desktop only)
+- ConsentScreen: 400 → 560px
+- ProfileSetup: 600 → 680px
+- Mobile unchanged — CSS classes only activate above 769px
+
+#### 4. Device Tracking (Admin)
+- New DB columns: `last_device` (TEXT), `pwa_installed` (BOOLEAN)
+- Frontend sends device info (iphone/android/desktop + standalone detection) on every auth sync
+- Admin table shows new "Device" column: 🍎 iphone / 🤖 android / 🖥️ desktop + "(PWA)" badge
+- Updates on every login — always shows last device used
+
+#### 5. Home Screen Text Updates
+- Welcome text: new copy explaining the One process (AI chat → one precise match)
+- Removed old MVP disclaimer with bug report link
+- All-done message (non-couples): explains system is analyzing + MVP stage + quality over speed
+- Couples keep their existing all-done message
+
+#### 6. Google OAuth on Safari — Enabled
+- Removed Safari/iOS hiding of Google OAuth button — now shown to all browsers
+- Tested and confirmed working on iPhone Safari
+
+### Files Modified
+- `frontend/src/NewChat.tsx` — Safe-area, keyboard fix, desktop widths, welcome text, all-done message
+- `frontend/src/AuthScreen.tsx` — Safe-area padding, removed Safari OAuth hiding
+- `frontend/src/ConsentScreen.tsx` — Safe-area + wider maxWidth
+- `frontend/src/ProfileSetup.tsx` — Wider maxWidth
+- `frontend/src/ProfileEdit.tsx` — Wider maxWidth
+- `frontend/src/Insights.tsx` — Wider maxWidth
+- `frontend/src/App.tsx` — getDeviceInfo() helper, send in auth sync
+- `frontend/src/AuthCallback.tsx` — Send device info in auth sync
+- `frontend/src/AdminView.tsx` — Device column in user table
+- `backend/src/index.ts` — auth/sync accepts device/pwa_installed, saves to DB
+- `backend/src/schema.pg.ts` — last_device + pwa_installed columns
+
+### DB Columns Added (users table)
+- `last_device TEXT` — iphone / android / desktop
+- `pwa_installed BOOLEAN DEFAULT FALSE`
+
+---
+
+## Previous Session: 2026-06-03 (Google Play + Legal Pages)
+
+### What We Did
+
+#### 1. Privacy Policy & Terms of Service Pages
+- Created `frontend/public/privacy.html` — full Hebrew privacy policy
+- Created `frontend/public/terms.html` — full Hebrew terms of service
+- Added backend routes (`/privacy`, `/terms`) before SPA catch-all — static HTML, no auth, crawlable
+- Deployed to production: https://joinone.io/privacy, https://joinone.io/terms
+
+#### 2. Google OAuth on Safari — Test & Revert
+- Tried enabling Google OAuth on Safari for staging (hide only on production)
+- Didn't work on Safari — reverted to original behavior (hidden on all Safari/iOS)
+
+#### 3. Google Play Publishing — Plan Created (On Hold)
+- User has verified Google Play Developer account
+- Created detailed plan: `Docs/GOOGLE_PLAY_PLAN.md`
+- Approach: TWA (Trusted Web Activity) wrapping existing PWA via Bubblewrap
+- Reason: Chrome's WebAPK has old targetSdkVersion causing security warnings on Android 14+
+- Path: AAB build → assetlinks.json → Closed testing (20 testers, 14 days) → Production release
+- **On hold**: LambdaTest confirmed PWA install works clean on Galaxy S24 Ultra + S26 Ultra — the original warning was likely Play Protect caching on user's old device, not a real issue for new users
+- Installed `@bubblewrap/cli` globally, created empty `twa/` folder — ready to resume when needed
+- Google Play still valuable for discoverability + credibility even without the security warning issue
+
+### Files Created
+- `frontend/public/privacy.html` — Privacy policy page
+- `frontend/public/terms.html` — Terms of service page
+- `Docs/GOOGLE_PLAY_PLAN.md` — Google Play publishing plan
+
+### Files Modified
+- `backend/src/index.ts` — Added /privacy and /terms routes
+
+---
+
+## Previous Session: 2026-06-02 (MVP UI Overhaul)
 
 ### Deployment
 - All changes tested on staging, then pushed to both main (production) and staging on 2026-06-02
