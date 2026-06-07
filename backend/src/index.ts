@@ -227,14 +227,28 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
   const fullName =
     user_metadata?.full_name || user_metadata?.name || email.split("@")[0];
 
+  // Device info from frontend
+  const { device, pwa_installed } = req.body || {};
+
   try {
+    // Update device info helper
+    async function updateDeviceInfo(userId: number) {
+      if (device) {
+        await pgQueryAll(
+          `UPDATE users SET last_device = $1, pwa_installed = $2, updated_at = NOW() WHERE id = $3`,
+          [device, !!pwa_installed, userId]
+        );
+      }
+    }
+
     // 1. Check if already linked by supabase_uid
     let user = await pgQueryOne<any>(
       "SELECT * FROM users WHERE supabase_uid = $1",
       [supabaseUid]
     );
     if (user) {
-      return res.json({ ...user, profile_complete: user.profile_complete ?? true });
+      await updateDeviceInfo(user.id);
+      return res.json({ ...user, last_device: device || user.last_device, pwa_installed: pwa_installed ?? user.pwa_installed, profile_complete: user.profile_complete ?? true });
     }
 
     // 2. Check if existing user by email (legacy → link OAuth identity)
@@ -247,16 +261,17 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
         `UPDATE users SET supabase_uid = $1, auth_provider = $2, updated_at = NOW() WHERE id = $3`,
         [supabaseUid, provider, user.id]
       );
-      return res.json({ ...user, supabase_uid: supabaseUid, auth_provider: provider, profile_complete: user.profile_complete ?? true });
+      await updateDeviceInfo(user.id);
+      return res.json({ ...user, supabase_uid: supabaseUid, auth_provider: provider, last_device: device || user.last_device, pwa_installed: pwa_installed ?? user.pwa_installed, profile_complete: user.profile_complete ?? true });
     }
 
     // 3. Brand new user — create minimal row, profile_complete = false
     // Don't pre-fill first_name from OAuth — let user enter it in ProfileSetup
     const newUser = await pgQueryOne<any>(
-      `INSERT INTO users (first_name, email, supabase_uid, auth_provider, profile_complete)
-       VALUES ($1, $2, $3, $4, false)
+      `INSERT INTO users (first_name, email, supabase_uid, auth_provider, profile_complete, last_device, pwa_installed)
+       VALUES ($1, $2, $3, $4, false, $5, $6)
        RETURNING *`,
-      ["", email.trim().toLowerCase(), supabaseUid, provider]
+      ["", email.trim().toLowerCase(), supabaseUid, provider, device || null, !!pwa_installed]
     );
 
     return res.status(201).json(newUser);

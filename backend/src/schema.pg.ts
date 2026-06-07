@@ -539,6 +539,20 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       ) THEN
         ALTER TABLE users ADD COLUMN in_matching_pool BOOLEAN DEFAULT FALSE;
       END IF;
+
+      -- Device tracking: last device type and PWA install status
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'last_device'
+      ) THEN
+        ALTER TABLE users ADD COLUMN last_device TEXT;
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'pwa_installed'
+      ) THEN
+        ALTER TABLE users ADD COLUMN pwa_installed BOOLEAN DEFAULT FALSE;
+      END IF;
     END $$;
   `);
 

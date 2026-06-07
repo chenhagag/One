@@ -64,12 +64,21 @@ export default function AuthCallback({ onSuccess, onError }: AuthCallbackProps) 
       saveSupabaseTokens(accessToken, refreshToken);
 
       try {
+        const deviceInfo = (() => {
+          const ua = navigator.userAgent;
+          const isStandalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
+          let device = "desktop";
+          if (/iphone|ipad|ipod/i.test(ua)) device = "iphone";
+          else if (/android/i.test(ua)) device = "android";
+          return { device, pwa_installed: isStandalone };
+        })();
         const res = await fetch("/auth/sync", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
+          body: JSON.stringify(deviceInfo),
         });
 
         if (!res.ok) {

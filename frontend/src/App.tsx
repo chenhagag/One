@@ -85,6 +85,15 @@ function clearSession() {
   localStorage.removeItem("matchme_user_email");
 }
 
+function getDeviceInfo(): { device: string; pwa_installed: boolean } {
+  const ua = navigator.userAgent;
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
+  let device = "desktop";
+  if (/iphone|ipad|ipod/i.test(ua)) device = "iphone";
+  else if (/android/i.test(ua)) device = "android";
+  return { device, pwa_installed: isStandalone };
+}
+
 function getSavedSession(): { id: number; email: string } | null {
   const id = localStorage.getItem("matchme_user_id");
   const email = localStorage.getItem("matchme_user_email");
@@ -195,6 +204,7 @@ export default function App() {
                   "Content-Type": "application/json",
                   Authorization: `Bearer ${session.access_token}`,
                 },
+                body: JSON.stringify(getDeviceInfo()),
               });
               if (res.ok) {
                 const data = await res.json();

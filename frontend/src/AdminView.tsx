@@ -336,6 +336,7 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
       <th style={s.th}>במאגר</th>
       <th style={s.th}>Test Type</th>
       <th style={s.th}>Partner</th>
+      <th style={s.th}>Device</th>
       <th style={s.th}>Flags</th>
       <th style={s.th}>Total Cost</th>
       <th style={s.th}>Conversation</th>
@@ -365,6 +366,14 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
         <td style={s.td}><span style={{ color: u.in_matching_pool ? "#16a34a" : "#dc2626", fontWeight: 600 }}>{u.in_matching_pool ? "כן" : "לא"}</span></td>
         <td style={s.td}><span style={{ ...s.badge, fontSize: 10, background: u.test_user_type === "Couple Tester" ? "#d4edda" : u.test_user_type ? "#cfe2ff" : "" }}>{u.test_user_type || "-"}</span></td>
         <td style={s.td}><PartnerCell userId={u.id} value={u.partner_name || ""} /></td>
+        <td style={s.td}>
+          {u.last_device ? (
+            <span style={{ ...s.badge, fontSize: 10, background: u.last_device === "iphone" ? "#e0e7ff" : u.last_device === "android" ? "#d1fae5" : "#f3f4f6" }}>
+              {u.last_device === "iphone" ? "🍎" : u.last_device === "android" ? "🤖" : "🖥️"}{" "}
+              {u.last_device}{u.pwa_installed ? " (PWA)" : ""}
+            </span>
+          ) : "-"}
+        </td>
         <td style={s.td}>
           {flags.map(f => (
             <span key={f} style={{
