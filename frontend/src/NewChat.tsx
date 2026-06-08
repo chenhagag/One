@@ -780,7 +780,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       </p>
                     ) : hasDetails ? (
                       <p style={{ ...styles.recommendationText, lineHeight: 1.7 }}>
-                        כל השלבים הושלמו בהצלחה.
+                        🎉 כל השלבים הושלמו בהצלחה!
                         <br />
                         כעת המערכת מבצעת ניתוח מעמיק של המאפיינים שלך ומתחילה בחיפוש. נשלח לך עדכון ברגע שתעלה התאמה רלוונטית ומדויקת.
                         <br /><br />
