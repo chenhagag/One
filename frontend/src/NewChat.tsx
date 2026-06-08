@@ -721,14 +721,12 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               const tasteDoneForCouple = isCouple ? recommendations.cognitive_count >= 3 && has_taste_info : has_taste_info;
               const chatNotEnough = summary_fields < 8 && chat_count > 0 && !chatClosed;
 
-              // Priority 1: General chat not complete or not started — return to chat
-              if (chatNotEnough || (chat_count === 0 && !chatClosed)) {
+              // Priority 1: General chat not complete — return to chat
+              if (chatNotEnough) {
                 return (
                   <div style={styles.recommendationBlock}>
                     <p style={styles.recommendationText}>
-                      <span style={styles.recommendationBadge}>המלצת המומחה</span> {chat_count === 0
-                        ? "לחץ על \"בוא נתחיל\" כדי להתחיל בתהליך ההיכרות."
-                        : "עדיין לא הגענו להיכרות מספקת כדי למצוא לך התאמה ראויה. לחץ על \"בוא נמשיך\" כדי להתקדם."}
+                      <span style={styles.recommendationBadge}>המלצת המומחה</span> עדיין לא הגענו להיכרות מספקת כדי למצוא לך התאמה ראויה. לחץ על "בוא נמשיך" כדי להתקדם.
                     </p>
                   </div>
                 );
