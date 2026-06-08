@@ -238,9 +238,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         };
         for (const m of data.messages) {
           const ct = m.chat_type as string;
-          if (!ct) continue;
+          if (!ct || ct === "fine_tune") continue;
           let key: string | null = null;
           if (ct.startsWith("qa_")) {
+            // Q&A channels — only map to known qa_ channels, never fall through
             key = ct in perChannel ? ct : null;
           } else if (ct.startsWith("new_chat")) {
             key = ct in perChannel ? ct : "new_chat";
@@ -249,6 +250,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           } else if (ct === "interviewer") {
             key = "new_chat_cognitive";
           }
+          // Safety: never put non-matching messages into a channel
           if (key) perChannel[key].push({ role: m.role, content: m.content });
         }
         setChannelMessages(prev => {
