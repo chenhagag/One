@@ -1090,6 +1090,29 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
         >
           {user.in_matching_pool ? "✓ הוצאה מהמאגר" : "⊕ כניסה למאגר"}
         </button>
+         | Type: <select
+          style={{ fontSize: 11, padding: "2px 4px", borderRadius: 4, border: "1px solid #ccc", cursor: "pointer" }}
+          value={user.test_user_type || ""}
+          onChange={async (e) => {
+            const newType = e.target.value || null;
+            try {
+              const res = await fetch(`/api/admin/users/${user.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ test_user_type: newType }),
+              });
+              if (res.ok) {
+                setData((prev: any) => prev ? { ...prev, user: { ...prev.user, test_user_type: newType } } : prev);
+              } else {
+                alert(`שמירה נכשלה: ${res.status}`);
+              }
+            } catch (err: any) { alert(`שגיאת רשת: ${err.message}`); }
+          }}
+        >
+          <option value="">-</option>
+          <option value="UX Tester">UX Tester</option>
+          <option value="Couple Tester">Couple Tester</option>
+        </select>
          |
         Profile complete: <strong>{coverage?.profile_complete ? "Yes" : "No"}</strong> |
         Traits complete: <strong>{coverage ? `${coverage.met_count}/${coverage.total_count}` : "-"}</strong>
