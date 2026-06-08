@@ -1,6 +1,153 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-06-07 (iOS Fixes + Device Tracking + UI Updates)
+## Latest Session: 2026-06-08 (Major UX Overhaul — Waiting State + Insights + Q&A Channels + Dashboard)
+
+### Deployment
+- All changes pushed to both main (production) and staging
+
+### What We Did
+
+#### 1. Enhanced Insights Screen (Insights.tsx — full rewrite)
+- Replaced inline accordion with dedicated detail screens per section (MBTI, Values, Big Five)
+- Main view shows summary cards with "הרחבה →" button
+- MBTI detail: type description, alternate type detection (borderline dimensions), relationship meaning per type, compatibility chart (ideal/good/challenging types for all 16 MBTI types)
+- Schwartz Values detail: strong values (>60) with score bars + relationship context, weak values (<40) with explanation
+- Big Five detail: all 5 traits including neuroticism (renamed "רגישות רגשית" with respectful framing), high/mid/low levels, per-trait relationship context
+- "לא דייקנו לדעתך?" disagree section opens qa_about_me chat channel
+- New initialView prop — drip feed links open specific detail screen directly
+- Sidebar "תובנות על עצמי" always resets to main view
+
+#### 2. Separate Q&A Chat Channels (4 new channels)
+- qa_about_me — "מה למדת עליי עד עכשיו?" (only shown after analysis runs)
+- qa_system — "איך אתה מוצא לי התאמה מדויקת?"
+- qa_general — "יש לי שאלה לגבי התהליך"
+- qa_insights — "דיון על תובנות" (opened from Insights disagree bubble, routes to qa_about_me)
+- All use qa_ prefix (excluded from personality analysis — buildAnalysisTranscript uses LIKE 'new_chat%')
+- Each channel has separate history, loads on mount, shown in admin transcript tabs
+- Fixed full-transcript endpoint to return qa_ channels with correct chat_type (was falling to "interviewer" default)
+
+#### 3. Enriched AI Chat Context
+- qa_about_me/qa_insights: receives both safe profile data AND conversation summary
+- Detailed instructions for discussing insights: ask probing questions, suggest MBTI alternatives, reach conclusions together
+- qa_system/qa_general: receives system context with explicit instruction to answer FROM provided info
+- Strengthened profile prompt: AI shares MBTI/values/Big Five directly, never suggests external tests, calls neuroticism "רגישות רגשית"
+
+#### 4. Post-Completion Dashboard (home screen, below existing all-done message)
+- Progress Pulse: "האלגוריתם בעבודה" with scanned profiles count + pool size
+- Insight Drip Feed: rotating card (MBTI → Values → Big Five) with "לקריאת הניתוח המלא" linking to specific detail screen
+- Fine-Tuning Question: single pet compatibility question with chip buttons
+- Feedback Footer: "מסך המשוב שלנו" as visible link
+- Dashboard only shows when profile is complete; insight drip + fine-tuning show after all chats done
+- Couples see insight drip feed too; couples skip "צעד אחרון" message
+
+#### 5. Progress Bar
+- Shows below welcome text after user starts chatting
+- 4 step indicators: שיחת היכרות, סגנון חשיבה, ניתוח טעם, השלמת פרטים
+- Visual: ✅ done / 🔵 active / ⚪ pending with labels
+- Progress: 5% first messages → 15% mid-chat → 30% done per channel + 10% profile
+- Green 100% badge when everything complete
+
+#### 6. Home Screen Recommendations Redesign
+- "המלצת המומחה" → "📊 איפה אנחנו עומדים?" with gender-adapted text (לחץ/לחצי)
+- Clickable links to next step (not just text instructions)
+- "בוא נמשיך" button shows green ✓ + "חזרה לשיחה" when chat closed
+- Welcome text hides "how it works" paragraph after all chats complete
+- Profile incomplete: differentiated messages for "only photo missing" vs "photo + details missing"
+
+#### 7. Bubble Styling Split
+- Step bubbles (start/continue, cognitive, taste): solid border, full size
+- Q&A bubbles (system, question, about me): separated below with divider, smaller font (12px), normal border
+- "מה למדת עליי" only shown after analysis_run_count > 0
+
+#### 8. "How It Works" Page + Brand Language
+- New sidebar screen "איך המערכת עובדת?" with full process + science explanation
+- Brand language alignment: "פרופיל" → "מפה אישיותית"/"מאפיינים"/"תמונת מצב"
+- Professional tone: מנגנוני ויסות, עיבוד מידע, הלימה
+- MBTI as supplementary tool, Big Five + Schwartz as research-backed
+- Algorithm trained on real couples data
+- AI rules: no "פרופיל" word, gender-adapted language, algorithm secrecy policy
+
+#### 9. System Prompt Overhaul (context-system-info.txt)
+- Full rewrite aligned with Gemini suggestions + brand language
+- Theories: Big Five, Schwartz, MBTI (supplement), cognitive profile, attachment, communication, cultural, conflict
+- "When will I get a match": no compromise on mediocre matches, pool growth = faster, no specific timeline
+- Match pool entry: requires completed profile details + photos in "הפרטים שלי"
+
+#### 10. Profile Prompt Enhancement (context-profile.txt)
+- AI shares MBTI type, Schwartz values, Big Five results proactively
+- Never suggests external personality tests
+- Neuroticism discussed as "רגישות רגשית" — framed as strength
+
+#### 11. Photo Privacy Explanation
+- Added explanation block below photo upload in ProfileEdit
+- Three points: full privacy, targeted exposure only, mutual visual approval required
+
+#### 12. Profile Completeness Fix
+- has_profile_details now requires ALL fields: age, city, height, looking_for_gender, desired_age_min/max, desired_height_min/max, plus at least 1 photo (was only checking age + city + photo)
+
+#### 13. Admin Enhancements
+- test_user_type dropdown in user detail (switch between UX Tester / Couple Tester / none)
+- Q&A channels visible in transcript tabs with colors
+- Fixed full-transcript chat_type mapping for qa_ prefix
+
+#### 14. Backend — New Endpoints
+- GET /users/:id/matching-progress — dashboard data (pool size, scanned profiles)
+- GET /users/:id/detailed-traits — full trait data for Insights (all scores, MBTI dimensions, alternate type)
+- POST /users/:id/fine-tune-answer — save fine-tuning question answer
+- Status endpoint now returns analysis_run_count and gender
+
+#### 15. User Copy Script
+- Created backend/copy-user-to-staging.js — copies user + all related data from production to staging
+- Usage: node copy-user-to-staging.js <user_id_or_name>
+- Copies: users, conversation_messages, user_chat_summaries, user_traits, user_look_traits, user_photos, analysis_runs, token_usage, bug_reports
+
+### Files Modified
+- `frontend/src/NewChat.tsx` — Progress bar, recommendations, bubbles, dashboard, channels, welcome text
+- `frontend/src/Insights.tsx` — Full rewrite with detail screens
+- `frontend/src/ProfileEdit.tsx` — Photo privacy explanation
+- `frontend/src/AdminView.tsx` — Q&A transcript tabs, test_user_type dropdown
+- `backend/src/index.ts` — New endpoints, profile completeness, transcript fix, status fields
+- `backend/src/safeOutputLayer.ts` — getDetailedUserProfile, neuroticism addition
+- `backend/src/agents/conversation/chatManager.ts` — Q&A channel routing, enriched context
+- `backend/src/agents/conversation/prompts/context-profile.txt` — Enhanced instructions
+- `backend/src/agents/conversation/prompts/context-system-info.txt` — Full rewrite with brand language
+
+### Files Created
+- `backend/copy-user-to-staging.js` — User data copy script
+
+### New DB Fields Used (via status endpoint)
+- analysis_run_count (existing column, now exposed)
+- gender (existing column, now in status response)
+
+#### 16. Profile Completeness Fix
+- `has_profile_details` now requires ALL fields: age, city, height, looking_for_gender, desired_age_min/max, desired_height_min/max + photo (was only age + city + photo)
+
+#### 17. Automatic Retry on Chat Messages
+- If message send fails (network/deploy), retries up to 2 more times with 3s delay
+- Error shown only after all retries exhausted — transparent to user
+
+#### 18. Sidebar Reorder
+- "איך המערכת עובדת?" moved to third position (after מסך ראשי and חזרה לשיחה)
+
+#### 19. Q&A Prompt Strengthening
+- qa_general/qa_system: explicit instruction to answer FROM provided context
+- Specific reinforcement for wait-time questions (no mediocre matches, pool growth, no timeline)
+
+### Key Design Decisions
+- Q&A channels use qa_ prefix (not new_chat_) to exclude from personality analysis
+- Disagree from Insights routes to qa_about_me (shared channel, not separate qa_insights)
+- Progress bar designed to be easily removable if not liked
+- Brand language: "מפה אישיותית" not "פרופיל", professional but warm tone
+- Neuroticism renamed "רגישות רגשית" with positive framing throughout
+
+### Known Issues / Next Steps
+- **Insights chat quality**: qa_about_me ("מה למדת עליי") needs better AI context + personalization — conversations feel too generic, need to reference specific things user said
+- **Fine-tuning questions**: currently one static question (pets) — needs design decision on dynamic vs static
+- **Future insight types**: Enneagram + attachment style (second analysis run)
+
+---
+
+## Previous Session: 2026-06-07 (iOS Fixes + Device Tracking + UI Updates)
 
 ### Deployment
 - All changes pushed to both main (production) and staging
