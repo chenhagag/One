@@ -802,24 +802,6 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       </p>
                     )}
 
-                    {/* ── Dashboard: Progress Pulse — only when profile is complete ── */}
-                    {!isCouple && hasDetails && matchingProgress && (
-                      <div style={styles.dashboardCard}>
-                        <p style={styles.dashboardTitle}>האלגוריתם בעבודה ⚙️</p>
-                        {matchingProgress.scanned_profiles > 0 && (
-                          <p style={styles.dashboardMetric}>
-                            📊 <strong>{matchingProgress.scanned_profiles}</strong> פרופילים נבדקו מול המאפיינים שלך
-                          </p>
-                        )}
-                        {matchingProgress.total_pool_profiles > 0 && (
-                          <p style={styles.dashboardMetric}>
-                            👥 <strong>{matchingProgress.total_pool_profiles}</strong> פרופילים במאגר
-                          </p>
-                        )}
-                        <p style={styles.dashboardStatus}>{matchingProgress.status_text} 🔍</p>
-                      </div>
-                    )}
-
                     {/* ── Dashboard: Insight Drip Feed — shown for all users including couples ── */}
                     {insightCard && (() => {
                       const rot = insightRotation % 3;
@@ -878,39 +860,6 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       );
                     })()}
 
-                    {/* ── Dashboard: Fine-Tuning Question ── */}
-                    {!isCouple && !fineTuneAnswered && (
-                      <div style={styles.dashboardCard}>
-                        <div style={styles.fineTuneBubble}>
-                          <span style={{ fontSize: 16 }}>💬</span>
-                          <p style={styles.fineTuneText}>
-                            היי, אני רוצה לדייק משהו קטן. האם {user.gender === "woman" ? "היית מסתדרת" : "היית מסתדר"} עם בן/בת זוג שלא {user.gender === "woman" ? "אוהבת" : "אוהב"} בעלי חיים?
-                          </p>
-                        </div>
-                        <div style={styles.fineTuneChips}>
-                          <button style={styles.chipBtn} onClick={() => {
-                            fetch(`/api/users/${user.id}/fine-tune-answer`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question_key: "pet_compatibility", answer: "no" }) }).catch(() => {});
-                            setFineTuneAnswered(true);
-                            localStorage.setItem(`fine_tune_${user.id}`, "true");
-                          }}>
-                            ממש לא, {user.gender === "woman" ? "היא חייבת" : "הוא חייב"} לאהוב
-                          </button>
-                          <button style={styles.chipBtn} onClick={() => {
-                            fetch(`/api/users/${user.id}/fine-tune-answer`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question_key: "pet_compatibility", answer: "yes" }) }).catch(() => {});
-                            setFineTuneAnswered(true);
-                            localStorage.setItem(`fine_tune_${user.id}`, "true");
-                          }}>
-                            {user.gender === "woman" ? "יכולה להסתדר" : "יכול להסתדר"}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    {!isCouple && fineTuneAnswered && (
-                      <div style={{ ...styles.dashboardCard, textAlign: "center" }}>
-                        <p style={{ fontSize: 13, color: "#22c55e", margin: 0 }}>✓ תודה! הנתון עודכן ומקצר לנו טווחים.</p>
-                      </div>
-                    )}
-
                     {/* ── Dashboard: Feedback Footer ── */}
                     {!isCouple && (
                       <button style={styles.feedbackFooter} onClick={() => setScreen("bug_report")}>
@@ -933,65 +882,12 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               const allChatsComplete = chatDone && recommendations.has_cognitive && recommendations.has_taste_info;
               const hasAnalysis = recommendations.analysis_run_count > 0;
 
-              // Progress bar calculation — starts at 0, mid-chat=15, done=30 per channel
-              const chatMsgCount = recommendations.chat_count || 0;
-              const chatProgress = chatDone ? 30 : (chatMsgCount >= 3 ? 15 : (chatMsgCount > 0 ? 5 : 0));
-              const cogMsgCount = (channelMessages["new_chat_cognitive"]?.length ?? 0);
-              const cogProgress = recommendations.has_cognitive ? 30 : (cogMsgCount >= 3 ? 15 : (cogMsgCount > 0 ? 5 : 0));
-              const tasteMsgCount = (channelMessages["new_chat_taste"]?.length ?? 0);
-              const tasteProgress = recommendations.has_taste_info ? 30 : (tasteMsgCount >= 3 ? 15 : (tasteMsgCount > 0 ? 5 : 0));
-              const profileProgress = recommendations.has_profile_details ? 10 : (recommendations.photo_count > 0 ? 5 : 0);
-              const totalProgress = Math.min(100, chatProgress + cogProgress + tasteProgress + profileProgress);
-              const showProgress = (chatMsgCount > 0 || cogMsgCount > 0) && totalProgress < 100;
-              const isComplete = totalProgress >= 100;
-
-              // Step labels for the visual progress
-              const steps = [
-                { label: "שיחת היכרות", done: chatDone, active: chatMsgCount > 0 && !chatDone },
-                { label: "סגנון חשיבה", done: recommendations.has_cognitive, active: cogMsgCount > 0 && !recommendations.has_cognitive },
-                { label: "ניתוח טעם", done: recommendations.has_taste_info, active: tasteMsgCount > 0 && !recommendations.has_taste_info },
-                { label: "השלמת פרטים", done: recommendations.has_profile_details, active: recommendations.photo_count > 0 && !recommendations.has_profile_details },
-              ];
-
               return (
               <>
-              {/* Progress bar */}
-              {showProgress && (
-                <div style={{ padding: "4px 20px 12px", direction: "rtl" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "#1a1a2e" }}>ההתקדמות שלך</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: isComplete ? "#22c55e" : "#6366f1" }}>{totalProgress}%</span>
-                  </div>
-                  <div style={{ height: 8, background: "#e5e7eb", borderRadius: 4, overflow: "hidden", marginBottom: 8 }}>
-                    <div style={{ height: "100%", width: `${totalProgress}%`, background: isComplete ? "#22c55e" : "linear-gradient(90deg, #a5b4fc, #6366f1)", borderRadius: 4, transition: "width 0.5s ease" }} />
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 4 }}>
-                    {steps.map((st, i) => (
-                      <div key={i} style={{ textAlign: "center", flex: 1 }}>
-                        <div style={{ fontSize: 14, marginBottom: 2 }}>
-                          {st.done ? "✅" : st.active ? "🔵" : "⚪"}
-                        </div>
-                        <div style={{ fontSize: 10, color: st.done ? "#22c55e" : st.active ? "#6366f1" : "#94a3b8", fontWeight: st.done || st.active ? 600 : 400 }}>
-                          {st.label}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {isComplete && allChatsComplete && recommendations.has_profile_details && (
-                <div style={{ padding: "4px 20px 12px", direction: "rtl", textAlign: "center" }}>
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 20, padding: "6px 16px" }}>
-                    <span style={{ fontSize: 16 }}>✅</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "#166534" }}>100% — כל השלבים הושלמו!</span>
-                  </div>
-                </div>
-              )}
-
-              <div className="nc-suggestions" style={styles.suggestions}>
+              <div className="nc-suggestions" style={{ ...styles.suggestions, ...(allChatsComplete ? { gap: 6 } : {}) }}>
                 {/* Main chat button */}
                 <button style={{
-                  ...styles.suggestionBtn,
+                  ...(allChatsComplete ? styles.qaBubble : styles.suggestionBtn),
                   ...(chatDone
                     ? { borderColor: "#22c55e", color: "#22c55e" }
                     : { background: "#6366f1", color: "#fff", border: "1px solid #6366f1" }),
@@ -1014,7 +910,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 {STEP_OPTIONS.map((s, i) => {
                   const isChannelDone = closedChannels[s.channel] || (s.channel === "new_chat_cognitive" && recommendations.has_cognitive) || (s.channel === "new_chat_taste" && recommendations.has_taste_info);
                   return (
-                  <button key={`step-${i}`} style={{ ...styles.suggestionBtn, ...(isChannelDone ? { borderColor: "#22c55e", color: "#22c55e" } : {}) }} onClick={() => {
+                  <button key={`step-${i}`} style={{ ...(allChatsComplete ? styles.qaBubble : styles.suggestionBtn), ...(isChannelDone ? { borderColor: "#22c55e", color: "#22c55e" } : {}) }} onClick={() => {
                     if (channelMessages[s.channel]?.length > 0) {
                       setChannel(s.channel);
                       setScreen("chat");
