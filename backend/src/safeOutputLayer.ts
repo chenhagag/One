@@ -65,6 +65,7 @@ const BIG_FIVE_INFO: Record<string, { he: string; desc: string; relationship: st
   conscientiousness: { he: "מצפוניות", desc: "סדר, משמעת עצמית, אחריות ותכנון קדימה", relationship: "חשוב בן/בת זוג שמעריכים אחריות ומחויבות, עם רמת סדר דומה" },
   agreeableness: { he: "נעימות", desc: "אמפתיה, שיתוף פעולה, אמון באנשים ונדיבות", relationship: "מתאים בן/בת זוג שמעריכים הרמוניה, פשרות ורגישות הדדית" },
   openness_to_experience: { he: "פתיחות לחוויות", desc: "סקרנות, יצירתיות, העדפת גיוון ופתיחות לרעיונות חדשים", relationship: "מתאים בן/בת זוג סקרנים שאוהבים לגלות דברים חדשים ולא חוששים משינוי" },
+  neuroticism: { he: "רגישות רגשית", desc: "עוצמת התגובה הרגשית, מודעות פנימית ורגישות לשינויים ולחצים", relationship: "חשוב בן/בת זוג שמבין את הצרכים הרגשיים ויודע לספק ביטחון ורוגע" },
 };
 
 function computeMbtiType(traits: Map<string, number>): string | null {
