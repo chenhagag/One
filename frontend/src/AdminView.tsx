@@ -1112,6 +1112,9 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
           <option value="">-</option>
           <option value="UX Tester">UX Tester</option>
           <option value="Couple Tester">Couple Tester</option>
+          {user.test_user_type && !["", "UX Tester", "Couple Tester"].includes(user.test_user_type) && (
+            <option value={user.test_user_type}>{user.test_user_type}</option>
+          )}
         </select>
          |
         Profile complete: <strong>{coverage?.profile_complete ? "Yes" : "No"}</strong> |
