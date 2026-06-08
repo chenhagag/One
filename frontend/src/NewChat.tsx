@@ -439,6 +439,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   setMenuOpen(false);
                   return;
                 }
+                if (item.action === "insights") setInsightInitialView("main");
                 setScreen(item.action as any);
                 setMenuOpen(false);
               }}
