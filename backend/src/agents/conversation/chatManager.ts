@@ -350,14 +350,34 @@ export async function buildChatPrompt(
     if (channel === "qa_about_me" || channel === "qa_insights") {
       const safeProfile = await getSafeUserProfile(userId);
       const profileText = formatSafeProfileForPrompt(safeProfile);
+
+      // Build rich context: profile data + conversation summary for deep discussion
+      const parts: string[] = [PROFILE_CONTEXT];
+
       if (profileText.trim()) {
-        contextBlock = PROFILE_CONTEXT + "\n\n## פרופיל המשתמש\n" + profileText;
-      } else if (userSummary) {
-        const summaryText = formatSummaryForPrompt(userSummary);
-        contextBlock = PROFILE_CONTEXT + "\n\n## מה שלמדתי מהשיחה (טרם בוצע ניתוח רשמי)\n" + summaryText + "\n\nהערה: זה מבוסס על מה שהמשתמש שיתף בשיחה. עדיין לא בוצע ניתוח אישיות מלא.";
-      } else {
-        contextBlock = PROFILE_CONTEXT + "\n\nאין עדיין נתוני פרופיל מובנים. שתף רשמים כלליים מהשיחה ועודד להמשיך לשוחח.";
+        parts.push("\n\n## המפה האישיותית של המשתמש\n" + profileText);
       }
+
+      // Always add conversation summary if available — gives AI conversational context
+      if (userSummary) {
+        const summaryText = formatSummaryForPrompt(userSummary);
+        parts.push("\n\n## סיכום מה שהמשתמש שיתף בשיחה\n" + summaryText);
+      }
+
+      if (!profileText.trim() && !userSummary) {
+        parts.push("\n\nאין עדיין נתוני פרופיל מובנים. שתף רשמים כלליים מהשיחה ועודד להמשיך לשוחח.");
+      }
+
+      parts.push(`\n\n## הנחיות לדיון על תובנות
+כשהמשתמש רוצה לדון בתובנות שלו (MBTI, ערכים, Big Five):
+- נהל דיון עמוק ואישי. אתה מכיר את המשתמש — השתמש בדוגמאות מהשיחה שלכם.
+- אם המשתמש לא מסכים עם ניתוח מסוים, אל תתגונן. שאל שאלות חכמות כדי להבין למה.
+- אם יש התלבטות בין שני טיפוסים (למשל INFP מול INFJ), הסבר את ההבדלים ותן דוגמאות ממה שהמשתמש שיתף.
+- שאל שאלות נוספות כדי לחדד: "למשל, כשאתה מקבל החלטה חשובה — אתה נוטה לעבוד לפי הרגש או ניתוח לוגי?"
+- הגע למסקנה יחד עם המשתמש. אם הוא צודק — עדכן את ההבנה שלך.
+- תוכל גם לשתף תובנות על מה מתאים לו בזוגיות על בסיס מה שאתה יודע.`);
+
+      contextBlock = parts.join("");
     } else {
       // qa_system or qa_general
       contextBlock = SYSTEM_CONTEXT;

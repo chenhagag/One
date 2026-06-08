@@ -6,43 +6,80 @@ interface InsightsProps {
   onOpenChat?: (initialMessage: string, channel: string) => void;
 }
 
-// ── Detailed profile from API ──
 interface DetailedProfile {
   mbti: {
     type: string | null;
     description: string | null;
     alternateType: string | null;
     alternateDescription: string | null;
-    dimensions: {
-      extraversion: number | null;
-      sensing: number | null;
-      intuition: number | null;
-      thinking: number | null;
-      feeling: number | null;
-      judging: number | null;
-      perceiving: number | null;
-    };
+    dimensions: Record<string, number | null>;
   };
   allValues: { name: string; he: string; score: number; description: string; relationship: string }[];
   allBigFive: { name: string; he: string; score: number; description: string; relationship: string }[];
 }
 
-// ── Hebrew model explanations ──
-const MBTI_EXPLANATION = "MBTI (Myers-Briggs Type Indicator) הוא מודל אישיות שמחלק אנשים ל-16 טיפוסים על פי 4 ממדים: האם אתה מופנה פנימה או החוצה, איך אתה קולט מידע, איך אתה מקבל החלטות, ואיך אתה מעדיף לתכנן את חייך.";
+// ── MBTI Compatibility Data ──
+const MBTI_COMPATIBILITY: Record<string, { ideal: string[]; good: string[]; challenging: string[] }> = {
+  INFP: { ideal: ["ENFJ", "ENTJ"], good: ["INFJ", "ENFP", "INTJ", "INTP"], challenging: ["ESTJ", "ESFJ", "ISTJ"] },
+  ENFP: { ideal: ["INFJ", "INTJ"], good: ["ENFJ", "INFP", "ENTP", "INTP"], challenging: ["ISTJ", "ISFJ", "ESTJ"] },
+  INFJ: { ideal: ["ENFP", "ENTP"], good: ["INFP", "INTJ", "ENFJ", "ISFJ"], challenging: ["ESTP", "ESFP", "ISTP"] },
+  ENFJ: { ideal: ["INFP", "ISFP"], good: ["INFJ", "ENFP", "ENTJ", "ESFJ"], challenging: ["ISTP", "INTP", "ESTP"] },
+  INTJ: { ideal: ["ENFP", "ENTP"], good: ["INFJ", "INFP", "ENTJ", "INTJ"], challenging: ["ESFP", "ESFJ", "ISFP"] },
+  ENTJ: { ideal: ["INFP", "INTP"], good: ["INTJ", "ENFP", "ENFJ", "ENTP"], challenging: ["ISFP", "ISFJ", "ESFP"] },
+  INTP: { ideal: ["ENTJ", "ESTJ"], good: ["INFP", "ENTP", "INTJ", "ENFP"], challenging: ["ESFJ", "ISFJ", "ESFP"] },
+  ENTP: { ideal: ["INFJ", "INTJ"], good: ["ENFP", "INTP", "ENFJ", "ENTJ"], challenging: ["ISFJ", "ESFJ", "ISTJ"] },
+  ISFJ: { ideal: ["ESFP", "ESTP"], good: ["ISTJ", "ISFP", "INFJ", "ESFJ"], challenging: ["ENTP", "ENFP", "INTP"] },
+  ESFJ: { ideal: ["ISFP", "ISTP"], good: ["ISFJ", "ESFP", "ENFJ", "ESTJ"], challenging: ["INTP", "INTJ", "ENTP"] },
+  ISTJ: { ideal: ["ESFP", "ESTP"], good: ["ISFJ", "ESTJ", "INTJ", "ISTP"], challenging: ["ENFP", "INFP", "ENTP"] },
+  ESTJ: { ideal: ["ISFP", "ISTP"], good: ["ISTJ", "ESFJ", "ENTJ", "ESTJ"], challenging: ["INFP", "ENFP", "INFJ"] },
+  ISFP: { ideal: ["ENFJ", "ESFJ", "ESTJ"], good: ["ISFJ", "INFP", "ESFP", "ISTP"], challenging: ["ENTJ", "INTJ", "ENTP"] },
+  ESFP: { ideal: ["ISFJ", "ISTJ"], good: ["ESFJ", "ESTP", "ENFP", "ISFP"], challenging: ["INTJ", "INFJ", "INTP"] },
+  ISTP: { ideal: ["ESFJ", "ESTJ"], good: ["ISFP", "ESTP", "ISTJ", "INTP"], challenging: ["ENFJ", "INFJ", "ENFP"] },
+  ESTP: { ideal: ["ISFJ", "ISTJ"], good: ["ESFP", "ISTP", "ESTJ", "ENTP"], challenging: ["INFJ", "INFP", "ENFJ"] },
+};
 
-const SCHWARTZ_EXPLANATION = "מודל הערכים של Schwartz מזהה 11 ערכים אוניברסליים שמנחים את ההתנהגות של כל אדם. הערכים מסודרים במעגל — ערכים סמוכים משתלבים, ערכים מנוגדים עלולים ליצור מתח. בזוגיות, התאמה בערכים מרכזיים מנבאת שביעות רצון גבוהה יותר.";
+const MBTI_RELATIONSHIP_DETAIL: Record<string, string> = {
+  INFP: "בזוגיות, INFP מחפש חיבור רגשי עמוק ואותנטיות מוחלטת. הוא זקוק לבן/בת זוג שמבין את עולמו הפנימי העשיר ומכבד את הצורך שלו במרחב. הוא נוטה להרמוניה אבל גם לאידיאליזם — מה שיכול ליצור מתח כשהמציאות לא עומדת בציפיות.",
+  ENFP: "בזוגיות, ENFP מביא אנרגיה, יצירתיות והתלהבות. הוא מחפש עומק רגשי אבל גם ריגוש והרפתקה. הוא זקוק לבן/בת זוג שיתן לו מרחב להיות ספונטני, אבל גם יעגן אותו כשהוא מתפזר.",
+  INFJ: "בזוגיות, INFJ מחפש חיבור עמוק ומשמעותי. הוא אינטואיטיבי ומבין את בן/בת הזוג לפני שהם מסבירים. הוא זקוק למישהו שמעריך את העומק שלו ולא נבהל מהרגישות.",
+  ENFJ: "בזוגיות, ENFJ הוא שותף מסור שמשקיע עמוקות. הוא קורא אנשים מצוין ודואג שבן/בת הזוג ירגישו אהובים. האתגר שלו — לפעמים שם את הצרכים של השני לפני שלו.",
+  INTJ: "בזוגיות, INTJ מחפש שותפות אינטלקטואלית. הוא נאמן ומחויב אבל לא מביע רגשות בקלות. הוא זקוק לבן/בת זוג שמעריך עצמאות ולא דורש הפגנות רגשיות תמידיות.",
+  ENTJ: "בזוגיות, ENTJ מוביל ובונה. הוא מחויב ומשקיע אבל גם דורש. הוא זקוק לבן/בת זוג שמכבד את האמביציות שלו אבל גם יודע להאט אותו ולהזכיר שיש חיים מעבר להישגים.",
+  INTP: "בזוגיות, INTP מביא נאמנות שקטה ועומק אינטלקטואלי. הוא לא הכי טבעי בביטוי רגשות אבל כשהוא אוהב — זה עמוק ואמיתי. הוא זקוק לבן/בת זוג סבלני שמבין שחוסר ביטוי לא אומר חוסר רגש.",
+  ENTP: "בזוגיות, ENTP מביא ריגוש ודיונים אינסופיים. הוא מחפש שותף/ה שיאתגר אותו אינטלקטואלית. האתגר שלו — לפעמים מעדיף ויכוח על פני פשרה, וצריך ללמוד לשמוע גם כשלא מסכים.",
+  ISFJ: "בזוגיות, ISFJ הוא שותף מסור ונאמן. הוא דואג לפרטים הקטנים ובונה בית חם. הוא זקוק לבן/בת זוג שמעריך את ההשקעה שלו ולא לוקח אותה כמובנת מאליה.",
+  ESFJ: "בזוגיות, ESFJ מביא חמימות ותחושת שייכות. הוא מתמסר ומשקיע במערכת היחסים. האתגר שלו — לפעמים רגיש מדי לביקורת וזקוק לאישור שהוא עושה טוב.",
+  ISTJ: "בזוגיות, ISTJ הוא סלע. אמין, עקבי ומחויב. הוא לא הכי ספונטני אבל אפשר לסמוך עליו בעיניים עצומות. הוא זקוק לבן/בת זוג שמעריך יציבות ולא צריך הפתעות כל יום.",
+  ESTJ: "בזוגיות, ESTJ מוביל ומארגן. הוא שותף אמין שדואג שהכל עובד. האתגר שלו — לפעמים שולט מדי ושוכח לשאול מה בן/בת הזוג רוצה.",
+  ISFP: "בזוגיות, ISFP מביא רגישות ותשומת לב. הוא חי לפי הערכים שלו ומחפש אותנטיות. הוא זקוק לבן/בת זוג שנותן מרחב ולא לוחץ מדי.",
+  ESFP: "בזוגיות, ESFP מביא שמחת חיים ואנרגיה. הוא חי ברגע ומחפש חוויות משותפות. האתגר שלו — תכנון לטווח ארוך ושיחות קשות.",
+  ISTP: "בזוגיות, ISTP מביא רוגע ופרקטיות. הוא לא מדבר הרבה אבל כשהוא שם — הוא באמת שם. זקוק למרחב ולבן/בת זוג שלא דורש דיבורים כל הזמן.",
+  ESTP: "בזוגיות, ESTP מביא הרפתקה ואנרגיה. הוא חי ברגע ומחפש חוויות. האתגר — לא תמיד מוכן לשיחות רגשיות עמוקות, וצריך ללמוד את זה.",
+};
 
-const BIG_FIVE_EXPLANATION = "מודל חמש התכונות הגדולות (Big Five) הוא המודל המוביל בפסיכולוגיה לתיאור אישיות. כל אדם נמצא על ספקטרום בכל אחד מחמישה ממדים, והשילוב הייחודי שלהם מגדיר את סגנון ההתנהגות, התקשורת והחשיבה.";
+const MBTI_EXPLANATION = "MBTI (Myers-Briggs Type Indicator) הוא מודל אישיות שמחלק אנשים ל-16 טיפוסים על פי 4 ממדים: האם אתה מופנה פנימה או החוצה (I/E), איך אתה קולט מידע (S/N), איך אתה מקבל החלטות (T/F), ואיך אתה מעדיף לתכנן את חייך (J/P). ב-One אנחנו משתמשים בו בעיקר ככלי עזר שמפרק את האישיות לממדים שימושיים של עיבוד מידע וקבלת החלטות.";
 
-const MBTI_RELATIONSHIP: Record<string, string> = {
-  E: "מוחצנים מחפשים אינטראקציה ושיתוף, מופנמים זקוקים לזמן לעצמם — הבנה הדדית של הצורך הזה חיונית לזוגיות מוצלחת.",
-  I: "מופנמים מעדיפים עומק ושקט, מוחצנים מחפשים גירוי חברתי — כשמכבדים את הצורך של כל אחד, השילוב עובד.",
-  S: "חושנים מתמקדים בפרטים ובהווה — הם שמים לב לדברים הקטנים ומביאים יציבות לזוגיות.",
-  N: "אינטואיטיביים מתמקדים בתמונה הגדולה ובאפשרויות — הם מביאים חזון והשראה לזוגיות.",
-  T: "חושבים מקבלים החלטות לוגיות ואנליטיות — חשוב שבן/בת הזוג יבין שזו דרך לבטא אכפתיות.",
-  F: "מרגישים מתחשבים ברגשות ובערכים — הם מביאים חום ורגישות לזוגיות.",
-  J: "שופטים אוהבים תוכניות וסדר — זה מביא יציבות, אבל דורש גמישות עם בן/בת זוג ספונטני.",
-  P: "תופסים אוהבים גמישות וספונטניות — זה מביא ריגוש, אבל דורש פשרה על ארגון החיים.",
+const SCHWARTZ_EXPLANATION = "תיאוריית הערכים של שוורץ (Schwartz) היא מודל מחקרי שממפה ערכי ליבה בסיסיים המנחים התנהגות. הערכים מסודרים במעגל — ערכים סמוכים משתלבים, ערכים מנוגדים עלולים ליצור מתח. הלימה בערכים מרכזיים מנבאת יציבות זוגית ארוכת טווח.";
+
+const BIG_FIVE_EXPLANATION = "מודל חמשת הממדים (Big Five) הוא המודל המוביל והמוכח ביותר בפסיכולוגיה לתיאור אישיות. כל אדם נמצא על ספקטרום בכל אחד מחמישה ממדים, והשילוב הייחודי שלהם מגדיר את סגנון ההתנהגות, התקשורת והחשיבה.";
+
+const BIG_FIVE_RELATIONSHIP: Record<string, { high: string; low: string }> = {
+  extraversion: {
+    high: "מוחצנות גבוהה — מחפש אינטראקציה ושיתוף. מתאים לבן/בת זוג שאוהב חברה, או שמאזן עם שקט ומרחב אישי.",
+    low: "מוחצנות נמוכה — מעדיף עומק על פני רוחב. מתאים לבן/בת זוג שמכבד את הצורך בזמן לעצמו ולא לוחץ לחיי חברה אינטנסיביים.",
+  },
+  conscientiousness: {
+    high: "מצפוניות גבוהה — מאורגן ומחויב. בזוגיות זה מביא יציבות, אבל צריך גמישות כשבן/בת הזוג פחות מתוכנן.",
+    low: "מצפוניות נמוכה — ספונטני וגמיש. בזוגיות זה מביא כיף והפתעות, אבל צריך שהצד השני לא יתסכל מחוסר תוכניות.",
+  },
+  agreeableness: {
+    high: "נעימות גבוהה — אמפתי ומפשר. בזוגיות זה יוצר הרמוניה, אבל חשוב לא לוותר תמיד על הצרכים שלך.",
+    low: "נעימות נמוכה — ישיר ועצמאי בדעותיו. בזוגיות זה מביא כנות, אבל צריך ללמוד לפשר.",
+  },
+  openness_to_experience: {
+    high: "פתיחות גבוהה — סקרן ויצירתי. בזוגיות זה מביא חידוש וריגוש, אבל צריך שותף שמוכן לזרום.",
+    low: "פתיחות נמוכה — מעדיף מוכר ויציב. בזוגיות זה מביא ביטחון, אבל צריך מרחב לחידושים קטנים.",
+  },
 };
 
 function getTraitLevel(score: number): { label: string; color: string } {
@@ -51,11 +88,19 @@ function getTraitLevel(score: number): { label: string; color: string } {
   return { label: "נמוך", color: "#94a3b8" };
 }
 
+function renderScoreBar(score: number) {
+  return (
+    <div style={s.scoreBarContainer}>
+      <div style={{ ...s.scoreBarFill, width: `${Math.min(100, Math.max(0, score))}%` }} />
+    </div>
+  );
+}
+
 export default function Insights({ user, onBack, onOpenChat }: InsightsProps) {
   const [profile, setProfile] = useState<DetailedProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [gender, setGender] = useState<string | null>(null);
-  const [expandedSection, setExpandedSection] = useState<string | null>(null);
+  const [detailView, setDetailView] = useState<"main" | "mbti" | "values" | "bigfive">("main");
 
   useEffect(() => {
     fetch(`/api/users/${user.id}/detailed-traits`)
@@ -63,7 +108,6 @@ export default function Insights({ user, onBack, onOpenChat }: InsightsProps) {
       .then((data: DetailedProfile) => setProfile(data))
       .catch(() => {})
       .finally(() => setLoading(false));
-
     fetch(`/api/users/${user.id}`)
       .then(r => r.json())
       .then(u => { if (u.gender) setGender(u.gender); })
@@ -73,523 +117,290 @@ export default function Insights({ user, onBack, onOpenChat }: InsightsProps) {
   const isFemale = gender === "woman";
   const g = (male: string, female: string) => isFemale ? female : male;
 
-  const toggleSection = (section: string) => {
-    setExpandedSection(prev => prev === section ? null : section);
-  };
-
-  const hasData = profile && (
-    profile.mbti.type ||
-    profile.allValues.length > 0 ||
-    profile.allBigFive.length > 0
-  );
-
+  const hasData = profile && (profile.mbti.type || profile.allValues.length > 0 || profile.allBigFive.length > 0);
   const strongValues = profile?.allValues.filter(v => v.score > 60) || [];
   const weakValues = profile?.allValues.filter(v => v.score < 40) || [];
   const highBigFive = profile?.allBigFive.filter(v => v.score >= 65) || [];
-  const midBigFive = profile?.allBigFive.filter(v => v.score >= 40 && v.score < 65) || [];
   const lowBigFive = profile?.allBigFive.filter(v => v.score < 40) || [];
 
-  function renderDisagreeBubble(text: string) {
+  function renderDisagreeSection(topic: string) {
     if (!onOpenChat) return null;
+    const msg = `אני לא ${g("בטוח", "בטוחה")} שהניתוח של ה-${topic} ${g("שלי", "שלי")} מדויק`;
     return (
-      <button
-        style={styles.disagreeBubble}
-        onClick={() => onOpenChat(text, "qa_insights")}
-      >
-        💬 {text}
-      </button>
-    );
-  }
-
-  function renderScoreBar(score: number) {
-    return (
-      <div style={styles.scoreBarContainer}>
-        <div style={{ ...styles.scoreBarFill, width: `${Math.min(100, Math.max(0, score))}%` }} />
+      <div style={{ marginTop: 20 }}>
+        <p style={{ fontSize: 14, fontWeight: 600, color: "#64748b", margin: "0 0 8px 0" }}>לא דייקנו לדעת{g("ך", "ך")}?</p>
+        <button style={s.topicBubble} onClick={() => onOpenChat(msg, "qa_about_me")}>
+          <span style={{ fontSize: 14, opacity: 0.6 }}>💬</span> {msg}
+        </button>
       </div>
     );
   }
 
-  return (
-    <div style={styles.container}>
-      <div style={styles.content}>
-        <h2 style={styles.heading}>תובנות על עצמ{g("י", "י")}</h2>
+  // ── Detail: MBTI ──
+  if (detailView === "mbti" && profile?.mbti.type) {
+    const type = profile.mbti.type;
+    const compat = MBTI_COMPATIBILITY[type];
+    const relDetail = MBTI_RELATIONSHIP_DETAIL[type];
+    return (
+      <div style={s.container}><div style={s.content}>
+        <button style={s.backBtn} onClick={() => setDetailView("main")}>← חזרה לתובנות</button>
+        <h2 style={s.heading}>🧠 טיפוס MBTI: {type}</h2>
 
-        {loading ? (
-          <p style={styles.loading}>טוען...</p>
-        ) : !hasData ? (
-          <div style={styles.emptyState}>
-            <p style={styles.emptyText}>הנתונים {g("שלך", "שלך")} עדיין לא נותחו לעומק במערכת, ולכן עדיין אין תובנות מובנות להציג.</p>
-            <p style={styles.emptyText}>בינתיים, {g("אתה יכול", "את יכולה")} לשאול את הצ'אט "מה למדת עליי עד עכשיו?" ולקבל ממנו רשמים ראשוניים על בסיס השיחה.</p>
-            <p style={styles.emptySubtext}>{g("המשך", "המשיכי")} לשוחח וברגע שיהיה מספיק מידע, הניתוח ירוץ אוטומטית והתובנות יופיעו כאן.</p>
+        <div style={s.card}>
+          <div style={{ textAlign: "center", marginBottom: 16 }}>
+            <div style={{ fontSize: 36, fontWeight: 800, color: "#6366f1", letterSpacing: 4 }}>{type}</div>
+            {profile.mbti.description && <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, margin: "8px 0 0" }}>{profile.mbti.description}</p>}
           </div>
-        ) : (
-          <>
-            {/* ── MBTI Section ── */}
-            {profile?.mbti.type && (
-              <div style={styles.section}>
-                <button style={styles.sectionHeader} onClick={() => toggleSection("mbti")}>
-                  <h3 style={styles.sectionTitle}>🧠 טיפוס האישיות {g("שלך", "שלך")} (MBTI)</h3>
-                  <span style={styles.chevron}>{expandedSection === "mbti" ? "▾" : "▸"}</span>
-                </button>
-                <div style={styles.mbtiCard}>
-                  <div style={styles.mbtiType}>{profile.mbti.type}</div>
-                  {profile.mbti.description && (
-                    <p style={styles.mbtiDesc}>{profile.mbti.description}</p>
-                  )}
-                </div>
 
-                {expandedSection === "mbti" && (
-                  <div style={styles.expandedContent}>
-                    <div style={styles.modelExplanation}>
-                      <p style={styles.explanationTitle}>מהו MBTI?</p>
-                      <p style={styles.explanationText}>{MBTI_EXPLANATION}</p>
-                    </div>
+          {profile.mbti.alternateType && (
+            <div style={s.altCard}>
+              <p style={{ fontSize: 14, fontWeight: 600, color: "#92400e", margin: "0 0 6px" }}>
+                ייתכן שהטיפוס {g("שלך", "שלך")} הוא גם <strong>{profile.mbti.alternateType}</strong>
+              </p>
+              <p style={{ fontSize: 13, color: "#78716c", lineHeight: 1.5, margin: "0 0 6px" }}>
+                המערכת זיהתה ש{g("אתה", "את")} על הגבול בין שני טיפוסים. זה לגמרי תקין — רוב האנשים לא נופלים בצורה חדה לקטגוריה אחת.
+              </p>
+              {profile.mbti.alternateDescription && <p style={{ fontSize: 13, color: "#78716c", lineHeight: 1.5, margin: 0 }}><strong>{profile.mbti.alternateType}</strong>: {profile.mbti.alternateDescription}</p>}
+            </div>
+          )}
+        </div>
 
-                    {profile.mbti.alternateType && (
-                      <div style={styles.alternateCard}>
-                        <p style={styles.alternateTitle}>
-                          ייתכן שהטיפוס {g("שלך", "שלך")} הוא גם <strong>{profile.mbti.alternateType}</strong>
-                        </p>
-                        <p style={styles.alternateText}>
-                          המערכת זיהתה ש{g("אתה", "את")} על הגבול בין שני טיפוסים. זה לגמרי תקין — רוב האנשים לא "נופלים" בצורה חדה לקטגוריה אחת.
-                        </p>
-                        {profile.mbti.alternateDescription && (
-                          <p style={styles.alternateDesc}><strong>{profile.mbti.alternateType}</strong>: {profile.mbti.alternateDescription}</p>
-                        )}
-                      </div>
-                    )}
+        <div style={s.explainCard}>
+          <p style={s.explainTitle}>מהו MBTI?</p>
+          <p style={s.explainText}>{MBTI_EXPLANATION}</p>
+        </div>
 
-                    <div style={styles.relationshipBlock}>
-                      <p style={styles.relationshipTitle}>מה זה אומר בזוגיות?</p>
-                      {profile.mbti.type && profile.mbti.type.split("").map((letter, i) => (
-                        MBTI_RELATIONSHIP[letter] ? (
-                          <p key={i} style={styles.relationshipText}>
-                            <strong>{letter}</strong> — {MBTI_RELATIONSHIP[letter]}
-                          </p>
-                        ) : null
-                      ))}
-                    </div>
-
-                    {renderDisagreeBubble(`אני לא ${g("בטוח", "בטוחה")} שהניתוח של ה-MBTI ${g("שלי", "שלי")} מדויק`)}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ── Schwartz Values Section ── */}
-            {(strongValues.length > 0 || weakValues.length > 0) && (
-              <div style={styles.section}>
-                <button style={styles.sectionHeader} onClick={() => toggleSection("values")}>
-                  <h3 style={styles.sectionTitle}>💎 הערכים {g("שלך", "שלך")} (מודל Schwartz)</h3>
-                  <span style={styles.chevron}>{expandedSection === "values" ? "▾" : "▸"}</span>
-                </button>
-
-                {/* Always show strong values */}
-                {strongValues.length > 0 && (
-                  <div style={styles.itemsList}>
-                    {strongValues.map(v => (
-                      <div key={v.name} style={styles.itemCard}>
-                        <div style={styles.itemHeader}>
-                          <span style={styles.itemName}>{v.he}</span>
-                          <span style={styles.itemScore}>{v.score}</span>
-                        </div>
-                        {renderScoreBar(v.score)}
-                        <p style={styles.itemDesc}>{v.description}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {expandedSection === "values" && (
-                  <div style={styles.expandedContent}>
-                    <div style={styles.modelExplanation}>
-                      <p style={styles.explanationTitle}>מהו מודל הערכים של Schwartz?</p>
-                      <p style={styles.explanationText}>{SCHWARTZ_EXPLANATION}</p>
-                    </div>
-
-                    {strongValues.length > 0 && (
-                      <div style={styles.relationshipBlock}>
-                        <p style={styles.relationshipTitle}>מה הערכים {g("שלך", "שלך")} אומרים על זוגיות?</p>
-                        {strongValues.slice(0, 3).map(v => (
-                          <p key={v.name} style={styles.relationshipText}>
-                            <strong>{v.he}</strong> — {v.relationship}
-                          </p>
-                        ))}
-                      </div>
-                    )}
-
-                    {weakValues.length > 0 && (
-                      <div style={{ marginTop: 16 }}>
-                        <p style={styles.weakTitle}>ערכים פחות בולטים אצל{g("ך", "ך")}:</p>
-                        <div style={styles.weakList}>
-                          {weakValues.map(v => (
-                            <div key={v.name} style={styles.weakItem}>
-                              <span style={styles.weakName}>{v.he}</span>
-                              <span style={styles.weakScore}>{v.score}</span>
-                            </div>
-                          ))}
-                        </div>
-                        <p style={styles.weakExplanation}>
-                          ערכים פחות בולטים לא אומרים שמשהו חסר — פשוט שערכים אחרים מנחים {g("אותך", "אותך")} יותר. במציאת התאמה, אנחנו מתמקדים בעיקר בערכים המובילים {g("שלך", "שלך")}.
-                        </p>
-                      </div>
-                    )}
-
-                    {renderDisagreeBubble(`אני לא ${g("בטוח", "בטוחה")} שניתוח הערכים ${g("שלי", "שלי")} מדויק`)}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ── Big Five Section ── */}
-            {profile && profile.allBigFive.length > 0 && (
-              <div style={styles.section}>
-                <button style={styles.sectionHeader} onClick={() => toggleSection("bigfive")}>
-                  <h3 style={styles.sectionTitle}>🎭 תכונות אישיות (Big Five)</h3>
-                  <span style={styles.chevron}>{expandedSection === "bigfive" ? "▾" : "▸"}</span>
-                </button>
-
-                {/* Always show highlights */}
-                {highBigFive.length > 0 && (
-                  <div style={styles.itemsList}>
-                    {highBigFive.map(v => {
-                      const level = getTraitLevel(v.score);
-                      return (
-                        <div key={v.name} style={styles.itemCard}>
-                          <div style={styles.itemHeader}>
-                            <span style={styles.itemName}>{v.he}</span>
-                            <span style={{ ...styles.levelBadge, background: level.color + "22", color: level.color }}>{level.label}</span>
-                          </div>
-                          {renderScoreBar(v.score)}
-                          <p style={styles.itemDesc}>{v.description}</p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {expandedSection === "bigfive" && (
-                  <div style={styles.expandedContent}>
-                    <div style={styles.modelExplanation}>
-                      <p style={styles.explanationTitle}>מהו מודל Big Five?</p>
-                      <p style={styles.explanationText}>{BIG_FIVE_EXPLANATION}</p>
-                    </div>
-
-                    {/* Show all traits with levels */}
-                    <p style={{ ...styles.relationshipTitle, marginTop: 16 }}>כל התכונות {g("שלך", "שלך")}:</p>
-                    <div style={styles.itemsList}>
-                      {profile.allBigFive.map(v => {
-                        const level = getTraitLevel(v.score);
-                        return (
-                          <div key={v.name} style={styles.itemCard}>
-                            <div style={styles.itemHeader}>
-                              <span style={styles.itemName}>{v.he}</span>
-                              <span style={{ ...styles.levelBadge, background: level.color + "22", color: level.color }}>{level.label}</span>
-                            </div>
-                            {renderScoreBar(v.score)}
-                            <p style={styles.itemDesc}>{v.description}</p>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {(highBigFive.length > 0 || lowBigFive.length > 0) && (
-                      <div style={styles.relationshipBlock}>
-                        <p style={styles.relationshipTitle}>מה זה אומר בזוגיות?</p>
-                        {highBigFive.slice(0, 2).map(v => (
-                          <p key={v.name} style={styles.relationshipText}>
-                            <strong>{v.he} ({getTraitLevel(v.score).label})</strong> — {v.relationship}
-                          </p>
-                        ))}
-                        {lowBigFive.slice(0, 2).map(v => (
-                          <p key={v.name} style={styles.relationshipText}>
-                            <strong>{v.he} ({getTraitLevel(v.score).label})</strong> — {v.relationship}
-                          </p>
-                        ))}
-                      </div>
-                    )}
-
-                    {renderDisagreeBubble(`אני לא ${g("בטוח", "בטוחה")} שניתוח תכונות האישיות ${g("שלי", "שלי")} מדויק`)}
-                  </div>
-                )}
-              </div>
-            )}
-          </>
+        {relDetail && (
+          <div style={s.card}>
+            <p style={{ fontSize: 15, fontWeight: 600, color: "#1a1a2e", margin: "0 0 10px" }}>מה זה אומר עלי{g("ך", "ך")} בזוגיות?</p>
+            <p style={{ fontSize: 13, color: "#555", lineHeight: 1.7, margin: 0 }}>{relDetail}</p>
+          </div>
         )}
-      </div>
-    </div>
+
+        {compat && (
+          <div style={s.card}>
+            <p style={{ fontSize: 15, fontWeight: 600, color: "#1a1a2e", margin: "0 0 10px" }}>התאמות לפי טיפוס</p>
+            {compat.ideal.length > 0 && (
+              <div style={{ marginBottom: 10 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: "#22c55e", margin: "0 0 4px" }}>הלימה טבעית גבוהה</p>
+                <p style={{ fontSize: 13, color: "#555", margin: 0 }}>{compat.ideal.join(", ")}</p>
+              </div>
+            )}
+            {compat.good.length > 0 && (
+              <div style={{ marginBottom: 10 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: "#f59e0b", margin: "0 0 4px" }}>פוטנציאל טוב</p>
+                <p style={{ fontSize: 13, color: "#555", margin: 0 }}>{compat.good.join(", ")}</p>
+              </div>
+            )}
+            {compat.challenging.length > 0 && (
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8", margin: "0 0 4px" }}>דורש יותר עבודה</p>
+                <p style={{ fontSize: 13, color: "#555", margin: 0 }}>{compat.challenging.join(", ")}</p>
+              </div>
+            )}
+            <p style={{ fontSize: 12, color: "#94a3b8", marginTop: 10 }}>* ההתאמה בפועל תלויה בהרבה גורמים מעבר לטיפוס — ערכים, סגנון תקשורת, טעם אישי ועוד.</p>
+          </div>
+        )}
+
+        {renderDisagreeSection("MBTI")}
+      </div></div>
+    );
+  }
+
+  // ── Detail: Values ──
+  if (detailView === "values" && profile) {
+    return (
+      <div style={s.container}><div style={s.content}>
+        <button style={s.backBtn} onClick={() => setDetailView("main")}>← חזרה לתובנות</button>
+        <h2 style={s.heading}>💎 הערכים {g("שלך", "שלך")} (שוורץ)</h2>
+
+        <div style={s.explainCard}>
+          <p style={s.explainTitle}>מהו מודל הערכים של שוורץ?</p>
+          <p style={s.explainText}>{SCHWARTZ_EXPLANATION}</p>
+        </div>
+
+        {strongValues.length > 0 && (
+          <div style={s.card}>
+            <p style={{ fontSize: 15, fontWeight: 600, color: "#1a1a2e", margin: "0 0 10px" }}>הערכים המובילים {g("שלך", "שלך")}</p>
+            {strongValues.map(v => (
+              <div key={v.name} style={{ marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e" }}>{v.he}</span>
+                  <span style={s.scoreBadge}>{v.score}</span>
+                </div>
+                {renderScoreBar(v.score)}
+                <p style={{ fontSize: 13, color: "#555", lineHeight: 1.5, margin: "4px 0 0" }}>{v.description}</p>
+                <p style={{ fontSize: 12, color: "#3f6212", lineHeight: 1.5, margin: "4px 0 0" }}>{v.relationship}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {weakValues.length > 0 && (
+          <div style={s.card}>
+            <p style={{ fontSize: 15, fontWeight: 600, color: "#64748b", margin: "0 0 10px" }}>ערכים פחות בולטים</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+              {weakValues.map(v => (
+                <div key={v.name} style={{ display: "flex", alignItems: "center", gap: 6, background: "#f1f5f9", borderRadius: 8, padding: "6px 12px" }}>
+                  <span style={{ fontSize: 13, color: "#64748b" }}>{v.he}</span>
+                  <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600 }}>{v.score}</span>
+                </div>
+              ))}
+            </div>
+            <p style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.5, margin: 0 }}>
+              ערכים פחות בולטים לא אומרים שמשהו חסר — פשוט שערכים אחרים מנחים {g("אותך", "אותך")} יותר. במציאת הלימה, אנחנו מתמקדים בעיקר בערכי הליבה המובילים.
+            </p>
+          </div>
+        )}
+
+        {strongValues.length > 0 && (
+          <div style={{ ...s.card, background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "#166534", margin: "0 0 8px" }}>מה הערכים {g("שלך", "שלך")} אומרים על זוגיות?</p>
+            <p style={{ fontSize: 13, color: "#3f6212", lineHeight: 1.7, margin: 0 }}>
+              הערכים המובילים {g("שלך", "שלך")} מעידים על מה באמת חשוב לך בחיים — וזה מה שקובע את הדינמיקה בזוגיות. כשערכי הליבה של שני אנשים קרובים, יש בסיס איתן להסכמה על הדברים הגדולים: איך לגדל ילדים, מה עושים עם כסף, כמה חירות אישית חשובה. פער בערכים מרכזיים הוא אחד המנבאים החזקים ביותר לחיכוך ארוך טווח.
+            </p>
+          </div>
+        )}
+
+        {renderDisagreeSection("ערכים")}
+      </div></div>
+    );
+  }
+
+  // ── Detail: Big Five ──
+  if (detailView === "bigfive" && profile) {
+    return (
+      <div style={s.container}><div style={s.content}>
+        <button style={s.backBtn} onClick={() => setDetailView("main")}>← חזרה לתובנות</button>
+        <h2 style={s.heading}>🎭 תכונות אישיות (Big Five)</h2>
+
+        <div style={s.explainCard}>
+          <p style={s.explainTitle}>מהו מודל Big Five?</p>
+          <p style={s.explainText}>{BIG_FIVE_EXPLANATION}</p>
+        </div>
+
+        <div style={s.card}>
+          <p style={{ fontSize: 15, fontWeight: 600, color: "#1a1a2e", margin: "0 0 10px" }}>כל התכונות {g("שלך", "שלך")}</p>
+          {profile.allBigFive.map(v => {
+            const level = getTraitLevel(v.score);
+            const relData = BIG_FIVE_RELATIONSHIP[v.name];
+            const relText = v.score >= 55 ? relData?.high : relData?.low;
+            return (
+              <div key={v.name} style={{ marginBottom: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e" }}>{v.he}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, padding: "2px 10px", borderRadius: 12, background: level.color + "22", color: level.color }}>{level.label}</span>
+                </div>
+                {renderScoreBar(v.score)}
+                <p style={{ fontSize: 13, color: "#555", lineHeight: 1.5, margin: "4px 0 0" }}>{v.description}</p>
+                {relText && <p style={{ fontSize: 12, color: "#3f6212", lineHeight: 1.5, margin: "4px 0 0" }}>{relText}</p>}
+              </div>
+            );
+          })}
+        </div>
+
+        {(highBigFive.length > 0 || lowBigFive.length > 0) && (
+          <div style={{ ...s.card, background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "#166534", margin: "0 0 8px" }}>מה זה אומר בזוגיות?</p>
+            <p style={{ fontSize: 13, color: "#3f6212", lineHeight: 1.7, margin: 0 }}>
+              השילוב הייחודי של התכונות {g("שלך", "שלך")} מגדיר את סגנון הזוגיות שמתאים לך. לפעמים דמיון בתכונות יוצר הרמוניה (שני אנשים מאורגנים), ולפעמים דווקא השלמה יוצרת דינמיקה בריאה (מישהו ספונטני עם מישהו מתוכנן). האלגוריתם שלנו בודק מה עובד הכי טוב עבור הפרופיל הספציפי {g("שלך", "שלך")}.
+            </p>
+          </div>
+        )}
+
+        {renderDisagreeSection("תכונות האישיות")}
+      </div></div>
+    );
+  }
+
+  // ── Main view ──
+  return (
+    <div style={s.container}><div style={s.content}>
+      <h2 style={s.heading}>תובנות על עצמ{g("י", "י")}</h2>
+
+      {loading ? (
+        <p style={{ color: "#888", fontSize: 14 }}>טוען...</p>
+      ) : !hasData ? (
+        <div style={{ textAlign: "center", padding: "40px 20px" }}>
+          <p style={{ fontSize: 15, color: "#888", lineHeight: 1.6, margin: "4px 0" }}>הנתונים {g("שלך", "שלך")} עדיין לא נותחו לעומק במערכת, ולכן עדיין אין תובנות מובנות להציג.</p>
+          <p style={{ fontSize: 15, color: "#888", lineHeight: 1.6, margin: "4px 0" }}>בינתיים, {g("אתה יכול", "את יכולה")} לשאול את הצ'אט "מה למדת עליי עד עכשיו?" ולקבל ממנו רשמים ראשוניים על בסיס השיחה.</p>
+          <p style={{ fontSize: 13, color: "#aaa", lineHeight: 1.5, marginTop: 16 }}>{g("המשך", "המשיכי")} לשוחח וברגע שיהיה מספיק מידע, הניתוח ירוץ אוטומטית והתובנות יופיעו כאן.</p>
+        </div>
+      ) : (
+        <>
+          {profile?.mbti.type && (
+            <div style={s.card}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0 }}>🧠 טיפוס MBTI</h3>
+                <button style={s.expandBtn} onClick={() => setDetailView("mbti")}>הרחבה →</button>
+              </div>
+              <div style={{ textAlign: "center", marginTop: 12 }}>
+                <div style={{ fontSize: 32, fontWeight: 800, color: "#6366f1", letterSpacing: 4 }}>{profile.mbti.type}</div>
+                {profile.mbti.description && <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, margin: "8px 0 0" }}>{profile.mbti.description}</p>}
+              </div>
+            </div>
+          )}
+
+          {strongValues.length > 0 && (
+            <div style={s.card}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0 }}>💎 ערכים מרכזיים</h3>
+                <button style={s.expandBtn} onClick={() => setDetailView("values")}>הרחבה →</button>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+                {strongValues.slice(0, 3).map(v => (
+                  <div key={v.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 14, fontWeight: 500, color: "#1a1a2e" }}>{v.he}</span>
+                    <span style={s.scoreBadge}>{v.score}</span>
+                  </div>
+                ))}
+                {strongValues.length > 3 && <p style={{ fontSize: 12, color: "#94a3b8", margin: 0 }}>ועוד {strongValues.length - 3} ערכים...</p>}
+              </div>
+            </div>
+          )}
+
+          {profile && profile.allBigFive.length > 0 && (
+            <div style={s.card}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0 }}>🎭 תכונות אישיות</h3>
+                <button style={s.expandBtn} onClick={() => setDetailView("bigfive")}>הרחבה →</button>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+                {profile.allBigFive.map(v => {
+                  const level = getTraitLevel(v.score);
+                  return (
+                    <div key={v.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: "#1a1a2e" }}>{v.he}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, padding: "2px 10px", borderRadius: 12, background: level.color + "22", color: level.color }}>{level.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div></div>
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    direction: "rtl",
-    background: "#f9fafb",
-    minHeight: "100vh",
-    fontFamily: "'Segoe UI', 'Arial', sans-serif",
-  },
-  content: {
-    maxWidth: 720,
-    margin: "0 auto",
-    padding: "32px 24px",
-  },
-  heading: {
-    fontSize: 22,
-    fontWeight: 700,
-    color: "#1a1a2e",
-    marginTop: 0,
-    marginBottom: 24,
-  },
-  loading: { color: "#888", fontSize: 14 },
-  emptyState: {
-    textAlign: "center",
-    padding: "40px 20px",
-  },
-  emptyText: {
-    fontSize: 15,
-    color: "#888",
-    lineHeight: 1.6,
-    margin: "4px 0",
-  },
-  emptySubtext: {
-    fontSize: 13,
-    color: "#aaa",
-    lineHeight: 1.5,
-    marginTop: 16,
-  },
-
-  // Sections
-  section: {
-    marginBottom: 20,
-  },
-  sectionHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    width: "100%",
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    padding: "8px 0",
-    fontFamily: "inherit",
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 600,
-    color: "#333",
-    margin: 0,
-  },
-  chevron: {
-    fontSize: 16,
-    color: "#999",
-  },
-
-  // MBTI
-  mbtiCard: {
-    background: "#fff",
-    border: "1px solid #e5e7eb",
-    borderRadius: 12,
-    padding: "20px 24px",
-    textAlign: "center",
-  },
-  mbtiType: {
-    fontSize: 36,
-    fontWeight: 800,
-    color: "#6366f1",
-    letterSpacing: 4,
-    marginBottom: 10,
-  },
-  mbtiDesc: {
-    fontSize: 14,
-    color: "#555",
-    lineHeight: 1.7,
-    margin: 0,
-  },
-
-  // Expanded content
-  expandedContent: {
-    marginTop: 12,
-  },
-  modelExplanation: {
-    background: "#f0f0ff",
-    borderRadius: 10,
-    padding: "14px 18px",
-    marginBottom: 12,
-  },
-  explanationTitle: {
-    fontSize: 14,
-    fontWeight: 600,
-    color: "#4f46e5",
-    margin: "0 0 6px 0",
-  },
-  explanationText: {
-    fontSize: 13,
-    color: "#555",
-    lineHeight: 1.6,
-    margin: 0,
-  },
-
-  // Alternate MBTI
-  alternateCard: {
-    background: "#fffbeb",
-    border: "1px solid #fde68a",
-    borderRadius: 10,
-    padding: "14px 18px",
-    marginBottom: 12,
-  },
-  alternateTitle: {
-    fontSize: 14,
-    fontWeight: 600,
-    color: "#92400e",
-    margin: "0 0 6px 0",
-  },
-  alternateText: {
-    fontSize: 13,
-    color: "#78716c",
-    lineHeight: 1.5,
-    margin: "0 0 6px 0",
-  },
-  alternateDesc: {
-    fontSize: 13,
-    color: "#78716c",
-    lineHeight: 1.5,
-    margin: 0,
-  },
-
-  // Relationship context
-  relationshipBlock: {
-    background: "#f0fdf4",
-    borderRadius: 10,
-    padding: "14px 18px",
-    marginTop: 12,
-  },
-  relationshipTitle: {
-    fontSize: 14,
-    fontWeight: 600,
-    color: "#166534",
-    margin: "0 0 8px 0",
-  },
-  relationshipText: {
-    fontSize: 13,
-    color: "#3f6212",
-    lineHeight: 1.6,
-    margin: "0 0 6px 0",
-  },
-
-  // Item cards (values + big five)
-  itemsList: {
-    display: "flex",
-    flexDirection: "column" as const,
-    gap: 8,
-    marginTop: 8,
-  },
-  itemCard: {
-    background: "#fff",
-    border: "1px solid #e5e7eb",
-    borderRadius: 10,
-    padding: "14px 18px",
-  },
-  itemHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  itemName: {
-    fontSize: 15,
-    fontWeight: 600,
-    color: "#1a1a2e",
-  },
-  itemScore: {
-    fontSize: 14,
-    fontWeight: 700,
-    color: "#6366f1",
-    background: "#f0f0ff",
-    padding: "2px 10px",
-    borderRadius: 12,
-  },
-  itemDesc: {
-    fontSize: 13,
-    color: "#777",
-    lineHeight: 1.5,
-    margin: "4px 0 0 0",
-  },
-
-  // Score bar
-  scoreBarContainer: {
-    height: 6,
-    background: "#e5e7eb",
-    borderRadius: 3,
-    marginBottom: 4,
-    overflow: "hidden",
-  },
-  scoreBarFill: {
-    height: "100%",
-    background: "linear-gradient(90deg, #818cf8, #6366f1)",
-    borderRadius: 3,
-    transition: "width 0.3s ease",
-  },
-
-  // Level badge
-  levelBadge: {
-    fontSize: 12,
-    fontWeight: 600,
-    padding: "2px 10px",
-    borderRadius: 12,
-  },
-
-  // Weak values
-  weakTitle: {
-    fontSize: 14,
-    fontWeight: 600,
-    color: "#64748b",
-    marginBottom: 8,
-  },
-  weakList: {
-    display: "flex",
-    flexWrap: "wrap" as const,
-    gap: 8,
-  },
-  weakItem: {
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-    background: "#f1f5f9",
-    borderRadius: 8,
-    padding: "6px 12px",
-  },
-  weakName: {
-    fontSize: 13,
-    color: "#64748b",
-  },
-  weakScore: {
-    fontSize: 12,
-    color: "#94a3b8",
-    fontWeight: 600,
-  },
-  weakExplanation: {
-    fontSize: 12,
-    color: "#94a3b8",
-    lineHeight: 1.5,
-    marginTop: 10,
-  },
-
-  // Disagree bubble
-  disagreeBubble: {
-    display: "block",
-    width: "100%",
-    marginTop: 16,
-    padding: "12px 16px",
-    background: "#fff",
-    border: "1px dashed #c7d2fe",
-    borderRadius: 12,
-    color: "#6366f1",
-    fontSize: 13,
-    fontWeight: 500,
-    cursor: "pointer",
-    textAlign: "right" as const,
-    fontFamily: "inherit",
-    lineHeight: 1.5,
-    transition: "background 0.15s",
+const s: Record<string, React.CSSProperties> = {
+  container: { direction: "rtl", background: "#f9fafb", minHeight: "100vh", fontFamily: "'Segoe UI', 'Arial', sans-serif" },
+  content: { maxWidth: 720, margin: "0 auto", padding: "32px 24px" },
+  heading: { fontSize: 22, fontWeight: 700, color: "#1a1a2e", marginTop: 0, marginBottom: 24 },
+  backBtn: { background: "none", border: "none", color: "#6366f1", fontSize: 14, cursor: "pointer", padding: "4px 0", marginBottom: 16, fontFamily: "inherit" },
+  card: { background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: "20px 24px", marginBottom: 12 },
+  expandBtn: { background: "none", border: "none", color: "#6366f1", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: 0 },
+  scoreBadge: { fontSize: 14, fontWeight: 700, color: "#6366f1", background: "#f0f0ff", padding: "2px 10px", borderRadius: 12 },
+  scoreBarContainer: { height: 6, background: "#e5e7eb", borderRadius: 3, marginBottom: 4, overflow: "hidden" },
+  scoreBarFill: { height: "100%", background: "linear-gradient(90deg, #818cf8, #6366f1)", borderRadius: 3, transition: "width 0.3s ease" },
+  explainCard: { background: "#f0f0ff", borderRadius: 10, padding: "14px 18px", marginBottom: 12 },
+  explainTitle: { fontSize: 14, fontWeight: 600, color: "#4f46e5", margin: "0 0 6px" },
+  explainText: { fontSize: 13, color: "#555", lineHeight: 1.6, margin: 0 },
+  altCard: { background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "14px 18px", marginTop: 12 },
+  topicBubble: {
+    display: "block", width: "100%", padding: "10px 16px", background: "#fff",
+    border: "1px solid #e5e7eb", borderRadius: 20, color: "#555", fontSize: 13,
+    cursor: "pointer", textAlign: "right" as const, fontFamily: "inherit", lineHeight: 1.5,
   },
 };

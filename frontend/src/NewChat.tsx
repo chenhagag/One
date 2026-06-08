@@ -640,18 +640,23 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         {(screen === "home" || screen === "chat") && (
           <>
             <div className="nc-chat-area nc-screen-fade" key={`chat-${screen}-${channel}`} style={styles.chatArea}>
-              {screen === "home" && (
-                <div style={styles.welcomeBlock}>
-                  <img src="/heartIcon.jpg" alt="" style={styles.welcomeIcon} />
-                  <h2 style={styles.welcomeTitle}>ברוכים הבאים ל-One</h2>
-                  <p style={styles.welcomeText}>
-                    העוזר האישי שלך למציאת התאמה מדויקת ומשמעותית.
-                  </p>
-                  <p style={styles.welcomeText}>
-                    איך זה עובד? נעבור יחד תהליך היכרות באמצעות שיחה, ובסיומו המערכת תמצא עבורך התאמה אחת מדויקת, המבוססת על התאמה פסיכולוגית ואישיותית עמוקה.
-                  </p>
-                </div>
-              )}
+              {screen === "home" && (() => {
+                const allChatsCompleted = closedChannels["new_chat"] && recommendations.has_cognitive && recommendations.has_taste_info;
+                return (
+                  <div style={styles.welcomeBlock}>
+                    <img src="/heartIcon.jpg" alt="" style={styles.welcomeIcon} />
+                    <h2 style={styles.welcomeTitle}>ברוכים הבאים ל-One</h2>
+                    <p style={styles.welcomeText}>
+                      העוזר האישי שלך למציאת התאמה מדויקת ומשמעותית.
+                    </p>
+                    {!allChatsCompleted && (
+                      <p style={styles.welcomeText}>
+                        איך זה עובד? נעבור יחד תהליך היכרות באמצעות שיחה, ובסיומו המערכת תמצא עבורך התאמה אחת מדויקת, המבוססת על התאמה פסיכולוגית ואישיותית עמוקה.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
 
               {screen === "chat" && (
                 <>
@@ -897,20 +902,31 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             {/* Suggestions — only on home screen */}
             {screen === "home" && (
               <div className="nc-suggestions" style={styles.suggestions}>
-                <button style={{ ...styles.suggestionBtn, background: "#6366f1", color: "#fff", border: "1px solid #6366f1" }} onClick={() => {
-                  setChannel("new_chat");
-                  if ((channelMessages["new_chat"]?.length ?? 0) === 0) {
-                    const g = user.gender === "woman";
-                    const isCouple = (user as any).test_user_type === "Couple Tester";
-                    const greeting = isCouple
-                      ? `היי ${user.first_name}, תודה רבה על ההשתתפות בתהליך האימון שלי.\nככל שאני נבדק על זוגות רבים יותר - אני לומד לדייק את ההתאמות למשתמשים שמחפשים זוגיות אמיתית, והשתתפות ${g ? "שלך" : "שלך"} מסייעת לי מאוד.\nאשאל ${g ? "אותך" : "אותך"} שאלות כמו שהייתי שואל רווקים-רווקות אמיתיים שנכנסים למערכת, ${g ? "אשמח אם תעני" : "אשמח אם תענה"} בכנות ובטבעיות כפי ש${g ? "היית עונה אם היית" : "היית עונה אם היית"} באמת ${g ? "מחפשת" : "מחפש"} שידוך.\nבסוף התהליך ${g ? "תוכלי" : "תוכל"} גם לקבל ממני קצת תובנות על ${g ? "עצמך" : "עצמך"} ועל הזוגיות ${g ? "שלך" : "שלך"} :)\nחשוב לי ש${g ? "תדעי" : "תדע"} שכל מה ש${g ? "את כותבת" : "אתה כותב"} לי כאן הוא לעיניי בלבד — שום דבר לא מופיע בפרופיל ${g ? "שלך" : "שלך"} ולא חשוף לאף משתמש אחר.\n${g ? "מוכנה להתחיל?" : "מוכן להתחיל?"}`
-                      : `היי ${user.first_name}, אני מומחה ההתאמה שלך. אני כאן כדי למצוא ${g ? "לך" : "לך"} התאמה מדויקת על ידי היכרות מעמיקה.\nחשוב לי ש${g ? "תדעי" : "תדע"} שכל מה ש${g ? "את כותבת" : "אתה כותב"} לי כאן הוא לעיניי בלבד — שום דבר לא מופיע בפרופיל ${g ? "שלך" : "שלך"} ולא חשוף לאף משתמש אחר.\nככל ש${g ? "תשתפי" : "תשתף"} אותי יותר, נוכל לדייק את ההתאמה ${g ? "שלך" : "שלך"} יותר. ${g ? "מוכנה להתחיל?" : "מוכן להתחיל?"}`;
-                    setMessagesForChannel("new_chat", () => [{ role: "assistant", content: greeting }]);
-                  }
-                  setScreen("chat");
-                }}>
-                  <span style={{ fontSize: 14 }}>💬</span> {(channelMessages["new_chat"]?.length ?? 0) > 0 ? "בוא נמשיך" : "בוא נתחיל"}
-                </button>
+                {(() => {
+                  const chatDone = closedChannels["new_chat"] || false;
+                  const hasMessages = (channelMessages["new_chat"]?.length ?? 0) > 0;
+                  return (
+                    <button style={{
+                      ...styles.suggestionBtn,
+                      ...(chatDone
+                        ? { borderColor: "#22c55e", color: "#22c55e" }
+                        : { background: "#6366f1", color: "#fff", border: "1px solid #6366f1" }),
+                    }} onClick={() => {
+                      setChannel("new_chat");
+                      if (!hasMessages) {
+                        const g = user.gender === "woman";
+                        const isCouple = (user as any).test_user_type === "Couple Tester";
+                        const greeting = isCouple
+                          ? `היי ${user.first_name}, תודה רבה על ההשתתפות בתהליך האימון שלי.\nככל שאני נבדק על זוגות רבים יותר - אני לומד לדייק את ההתאמות למשתמשים שמחפשים זוגיות אמיתית, והשתתפות ${g ? "שלך" : "שלך"} מסייעת לי מאוד.\nאשאל ${g ? "אותך" : "אותך"} שאלות כמו שהייתי שואל רווקים-רווקות אמיתיים שנכנסים למערכת, ${g ? "אשמח אם תעני" : "אשמח אם תענה"} בכנות ובטבעיות כפי ש${g ? "היית עונה אם היית" : "היית עונה אם היית"} באמת ${g ? "מחפשת" : "מחפש"} שידוך.\nבסוף התהליך ${g ? "תוכלי" : "תוכל"} גם לקבל ממני קצת תובנות על ${g ? "עצמך" : "עצמך"} ועל הזוגיות ${g ? "שלך" : "שלך"} :)\nחשוב לי ש${g ? "תדעי" : "תדע"} שכל מה ש${g ? "את כותבת" : "אתה כותב"} לי כאן הוא לעיניי בלבד — שום דבר לא מופיע בפרופיל ${g ? "שלך" : "שלך"} ולא חשוף לאף משתמש אחר.\n${g ? "מוכנה להתחיל?" : "מוכן להתחיל?"}`
+                          : `היי ${user.first_name}, אני מומחה ההתאמה שלך. אני כאן כדי למצוא ${g ? "לך" : "לך"} התאמה מדויקת על ידי היכרות מעמיקה.\nחשוב לי ש${g ? "תדעי" : "תדע"} שכל מה ש${g ? "את כותבת" : "אתה כותב"} לי כאן הוא לעיניי בלבד — שום דבר לא מופיע בפרופיל ${g ? "שלך" : "שלך"} ולא חשוף לאף משתמש אחר.\nככל ש${g ? "תשתפי" : "תשתף"} אותי יותר, נוכל לדייק את ההתאמה ${g ? "שלך" : "שלך"} יותר. ${g ? "מוכנה להתחיל?" : "מוכן להתחיל?"}`;
+                        setMessagesForChannel("new_chat", () => [{ role: "assistant", content: greeting }]);
+                      }
+                      setScreen("chat");
+                    }}>
+                      <span style={{ fontSize: 14 }}>{chatDone ? "✓" : "💬"}</span> {chatDone ? "חזרה לשיחה" : hasMessages ? "בוא נמשיך" : "בוא נתחיל"}
+                    </button>
+                  );
+                })()}
                 {TOPIC_OPTIONS.map((s, i) => {
                   const isChannelDone = s.channel ? (closedChannels[s.channel] || (s.channel === "new_chat_cognitive" && recommendations.has_cognitive) || (s.channel === "new_chat_taste" && recommendations.has_taste_info)) : false;
                   return (
