@@ -292,47 +292,54 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
     setMessagesForChannel(effectiveChannel, () => updatedMessages);
     setSending(true);
 
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 60000);
+    const MAX_RETRIES = 2;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 60000);
 
-      const r = await fetch("/api/new-chat/message", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: user.id,
-          message: msg,
-          channel: effectiveChannel,
-          history: updatedMessages.slice(-20),
-        }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
+        const r = await fetch("/api/new-chat/message", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: user.id,
+            message: msg,
+            channel: effectiveChannel,
+            history: updatedMessages.slice(-20),
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
 
-      if (!r.ok) {
-        throw new Error(`HTTP ${r.status}`);
-      }
-      const data = await r.json();
-      if (data.reply) {
-        setMessagesForChannel(effectiveChannel, prev => [...prev, { role: "assistant", content: data.reply }]);
-        if (data.closing_stage >= 3) {
-          setClosedChannels(prev => ({ ...prev, [effectiveChannel]: true }));
-          // Refresh recommendations so bubbles reflect current state
-          fetch(`/api/new-chat/status/${user.id}`).then(r => r.json()).then(d => {
-            if (d.has_cognitive !== undefined) setRecommendations({ has_cognitive: d.has_cognitive, has_taste_info: d.has_taste_info, chat_count: d.chat_count || 0, summary_fields: d.summary_fields || 0, cognitive_count: d.cognitive_count || 0, photo_count: d.photo_count || 0, has_profile_details: d.has_profile_details || false });
-          }).catch(() => {});
+        if (!r.ok) {
+          throw new Error(`HTTP ${r.status}`);
         }
-      } else if (data.error) {
-        setMessagesForChannel(effectiveChannel, prev => [...prev, { role: "assistant", content: "מצטער, משהו השתבש. נסה שוב." }]);
+        const data = await r.json();
+        if (data.reply) {
+          setMessagesForChannel(effectiveChannel, prev => [...prev, { role: "assistant", content: data.reply }]);
+          if (data.closing_stage >= 3) {
+            setClosedChannels(prev => ({ ...prev, [effectiveChannel]: true }));
+            fetch(`/api/new-chat/status/${user.id}`).then(r => r.json()).then(d => {
+              if (d.has_cognitive !== undefined) setRecommendations({ has_cognitive: d.has_cognitive, has_taste_info: d.has_taste_info, chat_count: d.chat_count || 0, summary_fields: d.summary_fields || 0, cognitive_count: d.cognitive_count || 0, photo_count: d.photo_count || 0, has_profile_details: d.has_profile_details || false, analysis_run_count: d.analysis_run_count || 0, gender: d.gender || null });
+            }).catch(() => {});
+          }
+        } else if (data.error) {
+          setMessagesForChannel(effectiveChannel, prev => [...prev, { role: "assistant", content: "מצטער, משהו השתבש. נסה שוב." }]);
+        }
+        break; // Success — exit retry loop
+      } catch (err: any) {
+        if (attempt < MAX_RETRIES) {
+          console.log(`[NewChat] Attempt ${attempt + 1} failed, retrying in 3s...`);
+          await new Promise(res => setTimeout(res, 3000));
+          continue;
+        }
+        console.error("[NewChat] send error after retries:", err);
+        const errorMsg = err?.name === "AbortError" ? "הבקשה לקחה יותר מדי זמן. נסה שוב." : "שגיאה בתקשורת, נסה שוב.";
+        setMessagesForChannel(effectiveChannel, prev => [...prev, { role: "assistant", content: errorMsg }]);
       }
-    } catch (err: any) {
-      console.error("[NewChat] send error:", err);
-      const errorMsg = err?.name === "AbortError" ? "הבקשה לקחה יותר מדי זמן. נסה שוב." : "שגיאה בתקשורת, נסה שוב.";
-      setMessagesForChannel(effectiveChannel, prev => [...prev, { role: "assistant", content: errorMsg }]);
-    } finally {
-      setSending(false);
-      setTimeout(() => inputRef.current?.focus(), 50);
     }
+    setSending(false);
+    setTimeout(() => inputRef.current?.focus(), 50);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
