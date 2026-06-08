@@ -2120,11 +2120,26 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
     );
     const photoCount = photoRow?.c ?? 0;
 
-    // Profile completeness (check key fields) + analysis status + gender
-    const profileRow = await pgQueryOne<{ age: number | null; city: string | null; analysis_run_count: number; gender: string | null }>(
-      "SELECT age, city, COALESCE(analysis_run_count, 0) as analysis_run_count, gender FROM users WHERE id = $1", [userId]
+    // Profile completeness (check ALL key fields) + analysis status + gender
+    const profileRow = await pgQueryOne<{
+      age: number | null; city: string | null; height: number | null;
+      looking_for_gender: string | null;
+      desired_age_min: number | null; desired_age_max: number | null;
+      desired_height_min: number | null; desired_height_max: number | null;
+      analysis_run_count: number; gender: string | null;
+    }>(
+      `SELECT age, city, height, looking_for_gender,
+              desired_age_min, desired_age_max, desired_height_min, desired_height_max,
+              COALESCE(analysis_run_count, 0) as analysis_run_count, gender
+       FROM users WHERE id = $1`, [userId]
     );
-    const hasProfileDetails = !!(profileRow?.age && profileRow?.city && photoCount >= 1);
+    const hasProfileDetails = !!(
+      profileRow?.age && profileRow?.city && profileRow?.height &&
+      profileRow?.looking_for_gender &&
+      profileRow?.desired_age_min && profileRow?.desired_age_max &&
+      profileRow?.desired_height_min && profileRow?.desired_height_max &&
+      photoCount >= 1
+    );
     const analysisRunCount = profileRow?.analysis_run_count ?? 0;
     const userGender = profileRow?.gender ?? null;
 
