@@ -771,6 +771,12 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           אנחנו נמצאים כרגע בגרסת הרצה ראשונית (MVP) ובונים את קהילת המשתמשים שלנו, כך שהתהליך עשוי לקחת קצת זמן. ב-One אנחנו מעדיפים איכות על פני מהירות, ולכן לא מתפשרים על התאמות בינוניות.
                         </span>
                       </p>
+                    ) : !hasPhotos ? (
+                      <p style={{ ...styles.recommendationText, marginTop: 8, lineHeight: 1.7 }}>
+                        רק עוד צעד אחד אחרון!
+                        <br />
+                        כדי שהמערכת תוכל לצרף אותך למאגר ולהתחיל בחיפוש ההתאמה, נשאר רק להעלות תמונה במסך <span style={{ color: "#6366f1", cursor: "pointer", textDecoration: "underline" }} onClick={() => setScreen("profile_edit")}>"הפרטים שלי"</span>.
+                      </p>
                     ) : (
                       <p style={{ ...styles.recommendationText, marginTop: 8, lineHeight: 1.7 }}>
                         רק עוד צעד אחד אחרון!
@@ -797,8 +803,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       </div>
                     )}
 
-                    {/* ── Dashboard: Insight Drip Feed ── */}
-                    {!isCouple && insightCard && (() => {
+                    {/* ── Dashboard: Insight Drip Feed — shown for all users including couples ── */}
+                    {insightCard && (() => {
                       const rot = insightRotation % 3;
                       let emoji = "";
                       let title = "";
@@ -887,7 +893,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     {/* ── Dashboard: Feedback Footer ── */}
                     {!isCouple && (
                       <button style={styles.feedbackFooter} onClick={() => setScreen("bug_report")}>
-                        💡 יש לך רעיון לפיצ'ר? משהו לא עובד חלק? נשמח לשמוע במסך המשוב שלנו
+                        💡 יש לך רעיון לפיצ'ר? משהו לא עובד חלק? נשמח לשמוע <span style={{ color: "#6366f1", textDecoration: "underline" }}>במסך המשוב שלנו</span>
                       </button>
                     )}
                   </div>
