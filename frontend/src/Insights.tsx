@@ -4,6 +4,7 @@ interface InsightsProps {
   user: { id: number; first_name: string; email: string };
   onBack: () => void;
   onOpenChat?: (initialMessage: string, channel: string) => void;
+  initialView?: "main" | "mbti" | "values" | "bigfive";
 }
 
 interface DetailedProfile {
@@ -96,11 +97,11 @@ function renderScoreBar(score: number) {
   );
 }
 
-export default function Insights({ user, onBack, onOpenChat }: InsightsProps) {
+export default function Insights({ user, onBack, onOpenChat, initialView }: InsightsProps) {
   const [profile, setProfile] = useState<DetailedProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [gender, setGender] = useState<string | null>(null);
-  const [detailView, setDetailView] = useState<"main" | "mbti" | "values" | "bigfive">("main");
+  const [detailView, setDetailView] = useState<"main" | "mbti" | "values" | "bigfive">(initialView || "main");
 
   useEffect(() => {
     fetch(`/api/users/${user.id}/detailed-traits`)

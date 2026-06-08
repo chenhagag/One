@@ -153,6 +153,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
     const v = localStorage.getItem(`insight_rotation_${user.id}`);
     return v ? parseInt(v, 10) : 0;
   });
+  const [insightInitialView, setInsightInitialView] = useState<"main" | "mbti" | "values" | "bigfive">("main");
   const [showUserMenu, setShowUserMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -515,7 +516,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
         {screen === "insights" && (
           <div className="nc-screen-fade" key="insights" style={{ flex: 1, overflowY: "auto" }}>
-            <Insights user={user} onBack={() => setScreen("home")} onOpenChat={(msg, ch) => sendMessage(msg, ch)} />
+            <Insights user={user} onBack={() => { setScreen("home"); setInsightInitialView("main"); }} onOpenChat={(msg, ch) => sendMessage(msg, ch)} initialView={insightInitialView} />
           </div>
         )}
 
@@ -810,12 +811,14 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       let title = "";
                       let text = "";
                       let hasContent = false;
+                      let targetView: "mbti" | "values" | "bigfive" = "mbti";
 
                       if (rot === 0 && insightCard.mbti?.type) {
                         emoji = "🧠";
                         title = `טיפוס MBTI: ${insightCard.mbti.type}`;
                         text = insightCard.mbti.description || "";
                         hasContent = true;
+                        targetView = "mbti";
                       } else if ((rot === 1 || (rot === 0 && !insightCard.mbti?.type)) && insightCard.allValues?.length > 0) {
                         const top = insightCard.allValues.filter((v: any) => v.score > 60).slice(0, 2);
                         if (top.length > 0) {
@@ -823,6 +826,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           title = "הערכים המובילים שלך";
                           text = top.map((v: any) => `${v.he} — ${v.description}`).join(". ");
                           hasContent = true;
+                          targetView = "values";
                         }
                       }
                       if (!hasContent && insightCard.allBigFive?.length > 0) {
@@ -832,6 +836,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           title = "תכונות אישיות בולטות";
                           text = top.map((v: any) => `${v.he} — ${v.description}`).join(". ");
                           hasContent = true;
+                          targetView = "bigfive";
                         }
                       }
 
@@ -849,7 +854,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           </div>
                           <button
                             style={styles.insightCardBtn}
-                            onClick={() => setScreen("insights")}
+                            onClick={() => { setInsightInitialView(targetView); setScreen("insights"); }}
                           >
                             לקריאת הניתוח המלא →
                           </button>
