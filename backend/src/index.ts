@@ -2120,11 +2120,13 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
     );
     const photoCount = photoRow?.c ?? 0;
 
-    // Profile completeness (check key fields)
-    const profileRow = await pgQueryOne<{ age: number | null; city: string | null }>(
-      "SELECT age, city FROM users WHERE id = $1", [userId]
+    // Profile completeness (check key fields) + analysis status + gender
+    const profileRow = await pgQueryOne<{ age: number | null; city: string | null; analysis_run_count: number; gender: string | null }>(
+      "SELECT age, city, COALESCE(analysis_run_count, 0) as analysis_run_count, gender FROM users WHERE id = $1", [userId]
     );
     const hasProfileDetails = !!(profileRow?.age && profileRow?.city && photoCount >= 1);
+    const analysisRunCount = profileRow?.analysis_run_count ?? 0;
+    const userGender = profileRow?.gender ?? null;
 
     // Check closing states
     const stateRow = await pgQueryOne<{ topic_injection_counts: any }>(
@@ -2152,6 +2154,8 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
       chat_closed: chatClosed,
       cognitive_closed: cogClosed,
       taste_closed: tasteClosed,
+      analysis_run_count: analysisRunCount,
+      gender: userGender,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

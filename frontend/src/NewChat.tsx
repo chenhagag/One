@@ -16,12 +16,14 @@ interface NewChatProps {
   onLogout?: () => void;
 }
 
-const TOPIC_OPTIONS: { icon: string; text: string; channel?: string }[] = [
+const STEP_OPTIONS: { icon: string; text: string; channel: string }[] = [
   { icon: "🧠", text: "בוא נבין את סגנון החשיבה שלי", channel: "new_chat_cognitive" },
   { icon: "🔍", text: "נתח את הטעם שלי לעומק", channel: "new_chat_taste" },
+];
+const QA_OPTIONS: { icon: string; text: string; channel: string; requiresAnalysis?: boolean }[] = [
   { icon: "🎯", text: "איך אתה מוצא לי התאמה מדויקת?", channel: "qa_system" },
   { icon: "❓", text: "יש לי שאלה לגבי התהליך", channel: "qa_general" },
-  { icon: "📋", text: "מה למדת עליי עד עכשיו?", channel: "qa_about_me" },
+  { icon: "📋", text: "מה למדת עליי עד עכשיו?", channel: "qa_about_me", requiresAnalysis: true },
 ];
 
 const SIDEBAR_ITEMS: { icon: string; label: string; action?: string }[] = [
@@ -144,7 +146,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [bugText, setBugText] = useState("");
   const [bugSent, setBugSent] = useState(false);
   const [feedbackCategory, setFeedbackCategory] = useState<string>("");
-  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean }>({ has_cognitive: true, has_taste_info: true, chat_count: 0, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false });
+  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null }>({ has_cognitive: true, has_taste_info: true, chat_count: 0, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null });
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
   const [matchingProgress, setMatchingProgress] = useState<{ total_pool_profiles: number; scanned_profiles: number; status_text: string } | null>(null);
   const [insightCard, setInsightCard] = useState<{ mbti: { type: string | null; description: string | null }; allValues: { name: string; he: string; score: number; description: string }[]; allBigFive: { name: string; he: string; score: number; description: string }[] } | null>(null);
@@ -183,6 +185,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             cognitive_count: data.cognitive_count || 0,
             photo_count: data.photo_count || 0,
             has_profile_details: data.has_profile_details || false,
+            analysis_run_count: data.analysis_run_count || 0,
+            gender: data.gender || null,
           });
           if (data.chat_closed) setClosedChannels(prev => ({ ...prev, "new_chat": true }));
           if (data.cognitive_closed) setClosedChannels(prev => ({ ...prev, "new_chat_cognitive": true }));
@@ -712,10 +716,12 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 </>
               )}
 
-              {/* Expert recommendation — one at a time, prioritized */}
+              {/* Status recommendation — one at a time, prioritized */}
               {screen === "home" && (() => {
               const { has_cognitive, has_taste_info, summary_fields, chat_count } = recommendations;
               const isCouple = (user as any).test_user_type === "Couple Tester";
+              const isFemale = (recommendations.gender || user.gender) === "woman";
+              const gn = (m: string, f: string) => isFemale ? f : m;
               const chatClosed = closedChannels["new_chat"] || false;
               // Couples get recommendations earlier; chat closed = definitely advanced
               const conversationAdvanced = chatClosed || (isCouple ? chat_count >= 5 : summary_fields >= 4);
@@ -728,7 +734,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 return (
                   <div style={styles.recommendationBlock}>
                     <p style={styles.recommendationText}>
-                      <span style={styles.recommendationBadge}>המלצת המומחה</span> עדיין לא הגענו להיכרות מספקת כדי למצוא לך התאמה ראויה. לחץ על "בוא נמשיך" כדי להתקדם.
+                      <span style={styles.recommendationBadge}>📊 איפה אנחנו עומדים?</span> עדיין אין לנו מספיק נתונים כדי להריץ חיפוש מדויק במאגר. {gn("לחץ", "לחצי")} על <span style={{ color: "#6366f1", cursor: "pointer", textDecoration: "underline" }} onClick={() => { setChannel("new_chat"); setScreen("chat"); }}>"בוא נמשיך"</span> כדי להתקדם.
                     </p>
                   </div>
                 );
@@ -738,7 +744,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 return (
                   <div style={styles.recommendationBlock}>
                     <p style={styles.recommendationText}>
-                      <span style={styles.recommendationBadge}>המלצת המומחה</span> היכנס ל"בוא נבין את סגנון החשיבה שלי" כדי שנוכל להכיר אותך יותר לעומק ולדייק את ההתאמה.
+                      <span style={styles.recommendationBadge}>📊 איפה אנחנו עומדים?</span> שיחת ההיכרות הושלמה. {gn("היכנס", "היכנסי")} ל<span style={{ color: "#6366f1", cursor: "pointer", textDecoration: "underline" }} onClick={() => { if (channelMessages["new_chat_cognitive"]?.length > 0) { setChannel("new_chat_cognitive"); setScreen("chat"); } else { sendMessage("בוא נבין את סגנון החשיבה שלי", "new_chat_cognitive"); } }}>"בוא נבין את סגנון החשיבה שלי"</span> כדי שנוכל {gn("להכיר אותך", "להכיר אותך")} יותר לעומק ולדייק את ההתאמה.
                     </p>
                   </div>
                 );
@@ -748,7 +754,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 return (
                   <div style={styles.recommendationBlock}>
                     <p style={styles.recommendationText}>
-                      <span style={styles.recommendationBadge}>המלצת המומחה</span> לחץ על "נתח את הטעם שלי לעומק" כדי שנוכל להבין את העדפות הטעם שלך.
+                      <span style={styles.recommendationBadge}>📊 איפה אנחנו עומדים?</span> {gn("לחץ", "לחצי")} על <span style={{ color: "#6366f1", cursor: "pointer", textDecoration: "underline" }} onClick={() => { if (channelMessages["new_chat_taste"]?.length > 0) { setChannel("new_chat_taste"); setScreen("chat"); } else { sendMessage("נתח את הטעם שלי לעומק", "new_chat_taste"); } }}>"נתח את הטעם שלי לעומק"</span> כדי שנוכל להבין את העדפות הטעם {gn("שלך", "שלך")}.
                     </p>
                   </div>
                 );
@@ -912,38 +918,64 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             </div>
 
             {/* Suggestions — only on home screen */}
-            {screen === "home" && (
+            {screen === "home" && (() => {
+              const chatDone = closedChannels["new_chat"] || false;
+              const hasMessages = (channelMessages["new_chat"]?.length ?? 0) > 0;
+              const allChatsComplete = chatDone && recommendations.has_cognitive && recommendations.has_taste_info;
+              const hasAnalysis = recommendations.analysis_run_count > 0;
+
+              // Progress bar calculation
+              const chatProgress = chatDone ? 30 : (hasMessages ? 15 : 0);
+              const cogProgress = recommendations.has_cognitive ? 30 : ((channelMessages["new_chat_cognitive"]?.length ?? 0) > 0 ? 15 : 0);
+              const tasteProgress = recommendations.has_taste_info ? 30 : ((channelMessages["new_chat_taste"]?.length ?? 0) > 0 ? 15 : 0);
+              const profileProgress = recommendations.has_profile_details ? 10 : (recommendations.photo_count > 0 ? 5 : 0);
+              const totalProgress = Math.min(100, chatProgress + cogProgress + tasteProgress + profileProgress);
+              const showProgress = hasMessages && !allChatsComplete || (allChatsComplete && !recommendations.has_profile_details);
+              const isComplete = totalProgress >= 100;
+
+              return (
+              <>
+              {/* Progress bar */}
+              {showProgress && (
+                <div style={{ padding: "0 16px 8px", direction: "rtl" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                    <span style={{ fontSize: 12, color: "#64748b" }}>התקדמות</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: isComplete ? "#22c55e" : "#6366f1" }}>{totalProgress}%{isComplete ? " ✓" : ""}</span>
+                  </div>
+                  <div style={{ height: 6, background: "#e5e7eb", borderRadius: 3, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${totalProgress}%`, background: isComplete ? "#22c55e" : "linear-gradient(90deg, #818cf8, #6366f1)", borderRadius: 3, transition: "width 0.5s ease" }} />
+                  </div>
+                </div>
+              )}
+
               <div className="nc-suggestions" style={styles.suggestions}>
-                {(() => {
-                  const chatDone = closedChannels["new_chat"] || false;
-                  const hasMessages = (channelMessages["new_chat"]?.length ?? 0) > 0;
+                {/* Main chat button */}
+                <button style={{
+                  ...styles.suggestionBtn,
+                  ...(chatDone
+                    ? { borderColor: "#22c55e", color: "#22c55e" }
+                    : { background: "#6366f1", color: "#fff", border: "1px solid #6366f1" }),
+                }} onClick={() => {
+                  setChannel("new_chat");
+                  if (!hasMessages) {
+                    const g = user.gender === "woman";
+                    const isCouple = (user as any).test_user_type === "Couple Tester";
+                    const greeting = isCouple
+                      ? `היי ${user.first_name}, תודה רבה על ההשתתפות בתהליך האימון שלי.\nככל שאני נבדק על זוגות רבים יותר - אני לומד לדייק את ההתאמות למשתמשים שמחפשים זוגיות אמיתית, והשתתפות ${g ? "שלך" : "שלך"} מסייעת לי מאוד.\nאשאל ${g ? "אותך" : "אותך"} שאלות כמו שהייתי שואל רווקים-רווקות אמיתיים שנכנסים למערכת, ${g ? "אשמח אם תעני" : "אשמח אם תענה"} בכנות ובטבעיות כפי ש${g ? "היית עונה אם היית" : "היית עונה אם היית"} באמת ${g ? "מחפשת" : "מחפש"} שידוך.\nבסוף התהליך ${g ? "תוכלי" : "תוכל"} גם לקבל ממני קצת תובנות על ${g ? "עצמך" : "עצמך"} ועל הזוגיות ${g ? "שלך" : "שלך"} :)\nחשוב לי ש${g ? "תדעי" : "תדע"} שכל מה ש${g ? "את כותבת" : "אתה כותב"} לי כאן הוא לעיניי בלבד — שום דבר לא מופיע בפרופיל ${g ? "שלך" : "שלך"} ולא חשוף לאף משתמש אחר.\n${g ? "מוכנה להתחיל?" : "מוכן להתחיל?"}`
+                      : `היי ${user.first_name}, אני מומחה ההתאמה שלך. אני כאן כדי למצוא ${g ? "לך" : "לך"} התאמה מדויקת על ידי היכרות מעמיקה.\nחשוב לי ש${g ? "תדעי" : "תדע"} שכל מה ש${g ? "את כותבת" : "אתה כותב"} לי כאן הוא לעיניי בלבד — שום דבר לא מופיע בפרופיל ${g ? "שלך" : "שלך"} ולא חשוף לאף משתמש אחר.\nככל ש${g ? "תשתפי" : "תשתף"} אותי יותר, נוכל לדייק את ההתאמה ${g ? "שלך" : "שלך"} יותר. ${g ? "מוכנה להתחיל?" : "מוכן להתחיל?"}`;
+                    setMessagesForChannel("new_chat", () => [{ role: "assistant", content: greeting }]);
+                  }
+                  setScreen("chat");
+                }}>
+                  <span style={{ fontSize: 14 }}>{chatDone ? "✓" : "💬"}</span> {chatDone ? "חזרה לשיחה" : hasMessages ? "בוא נמשיך" : "בוא נתחיל"}
+                </button>
+
+                {/* Step bubbles — cognitive & taste */}
+                {STEP_OPTIONS.map((s, i) => {
+                  const isChannelDone = closedChannels[s.channel] || (s.channel === "new_chat_cognitive" && recommendations.has_cognitive) || (s.channel === "new_chat_taste" && recommendations.has_taste_info);
                   return (
-                    <button style={{
-                      ...styles.suggestionBtn,
-                      ...(chatDone
-                        ? { borderColor: "#22c55e", color: "#22c55e" }
-                        : { background: "#6366f1", color: "#fff", border: "1px solid #6366f1" }),
-                    }} onClick={() => {
-                      setChannel("new_chat");
-                      if (!hasMessages) {
-                        const g = user.gender === "woman";
-                        const isCouple = (user as any).test_user_type === "Couple Tester";
-                        const greeting = isCouple
-                          ? `היי ${user.first_name}, תודה רבה על ההשתתפות בתהליך האימון שלי.\nככל שאני נבדק על זוגות רבים יותר - אני לומד לדייק את ההתאמות למשתמשים שמחפשים זוגיות אמיתית, והשתתפות ${g ? "שלך" : "שלך"} מסייעת לי מאוד.\nאשאל ${g ? "אותך" : "אותך"} שאלות כמו שהייתי שואל רווקים-רווקות אמיתיים שנכנסים למערכת, ${g ? "אשמח אם תעני" : "אשמח אם תענה"} בכנות ובטבעיות כפי ש${g ? "היית עונה אם היית" : "היית עונה אם היית"} באמת ${g ? "מחפשת" : "מחפש"} שידוך.\nבסוף התהליך ${g ? "תוכלי" : "תוכל"} גם לקבל ממני קצת תובנות על ${g ? "עצמך" : "עצמך"} ועל הזוגיות ${g ? "שלך" : "שלך"} :)\nחשוב לי ש${g ? "תדעי" : "תדע"} שכל מה ש${g ? "את כותבת" : "אתה כותב"} לי כאן הוא לעיניי בלבד — שום דבר לא מופיע בפרופיל ${g ? "שלך" : "שלך"} ולא חשוף לאף משתמש אחר.\n${g ? "מוכנה להתחיל?" : "מוכן להתחיל?"}`
-                          : `היי ${user.first_name}, אני מומחה ההתאמה שלך. אני כאן כדי למצוא ${g ? "לך" : "לך"} התאמה מדויקת על ידי היכרות מעמיקה.\nחשוב לי ש${g ? "תדעי" : "תדע"} שכל מה ש${g ? "את כותבת" : "אתה כותב"} לי כאן הוא לעיניי בלבד — שום דבר לא מופיע בפרופיל ${g ? "שלך" : "שלך"} ולא חשוף לאף משתמש אחר.\nככל ש${g ? "תשתפי" : "תשתף"} אותי יותר, נוכל לדייק את ההתאמה ${g ? "שלך" : "שלך"} יותר. ${g ? "מוכנה להתחיל?" : "מוכן להתחיל?"}`;
-                        setMessagesForChannel("new_chat", () => [{ role: "assistant", content: greeting }]);
-                      }
-                      setScreen("chat");
-                    }}>
-                      <span style={{ fontSize: 14 }}>{chatDone ? "✓" : "💬"}</span> {chatDone ? "חזרה לשיחה" : hasMessages ? "בוא נמשיך" : "בוא נתחיל"}
-                    </button>
-                  );
-                })()}
-                {TOPIC_OPTIONS.map((s, i) => {
-                  const isChannelDone = s.channel ? (closedChannels[s.channel] || (s.channel === "new_chat_cognitive" && recommendations.has_cognitive) || (s.channel === "new_chat_taste" && recommendations.has_taste_info)) : false;
-                  return (
-                  <button key={i} style={{ ...styles.suggestionBtn, ...(isChannelDone ? { borderColor: "#22c55e", color: "#22c55e" } : {}) }} onClick={() => {
-                    if (s.channel && channelMessages[s.channel]?.length > 0) {
+                  <button key={`step-${i}`} style={{ ...styles.suggestionBtn, ...(isChannelDone ? { borderColor: "#22c55e", color: "#22c55e" } : {}) }} onClick={() => {
+                    if (channelMessages[s.channel]?.length > 0) {
                       setChannel(s.channel);
                       setScreen("chat");
                     } else {
@@ -954,8 +986,26 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   </button>
                   );
                 })}
+
+                {/* Q&A bubbles — subtler style */}
+                {QA_OPTIONS
+                  .filter(q => !q.requiresAnalysis || hasAnalysis)
+                  .map((q, i) => (
+                  <button key={`qa-${i}`} style={styles.qaBubble} onClick={() => {
+                    if (channelMessages[q.channel]?.length > 0) {
+                      setChannel(q.channel);
+                      setScreen("chat");
+                    } else {
+                      sendMessage(q.text, q.channel);
+                    }
+                  }}>
+                    <span style={{ fontSize: 13, opacity: 0.5 }}>{q.icon}</span> {q.text}
+                  </button>
+                ))}
               </div>
-            )}
+              </>
+              );
+            })()}
           </>
         )}
 
@@ -1457,6 +1507,16 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     color: "#555",
     cursor: "pointer",
+  },
+  qaBubble: {
+    padding: "7px 14px",
+    border: "1px dashed #c7d2fe",
+    borderRadius: 20,
+    background: "#fafafe",
+    fontSize: 12,
+    color: "#8888aa",
+    cursor: "pointer",
+    fontFamily: "inherit",
   },
 
   // Input
