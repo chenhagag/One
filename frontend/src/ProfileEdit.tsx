@@ -271,6 +271,13 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
               רצוי להעלות 3 תמונות לפחות
             </p>
           )}
+
+          <div style={{ background: "#f8f9fb", borderRadius: 10, padding: "14px 16px", marginTop: 16, fontSize: 12, color: "#555", lineHeight: 1.7 }}>
+            <p style={{ fontWeight: 600, color: "#1a1a2e", margin: "0 0 8px", fontSize: 13 }}>איך המערכת משתמשת בתמונות?</p>
+            <p style={{ margin: "0 0 6px" }}>🔒 <strong>פרטיות מלאה:</strong> ב-One אין קטלוג ציבורי ואף אחד לא יכול "לדפדף" בנתונים שלך סתם כך.</p>
+            <p style={{ margin: "0 0 6px" }}>🎯 <strong>חשיפה מדויקת בלבד:</strong> התמונות (יחד עם השם והגיל) ייחשפו אך ורק בפני אנשים שהאלגוריתם כבר מצא עבורך כהתאמה פסיכולוגית ואישיותית עמוקה.</p>
+            <p style={{ margin: 0 }}>👁️ <strong>ניתוח מראה ואישור הדדי:</strong> המערכת תבצע בדיקת הלימה ויזואלית, ותעביר את התמונות לאישור דיסקרטי ושלבי של שני הצדדים. המשוב שלכם ילטש את ציון ההתאמה הסופי, כאשר אישור הדדי הוא תנאי חובה לפתיחת הקשר.</p>
+          </div>
         </div>
 
         {/* ── About Me ── */}
