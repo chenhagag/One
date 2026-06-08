@@ -656,7 +656,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       <p style={styles.recommendationText}>
                         סיימת את כל השלבים, תודה רבה, עזרת לי מאוד לשפר את עצמי! נחזור אליך בקרוב עם תובנות על הזוגיות שלך :)
                       </p>
-                    ) : (
+                    ) : hasDetails ? (
                       <p style={{ ...styles.recommendationText, lineHeight: 1.7 }}>
                         כל השלבים הושלמו בהצלחה.
                         <br />
@@ -666,19 +666,15 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           אנחנו נמצאים כרגע בגרסת הרצה ראשונית (MVP) ובונים את קהילת המשתמשים שלנו, כך שהתהליך עשוי לקחת קצת זמן. ב-One אנחנו מעדיפים איכות על פני מהירות, ולכן לא מתפשרים על התאמות בינוניות.
                         </span>
                       </p>
-                    )}
-                    {!hasDetails && (
+                    ) : (
                       <p style={{ ...styles.recommendationText, marginTop: 8 }}>
                         <span style={styles.recommendationBadge}>המלצת המומחה</span>
-                        {isCouple
-                          ? " אם אתם מעוניינים לעזור לי להתאמן ולבחון גם התאמה חיצונית ביניכם — השלימו את הפרטים והעלו תמונות במסך \"הפרטים שלי\". תודה רבה!"
-                          : " להשלמת הפרופיל, היכנס/י ל\"הפרטים שלי\" כדי להעלות תמונות ולהשלים את הפרטים האישיים."
-                        }
+                        {" להשלמת הפרופיל, היכנס/י ל\"הפרטים שלי\" כדי להעלות תמונות ולהשלים את הפרטים האישיים."}
                       </p>
                     )}
 
-                    {/* ── Dashboard: Progress Pulse ── */}
-                    {!isCouple && matchingProgress && (
+                    {/* ── Dashboard: Progress Pulse — only when profile is complete ── */}
+                    {!isCouple && hasDetails && matchingProgress && (
                       <div style={styles.dashboardCard}>
                         <p style={styles.dashboardTitle}>האלגוריתם בעבודה ⚙️</p>
                         {matchingProgress.scanned_profiles > 0 && (
