@@ -133,17 +133,41 @@
 - qa_general/qa_system: explicit instruction to answer FROM provided context
 - Specific reinforcement for wait-time questions (no mediocre matches, pool growth, no timeline)
 
+#### 20. Major Improvement to qa_about_me Chat Quality
+- Replaced `getSafeUserProfile` (only >60 scores) with `formatRichProfileForChat` (all scores)
+- AI now receives: all Big Five (5 traits incl. neuroticism), all Schwartz values (11), MBTI dimensions with descriptive labels, safe positive traits (>65)
+- Pulls 15 recent user messages as citable conversation excerpts
+- AI instructed to never show numbers — translate to descriptive language ("גבוה מאוד", "מאוזן", "נמוך יחסית")
+- Separate instructions: "מה למדת עליי" allows elaboration; "disagree" flow is shorter and focused
+- New `SAFE_POSITIVE_TRAITS` list: curated traits safe to share when high (e.g., emotional intelligence, warmth, self-awareness)
+- New helper functions: `scoreToLevel()`, `mbtiDimensionDescription()`
+
+#### 21. Removed After Testing
+- **Progress bar** — removed entirely (step indicators + percentage)
+- **Dashboard progress pulse** — removed (scanned profiles count)
+- **Fine-tuning question** — removed (pet compatibility chips)
+- These features were built, tested, and intentionally removed based on UX feedback
+
+#### 22. Post-Completion UI Polish
+- All bubbles shrink to small size (11px font) when all chats are complete
+- 🎉 celebration emoji added to "כל השלבים הושלמו בהצלחה!"
+- Q&A bubbles separated below step bubbles with divider line
+
+#### 23. User Data Copy Script
+- Created `backend/copy-user-to-staging.js` for copying users between environments
+- Successfully used to copy הינדי (#145) from production to staging for testing
+
 ### Key Design Decisions
 - Q&A channels use qa_ prefix (not new_chat_) to exclude from personality analysis
 - Disagree from Insights routes to qa_about_me (shared channel, not separate qa_insights)
-- Progress bar designed to be easily removable if not liked
 - Brand language: "מפה אישיותית" not "פרופיל", professional but warm tone
 - Neuroticism renamed "רגישות רגשית" with positive framing throughout
+- Progress bar, dashboard pulse, and fine-tuning removed after testing — didn't add enough value
+- AI gets full scores internally but never exposes numbers to user — descriptive language only
 
 ### Known Issues / Next Steps
-- **Insights chat quality**: qa_about_me ("מה למדת עליי") needs better AI context + personalization — conversations feel too generic, need to reference specific things user said
-- **Fine-tuning questions**: currently one static question (pets) — needs design decision on dynamic vs static
 - **Future insight types**: Enneagram + attachment style (second analysis run)
+- **Fine-tuning questions**: design decision pending — static bank vs dynamic based on missing data
 
 ---
 
