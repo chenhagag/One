@@ -379,8 +379,12 @@ export async function buildChatPrompt(
 
       contextBlock = parts.join("");
     } else {
-      // qa_system or qa_general
-      contextBlock = SYSTEM_CONTEXT;
+      // qa_system or qa_general — system info context with explicit instruction
+      contextBlock = SYSTEM_CONTEXT + `\n\n## הנחיות נוספות
+המשתמש שואל שאלה על התהליך או המערכת. ענה על בסיס המידע שלמעלה.
+- השתמש במידע שמופיע בהנחיות למעלה כדי לענות — אל תאמר "אני לא יודע" אם התשובה נמצאת שם.
+- אם שואלים על זמני המתנה — הדגש שאנחנו לא מתפשרים על התאמות בינוניות, שככל שהמאגר גדל הזמן מתקצר, ושלא ניתן להתחייב לזמן ספציפי.
+- ענה בצורה חמה, מקצועית ובגובה העיניים.`;
     }
     const systemPrompt = contextBlock + "\n\n" + genderInstruction + coupleInstruction;
     return { systemPrompt, intent: "general" as ChatIntent, phase: detectPhase(messageCount), closingStage: 0 };
