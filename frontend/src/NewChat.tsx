@@ -924,26 +924,57 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               const allChatsComplete = chatDone && recommendations.has_cognitive && recommendations.has_taste_info;
               const hasAnalysis = recommendations.analysis_run_count > 0;
 
-              // Progress bar calculation
-              const chatProgress = chatDone ? 30 : (hasMessages ? 15 : 0);
-              const cogProgress = recommendations.has_cognitive ? 30 : ((channelMessages["new_chat_cognitive"]?.length ?? 0) > 0 ? 15 : 0);
-              const tasteProgress = recommendations.has_taste_info ? 30 : ((channelMessages["new_chat_taste"]?.length ?? 0) > 0 ? 15 : 0);
+              // Progress bar calculation — starts at 0, mid-chat=15, done=30 per channel
+              const chatMsgCount = recommendations.chat_count || 0;
+              const chatProgress = chatDone ? 30 : (chatMsgCount >= 3 ? 15 : (chatMsgCount > 0 ? 5 : 0));
+              const cogMsgCount = (channelMessages["new_chat_cognitive"]?.length ?? 0);
+              const cogProgress = recommendations.has_cognitive ? 30 : (cogMsgCount >= 3 ? 15 : (cogMsgCount > 0 ? 5 : 0));
+              const tasteMsgCount = (channelMessages["new_chat_taste"]?.length ?? 0);
+              const tasteProgress = recommendations.has_taste_info ? 30 : (tasteMsgCount >= 3 ? 15 : (tasteMsgCount > 0 ? 5 : 0));
               const profileProgress = recommendations.has_profile_details ? 10 : (recommendations.photo_count > 0 ? 5 : 0);
               const totalProgress = Math.min(100, chatProgress + cogProgress + tasteProgress + profileProgress);
-              const showProgress = hasMessages && !allChatsComplete || (allChatsComplete && !recommendations.has_profile_details);
+              const showProgress = (chatMsgCount > 0 || cogMsgCount > 0) && totalProgress < 100;
               const isComplete = totalProgress >= 100;
+
+              // Step labels for the visual progress
+              const steps = [
+                { label: "שיחת היכרות", done: chatDone, active: chatMsgCount > 0 && !chatDone },
+                { label: "סגנון חשיבה", done: recommendations.has_cognitive, active: cogMsgCount > 0 && !recommendations.has_cognitive },
+                { label: "ניתוח טעם", done: recommendations.has_taste_info, active: tasteMsgCount > 0 && !recommendations.has_taste_info },
+                { label: "השלמת פרטים", done: recommendations.has_profile_details, active: recommendations.photo_count > 0 && !recommendations.has_profile_details },
+              ];
 
               return (
               <>
               {/* Progress bar */}
               {showProgress && (
-                <div style={{ padding: "0 16px 8px", direction: "rtl" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                    <span style={{ fontSize: 12, color: "#64748b" }}>התקדמות</span>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: isComplete ? "#22c55e" : "#6366f1" }}>{totalProgress}%{isComplete ? " ✓" : ""}</span>
+                <div style={{ padding: "4px 20px 12px", direction: "rtl" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "#1a1a2e" }}>ההתקדמות שלך</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: isComplete ? "#22c55e" : "#6366f1" }}>{totalProgress}%</span>
                   </div>
-                  <div style={{ height: 6, background: "#e5e7eb", borderRadius: 3, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${totalProgress}%`, background: isComplete ? "#22c55e" : "linear-gradient(90deg, #818cf8, #6366f1)", borderRadius: 3, transition: "width 0.5s ease" }} />
+                  <div style={{ height: 8, background: "#e5e7eb", borderRadius: 4, overflow: "hidden", marginBottom: 8 }}>
+                    <div style={{ height: "100%", width: `${totalProgress}%`, background: isComplete ? "#22c55e" : "linear-gradient(90deg, #a5b4fc, #6366f1)", borderRadius: 4, transition: "width 0.5s ease" }} />
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 4 }}>
+                    {steps.map((st, i) => (
+                      <div key={i} style={{ textAlign: "center", flex: 1 }}>
+                        <div style={{ fontSize: 14, marginBottom: 2 }}>
+                          {st.done ? "✅" : st.active ? "🔵" : "⚪"}
+                        </div>
+                        <div style={{ fontSize: 10, color: st.done ? "#22c55e" : st.active ? "#6366f1" : "#94a3b8", fontWeight: st.done || st.active ? 600 : 400 }}>
+                          {st.label}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {isComplete && allChatsComplete && recommendations.has_profile_details && (
+                <div style={{ padding: "4px 20px 12px", direction: "rtl", textAlign: "center" }}>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 20, padding: "6px 16px" }}>
+                    <span style={{ fontSize: 16 }}>✅</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "#166534" }}>100% — כל השלבים הושלמו!</span>
                   </div>
                 </div>
               )}
@@ -987,21 +1018,25 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   );
                 })}
 
-                {/* Q&A bubbles — subtler style */}
-                {QA_OPTIONS
-                  .filter(q => !q.requiresAnalysis || hasAnalysis)
-                  .map((q, i) => (
-                  <button key={`qa-${i}`} style={styles.qaBubble} onClick={() => {
-                    if (channelMessages[q.channel]?.length > 0) {
-                      setChannel(q.channel);
-                      setScreen("chat");
-                    } else {
-                      sendMessage(q.text, q.channel);
-                    }
-                  }}>
-                    <span style={{ fontSize: 13, opacity: 0.5 }}>{q.icon}</span> {q.text}
-                  </button>
-                ))}
+                {/* Q&A bubbles — smaller, separated below */}
+                {QA_OPTIONS.filter(q => !q.requiresAnalysis || hasAnalysis).length > 0 && (
+                  <div style={{ width: "100%", display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", marginTop: 4, paddingTop: 8, borderTop: "1px solid #f0f0f4" }}>
+                    {QA_OPTIONS
+                      .filter(q => !q.requiresAnalysis || hasAnalysis)
+                      .map((q, i) => (
+                      <button key={`qa-${i}`} style={styles.qaBubble} onClick={() => {
+                        if (channelMessages[q.channel]?.length > 0) {
+                          setChannel(q.channel);
+                          setScreen("chat");
+                        } else {
+                          sendMessage(q.text, q.channel);
+                        }
+                      }}>
+                        <span style={{ fontSize: 12 }}>{q.icon}</span> {q.text}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               </>
               );
@@ -1509,12 +1544,12 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
   },
   qaBubble: {
-    padding: "7px 14px",
-    border: "1px dashed #c7d2fe",
-    borderRadius: 20,
-    background: "#fafafe",
+    padding: "6px 13px",
+    border: "1px solid #e0e0e8",
+    borderRadius: 16,
+    background: "#fff",
     fontSize: 12,
-    color: "#8888aa",
+    color: "#777",
     cursor: "pointer",
     fontFamily: "inherit",
   },
