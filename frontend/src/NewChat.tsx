@@ -27,10 +27,110 @@ const TOPIC_OPTIONS: { icon: string; text: string; channel?: string }[] = [
 const SIDEBAR_ITEMS: { icon: string; label: string; action?: string }[] = [
   { icon: "👤", label: "הפרטים שלי", action: "profile_edit" },
   { icon: "💡", label: "תובנות על עצמי", action: "insights" },
+  { icon: "🔬", label: "איך המערכת עובדת?", action: "how_it_works" },
   { icon: "🎯", label: "בדיקת טעם חיצוני", action: "taste_test" },
   { icon: "✨", label: "עזרו לנו להשתפר", action: "bug_report" },
   { icon: "⚙️", label: "הגדרות", action: "settings" },
 ];
+
+function HowItWorks() {
+  return (
+    <div style={{ direction: "rtl", background: "#f9fafb", minHeight: "100vh", fontFamily: "'Segoe UI', 'Arial', sans-serif" }}>
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "32px 24px" }}>
+        <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", marginTop: 0, marginBottom: 24 }}>איך המערכת עובדת?</h2>
+
+        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: "20px 24px", marginBottom: 16 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 600, color: "#6366f1", margin: "0 0 12px 0" }}>התהליך</h3>
+
+          <div style={{ marginBottom: 16 }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 4px 0" }}>1. הכרות לעומק</p>
+            <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, margin: 0 }}>
+              אנחנו מנהלים שיחה כדי להכיר אותך ברמה עמוקה. לא שאלון, אלא שיחה אמיתית שמטרתה להבין מי אתה — מה חשוב לך, איך אתה חושב, מה מניע אותך, ומה אתה מחפש בזוגיות.
+            </p>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 4px 0" }}>2. ניתוח אישיות</p>
+            <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, margin: 0 }}>
+              על בסיס השיחה, המערכת בונה פרופיל אישיותי מעמיק. הפרופיל כולל את הערכים, תכונות האופי, סגנון התקשורת, ועוד. ככל שתשתף יותר ותהיה כנה יותר, כך הפרופיל יהיה מדויק יותר.
+            </p>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 4px 0" }}>3. כניסה למאגר ההתאמות</p>
+            <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, margin: 0 }}>
+              ברגע שהפרופיל מספיק שלם, אתה נכנס למאגר ההתאמות. המערכת מחשבת ציוני התאמה בינך לבין כל האנשים הרלוונטיים, ומחפשת את ההתאמה הכי טובה עבורך.
+            </p>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 4px 0" }}>4. בדיקת מראה</p>
+            <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, margin: 0 }}>
+              לפני שנציע התאמה, אנחנו מוודאים שיש התאמה גם מבחינת המראה החיצוני. תמונות נבדקות אל מול שני הצדדים, כדי לוודא שיש משיכה הדדית ולמנוע אכזבה.
+            </p>
+          </div>
+
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 4px 0" }}>5. קבלת ההתאמה</p>
+            <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, margin: 0 }}>
+              אתה מקבל את ההתאמה עם הציון הגבוה ביותר — מישהו שמתאים לך ברמה העמוקה ביותר.
+            </p>
+          </div>
+        </div>
+
+        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: "20px 24px", marginBottom: 16 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 600, color: "#6366f1", margin: "0 0 12px 0" }}>על מה מבוססת ההתאמה</h3>
+
+          <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, margin: "0 0 14px 0" }}>
+            המערכת משתמשת בשילוב של AI ואלגוריתם התאמה. ה-AI מנתח את השיחה ובונה פרופיל אישיותי, והאלגוריתם מחשב התאמות בין פרופילים על בסיס מודלים פסיכולוגיים מוכחים.
+          </p>
+
+          <div style={{ marginBottom: 12 }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 4px 0" }}>מודל הערכים של Schwartz</p>
+            <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, margin: 0 }}>
+              מודל מחקרי מוכח שמזהה 11 ערכים בסיסיים שמנחים את ההתנהגות של כל אדם: עצמאות, ביטחון, הישגיות, נדיבות ועוד. מחקרים מראים שהתאמה בערכים המרכזיים מנבאת שביעות רצון גבוהה יותר בזוגיות.
+            </p>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 4px 0" }}>Big Five — חמש התכונות הגדולות</p>
+            <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, margin: 0 }}>
+              המודל המוביל והמוכח ביותר בפסיכולוגיה לתיאור אישיות. חמישה ממדים — מוחצנות, מצפוניות, נעימות, פתיחות לחוויות ויציבות רגשית — שמנבאים איך אדם מתנהג, מתקשר ומתמודד עם אתגרים.
+            </p>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 4px 0" }}>MBTI</p>
+            <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, margin: 0 }}>
+              מודל של 16 טיפוסי אישיות. אנחנו משתמשים בו בעיקר כתוספת — ככלי שמפרק את האישיות לממדים שימושיים כמו סגנון חשיבה וקבלת החלטות, שעוזרים למצוא דמיון והשלמה בין אנשים.
+            </p>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 4px 0" }}>פרופיל קוגנטיבי</p>
+            <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, margin: 0 }}>
+              איך אתה חושב, פותר בעיות ומתמודד עם מורכבות. התאמה קוגנטיבית חשובה לתקשורת יומיומית ולתחושת "מדברים באותה שפה".
+            </p>
+          </div>
+
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 4px 0" }}>מאפיינים נוספים</p>
+            <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, margin: 0 }}>
+              בנוסף, אנחנו מנתחים סגנון היקשרות (איך אתה מתחבר ברגעי קרבה ומשבר), סגנון תקשורת, סגנון תרבותי, אופן ניהול קונפליקטים, ועוד. כל אלה יחד בונים תמונה רחבה ומדויקת.
+            </p>
+          </div>
+        </div>
+
+        <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 12, padding: "20px 24px" }}>
+          <h3 style={{ fontSize: 16, fontWeight: 600, color: "#166534", margin: "0 0 10px 0" }}>איך ההתאמה עובדת</h3>
+          <p style={{ fontSize: 13, color: "#3f6212", lineHeight: 1.7, margin: 0 }}>
+            ההתאמה נעשית באמצעות שילוב של דמיון ודפוסי התאמה — לפי מה שמחקרים מעידים בכל תחום. בערכים מרכזיים, חשוב שתהיו קרובים. בתכונות אישיות, לפעמים השלמה דווקא יוצרת דינמיקה בריאה. בנוסף, המערכת מתחשבת בטעם האישי וברצונות של כל אחד מהצדדים — לא רק מה מתאים "על הנייר", אלא גם מה כל אחד מחפש.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogout }: NewChatProps) {
   const [channelMessages, setChannelMessages] = useState<Record<string, Message[]>>({
@@ -46,7 +146,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [sending, setSending] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [channel, setChannel] = useState<string>("new_chat");
-  const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "insights" | "couple_insights" | "bug_report" | "settings">("home");
+  const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "insights" | "couple_insights" | "bug_report" | "settings" | "how_it_works">("home");
   const [coupleInsights, setCoupleInsights] = useState<string | null>(null);
   const [bugText, setBugText] = useState("");
   const [bugSent, setBugSent] = useState(false);
@@ -394,6 +494,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
              screen === "profile_edit" ? "הפרטים שלי" :
              screen === "insights" ? "תובנות על עצמי" :
              screen === "couple_insights" ? "כרטיס התאמה" :
+             screen === "how_it_works" ? "איך המערכת עובדת?" :
              screen === "bug_report" ? "עזרו לנו להשתפר" :
              screen === "settings" ? "הגדרות" : "One"}
           </span>
@@ -422,6 +523,12 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         {screen === "insights" && (
           <div className="nc-screen-fade" key="insights" style={{ flex: 1, overflowY: "auto" }}>
             <Insights user={user} onBack={() => setScreen("home")} onOpenChat={(msg, ch) => sendMessage(msg, ch)} />
+          </div>
+        )}
+
+        {screen === "how_it_works" && (
+          <div className="nc-screen-fade" key="how_it_works" style={{ flex: 1, overflowY: "auto" }}>
+            <HowItWorks />
           </div>
         )}
 
