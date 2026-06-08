@@ -281,6 +281,138 @@ export async function getDetailedUserProfile(userId: number): Promise<DetailedUs
   };
 }
 
+// ── Safe positive traits (beyond Big Five / Values / MBTI) ──
+// Only traits that are safe AND positive to share when score is HIGH
+const SAFE_POSITIVE_TRAITS: Record<string, string> = {
+  analytical_reasoning: "חשיבה אנליטית",
+  abstract_thinking: "חשיבה מופשטת",
+  cognitive_flexibility: "גמישות קוגניטיבית",
+  depth_of_thought: "עומק חשיבה",
+  intellectualism: "אינטלקטואליזם",
+  verbal_articulation: "ביטוי מילולי",
+  verbal_reasoning: "חשיבה מילולית",
+  self_awareness: "מודעות עצמית",
+  social_intuitive_intelligence: "אינטליגנציה חברתית",
+  eq: "אינטליגנציה רגשית",
+  positivity: "חיוביות",
+  warmth: "חום אנושי",
+  charismatic_presence: "נוכחות כריזמטית",
+  serious_relationship_intent: "כוונות רציניות לזוגיות",
+  loves_animals: "אוהב/ת בעלי חיים",
+};
+
+function scoreToLevel(score: number): string {
+  if (score >= 80) return "גבוה מאוד";
+  if (score >= 65) return "גבוה";
+  if (score >= 45) return "בינוני";
+  if (score >= 30) return "נמוך";
+  return "נמוך מאוד";
+}
+
+function mbtiDimensionDescription(dim: string, score: number | null): string {
+  if (score == null) return "";
+  const balanced = Math.abs(score - 50) <= 8;
+  if (balanced) {
+    const labels: Record<string, string> = {
+      extraversion: "מוחצנות-מופנמות מאוזנת",
+      sensing: "חישה-אינטואיציה מאוזנת",
+      thinking: "חשיבה-רגש מאוזנים",
+      judging: "שיפוט-תפיסה מאוזנים",
+    };
+    return labels[dim] || "מאוזן";
+  }
+  const descriptions: Record<string, [string, string]> = {
+    extraversion: ["מופנם — שואב אנרגיה מזמן לעצמו", "מוחצן — שואב אנרגיה מאנשים"],
+    sensing: ["חושני — מתמקד בפרטים ובמציאות", "אינטואיטיבי — מתמקד בתמונה הגדולה"],
+    thinking: ["חושב — מקבל החלטות לוגיות", "מרגיש — מקבל החלטות על בסיס ערכים ורגשות"],
+    judging: ["שופט — מעדיף תוכניות וסדר", "תופס — מעדיף גמישות וספונטניות"],
+  };
+  const pair = descriptions[dim];
+  if (!pair) return "";
+  return score < 50 ? pair[0] : pair[1];
+}
+
+/**
+ * Format rich profile for qa_about_me chat — all safe data, descriptive (no raw numbers to user).
+ * AI gets scores internally but instructions say to translate to descriptive language.
+ */
+export async function formatRichProfileForChat(userId: number): Promise<string> {
+  const rows = await queryAll<{ internal_name: string; display_name_he: string; score: number; confidence: number }>(
+    `SELECT td.internal_name, td.display_name_he, ut.score, ut.confidence
+     FROM user_traits ut
+     JOIN trait_definitions td ON td.id = ut.trait_definition_id
+     WHERE ut.user_id = $1 AND ut.score IS NOT NULL`,
+    [userId]
+  );
+
+  const traitMap = new Map<string, number>();
+  for (const r of rows) traitMap.set(r.internal_name, r.score);
+
+  const parts: string[] = [];
+
+  // MBTI with dimension detail
+  const mbtiType = computeMbtiType(traitMap);
+  const altType = computeAlternateMbtiType(traitMap);
+  if (mbtiType) {
+    parts.push(`## MBTI`);
+    parts.push(`טיפוס: ${mbtiType} — ${MBTI_DESCRIPTIONS[mbtiType] || ""}`);
+    if (altType) parts.push(`טיפוס חלופי אפשרי: ${altType} — ${MBTI_DESCRIPTIONS[altType] || ""}`);
+    parts.push(`ממדים:`);
+    const dims = [
+      ["extraversion", traitMap.get("extraversion")],
+      ["sensing", traitMap.get("sensing") != null && traitMap.get("intuition") != null
+        ? (traitMap.get("sensing")! > traitMap.get("intuition")! ? traitMap.get("sensing")! : 100 - traitMap.get("intuition")!) : traitMap.get("sensing")],
+      ["thinking", traitMap.get("thinking") != null && traitMap.get("feeling") != null
+        ? (traitMap.get("thinking")! + 10 > traitMap.get("feeling")! ? traitMap.get("thinking")! : 100 - traitMap.get("feeling")!) : traitMap.get("thinking")],
+      ["judging", traitMap.get("judging") != null && traitMap.get("perceiving") != null
+        ? (traitMap.get("judging")! > traitMap.get("perceiving")! ? traitMap.get("judging")! : 100 - traitMap.get("perceiving")!) : traitMap.get("judging")],
+    ] as [string, number | undefined][];
+    for (const [dim, score] of dims) {
+      if (score != null) {
+        const desc = mbtiDimensionDescription(dim, score);
+        if (desc) parts.push(`  - ${desc} (ציון פנימי: ${Math.round(score)})`);
+      }
+    }
+  }
+
+  // Big Five — all 5, with descriptive levels
+  parts.push(`\n## Big Five — תכונות אישיות`);
+  for (const name of Object.keys(BIG_FIVE_INFO)) {
+    const score = traitMap.get(name);
+    if (score == null) continue;
+    const info = BIG_FIVE_INFO[name];
+    const level = scoreToLevel(score);
+    parts.push(`  - ${info.he}: ${level} (ציון פנימי: ${Math.round(score)}) — ${info.desc}`);
+  }
+
+  // Schwartz — all values
+  parts.push(`\n## ערכים (Schwartz)`);
+  const sortedValues = Object.keys(VALUE_INFO)
+    .filter(name => traitMap.has(name))
+    .sort((a, b) => (traitMap.get(b) ?? 0) - (traitMap.get(a) ?? 0));
+  for (const name of sortedValues) {
+    const score = traitMap.get(name)!;
+    const info = VALUE_INFO[name];
+    const level = scoreToLevel(score);
+    parts.push(`  - ${info.he}: ${level} (ציון פנימי: ${Math.round(score)}) — ${info.desc}`);
+  }
+
+  // Safe positive traits — only high scores (>= 65)
+  const positiveTraits: string[] = [];
+  for (const [name, he] of Object.entries(SAFE_POSITIVE_TRAITS)) {
+    const score = traitMap.get(name);
+    if (score != null && score >= 65) {
+      positiveTraits.push(`  - ${he}: ${scoreToLevel(score)}`);
+    }
+  }
+  if (positiveTraits.length > 0) {
+    parts.push(`\n## תכונות בולטות נוספות`);
+    parts.push(...positiveTraits);
+  }
+
+  return parts.join("\n");
+}
+
 /**
  * Format safe profile data as a text block for injection into a prompt.
  */

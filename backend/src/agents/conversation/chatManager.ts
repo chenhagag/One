@@ -18,9 +18,9 @@
 
 import fs from "fs";
 import path from "path";
-import { getSafeUserProfile, formatSafeProfileForPrompt } from "../../safeOutputLayer";
+import { getSafeUserProfile, formatSafeProfileForPrompt, formatRichProfileForChat } from "../../safeOutputLayer";
 import { getUserSummary, formatSummaryForPrompt, type UserChatSummary } from "./summarizer";
-import { queryOne as pgQueryOne } from "../../db.pg";
+import { queryOne as pgQueryOne, queryAll as pgQueryAll } from "../../db.pg";
 
 // ── Prompts (loaded once at startup) ────────────────────────────
 
@@ -348,34 +348,54 @@ export async function buildChatPrompt(
   if (QA_CHANNELS.includes(channel)) {
     let contextBlock = "";
     if (channel === "qa_about_me" || channel === "qa_insights") {
-      const safeProfile = await getSafeUserProfile(userId);
-      const profileText = formatSafeProfileForPrompt(safeProfile);
-
-      // Build rich context: profile data + conversation summary for deep discussion
+      // Build rich context with all safe data + conversation excerpts
       const parts: string[] = [PROFILE_CONTEXT];
 
-      if (profileText.trim()) {
-        parts.push("\n\n## המפה האישיותית של המשתמש\n" + profileText);
+      // Rich profile with all scores (Big Five, Schwartz, MBTI dimensions, positive traits)
+      const richProfile = await formatRichProfileForChat(userId);
+      if (richProfile.trim()) {
+        parts.push("\n\n" + richProfile);
       }
 
-      // Always add conversation summary if available — gives AI conversational context
+      // Conversation summary
       if (userSummary) {
         const summaryText = formatSummaryForPrompt(userSummary);
         parts.push("\n\n## סיכום מה שהמשתמש שיתף בשיחה\n" + summaryText);
       }
 
-      if (!profileText.trim() && !userSummary) {
+      // Pull representative conversation excerpts (last ~15 user messages from main chats)
+      const excerpts = await pgQueryAll<{ content: string; guide: string }>(
+        `SELECT content, guide FROM conversation_messages
+         WHERE user_id = $1 AND role = 'user' AND guide IN ('new_chat', 'new_chat_cognitive', 'new_chat_taste')
+         ORDER BY created_at DESC LIMIT 15`,
+        [userId]
+      );
+      if (excerpts.length > 0) {
+        parts.push("\n\n## דברים שהמשתמש אמר בשיחות (ציטוטים לשימושך)");
+        for (const ex of excerpts.reverse()) {
+          const label = ex.guide === "new_chat_cognitive" ? "שיחת חשיבה" : ex.guide === "new_chat_taste" ? "ניתוח טעם" : "שיחת היכרות";
+          parts.push(`  [${label}]: "${ex.content.slice(0, 200)}${ex.content.length > 200 ? "..." : ""}"`);
+        }
+      }
+
+      if (!richProfile.trim() && !userSummary && excerpts.length === 0) {
         parts.push("\n\nאין עדיין נתוני פרופיל מובנים. שתף רשמים כלליים מהשיחה ועודד להמשיך לשוחח.");
       }
 
-      parts.push(`\n\n## הנחיות לדיון על תובנות
-כשהמשתמש רוצה לדון בתובנות שלו (MBTI, ערכים, Big Five):
-- נהל דיון עמוק ואישי. אתה מכיר את המשתמש — השתמש בדוגמאות מהשיחה שלכם.
-- אם המשתמש לא מסכים עם ניתוח מסוים, אל תתגונן. שאל שאלות חכמות כדי להבין למה.
-- אם יש התלבטות בין שני טיפוסים (למשל INFP מול INFJ), הסבר את ההבדלים ותן דוגמאות ממה שהמשתמש שיתף.
-- שאל שאלות נוספות כדי לחדד: "למשל, כשאתה מקבל החלטה חשובה — אתה נוטה לעבוד לפי הרגש או ניתוח לוגי?"
-- הגע למסקנה יחד עם המשתמש. אם הוא צודק — עדכן את ההבנה שלך.
-- תוכל גם לשתף תובנות על מה מתאים לו בזוגיות על בסיס מה שאתה יודע.`);
+      // Different instructions based on channel
+      const isDisagreeFlow = channel === "qa_insights";
+      parts.push(`\n\n## הנחיות${isDisagreeFlow ? " — המשתמש חולק על הניתוח" : ""}
+אתה מנהל שיחה אישית עם המשתמש על מה שלמדת עליו. יש לך למעלה את כל הנתונים שלו.
+
+כללי תקשורת:
+- לעולם אל תציין מספרים, ציונים או אחוזים. תרגם הכל לשפה תיאורית: "גבוה מאוד", "בינוני", "מאוזן", "נמוך יחסית".
+- ${isDisagreeFlow ? "המשתמש לא מסכים עם חלק מהניתוח. היה קצר וממוקד — שאל שאלה אחת טובה, תן למשתמש לדבר. אל תכתוב פסקאות ארוכות." : "אפשר להרחיב ולתת תובנות מפורטות, אבל תזמין את המשתמש לשתף מה הוא חושב."}
+- כשאתה מדבר על תכונות — השתמש בדוגמאות ממה שהמשתמש עצמו אמר בשיחות (יש לך ציטוטים למעלה).
+- אם המשתמש לא מסכים — אל תתגונן. שאל שאלות חכמות כדי להבין למה. הגע למסקנה יחד.
+- אם יש התלבטות בין שני טיפוסים או שני ערכים — הסבר את ההבדלים ותן דוגמאות ספציפיות.
+- שאל שאלות נוספות כדי לחדד: "למשל, כשאתה מקבל החלטה חשובה — אתה נוטה ללכת לפי הרגש או ניתוח לוגי?"
+- שתף גם מה המאפיינים שלו אומרים על איזו זוגיות מתאימה לו.
+- קרא לנוירוטיות "רגישות רגשית" — תמיד הצג את זה כחוזק (מודעות, אמפתיה, עוצמה רגשית).`);
 
       contextBlock = parts.join("");
     } else {
