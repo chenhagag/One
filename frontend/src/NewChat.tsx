@@ -667,9 +667,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                         </span>
                       </p>
                     ) : (
-                      <p style={{ ...styles.recommendationText, marginTop: 8 }}>
-                        <span style={styles.recommendationBadge}>המלצת המומחה</span>
-                        {" להשלמת הפרופיל, היכנס/י ל\"הפרטים שלי\" כדי להעלות תמונות ולהשלים את הפרטים האישיים."}
+                      <p style={{ ...styles.recommendationText, marginTop: 8, lineHeight: 1.7 }}>
+                        רק עוד צעד אחד אחרון!
+                        <br />
+                        כדי שהמערכת תוכל לצרף אותך למאגר ולהתחיל בחיפוש ההתאמה, נשארו רק העלאת התמונות והשלמת הנתונים במסך <span style={{ color: "#6366f1", cursor: "pointer", textDecoration: "underline" }} onClick={() => setScreen("profile_edit")}>"הפרטים שלי"</span>.
                       </p>
                     )}
 
