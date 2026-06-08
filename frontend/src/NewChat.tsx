@@ -27,9 +27,9 @@ const QA_OPTIONS: { icon: string; text: string; channel: string; requiresAnalysi
 ];
 
 const SIDEBAR_ITEMS: { icon: string; label: string; action?: string }[] = [
+  { icon: "🔬", label: "איך המערכת עובדת?", action: "how_it_works" },
   { icon: "👤", label: "הפרטים שלי", action: "profile_edit" },
   { icon: "💡", label: "תובנות על עצמי", action: "insights" },
-  { icon: "🔬", label: "איך המערכת עובדת?", action: "how_it_works" },
   { icon: "🎯", label: "בדיקת טעם חיצוני", action: "taste_test" },
   { icon: "✨", label: "עזרו לנו להשתפר", action: "bug_report" },
   { icon: "⚙️", label: "הגדרות", action: "settings" },
