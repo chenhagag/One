@@ -668,14 +668,9 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       העוזר האישי שלך למציאת התאמה מדויקת ומשמעותית.
                     </p>
                     {!allChatsCompleted && (
-                      <>
-                        <p style={styles.welcomeText}>
-                          איך זה עובד? נעבור יחד תהליך היכרות באמצעות שיחה, ובסיומו המערכת תמצא עבורך התאמה אחת מדויקת, המבוססת על התאמה פסיכולוגית ואישיותית עמוקה.
-                        </p>
-                        <p style={{ fontSize: 12, color: "#aaa", lineHeight: 1.6, marginTop: 12 }}>
-                          המערכת נמצאת בגרסת הרצה ראשונית (MVP). הצ'אט עלול להרגיש עדיין קצת פחות טבעי וזורם. אם נתקלת בבעיה או אם יש לך כל משוב אחר בשבילנו, נשמח לשמוע <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => setScreen("bug_report")}>במסך המשוב</span>.
-                        </p>
-                      </>
+                      <p style={styles.welcomeText}>
+                        איך זה עובד? נעבור יחד תהליך היכרות באמצעות שיחה, ובסיומו המערכת תמצא עבורך התאמה אחת מדויקת, המבוססת על התאמה פסיכולוגית ואישיותית עמוקה.
+                      </p>
                     )}
                   </div>
                 );
@@ -868,12 +863,6 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       );
                     })()}
 
-                    {/* ── Dashboard: Feedback Footer ── */}
-                    {!isCouple && (
-                      <button style={styles.feedbackFooter} onClick={() => setScreen("bug_report")}>
-                        💡 יש לך רעיון לפיצ'ר? משהו לא עובד חלק? נשמח לשמוע <span style={{ color: "#6366f1", textDecoration: "underline" }}>במסך המשוב שלנו</span>
-                      </button>
-                    )}
                   </div>
                 );
               }
@@ -957,8 +946,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           </>
         )}
 
-        {/* Input Area — only on home + chat screens */}
-        {(screen === "home" || screen === "chat") && (
+        {/* Input Area — chat screen only (not home) */}
+        {screen === "chat" && (
         <div className="nc-input-area" style={styles.inputArea}>
           <div style={styles.inputRow}>
             <textarea
@@ -989,6 +978,23 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           <div style={styles.disclaimer}>השיחה מנוהלת על ידי בינה מלאכותית לצורך הכרות והתאמה</div>
         </div>
         )}
+        {/* Feedback footer — home screen only, replaces input area */}
+        {screen === "home" && (() => {
+          const allChatsComplete = closedChannels["new_chat"] && recommendations.has_cognitive && recommendations.has_taste_info;
+          return (
+            <div style={{ padding: "8px 20px 16px", textAlign: "center", direction: "rtl" }}>
+              {!allChatsComplete ? (
+                <p style={{ fontSize: 12, color: "#aaa", lineHeight: 1.6, margin: 0 }}>
+                  המערכת נמצאת בגרסת הרצה ראשונית (MVP). הצ'אט עלול להרגיש עדיין קצת פחות טבעי וזורם. אם נתקלת בבעיה או אם יש לך כל משוב אחר בשבילנו, נשמח לשמוע <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => setScreen("bug_report")}>במסך המשוב</span>.
+                </p>
+              ) : (
+                <p style={{ fontSize: 12, color: "#aaa", lineHeight: 1.6, margin: 0 }}>
+                  💡 יש לך רעיון לפיצ'ר? משהו לא עובד חלק? נשמח לשמוע <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => setScreen("bug_report")}>במסך המשוב</span>.
+                </p>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
