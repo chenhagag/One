@@ -80,23 +80,22 @@ export default function ConsentScreen({ user, onComplete }: ConsentScreenProps) 
           </p>
         </div>
 
-        <label style={{
-          display: "flex", alignItems: "flex-start", gap: 10,
-          marginTop: 28, cursor: "pointer", fontSize: 14, color: "#111827", lineHeight: 1.6,
-        }}>
-          <input
-            type="checkbox"
-            checked={checked}
-            onChange={(e) => setChecked(e.target.checked)}
-            style={{ marginTop: 4, width: 18, height: 18, cursor: "pointer", accentColor: "#111827", flexShrink: 0 }}
-          />
-          <span>
-            {f
-              ? "אני מאשרת שקראתי והבנתי את ההסבר בעמוד זה, ומסכימה ש־One תשתמש במידע שאשתף לצורך ניתוח באמצעות AI, יצירת תובנות והצעת התאמות."
-              : "אני מאשר שקראתי והבנתי את ההסבר בעמוד זה, ומסכים ש־One תשתמש במידע שאשתף לצורך ניתוח באמצעות AI, יצירת תובנות והצעת התאמות."
-            }
-          </span>
-        </label>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 28 }}>
+          <label style={{
+            display: "flex", alignItems: "flex-start", gap: 10,
+            cursor: "pointer", fontSize: 14, color: "#111827", lineHeight: 1.6,
+          }}>
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={(e) => setChecked(e.target.checked)}
+              style={{ marginTop: 4, width: 18, height: 18, cursor: "pointer", accentColor: "#111827", flexShrink: 0 }}
+            />
+            <span>
+              {f ? "קראתי ואני מסכימה" : "קראתי ואני מסכים"} ל<a href="/terms" target="_blank" style={{ color: "#6366f1", textDecoration: "underline" }}>תנאי השימוש</a> ול<a href="/privacy" target="_blank" style={{ color: "#6366f1", textDecoration: "underline" }}>מדיניות הפרטיות</a>, {f ? "ומסכימה" : "ומסכים"} ש־One תשתמש במידע שאשתף לצורך ניתוח באמצעות AI, יצירת תובנות והצעת התאמות.
+            </span>
+          </label>
+        </div>
 
         <button
           onClick={handleAccept}

@@ -19,6 +19,11 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
   const [desiredHeightMax, setDesiredHeightMax] = useState(user.desired_height_max ? String(user.desired_height_max) : "");
   const [heightFlex, setHeightFlex] = useState(user.height_flexibility || "slightly_flexible");
   const [locationRange, setLocationRange] = useState(user.desired_location_range || "bit_further");
+  // Sensitive details
+  const [maritalStatus, setMaritalStatus] = useState((user as any).marital_status || "single");
+  const [hasChildren, setHasChildren] = useState((user as any).has_children || false);
+  const [religion, setReligion] = useState((user as any).religion || "");
+  const [smoker, setSmoker] = useState((user as any).smoker || false);
 
   const [enums, setEnums] = useState<Record<string, EnumOption[]>>({});
   const [cities, setCities] = useState<{ city_name: string; region: string }[]>([]);
@@ -54,6 +59,10 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
         if (u.desired_height_max != null) setDesiredHeightMax(String(u.desired_height_max));
         if (u.height_flexibility) setHeightFlex(u.height_flexibility);
         if (u.desired_location_range) setLocationRange(u.desired_location_range);
+        if (u.marital_status) setMaritalStatus(u.marital_status);
+        if (u.has_children != null) setHasChildren(!!u.has_children);
+        if (u.religion) setReligion(u.religion);
+        if (u.smoker != null) setSmoker(!!u.smoker);
       })
       .catch(() => {});
   }, [user.id]);
@@ -147,6 +156,10 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
           desired_height_max: desiredHeightMax ? parseInt(desiredHeightMax) : null,
           height_flexibility: heightFlex,
           desired_location_range: locationRange,
+          marital_status: maritalStatus,
+          has_children: hasChildren,
+          religion: religion || null,
+          smoker,
         }),
       });
       if (!res.ok) { const data = await res.json(); setError(data.error || "שגיאה בשמירה"); return; }
@@ -283,6 +296,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
         {/* ── About Me ── */}
         <div style={s.card}>
           <h3 style={s.cardTitle}>עליי</h3>
+          <p style={{ fontSize: 11, color: "#aaa", lineHeight: 1.5, margin: "-8px 0 14px" }}>הפרטים שלך לא חשופים למשתמשים אחרים. לקראת התאמה אפשרית — נציג את השם, הגיל והתמונה בלבד למועמדים הרלוונטיים.</p>
 
           <label style={s.label}>שם</label>
           <input style={s.input} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
@@ -315,6 +329,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
         {/* ── Looking For ── */}
         <div style={s.card}>
           <h3 style={s.cardTitle}>מה אני מחפש/ת</h3>
+          <p style={{ fontSize: 11, color: "#aaa", lineHeight: 1.5, margin: "-8px 0 14px" }}>הנתונים לא יופיעו בשום מקום — הם משמשים אותנו לסינון ראשוני של ההתאמות עבורך.</p>
 
           <label style={s.label}>מגדר מבוקש</label>
           <select style={s.select} value={lookingForGender} onChange={(e) => setLookingForGender(e.target.value)}>
@@ -354,6 +369,48 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
           <select style={s.select} value={locationRange} onChange={(e) => setLocationRange(e.target.value)}>
             {locationOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
+        </div>
+
+        {/* ── Sensitive Details — compact ── */}
+        <div style={s.card}>
+          <h3 style={{ ...s.cardTitle, fontSize: 14 }}>פרטים אישיים</h3>
+          <p style={{ fontSize: 11, color: "#aaa", lineHeight: 1.5, margin: "-8px 0 12px" }}>
+            כמה פרטים שהעדפנו לא לנחש. השיתוף לבחירתך, והוא חיוני לסינון ההתאמות.
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <div style={{ flex: "1 1 45%", minWidth: 120 }}>
+              <label style={{ fontSize: 11, color: "#888", marginBottom: 3, display: "block" }}>מצב משפחתי</label>
+              <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0 }} value={maritalStatus} onChange={(e) => setMaritalStatus(e.target.value)}>
+                <option value="single">רווק/ה</option>
+                <option value="divorced">גרוש/ה</option>
+                <option value="married">נשוי/נשואה</option>
+              </select>
+            </div>
+            <div style={{ flex: "1 1 45%", minWidth: 120 }}>
+              <label style={{ fontSize: 11, color: "#888", marginBottom: 3, display: "block" }}>ילדים</label>
+              <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0 }} value={hasChildren ? "yes" : "no"} onChange={(e) => setHasChildren(e.target.value === "yes")}>
+                <option value="no">אין לי ילדים</option>
+                <option value="yes">יש לי ילדים</option>
+              </select>
+            </div>
+            <div style={{ flex: "1 1 45%", minWidth: 120 }}>
+              <label style={{ fontSize: 11, color: "#888", marginBottom: 3, display: "block" }}>דת</label>
+              <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0 }} value={religion} onChange={(e) => setReligion(e.target.value)}>
+                <option value="">לא צוין</option>
+                <option value="jewish">יהודי/ה</option>
+                <option value="muslim">מוסלמי/ת</option>
+                <option value="christian">נוצרי/ה</option>
+                <option value="other">אחר</option>
+              </select>
+            </div>
+            <div style={{ flex: "1 1 45%", minWidth: 120 }}>
+              <label style={{ fontSize: 11, color: "#888", marginBottom: 3, display: "block" }}>עישון</label>
+              <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0 }} value={smoker ? "yes" : "no"} onChange={(e) => setSmoker(e.target.value === "yes")}>
+                <option value="no">לא מעשן/ת</option>
+                <option value="yes">מעשן/ת</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <button type="submit" className="pe-save-btn" style={{

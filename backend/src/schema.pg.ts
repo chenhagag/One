@@ -553,6 +553,32 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       ) THEN
         ALTER TABLE users ADD COLUMN pwa_installed BOOLEAN DEFAULT FALSE;
       END IF;
+
+      -- Sensitive personal details
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'marital_status'
+      ) THEN
+        ALTER TABLE users ADD COLUMN marital_status TEXT DEFAULT 'single';
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'has_children'
+      ) THEN
+        ALTER TABLE users ADD COLUMN has_children BOOLEAN DEFAULT FALSE;
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'religion'
+      ) THEN
+        ALTER TABLE users ADD COLUMN religion TEXT;
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'smoker'
+      ) THEN
+        ALTER TABLE users ADD COLUMN smoker BOOLEAN DEFAULT FALSE;
+      END IF;
     END $$;
   `);
 

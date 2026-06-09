@@ -49,6 +49,9 @@ function HowItWorks() {
             <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, margin: 0 }}>
               אנחנו מנהלים שיחה דינמית כדי להכיר אותך ברמה עמוקה. לא שאלון, אלא שיחה אמיתית שמטרתה להבין מה חשוב לך, איך אתה מעבד מידע, מה מניע אותך ומה הציפיות שלך מקשר.
             </p>
+            <p style={{ fontSize: 12, color: "#888", lineHeight: 1.5, margin: "6px 0 0" }}>
+              השיחה מחולקת לשלושה חלקים ממוקדים: צ'אט להיכרות כללית ובחינת דפוסים אישיותיים, ניתוח קוגניטיבי להבנת סגנון החשיבה באמצעות סימולציות, וכיול מדויק של הטעם האישי והציפיות שלך מהצד השני.
+            </p>
           </div>
 
           <div style={{ marginBottom: 16 }}>
@@ -70,12 +73,18 @@ function HowItWorks() {
             <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, margin: 0 }}>
               לפני שמציעים התאמה, המערכת מוודאת שיש הלימה גם ברמת המראה החיצוני, כדי לוודא שיש בסיס למשיכה הדדית ולמנוע אכזבה.
             </p>
+            <p style={{ fontSize: 12, color: "#888", lineHeight: 1.5, margin: "6px 0 0" }}>
+              איך זה עובד? ברגע שהאלגוריתם יזהה התאמה פסיכולוגית גבוהה, התמונות (לצד השם והגיל) יישלחו לאישור דיסקרטי של שני הצדדים. המשוב שלכם ידייק את ציון ההתאמה הסופי. בכל שלב אחר — התמונות והפרטים שלכם נותרים חסויים ונעולים לחלוטין.
+            </p>
           </div>
 
           <div>
             <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 4px 0" }}>5. קבלת ההתאמה (One)</p>
             <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, margin: 0 }}>
               המערכת מציגה לך התאמה אחת בלבד — האדם בעל אחוז ההלימה הגבוה ביותר עבורך ברמה העמוקה ביותר.
+            </p>
+            <p style={{ fontSize: 12, color: "#888", lineHeight: 1.5, margin: "6px 0 0" }}>
+              ברגע שתמצא ההתאמה הטובה ביותר — תקבלו הודעה חגיגית המלווה בהסבר על סיבות החיבור, ותוכלו להתחיל לדבר ולהכיר בצ'אט המשותף. בהצלחה!
             </p>
           </div>
         </div>
@@ -668,9 +677,14 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       העוזר האישי שלך למציאת התאמה מדויקת ומשמעותית.
                     </p>
                     {!allChatsCompleted && (
-                      <p style={styles.welcomeText}>
-                        איך זה עובד? נעבור יחד תהליך היכרות באמצעות שיחה, ובסיומו המערכת תמצא עבורך התאמה אחת מדויקת, המבוססת על התאמה פסיכולוגית ואישיותית עמוקה.
-                      </p>
+                      <>
+                        <p style={styles.welcomeText}>
+                          איך זה עובד? נעבור יחד תהליך היכרות באמצעות שיחה, ובסיומו המערכת תמצא עבורך התאמה אחת מדויקת, המבוססת על התאמה פסיכולוגית ואישיותית עמוקה.
+                        </p>
+                        <p style={{ fontSize: 11, color: "#b0b0b0", marginTop: 6, cursor: "pointer", textDecoration: "underline" }} onClick={() => setScreen("how_it_works")}>
+                          להסבר המלא על המערכת והתהליך ←
+                        </p>
+                      </>
                     )}
                   </div>
                 );
@@ -746,7 +760,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 return (
                   <div style={styles.recommendationBlock}>
                     <p style={styles.recommendationText}>
-                      <span style={styles.recommendationBadge}>📊 איפה אנחנו עומדים?</span> עדיין אין לנו מספיק נתונים כדי להריץ חיפוש מדויק במאגר. {gn("לחץ", "לחצי")} על <span style={{ color: "#6366f1", cursor: "pointer", textDecoration: "underline" }} onClick={() => { setChannel("new_chat"); setScreen("chat"); }}>"בוא נמשיך"</span> כדי להתקדם.
+                      <span style={styles.recommendationBadge}>📊 איפה אנחנו עומדים?</span> עדיין אין לנו מספיק נתונים כדי להריץ חיפוש מדויק במאגר. {gn("לחץ", "לחצי")} על <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => { setChannel("new_chat"); setScreen("chat"); }}>"בוא נמשיך"</span> כדי להתקדם.
                     </p>
                   </div>
                 );
@@ -756,7 +770,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 return (
                   <div style={styles.recommendationBlock}>
                     <p style={styles.recommendationText}>
-                      <span style={styles.recommendationBadge}>📊 איפה אנחנו עומדים?</span> שיחת ההיכרות הושלמה. {gn("היכנס", "היכנסי")} ל<span style={{ color: "#6366f1", cursor: "pointer", textDecoration: "underline" }} onClick={() => { if (channelMessages["new_chat_cognitive"]?.length > 0) { setChannel("new_chat_cognitive"); setScreen("chat"); } else { sendMessage("בוא נבין את סגנון החשיבה שלי", "new_chat_cognitive"); } }}>"בוא נבין את סגנון החשיבה שלי"</span> כדי שנוכל {gn("להכיר אותך", "להכיר אותך")} יותר לעומק ולדייק את ההתאמה.
+                      <span style={styles.recommendationBadge}>📊 איפה אנחנו עומדים?</span> שיחת ההיכרות הושלמה. {gn("היכנס", "היכנסי")} ל<span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => { if (channelMessages["new_chat_cognitive"]?.length > 0) { setChannel("new_chat_cognitive"); setScreen("chat"); } else { sendMessage("בוא נבין את סגנון החשיבה שלי", "new_chat_cognitive"); } }}>"בוא נבין את סגנון החשיבה שלי"</span> כדי שנוכל {gn("להכיר אותך", "להכיר אותך")} יותר לעומק ולדייק את ההתאמה.
                     </p>
                   </div>
                 );
@@ -766,7 +780,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 return (
                   <div style={styles.recommendationBlock}>
                     <p style={styles.recommendationText}>
-                      <span style={styles.recommendationBadge}>📊 איפה אנחנו עומדים?</span> {gn("לחץ", "לחצי")} על <span style={{ color: "#6366f1", cursor: "pointer", textDecoration: "underline" }} onClick={() => { if (channelMessages["new_chat_taste"]?.length > 0) { setChannel("new_chat_taste"); setScreen("chat"); } else { sendMessage("נתח את הטעם שלי לעומק", "new_chat_taste"); } }}>"נתח את הטעם שלי לעומק"</span> כדי שנוכל להבין את העדפות הטעם {gn("שלך", "שלך")}.
+                      <span style={styles.recommendationBadge}>📊 איפה אנחנו עומדים?</span> {gn("לחץ", "לחצי")} על <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => { if (channelMessages["new_chat_taste"]?.length > 0) { setChannel("new_chat_taste"); setScreen("chat"); } else { sendMessage("נתח את הטעם שלי לעומק", "new_chat_taste"); } }}>"נתח את הטעם שלי לעומק"</span> כדי שנוכל להבין את העדפות הטעם {gn("שלך", "שלך")}.
                     </p>
                   </div>
                 );
@@ -795,13 +809,13 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       <p style={{ ...styles.recommendationText, marginTop: 8, lineHeight: 1.7 }}>
                         רק עוד צעד אחד אחרון!
                         <br />
-                        כדי שהמערכת תוכל לצרף אותך למאגר ולהתחיל בחיפוש ההתאמה, נשאר רק להעלות תמונה במסך <span style={{ color: "#6366f1", cursor: "pointer", textDecoration: "underline" }} onClick={() => setScreen("profile_edit")}>"הפרטים שלי"</span>.
+                        כדי שהמערכת תוכל לצרף אותך למאגר ולהתחיל בחיפוש ההתאמה, נשאר רק להעלות תמונה במסך <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => setScreen("profile_edit")}>"הפרטים שלי"</span>.
                       </p>
                     ) : (
                       <p style={{ ...styles.recommendationText, marginTop: 8, lineHeight: 1.7 }}>
                         רק עוד צעד אחד אחרון!
                         <br />
-                        כדי שהמערכת תוכל לצרף אותך למאגר ולהתחיל בחיפוש ההתאמה, נשארו רק העלאת התמונות והשלמת הנתונים במסך <span style={{ color: "#6366f1", cursor: "pointer", textDecoration: "underline" }} onClick={() => setScreen("profile_edit")}>"הפרטים שלי"</span>.
+                        כדי שהמערכת תוכל לצרף אותך למאגר ולהתחיל בחיפוש ההתאמה, נשארו רק העלאת התמונות והשלמת הנתונים במסך <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => setScreen("profile_edit")}>"הפרטים שלי"</span>.
                       </p>
                     )}
 
@@ -980,18 +994,11 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         )}
         {/* Feedback footer — home screen only, replaces input area */}
         {screen === "home" && (() => {
-          const allChatsComplete = closedChannels["new_chat"] && recommendations.has_cognitive && recommendations.has_taste_info;
           return (
             <div style={{ padding: "8px 20px 16px", textAlign: "center", direction: "rtl" }}>
-              {!allChatsComplete ? (
-                <p style={{ fontSize: 12, color: "#aaa", lineHeight: 1.6, margin: 0 }}>
-                  המערכת נמצאת בגרסת הרצה ראשונית (MVP). הצ'אט עלול להרגיש עדיין קצת פחות טבעי וזורם. אם נתקלת בבעיה או אם יש לך כל משוב אחר בשבילנו, נשמח לשמוע <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => setScreen("bug_report")}>במסך המשוב</span>.
-                </p>
-              ) : (
-                <p style={{ fontSize: 12, color: "#aaa", lineHeight: 1.6, margin: 0 }}>
-                  💡 יש לך רעיון לפיצ'ר? משהו לא עובד חלק? נשמח לשמוע <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => setScreen("bug_report")}>במסך המשוב</span>.
-                </p>
-              )}
+              <p style={{ fontSize: 12, color: "#aaa", lineHeight: 1.6, margin: 0 }}>
+                המערכת נמצאת בגרסת הרצה ראשונית (MVP). הצ'אט עלול להרגיש עדיין קצת פחות טבעי וזורם. אם נתקלת בבעיה או אם יש לך כל משוב אחר בשבילנו, נשמח לשמוע <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => setScreen("bug_report")}>במסך המשוב</span>.
+              </p>
             </div>
           );
         })()}

@@ -37,6 +37,9 @@ export default function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
   const [locationRange, setLocationRange] = useState("bit_further");
   const [testUserType, setTestUserType] = useState("User Experience Tester");
   const [partnerName, setPartnerName] = useState("");
+  const [emailUpdates, setEmailUpdates] = useState(true);
+  const [whatsappUpdates, setWhatsappUpdates] = useState(false);
+  const [whatsappPhone, setWhatsappPhone] = useState("");
 
   const [enums, setEnums] = useState<Record<string, EnumOption[]>>({});
   const [cities, setCities] = useState<{ city_name: string; region: string }[]>([]);
@@ -98,6 +101,9 @@ export default function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
           desired_location_range: locationRange,
           test_user_type: testUserType || null,
           partner_name: partnerName.trim() || null,
+          email_updates: emailUpdates,
+          whatsapp_updates: whatsappUpdates,
+          whatsapp_phone: whatsappPhone.trim() || null,
           profile_complete: true,
         }),
       });
@@ -229,6 +235,28 @@ export default function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
                 placeholder="שם מלא של בן/בת הזוג"
               />
             </>
+          )}
+        </div>
+
+        <div style={{ ...s.section, background: "#f8f9fb" }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: "#333", margin: "0 0 12px" }}>עדכונים והתראות</p>
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 13, color: "#444", lineHeight: 1.6, marginBottom: 12 }}>
+            <input type="checkbox" checked={emailUpdates} onChange={e => setEmailUpdates(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, cursor: "pointer", accentColor: "#111827", flexShrink: 0 }} />
+            <span>אני מעוניין/ת לקבל עדכונים במייל לגבי התאמות ועדכונים חשובים (לא נשלח דיוור שיווקי)</span>
+          </label>
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 13, color: "#444", lineHeight: 1.6 }}>
+            <input type="checkbox" checked={whatsappUpdates} onChange={e => setWhatsappUpdates(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, cursor: "pointer", accentColor: "#111827", flexShrink: 0 }} />
+            <span>אני מעוניין/ת לקבל עדכונים גם בהודעות WhatsApp או SMS</span>
+          </label>
+          {whatsappUpdates && (
+            <input
+              style={{ ...s.input, marginTop: 10, marginBottom: 0 }}
+              type="tel"
+              value={whatsappPhone}
+              onChange={e => setWhatsappPhone(e.target.value)}
+              placeholder="מספר טלפון"
+              dir="ltr"
+            />
           )}
         </div>
 
