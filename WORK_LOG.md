@@ -1,6 +1,6 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-06-08 (Major UX Overhaul — Waiting State + Insights + Q&A Channels + Dashboard)
+## Latest Session: 2026-06-08–09 (Major UX Overhaul — Waiting State + Insights + Q&A Channels + Registration)
 
 ### Deployment
 - All changes pushed to both main (production) and staging
@@ -164,6 +164,34 @@
 - Neuroticism renamed "רגישות רגשית" with positive framing throughout
 - Progress bar, dashboard pulse, and fine-tuning removed after testing — didn't add enough value
 - AI gets full scores internally but never exposes numbers to user — descriptive language only
+
+#### 24. Registration & Consent Improvements
+- ProfileSetup: email notification checkbox (default on) + WhatsApp/SMS checkbox with phone input
+- ConsentScreen: replaced generic consent with "קראתי ואני מסכים/ה לתנאי השימוש ולמדיניות הפרטיות" with links to /terms and /privacy
+- Settings: added terms + privacy links at bottom
+
+#### 25. Sensitive Personal Details (ProfileEdit)
+- New compact section: marital status (single/divorced/married), children (yes/no), religion (jewish/muslim/christian/other), smoking
+- 2×2 grid layout with small selects
+- 4 new DB columns: marital_status, has_children, religion, smoker
+
+#### 26. Profile Privacy Notes
+- "עליי" section: "הפרטים שלך לא חשופים למשתמשים אחרים..."
+- "מה אני מחפש/ת" section: "הנתונים לא יופיעו בשום מקום..."
+
+#### 27. Device Tracking — All Devices
+- New DB column: devices_seen (JSONB array) accumulates all unique device+pwa combinations
+- Admin table shows all devices per user (not just last)
+- PWA install detection via standalone mode in devices_seen
+
+#### 28. Home Screen Polish
+- Removed input area from home screen, replaced with MVP feedback text at bottom
+- "להסבר המלא על המערכת והתהליך ←" link below welcome text
+- Recommendation links: underline only (no blue color)
+- Menu button: background + purple badge dot for visibility
+- Bubbles shrink further after all chats complete (10px font)
+- 🎉 celebration emoji on completion message
+- HowItWorks page: updated process text with chat breakdown, photo privacy details, match celebration
 
 ### Known Issues / Next Steps
 - **Future insight types**: Enneagram + attachment style (second analysis run)
