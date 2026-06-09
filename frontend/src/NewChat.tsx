@@ -1183,6 +1183,12 @@ function SettingsView({ user, onLogout }: { user: User; onLogout?: () => void })
             </div>
           )}
         </div>
+
+        {/* Legal links */}
+        <div style={{ textAlign: "center", marginTop: 24, paddingBottom: 8 }}>
+          <a href="/terms" target="_blank" style={{ fontSize: 12, color: "#aaa", textDecoration: "underline", marginLeft: 16 }}>תנאי שימוש</a>
+          <a href="/privacy" target="_blank" style={{ fontSize: 12, color: "#aaa", textDecoration: "underline" }}>מדיניות פרטיות</a>
+        </div>
       </div>
     </div>
   );
