@@ -495,7 +495,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
       <div style={styles.main}>
         {/* Header — mobile menu toggle + context title */}
         <div style={styles.header}>
-          <button className="nc-menu-btn" style={styles.menuBtn} onClick={() => setMenuOpen(!menuOpen)}>☰</button>
+          <button className="nc-menu-btn" style={styles.menuBtn} onClick={() => setMenuOpen(!menuOpen)}>
+            ☰
+            {!menuOpen && <span style={{ position: "absolute", top: 2, left: 2, width: 7, height: 7, borderRadius: "50%", background: "#6366f1" }} />}
+          </button>
           <span style={{ ...styles.headerTitle, flex: 1 }}>
             {screen === "home" ? "One" :
              screen === "chat" ? (channel === "new_chat" ? "שיחת היכרות" : channel === "new_chat_cognitive" ? "סגנון חשיבה" : channel === "new_chat_taste" ? "בדיקת טעם" : channel === "qa_about_me" ? "מה למדת עליי" : channel === "qa_system" ? "איך המערכת עובדת" : channel === "qa_general" ? "שאלות ותשובות" : channel === "qa_insights" ? "דיון על התובנות" : "שיחה") :
@@ -665,9 +668,14 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       העוזר האישי שלך למציאת התאמה מדויקת ומשמעותית.
                     </p>
                     {!allChatsCompleted && (
-                      <p style={styles.welcomeText}>
-                        איך זה עובד? נעבור יחד תהליך היכרות באמצעות שיחה, ובסיומו המערכת תמצא עבורך התאמה אחת מדויקת, המבוססת על התאמה פסיכולוגית ואישיותית עמוקה.
-                      </p>
+                      <>
+                        <p style={styles.welcomeText}>
+                          איך זה עובד? נעבור יחד תהליך היכרות באמצעות שיחה, ובסיומו המערכת תמצא עבורך התאמה אחת מדויקת, המבוססת על התאמה פסיכולוגית ואישיותית עמוקה.
+                        </p>
+                        <p style={{ fontSize: 12, color: "#aaa", lineHeight: 1.6, marginTop: 12 }}>
+                          המערכת נמצאת בגרסת הרצה ראשונית (MVP). הצ'אט עלול להרגיש עדיין קצת פחות טבעי וזורם. אם נתקלת בבעיה או אם יש לך כל משוב אחר בשבילנו, נשמח לשמוע <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => setScreen("bug_report")}>במסך המשוב</span>.
+                        </p>
+                      </>
                     )}
                   </div>
                 );
@@ -1317,13 +1325,15 @@ const styles: Record<string, React.CSSProperties> = {
     flexShrink: 0,
   },
   menuBtn: {
-    background: "none",
-    border: "none",
-    fontSize: 20,
+    background: "#f3f4f6",
+    border: "1px solid #e5e7eb",
+    borderRadius: 8,
+    fontSize: 18,
     cursor: "pointer",
     color: "#555",
-    padding: "0 4px",
+    padding: "4px 8px",
     display: "flex",
+    position: "relative" as const,
     alignItems: "center",
   },
   headerTitle: {
