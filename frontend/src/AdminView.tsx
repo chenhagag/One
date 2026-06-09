@@ -367,12 +367,16 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
         <td style={s.td}><span style={{ ...s.badge, fontSize: 10, background: u.test_user_type === "Couple Tester" ? "#d4edda" : u.test_user_type ? "#cfe2ff" : "" }}>{u.test_user_type || "-"}</span></td>
         <td style={s.td}><PartnerCell userId={u.id} value={u.partner_name || ""} /></td>
         <td style={s.td}>
-          {u.last_device ? (
-            <span style={{ ...s.badge, fontSize: 10, background: u.last_device === "iphone" ? "#e0e7ff" : u.last_device === "android" ? "#d1fae5" : "#f3f4f6" }}>
-              {u.last_device === "iphone" ? "🍎" : u.last_device === "android" ? "🤖" : "🖥️"}{" "}
-              {u.last_device}{u.pwa_installed ? " (PWA)" : ""}
-            </span>
-          ) : "-"}
+          {(() => {
+            const devices: any[] = Array.isArray(u.devices_seen) && u.devices_seen.length > 0 ? u.devices_seen : (u.last_device ? [{ device: u.last_device, pwa: u.pwa_installed }] : []);
+            if (devices.length === 0) return "-";
+            return devices.map((d: any, i: number) => (
+              <span key={i} style={{ ...s.badge, fontSize: 10, marginRight: 3, background: d.device === "iphone" ? "#e0e7ff" : d.device === "android" ? "#d1fae5" : "#f3f4f6" }}>
+                {d.device === "iphone" ? "🍎" : d.device === "android" ? "🤖" : "🖥️"}{" "}
+                {d.device}{d.pwa ? " (PWA)" : ""}
+              </span>
+            ));
+          })()}
         </td>
         <td style={s.td}>
           {flags.map(f => (

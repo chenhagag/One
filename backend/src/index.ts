@@ -232,12 +232,20 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
   const { device, pwa_installed } = req.body || {};
 
   try {
-    // Update device info helper
+    // Update device info helper — accumulates all devices seen
     async function updateDeviceInfo(userId: number) {
       if (device) {
+        // Update last_device + pwa_installed as before
         await pgQueryAll(
           `UPDATE users SET last_device = $1, pwa_installed = $2, updated_at = NOW() WHERE id = $3`,
           [device, !!pwa_installed, userId]
+        );
+        // Append to devices_seen if this device+pwa combo not already there
+        const entry = JSON.stringify({ device, pwa: !!pwa_installed, at: new Date().toISOString().slice(0, 10) });
+        await pgQueryAll(
+          `UPDATE users SET devices_seen = COALESCE(devices_seen, '[]'::jsonb) || $1::jsonb
+           WHERE id = $2 AND NOT (COALESCE(devices_seen, '[]'::jsonb) @> $1::jsonb)`,
+          [`[${entry}]`, userId]
         );
       }
     }

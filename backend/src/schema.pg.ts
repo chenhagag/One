@@ -555,6 +555,14 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       END IF;
 
       -- Sensitive personal details
+      -- All devices ever seen (JSONB array of objects)
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'devices_seen'
+      ) THEN
+        ALTER TABLE users ADD COLUMN devices_seen JSONB DEFAULT '[]'::jsonb;
+      END IF;
+
       IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_name = 'users' AND column_name = 'marital_status'
