@@ -2369,7 +2369,7 @@ app.post("/new-chat/message", aiLimiter, async (req, res) => {
       model: "gpt-4o",
       messages: messages as any,
       temperature: 0.7,
-      max_tokens: 300,
+      max_tokens: guide.startsWith("qa_") ? 600 : 300,
     });
     console.log(`[new-chat] User ${user_id}: OpenAI responded in ${Date.now() - start}ms`);
 
