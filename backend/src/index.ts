@@ -2127,10 +2127,6 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
       [userId]
     );
     const tasteCount = parseInt(tasteResult?.count || "0", 10);
-    // Taste info: saved closing state, legacy fallback (very high msg count), OR summary has taste data from general chat
-    const hasTasteInfo = !!(convState.taste_closing_stage && convState.taste_closing_stage >= 3) ||
-      tasteCount >= 25 ||
-      !!(summary && summary.taste_and_style && summary.taste_and_style.trim().length > 0);
 
     // Count filled summary fields
     let summaryFields = 0;
@@ -2182,6 +2178,10 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
 
     // Taste closed: saved closing state OR legacy fallback (very high message count = definitely finished profiles)
     const tasteClosed = !!(convState.taste_closing_stage && convState.taste_closing_stage >= 3) || tasteCount >= 25;
+
+    // Taste info: aligned with tasteClosed, OR summary has taste data from general chat
+    const hasTasteInfo = tasteClosed ||
+      !!(summary && summary.taste_and_style && summary.taste_and_style.trim().length > 0);
 
     return res.json({
       has_cognitive: cogClosed,
