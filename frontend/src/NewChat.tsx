@@ -928,7 +928,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           </button>
                           {!analysisCompleted && (
                             <p style={{ fontSize: 11, color: "#aaa", margin: "6px 0 0", textAlign: "center" }}>
-                              * התובנות מתבססות על ניתוח חלקי, נעדכן כשיושלם
+                              הניתוח עוד לא הושלם וכרגע התובנות מתבססות על ניתוח חלקי, נעדכן כשיושלם הניתוח המלא
                             </p>
                           )}
                         </div>
