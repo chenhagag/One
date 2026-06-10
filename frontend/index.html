@@ -23,21 +23,33 @@
       }
     </script>
     <script>
-      // Global error catcher — only show in dev (localhost), log silently in production
-      if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
-        window.onerror = function(msg, src, line, col, err) {
-          var d = document.createElement("div");
-          d.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:99999;background:#ff0;color:#000;padding:12px;font:12px monospace;white-space:pre-wrap;word-break:break-all";
-          d.textContent = "JS ERROR: " + msg + "\nSource: " + src + ":" + line + ":" + col + "\n" + (err && err.stack ? err.stack : "");
-          document.body.appendChild(d);
-        };
-        window.addEventListener("unhandledrejection", function(e) {
-          var d = document.createElement("div");
-          d.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:99999;background:#ff0;color:#000;padding:12px;font:12px monospace;white-space:pre-wrap;word-break:break-all";
-          d.textContent = "UNHANDLED PROMISE: " + (e.reason && e.reason.stack ? e.reason.stack : e.reason);
-          document.body.appendChild(d);
-        });
+      // Global error catcher
+      var isDev = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+      // Known harmless errors to suppress (cross-origin Supabase SDK errors on Safari)
+      var ignoredErrors = ["Script error.", "Script error", "ResizeObserver loop"];
+      function isIgnored(msg) {
+        if (!msg) return false;
+        var s = String(msg);
+        for (var i = 0; i < ignoredErrors.length; i++) { if (s.indexOf(ignoredErrors[i]) !== -1) return true; }
+        return false;
       }
+      window.onerror = function(msg, src, line, col, err) {
+        if (isIgnored(msg)) { console.warn("[suppressed]", msg); return true; }
+        if (!isDev) return; // production: silent
+        var d = document.createElement("div");
+        d.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:99999;background:#ff0;color:#000;padding:12px;font:12px monospace;white-space:pre-wrap;word-break:break-all";
+        d.textContent = "JS ERROR: " + msg + "\nSource: " + src + ":" + line + ":" + col + "\n" + (err && err.stack ? err.stack : "");
+        document.body.appendChild(d);
+      };
+      window.addEventListener("unhandledrejection", function(e) {
+        var reason = e.reason && e.reason.message ? e.reason.message : String(e.reason || "");
+        if (isIgnored(reason)) { console.warn("[suppressed]", reason); e.preventDefault(); return; }
+        if (!isDev) return; // production: silent
+        var d = document.createElement("div");
+        d.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:99999;background:#ff0;color:#000;padding:12px;font:12px monospace;white-space:pre-wrap;word-break:break-all";
+        d.textContent = "UNHANDLED PROMISE: " + (e.reason && e.reason.stack ? e.reason.stack : e.reason);
+        document.body.appendChild(d);
+      });
     </script>
     <script type="module" src="/src/main.tsx"></script>
     <script>
