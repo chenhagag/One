@@ -2127,7 +2127,10 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
       [userId]
     );
     const tasteCount = parseInt(tasteResult?.count || "0", 10);
-    const hasTasteInfo = tasteCount >= 5 || !!(summary && summary.taste_and_style && summary.taste_and_style.trim().length > 0);
+    // Taste info: saved closing state, legacy fallback (very high msg count), OR summary has taste data from general chat
+    const hasTasteInfo = !!(convState.taste_closing_stage && convState.taste_closing_stage >= 3) ||
+      tasteCount >= 25 ||
+      !!(summary && summary.taste_and_style && summary.taste_and_style.trim().length > 0);
 
     // Count filled summary fields
     let summaryFields = 0;
@@ -2174,14 +2177,14 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
     // Chat closed: closing_stage >= 1 (closing started) OR all 14 topics covered
     const chatClosed = closingStage >= 1 || (convState.current_topic_index !== undefined && convState.current_topic_index >= 14);
 
-    // Cognitive closed: use saved closing state from conversation (set when chatManager returns closingStage=3)
-    const cogClosed = !!(convState.cognitive_closing_stage && convState.cognitive_closing_stage >= 3);
+    // Cognitive closed: saved closing state OR legacy fallback (high message count for users who finished before this fix)
+    const cogClosed = !!(convState.cognitive_closing_stage && convState.cognitive_closing_stage >= 3) || cognitiveCount >= 7;
 
-    // Taste closed: use saved closing state from conversation (set when chatManager returns closingStage=3)
-    const tasteClosed = !!(convState.taste_closing_stage && convState.taste_closing_stage >= 3);
+    // Taste closed: saved closing state OR legacy fallback (very high message count = definitely finished profiles)
+    const tasteClosed = !!(convState.taste_closing_stage && convState.taste_closing_stage >= 3) || tasteCount >= 25;
 
     return res.json({
-      has_cognitive: cognitiveCount >= 7,
+      has_cognitive: cogClosed,
       cognitive_count: cognitiveCount,
       has_taste_info: hasTasteInfo,
       chat_count: chatCount,
