@@ -155,13 +155,21 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
   const lowBigFive = profile?.allBigFive.filter(v => v.score < 40) || [];
 
   function renderDisagreeSection(topic: string) {
-    if (!onOpenChat) return null;
-    const msg = `אני לא ${g("בטוח", "בטוחה")} שהניתוח של ה-${topic} ${g("שלי", "שלי")} מדויק`;
     return (
       <div style={{ marginTop: 20 }}>
-        <p style={{ fontSize: 14, fontWeight: 600, color: "#64748b", margin: "0 0 8px 0" }}>לא דייקנו לדעת{g("ך", "ך")}?</p>
-        <button style={s.topicBubble} onClick={() => onOpenChat(msg, "qa_about_me")}>
-          <span style={{ fontSize: 14, opacity: 0.6 }}>💬</span> {msg}
+        {onOpenChat && (() => {
+          const msg = `אני לא ${g("בטוח", "בטוחה")} שהניתוח של ה-${topic} ${g("שלי", "שלי")} מדויק`;
+          return (
+            <>
+              <p style={{ fontSize: 14, fontWeight: 600, color: "#64748b", margin: "0 0 8px 0" }}>לא דייקנו לדעת{g("ך", "ך")}?</p>
+              <button style={s.topicBubble} onClick={() => onOpenChat(msg, "qa_about_me")}>
+                <span style={{ fontSize: 14, opacity: 0.6 }}>💬</span> {msg}
+              </button>
+            </>
+          );
+        })()}
+        <button style={{ background: "none", border: "none", color: "#6366f1", fontSize: 13, cursor: "pointer", fontFamily: "inherit", padding: "8px 0 0", display: "block" }} onClick={() => setDetailView("main")}>
+          ← לשאר התובנות
         </button>
       </div>
     );
