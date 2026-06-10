@@ -451,13 +451,22 @@ export async function buildChatPrompt(
       const MAX_GENERAL_MSGS = 4; // max user messages for general "what did you learn" flow
       const MAX_CALIBRATION_QUESTIONS = 3;
 
-      // Has user already shared their opinion? (at least 2 user messages = initial msg + opinion)
-      const userSharedOpinion = specificTopic && qaUserMsgCount >= 2;
-
       let phaseInstruction = "";
-      const CLOSING_MSG = "תודה על השיתוף, אני לוקח את כל מה שאמרת בחשבון ומריץ ניתוח מחודש. אם תרצה להוסיף עוד משהו בעתיד — תמיד אפשר לחזור לכאן.";
+      const CLOSING_MSG = "תודה רבה על השיתוף, אני לוקח את כל מה שאמרת בחשבון ומריץ את הניתוח מחדש בהתאם למידע החדש. אם תרצה להוסיף עוד משהו בעתיד — תמיד אפשר לחזור לכאן.";
 
-      if (specificTopic && !userSharedOpinion) {
+      // Detect if user agreed to calibration questions (look for agreement in last message)
+      const userAgreedToQuestions = specificTopic && qaUserMsgCount >= 3 &&
+        /כן|בטח|יאללה|אשמח|בוא|סבבה|אוקי|ok|בסדר|מוכן|sure/i.test(message.trim());
+      // Track if we already offered questions (check AI messages for the offer)
+      const offeredQuestions = specificTopic && Array.isArray(history) &&
+        history.some((h: any) => h.role === "assistant" && /רוצה שאשאל|לשאול.*שאלות.*לדייק/i.test(h.content));
+      // User declined if they responded after offer without agreement
+      const userDeclinedQuestions = offeredQuestions && qaUserMsgCount >= 3 && !userAgreedToQuestions && calibrationQuestionsAsked === 0 &&
+        /לא|לא צריך|מספיק|לא רוצה|עזוב/i.test(message.trim());
+      // Already in calibration flow (questions started)
+      const inCalibrationFlow = calibrationQuestionsAsked > 0;
+
+      if (specificTopic && qaUserMsgCount < 2) {
         // Step 1: only ask their opinion
         phaseInstruction = `\n\n## מבנה ההודעה — חובה לעקוב בדיוק
 המשתמש רוצה לדייק נושא ספציפי.
@@ -466,25 +475,23 @@ export async function buildChatPrompt(
 2. שאלה אחת: "מה בדיוק לא מרגיש לך מדויק? ספר/י לי מה דעתך"
 
 **אסור:** לנתח, להסביר, להציע חלופות, לשאול שאלות כיול, או לכתוב יותר מ-3 שורות.`;
-      } else if (specificTopic && calibrationQuestionsAsked < MAX_CALIBRATION_QUESTIONS) {
-        // Steps 2-4: ask calibration questions one at a time
-        const nextQ = CALIBRATION_QUESTIONS[specificTopic][calibrationQuestionsAsked];
-        if (calibrationQuestionsAsked === 0) {
-          phaseInstruction = `\n\n## מבנה ההודעה — חובה לעקוב בדיוק
+      } else if (specificTopic && !offeredQuestions && !inCalibrationFlow) {
+        // Step 2: respond to opinion + offer calibration questions
+        phaseInstruction = `\n\n## מבנה ההודעה — חובה לעקוב בדיוק
 **ההודעה שלך חייבת להכיל אך ורק:**
-1. תגובה קצרה (משפט אחד-שניים) לדעת המשתמש — בלי להתגונן
-2. המשפט: "אני רוצה לשאול אותך כמה שאלות קצרות כדי לדייק את הניתוח"
-3. השאלה הבאה (חובה להעתיק מילה במילה): "${nextQ}"
+1. תגובה קצרה (משפט אחד-שניים) לדעת המשתמש — הכר במה שאמר, בלי להתגונן
+2. סיום עם: "אני יכול לשאול אותך כמה שאלות קצרות שיעזרו לי לדייק את הניתוח, מה אתה אומר?"
 
-**אסור:** לנתח, להסביר תיאוריות, להציע טיפוסים חלופיים, או לכתוב יותר מ-5 שורות.`;
-        } else {
-          phaseInstruction = `\n\n## מבנה ההודעה — חובה לעקוב בדיוק
+**אסור:** לנתח, להסביר תיאוריות, להציע טיפוסים חלופיים, לשאול שאלות כיול, או לכתוב יותר מ-4 שורות.`;
+      } else if (specificTopic && (userAgreedToQuestions || inCalibrationFlow) && calibrationQuestionsAsked < MAX_CALIBRATION_QUESTIONS) {
+        // Steps 3-5: calibration questions
+        const nextQ = CALIBRATION_QUESTIONS[specificTopic][calibrationQuestionsAsked];
+        phaseInstruction = `\n\n## מבנה ההודעה — חובה לעקוב בדיוק
 **ההודעה שלך חייבת להכיל אך ורק:**
-1. תגובה קצרה (משפט אחד-שניים) לתשובת המשתמש
+1. ${calibrationQuestionsAsked === 0 ? '"מעולה, בוא נתחיל."' : "תגובה קצרה (משפט אחד) לתשובת המשתמש"}
 2. השאלה הבאה (חובה להעתיק מילה במילה): "${nextQ}"
 
 **אסור:** לנתח, להסביר, לדון בתשובה באריכות, או לכתוב יותר מ-4 שורות.`;
-        }
       } else if (specificTopic && calibrationQuestionsAsked >= MAX_CALIBRATION_QUESTIONS) {
         // Done with calibration — close
         phaseInstruction = `\n\n## מבנה ההודעה — חובה לעקוב בדיוק
@@ -493,8 +500,8 @@ export async function buildChatPrompt(
 2. המשפט הבא (חובה להעתיק מילה במילה): "${CLOSING_MSG}"
 
 **אסור:** לנתח, לתת סיכום, להמשיך את השיחה, או לשאול שאלות נוספות.`;
-      } else if (qaUserMsgCount >= MAX_GENERAL_MSGS) {
-        // General flow — close
+      } else if ((specificTopic && userDeclinedQuestions) || qaUserMsgCount >= MAX_GENERAL_MSGS) {
+        // User declined questions OR general flow reached limit — close
         phaseInstruction = `\n\n## מבנה ההודעה — חובה לעקוב בדיוק
 **ההודעה שלך חייבת להכיל אך ורק:**
 1. תגובה קצרה (משפט אחד-שניים) למה שהמשתמש אמר
