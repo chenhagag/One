@@ -378,7 +378,15 @@ export async function buildChatPrompt(
         }
       }
 
-      if (!richProfile.trim() && !userSummary && excerpts.length === 0) {
+      // Admin-written personal insights (deep analysis summary)
+      const insightsRow = await pgQueryOne<{ personal_insights_full: string | null }>(
+        "SELECT personal_insights_full FROM users WHERE id = $1", [userId]
+      );
+      if (insightsRow?.personal_insights_full?.trim()) {
+        parts.push("\n\n## סיכום ניתוח מעמיק (כתוב על ידי מנתח מומחה)\nהסיכום הבא הוא ניתוח מפורט שנכתב עבור המשתמש. השתמש בו כמקור מידע מרכזי — הוא אמין ומעמיק יותר מהציונים המספריים.\n" + insightsRow.personal_insights_full);
+      }
+
+      if (!richProfile.trim() && !userSummary && excerpts.length === 0 && !insightsRow?.personal_insights_full?.trim()) {
         parts.push("\n\nאין עדיין נתוני פרופיל מובנים. שתף רשמים כלליים מהשיחה ועודד להמשיך לשוחח.");
       }
 

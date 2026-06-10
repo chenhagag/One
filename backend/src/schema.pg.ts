@@ -476,6 +476,26 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
         ALTER TABLE users ADD COLUMN couple_insights TEXT;
       END IF;
 
+      -- Personal insights: admin-written short + full text for all users
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'personal_insights_short'
+      ) THEN
+        ALTER TABLE users ADD COLUMN personal_insights_short TEXT;
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'personal_insights_full'
+      ) THEN
+        ALTER TABLE users ADD COLUMN personal_insights_full TEXT;
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'analysis_completed'
+      ) THEN
+        ALTER TABLE users ADD COLUMN analysis_completed BOOLEAN DEFAULT FALSE;
+      END IF;
+
       -- Supabase Auth: UUID linking to Supabase auth user
       IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns

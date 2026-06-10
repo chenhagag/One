@@ -162,6 +162,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [channel, setChannel] = useState<string>("new_chat");
   const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "insights" | "couple_insights" | "bug_report" | "settings" | "how_it_works">("home");
   const [coupleInsights, setCoupleInsights] = useState<string | null>(null);
+  const [analysisCompleted, setAnalysisCompleted] = useState(false);
   const [bugText, setBugText] = useState("");
   const [bugSent, setBugSent] = useState(false);
   const [feedbackCategory, setFeedbackCategory] = useState<string>("");
@@ -234,10 +235,13 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   useEffect(() => { loadRecommendations(); }, [user.id]);
   useEffect(() => { if (screen === "home") loadRecommendations(); }, [screen]);
 
-  // Load couple insights
+  // Load couple insights + personal insights status
   useEffect(() => {
     fetch(`/api/users/${user.id}/couple-insights`).then(r => r.json()).then(d => {
       if (d.couple_insights) setCoupleInsights(d.couple_insights);
+    }).catch(() => {});
+    fetch(`/api/users/${user.id}/personal-insights`).then(r => r.json()).then(d => {
+      if (d.analysis_completed !== undefined) setAnalysisCompleted(d.analysis_completed);
     }).catch(() => {});
   }, [user.id]);
 
@@ -841,6 +845,15 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                         <br />
                         כדי שהמערכת תוכל לצרף אותך למאגר ולהתחיל בחיפוש ההתאמה, נשארו רק העלאת התמונות והשלמת הנתונים במסך <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => setScreen("profile_edit")}>"הפרטים שלי"</span>.
                       </p>
+                    )}
+
+                    {/* ── Analysis not completed notice ── */}
+                    {!analysisCompleted && insightCard && (
+                      <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 10, padding: "10px 14px", marginBottom: 10 }}>
+                        <p style={{ fontSize: 12, color: "#92400e", lineHeight: 1.5, margin: 0 }}>
+                          הניתוח עוד לא הושלם — התובנות מתבססות על ניתוח חלקי. נעדכן כשיושלם.
+                        </p>
+                      </div>
                     )}
 
                     {/* ── Dashboard: Insight Drip Feed — shown for all users including couples ── */}

@@ -50,6 +50,99 @@ const s: Record<string, React.CSSProperties> = {
   scrollWrap: { overflowX: "auto" as const },
 };
 
+function PersonalInsightsEditor({ userId, shortText, fullText, analysisCompleted, onSave }: { userId: number; shortText: string; fullText: string; analysisCompleted: boolean; onSave: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [short, setShort] = useState(shortText);
+  const [full, setFull] = useState(fullText);
+  const [completed, setCompleted] = useState(analysisCompleted);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const r = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ personal_insights_short: short.trim() || null, personal_insights_full: full.trim() || null }),
+      });
+      if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 2000); onSave(); }
+    } catch {}
+    finally { setSaving(false); }
+  }
+
+  async function toggleCompleted() {
+    const newVal = !completed;
+    try {
+      const r = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ analysis_completed: newVal }),
+      });
+      if (r.ok) { setCompleted(newVal); onSave(); }
+    } catch {}
+  }
+
+  const hasContent = !!(shortText || fullText);
+  if (!open) {
+    return (
+      <div style={{ marginTop: 16, display: "flex", gap: 8, alignItems: "center" }}>
+        <button
+          style={{ padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: hasContent ? "#d4edda" : "#f0f4ff", color: hasContent ? "#155724" : "#6366f1", border: `1px solid ${hasContent ? "#a5d6a7" : "#6366f1"}`, borderRadius: 4 }}
+          onClick={() => setOpen(true)}
+        >
+          {hasContent ? "ערוך תובנות אישיות ✓" : "הוסף תובנות אישיות"}
+        </button>
+        <span style={{ fontSize: 11, color: completed ? "#16a34a" : "#dc2626", fontWeight: 600 }}>
+          {completed ? "✓ ניתוח הושלם" : "ניתוח לא הושלם"}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 16, padding: 16, background: "#f8f9fa", borderRadius: 8, border: "1px solid #e0e0e8" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <strong style={{ fontSize: 14 }}>תובנות אישיות</strong>
+        <button style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16 }} onClick={() => setOpen(false)}>✕</button>
+      </div>
+      <div style={{ marginBottom: 8 }}>
+        <label style={{ fontSize: 12, fontWeight: 600, color: "#555" }}>טקסט קצר ומסכם</label>
+        <textarea
+          style={{ width: "100%", minHeight: 80, padding: 10, fontSize: 13, fontFamily: "inherit", border: "1px solid #ddd", borderRadius: 6, resize: "vertical", boxSizing: "border-box", direction: "rtl", lineHeight: 1.7, marginTop: 4 }}
+          value={short}
+          onChange={e => setShort(e.target.value)}
+          placeholder="סיכום קצר שיופיע בראש מסך התובנות..."
+        />
+      </div>
+      <div style={{ marginBottom: 8 }}>
+        <label style={{ fontSize: 12, fontWeight: 600, color: "#555" }}>טקסט מורחב</label>
+        <textarea
+          style={{ width: "100%", minHeight: 250, padding: 10, fontSize: 13, fontFamily: "inherit", border: "1px solid #ddd", borderRadius: 6, resize: "vertical", boxSizing: "border-box", direction: "rtl", lineHeight: 1.7, marginTop: 4 }}
+          value={full}
+          onChange={e => setFull(e.target.value)}
+          placeholder="ניתוח מורחב שיופיע בהרחבה + ישמש כ-context לצ'אט..."
+        />
+      </div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
+        <button
+          style={{ padding: "6px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#28a745", color: "#fff", border: "none", borderRadius: 4, opacity: saving ? 0.5 : 1 }}
+          onClick={handleSave}
+          disabled={saving}
+        >
+          {saving ? "שומר..." : saved ? "נשמר ✓" : "שמור"}
+        </button>
+        <button
+          style={{ padding: "6px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: completed ? "#dc2626" : "#6366f1", color: "#fff", border: "none", borderRadius: 4 }}
+          onClick={toggleCompleted}
+        >
+          {completed ? "בטל סימון ניתוח הושלם" : "✓ ניתוח הושלם"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function CoupleInsightsEditor({ userId, value, onSave }: { userId: number; value: string; onSave: () => void }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState(value);
@@ -1796,6 +1889,9 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
         </>
         );
       })()}
+
+      {/* Personal Insights Editor — all users */}
+      <PersonalInsightsEditor userId={userId} shortText={user.personal_insights_short || ""} fullText={user.personal_insights_full || ""} analysisCompleted={user.analysis_completed ?? false} onSave={loadUserData} />
 
       {/* Couple Insights Editor */}
       {user.test_user_type === "Couple Tester" && <CoupleInsightsEditor userId={userId} value={user.couple_insights || ""} onSave={loadUserData} />}

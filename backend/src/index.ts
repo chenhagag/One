@@ -850,6 +850,19 @@ app.post("/admin/users/:id/inject-conversation", async (req, res) => {
   return res.json({ inserted, channel });
 });
 
+// GET /users/:id/personal-insights — Get personal insights for user-facing display
+app.get("/users/:id/personal-insights", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const row = await pgQueryOne<{ personal_insights_short: string | null; personal_insights_full: string | null; analysis_completed: boolean }>(
+    "SELECT personal_insights_short, personal_insights_full, analysis_completed FROM users WHERE id = $1", [userId]
+  );
+  return res.json({
+    short: row?.personal_insights_short || null,
+    full: row?.personal_insights_full || null,
+    analysis_completed: row?.analysis_completed ?? false,
+  });
+});
+
 // GET /users/:id/couple-insights — Get couple insights for user-facing display
 app.get("/users/:id/couple-insights", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
@@ -864,6 +877,7 @@ app.patch("/admin/users/:id", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const allowed = [
     "partner_name", "test_user_type", "first_name", "couple_insights",
+    "personal_insights_short", "personal_insights_full", "analysis_completed",
     "age", "gender", "looking_for_gender", "city", "height",
     "self_style", "desired_age_min", "desired_age_max", "age_flexibility",
     "desired_height_min", "desired_height_max", "height_flexibility",

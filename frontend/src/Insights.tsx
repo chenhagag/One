@@ -121,7 +121,8 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
   const [profile, setProfile] = useState<DetailedProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [gender, setGender] = useState<string | null>(null);
-  const [detailView, setDetailView] = useState<"main" | "mbti" | "values" | "bigfive" | "enneagram" | "attachment">(initialView || "main");
+  const [detailView, setDetailView] = useState<"main" | "mbti" | "values" | "bigfive" | "enneagram" | "attachment" | "personal_full">(initialView || "main");
+  const [personalInsights, setPersonalInsights] = useState<{ short: string | null; full: string | null; analysis_completed: boolean }>({ short: null, full: null, analysis_completed: false });
 
   // Sync detailView when initialView or resetKey changes (e.g., sidebar click resets to "main")
   useEffect(() => {
@@ -137,6 +138,10 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
     fetch(`/api/users/${user.id}`)
       .then(r => r.json())
       .then(u => { if (u.gender) setGender(u.gender); })
+      .catch(() => {});
+    fetch(`/api/users/${user.id}/personal-insights`)
+      .then(r => r.json())
+      .then(d => setPersonalInsights(d))
       .catch(() => {});
   }, [user.id]);
 
@@ -438,14 +443,47 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
     );
   }
 
+  // ── Detail: Full personal insights ──
+  if (detailView === "personal_full" && personalInsights.full) {
+    return (
+      <div style={s.container}><div style={s.content}>
+        <button style={s.backBtn} onClick={() => setDetailView("main")}>← חזרה לתובנות</button>
+        <h2 style={s.heading}>📋 הניתוח המלא</h2>
+        <div style={s.card}>
+          <p style={{ fontSize: 14, color: "#333", lineHeight: 1.8, whiteSpace: "pre-wrap", margin: 0 }}>
+            {personalInsights.full}
+          </p>
+        </div>
+      </div></div>
+    );
+  }
+
   // ── Main view ──
   return (
     <div style={s.container}><div style={s.content}>
       <h2 style={s.heading}>תובנות על עצמ{g("י", "י")}</h2>
 
+      {/* Analysis not completed notice */}
+      {!personalInsights.analysis_completed && hasData && (
+        <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 10, padding: "12px 16px", marginBottom: 16 }}>
+          <p style={{ fontSize: 13, color: "#92400e", lineHeight: 1.6, margin: 0 }}>
+            הניתוח עוד לא הושלם וכרגע התובנות מתבססות על ניתוח חלקי. נעדכן כשיושלם הניתוח המלא.
+          </p>
+        </div>
+      )}
+
+      {/* Admin-written short summary */}
+      {personalInsights.short && (
+        <div style={{ background: "#f0f0ff", border: "1px solid #e0e0f0", borderRadius: 10, padding: "14px 18px", marginBottom: 16 }}>
+          <p style={{ fontSize: 14, color: "#333", lineHeight: 1.7, margin: 0, whiteSpace: "pre-wrap" }}>
+            {personalInsights.short}
+          </p>
+        </div>
+      )}
+
       {loading ? (
         <p style={{ color: "#888", fontSize: 14 }}>טוען...</p>
-      ) : !hasData ? (
+      ) : !hasData && !personalInsights.short ? (
         <div style={{ textAlign: "center", padding: "40px 20px" }}>
           <p style={{ fontSize: 15, color: "#888", lineHeight: 1.6, margin: "4px 0" }}>הנתונים {g("שלך", "שלך")} עדיין לא נותחו לעומק במערכת, ולכן עדיין אין תובנות מובנות להציג.</p>
           <p style={{ fontSize: 13, color: "#aaa", lineHeight: 1.5, marginTop: 16 }}>{g("המשך", "המשיכי")} לשוחח וברגע שיהיה מספיק מידע, הניתוח ירוץ אוטומטית והתובנות יופיעו כאן.</p>
@@ -527,6 +565,19 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
                 <div style={{ fontSize: 15, fontWeight: 600, color: "#6366f1" }}>{profile.attachment.dominantHe}</div>
                 {profile.attachment.description && <p style={{ fontSize: 13, color: "#555", lineHeight: 1.5, margin: "6px 0 0" }}>{profile.attachment.description}</p>}
               </div>
+            </div>
+          )}
+
+          {/* Admin-written full insights — expandable */}
+          {personalInsights.full && (
+            <div style={s.card}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0 }}>📋 הניתוח המלא</h3>
+                <button style={s.expandBtn} onClick={() => setDetailView("personal_full")}>קריאת הניתוח המלא →</button>
+              </div>
+              <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, margin: "10px 0 0", whiteSpace: "pre-wrap" }}>
+                {personalInsights.full.length > 200 ? personalInsights.full.slice(0, 200) + "..." : personalInsights.full}
+              </p>
             </div>
           )}
         </>
