@@ -1038,7 +1038,12 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               ←
             </button>
           </div>
-          <div style={styles.disclaimer}>השיחה מנוהלת על ידי בינה מלאכותית לצורך הכרות והתאמה</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+            <div style={styles.disclaimer}>השיחה מנוהלת על ידי בינה מלאכותית לצורך הכרות והתאמה</div>
+            <button style={{ background: "none", border: "none", fontSize: 11, color: "#aaa", cursor: "pointer", padding: "2px 0", whiteSpace: "nowrap" }} onClick={() => setScreen("home")}>
+              ← חזרה למסך הראשי
+            </button>
+          </div>
         </div>
         )}
         {/* Feedback footer — home screen only, replaces input area */}

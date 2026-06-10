@@ -2174,11 +2174,11 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
     // Chat closed: closing_stage >= 1 (closing started) OR all 14 topics covered
     const chatClosed = closingStage >= 1 || (convState.current_topic_index !== undefined && convState.current_topic_index >= 14);
 
-    // Cognitive closed: threshold reached
-    const cogClosed = cognitiveCount >= 7;
+    // Cognitive closed: use saved closing state from conversation (set when chatManager returns closingStage=3)
+    const cogClosed = !!(convState.cognitive_closing_stage && convState.cognitive_closing_stage >= 3);
 
-    // Taste closed: enough profiles shown (6+)
-    const tasteClosed = tasteCount >= 6;
+    // Taste closed: use saved closing state from conversation (set when chatManager returns closingStage=3)
+    const tasteClosed = !!(convState.taste_closing_stage && convState.taste_closing_stage >= 3);
 
     return res.json({
       has_cognitive: cognitiveCount >= 7,
@@ -2387,6 +2387,20 @@ app.post("/new-chat/message", aiLimiter, async (req, res) => {
     // - Cognitive: threshold reached
     // - Taste: all profiles done or user said "enough"
     const effectiveClosingStage = closingStage;
+
+    // Persist closing state for cognitive/taste channels (general chat already saves via state machine)
+    if (effectiveClosingStage >= 3 && (guide === "new_chat_cognitive" || guide === "new_chat_taste")) {
+      const stateKey = guide === "new_chat_cognitive" ? "cognitive_closing_stage" : "taste_closing_stage";
+      try {
+        await pgQueryAll(
+          `UPDATE user_chat_summaries
+           SET topic_injection_counts = jsonb_set(COALESCE(topic_injection_counts, '{}'::jsonb), $1, $2::jsonb),
+               updated_at = NOW()
+           WHERE user_id = $3`,
+          [`{${stateKey}}`, "3", user_id]
+        );
+      } catch (e) { /* non-critical */ }
+    }
 
     // Trigger auto-analysis based on channel closing
     if (effectiveClosingStage >= 3) {
