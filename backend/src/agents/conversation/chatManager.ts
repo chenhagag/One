@@ -393,15 +393,6 @@ export async function buildChatPrompt(
       // Count user messages in this qa channel
       const qaUserMsgCount = Array.isArray(history) ? history.filter((m: any) => m.role === "user").length : 0;
 
-      // Detect if user mentions a specific analysis topic for targeted questions
-      const allUserText = (Array.isArray(history) ? history.filter((m: any) => m.role === "user").map((m: any) => m.content).join(" ") : "") + " " + message;
-      let specificTopic: string | null = null;
-      if (/mbti|טיפוס|אינטרוורט|אקסטרוורט|E\/I|S\/N|T\/F|J\/P/i.test(allUserText)) specificTopic = "mbti";
-      else if (/אניאגרם|enneagram|טיפוס \d/i.test(allUserText)) specificTopic = "enneagram";
-      else if (/ערכ|שוורץ|schwartz|ביטחון|הישג|אוניברס/i.test(allUserText)) specificTopic = "values";
-      else if (/ביג פייב|big five|נוירוט|רגישות רגשית|מוחצנות|פתיחות|יסודיות|conscientiousness/i.test(allUserText)) specificTopic = "bigfive";
-      else if (/התקשרות|attachment|נמנע|חרד|בטוח|ריחוק|קרבה/i.test(allUserText)) specificTopic = "attachment";
-
       // Question banks for specific topics
       const CALIBRATION_QUESTIONS: Record<string, string[]> = {
         mbti: [
@@ -449,6 +440,17 @@ export async function buildChatPrompt(
         ? history.slice(lastClosingIdx + 1)
         : (history || []);
       const currentRoundUserMsgs = currentRoundHistory.filter((h: any) => h.role === "user").length;
+
+      // Detect specific topic from CURRENT ROUND only (not entire history)
+      const currentRoundUserText = currentRoundHistory
+        .filter((h: any) => h.role === "user")
+        .map((h: any) => h.content).join(" ") + " " + message;
+      let specificTopic: string | null = null;
+      if (/אניאגרם|אניגרם|enneagram/i.test(currentRoundUserText)) specificTopic = "enneagram";
+      else if (/mbti|אינטרוורט|אקסטרוורט|E\/I|S\/N|T\/F|J\/P/i.test(currentRoundUserText)) specificTopic = "mbti";
+      else if (/ביג פייב|big five|נוירוט|רגישות רגשית|מוחצנות|פתיחות|יסודיות|conscientiousness/i.test(currentRoundUserText)) specificTopic = "bigfive";
+      else if (/ערכ|שוורץ|schwartz/i.test(currentRoundUserText)) specificTopic = "values";
+      else if (/התקשרות|attachment|נמנע|חרד|סגנון היקשרות/i.test(currentRoundUserText)) specificTopic = "attachment";
 
       // Find last offer in current round
       let lastOfferIdx = -1;
