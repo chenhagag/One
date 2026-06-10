@@ -451,12 +451,18 @@ export async function buildChatPrompt(
       const MAX_GENERAL_MSGS = 4; // max user messages for general "what did you learn" flow
       const MAX_CALIBRATION_QUESTIONS = 3;
 
+      // Has user already shared their opinion? (at least 2 user messages = initial msg + opinion)
+      const userSharedOpinion = specificTopic && qaUserMsgCount >= 2;
+
       let phaseInstruction = "";
-      if (specificTopic && calibrationQuestionsAsked < MAX_CALIBRATION_QUESTIONS) {
-        // Specific topic flow — ask calibration questions
+      if (specificTopic && !userSharedOpinion) {
+        // First response — only ask their opinion, don't start questions yet
+        phaseInstruction = `\n\nהמשתמש רוצה לדייק נושא ספציפי. שאל אותו בקצרה מה דעתו ומה בדיוק לא מרגיש לו מדויק. **אל תשאל שום שאלה נוספת ואל תציג שאלות כיול.** רק תקשיב ותבקש שיפרט.`;
+      } else if (specificTopic && calibrationQuestionsAsked < MAX_CALIBRATION_QUESTIONS) {
+        // User shared opinion — now ask calibration questions
         const nextQ = CALIBRATION_QUESTIONS[specificTopic][calibrationQuestionsAsked];
         if (calibrationQuestionsAsked === 0) {
-          phaseInstruction = `\n\nהמשתמש רוצה לדייק נושא ספציפי. קודם שאל אותו בקצרה מה דעתו ומה לא מרגיש מדויק. אחרי שיענה, תגיד שאתה רוצה לשאול כמה שאלות כדי לדייק את הניתוח. השאלה הראשונה:\n"${nextQ}"`;
+          phaseInstruction = `\n\nתגיב בקצרה לדעת המשתמש (משפט-שניים, אל תתגונן). ואז אמור שאתה רוצה לשאול כמה שאלות כדי לדייק את הניתוח, ושאל:\n"${nextQ}"`;
         } else {
           phaseInstruction = `\n\nתגיב בקצרה לתשובת המשתמש (משפט-שניים). ואז שאל את השאלה הבאה:\n"${nextQ}"`;
         }
