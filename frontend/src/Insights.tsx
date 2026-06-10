@@ -462,6 +462,16 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
             {personalInsights.full}
           </p>
         </div>
+        {onOpenChat && (
+          <div style={{ marginTop: 16 }}>
+            <button style={s.topicBubble} onClick={() => onOpenChat("אני רוצה לדייק משהו לגבי הניתוח שלי", "qa_about_me")}>
+              <span style={{ fontSize: 14, opacity: 0.6 }}>💬</span> {g("אני רוצה לדייק משהו", "אני רוצה לדייק משהו")} לגבי הניתוח שלי
+            </button>
+          </div>
+        )}
+        <button style={{ background: "none", border: "none", color: "#6366f1", fontSize: 13, cursor: "pointer", fontFamily: "inherit", padding: "8px 0 0", display: "block" }} onClick={() => setDetailView("main")}>
+          ← לתובנות נוספות
+        </button>
       </div></div>
     );
   }

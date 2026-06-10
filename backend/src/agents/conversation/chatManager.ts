@@ -390,20 +390,97 @@ export async function buildChatPrompt(
         parts.push("\n\nאין עדיין נתוני פרופיל מובנים. שתף רשמים כלליים מהשיחה ועודד להמשיך לשוחח.");
       }
 
-      // Different instructions based on channel
+      // Count user messages in this qa channel
+      const qaUserMsgCount = Array.isArray(history) ? history.filter((m: any) => m.role === "user").length : 0;
+
+      // Detect if user mentions a specific analysis topic for targeted questions
+      const allUserText = (Array.isArray(history) ? history.filter((m: any) => m.role === "user").map((m: any) => m.content).join(" ") : "") + " " + message;
+      let specificTopic: string | null = null;
+      if (/mbti|טיפוס|אינטרוורט|אקסטרוורט|E\/I|S\/N|T\/F|J\/P/i.test(allUserText)) specificTopic = "mbti";
+      else if (/אניאגרם|enneagram|טיפוס \d/i.test(allUserText)) specificTopic = "enneagram";
+      else if (/ערכ|שוורץ|schwartz|ביטחון|הישג|אוניברס/i.test(allUserText)) specificTopic = "values";
+      else if (/ביג פייב|big five|נוירוט|רגישות רגשית|מוחצנות|פתיחות|יסודיות|conscientiousness/i.test(allUserText)) specificTopic = "bigfive";
+      else if (/התקשרות|attachment|נמנע|חרד|בטוח|ריחוק|קרבה/i.test(allUserText)) specificTopic = "attachment";
+
+      // Question banks for specific topics
+      const CALIBRATION_QUESTIONS: Record<string, string[]> = {
+        mbti: [
+          "כשאתה חווה שבוע עמוס ומתיש נפשית, מה הדרך האפקטיבית ביותר שלך להטעין מצברים? לצאת לסביבה חברתית קלילה, או להתנתק לחלוטין לכמה שעות של שקט לבד?",
+          "במצבי קונפליקט עם אנשים קרובים, מה הנטייה הטבעית הראשונה שלך? לנתח את הסיטואציה בצורה אובייקטיבית ולחפש פתרון לוגי, או קודם כל להבין מה כולם מרגישים ולשמור על ההרמוניה?",
+          "איך אתה מרגיש כשתסריט קבוע מראש משתנה ברגע האחרון? אתה מעדיף שהלו\"ז והתוכניות שלך יהיו סגורים ומאורגנים מראש, או שאתה פורח דווקא באלתור וגמישות?",
+        ],
+        enneagram: [
+          "כשאתה מרגיש פגיע או בלחץ חריג, מה התגובה האוטומטית שלך? אתה הופך להישגי ומשימתי יותר, נסוג פנימה לחשוב ולנתח, או מחפש מישהו להישען עליו ולהרגיש בטוח?",
+          "אם היית צריך לבחור את החשש העמוק ביותר שלך בחיים, מה הוא מבין השלושה: החשש לצאת פראייר/שמישהו ישלוט בך, החשש להרגיש דחוי ולא אהוב, או החשש להיכשל ולהיתפס כלא יוצלח?",
+          "באיזו עמדה אתה מוצא את עצמך הכי הרבה בחיים? המנהיג שלוקח אחריות ומנהל, המטפל שמקשיב ועוזר לכולם, או זה שמנסה לשמור על השקט, האופטימיות והשלום בין כולם?",
+        ],
+        values: [
+          "אם היית צריך לבחור בין עבודה סופר יציבה, בטוחה וצפויה לבין פרויקט עצמאי, הרפתקני ורווי סיכונים אבל עם חופש פעולה מוחלט — איפה הלב שלך נמצא?",
+          "מה נותן לך תחושת סיפוק עמוקה יותר בסוף יום: לדעת שקידמת את המטרות האישיות שלך והגעת להישג משמעותי, או שתרמת למישהו אחר או לחברה ושינית משהו לטובה?",
+          "עד כמה חשוב לך לעשות דברים 'כמו שצריך' לפי נורמות חברתיות, משפחתיות או מסורתיות, לעומת הצורך החזק שלך לפרוץ גבולות ולעשות דברים אך ורק בדרך הייחודית שלך?",
+        ],
+        bigfive: [
+          "כשמשהו משתבש או מפתיע אותך לרעה ביומיום, כמה זמן לוקח לך 'להתאושש' רגשית? אתה נוטה להילחץ ולדאוג בקלות, או שאתה נשאר קול רוב הזמן וממשיך הלאה?",
+          "איך נראה ניהול המשימות שלך? אתה טיפוס מסודר, מחושב, שיורד לפרטים הקטנים ומסיים הכל בזמן, או שאתה מעדיף לעבוד בספונטניות ובבלגן מאורגן?",
+          "עד כמה אתה מחפש גירויים אינטלקטואליים, אמנותיים או חוויות יוצאות דופן בחיים שלך, לעומת העדפה ברורה למוכר, הנוח והפרקטי?",
+        ],
+        attachment: [
+          "כשאתה בקשר ומרגיש שבן/בת הזוג לוקחים פתאום קצת מרחק או פחות זמינים, מה המחשבה הראשונה שעולה לך בראש? דאגה שמשהו לא בסדר איתכם, או שזה מרגיש לך טבעי לחלוטין ולא מטריד אותך?",
+          "איך אתה מגיב כשמישהו שרק הכרת מראה עניין חזק מאוד, נקשר מהר ומבקש אינטנסיביות? זה מרגיש לך מחבק ובטוח, או שזה מייצר אצלך רתיעה קלה ותחושת מחנק?",
+          "עד כמה קל לך לסמוך על בני זוג, להראות להם חולשה או להיות תלוי בהם רגשית כשקשה לך, מבלי לפחד שהם ינצלו את זה או ייעלמו?",
+        ],
+      };
+
+      // Determine which calibration question to ask (if in specific-topic flow)
+      // Count how many calibration questions were already asked by scanning AI messages for question patterns
+      let calibrationQuestionsAsked = 0;
+      if (specificTopic && Array.isArray(history)) {
+        const questions = CALIBRATION_QUESTIONS[specificTopic];
+        for (const h of history) {
+          if (h.role === "assistant") {
+            for (const q of questions) {
+              // Check if first 40 chars of question appear in AI message
+              if (h.content.includes(q.slice(0, 40))) calibrationQuestionsAsked++;
+            }
+          }
+        }
+      }
+
+      // Build phase-specific instructions
       const isDisagreeFlow = channel === "qa_insights";
+      const MAX_GENERAL_MSGS = 4; // max user messages for general "what did you learn" flow
+      const MAX_CALIBRATION_QUESTIONS = 3;
+
+      let phaseInstruction = "";
+      if (specificTopic && calibrationQuestionsAsked < MAX_CALIBRATION_QUESTIONS) {
+        // Specific topic flow — ask calibration questions
+        const nextQ = CALIBRATION_QUESTIONS[specificTopic][calibrationQuestionsAsked];
+        if (calibrationQuestionsAsked === 0) {
+          phaseInstruction = `\n\nהמשתמש רוצה לדייק נושא ספציפי. קודם שאל אותו בקצרה מה דעתו ומה לא מרגיש מדויק. אחרי שיענה, תגיד שאתה רוצה לשאול כמה שאלות כדי לדייק את הניתוח. השאלה הראשונה:\n"${nextQ}"`;
+        } else {
+          phaseInstruction = `\n\nתגיב בקצרה לתשובת המשתמש (משפט-שניים). ואז שאל את השאלה הבאה:\n"${nextQ}"`;
+        }
+      } else if (specificTopic && calibrationQuestionsAsked >= MAX_CALIBRATION_QUESTIONS) {
+        // Done with calibration — close
+        phaseInstruction = `\n\n## חובה לסגור את השיחה עכשיו\nסיימת לשאול את שאלות הדיוק. תגיב בקצרה לתשובה האחרונה. ואז סגור:\n"תודה על השיתוף, אני לוקח את כל מה שאמרת בחשבון ומריץ ניתוח מחודש. אם תרצה להוסיף עוד משהו בעתיד — תמיד מוזמן."`;
+      } else if (qaUserMsgCount >= MAX_GENERAL_MSGS) {
+        // General flow — reached message limit, close
+        phaseInstruction = `\n\n## חובה לסגור את השיחה עכשיו\nהשיחה הגיעה למספיק הודעות. תגיב בקצרה למה שהמשתמש אמר. ואז סגור:\n"תודה על השיתוף, אני לוקח את כל מה שאמרת בחשבון ומריץ ניתוח מחודש. אם תרצה להוסיף עוד משהו בעתיד — תמיד מוזמן."`;
+      } else {
+        // General flow — ongoing conversation
+        phaseInstruction = "";
+      }
+
       parts.push(`\n\n## הנחיות${isDisagreeFlow ? " — המשתמש חולק על הניתוח" : ""}
 אתה מנהל שיחה אישית עם המשתמש על מה שלמדת עליו. יש לך למעלה את כל הנתונים שלו.
 
 כללי תקשורת:
 - לעולם אל תציין מספרים, ציונים או אחוזים. תרגם הכל לשפה תיאורית: "גבוה מאוד", "בינוני", "מאוזן", "נמוך יחסית".
-- ${isDisagreeFlow ? "המשתמש לא מסכים עם חלק מהניתוח. היה קצר וממוקד — שאל שאלה אחת טובה, תן למשתמש לדבר. אל תכתוב פסקאות ארוכות." : "אפשר להרחיב ולתת תובנות מפורטות, אבל תזמין את המשתמש לשתף מה הוא חושב."}
+- היה קצר וממוקד — שאל שאלה אחת טובה, תן למשתמש לדבר. אל תכתוב פסקאות ארוכות.
 - כשאתה מדבר על תכונות — השתמש בדוגמאות ממה שהמשתמש עצמו אמר בשיחות (יש לך ציטוטים למעלה).
-- אם המשתמש לא מסכים — אל תתגונן. שאל שאלות חכמות כדי להבין למה. הגע למסקנה יחד.
-- אם יש התלבטות בין שני טיפוסים או שני ערכים — הסבר את ההבדלים ותן דוגמאות ספציפיות.
-- שאל שאלות נוספות כדי לחדד: "למשל, כשאתה מקבל החלטה חשובה — אתה נוטה ללכת לפי הרגש או ניתוח לוגי?"
-- שתף גם מה המאפיינים שלו אומרים על איזו זוגיות מתאימה לו.
-- קרא לנוירוטיות "רגישות רגשית" — תמיד הצג את זה כחוזק (מודעות, אמפתיה, עוצמה רגשית).`);
+- אם המשתמש לא מסכים — אל תתגונן. שאל שאלות חכמות כדי להבין למה.
+- קרא לנוירוטיות "רגישות רגשית" — תמיד הצג את זה כחוזק.
+- השיחה הזו צריכה להיות קצרה וממוקדת — לא שיחה אינסופית.${phaseInstruction}`);
 
       contextBlock = parts.join("");
     } else {
