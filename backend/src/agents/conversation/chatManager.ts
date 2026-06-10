@@ -455,25 +455,54 @@ export async function buildChatPrompt(
       const userSharedOpinion = specificTopic && qaUserMsgCount >= 2;
 
       let phaseInstruction = "";
+      const CLOSING_MSG = "תודה על השיתוף, אני לוקח את כל מה שאמרת בחשבון ומריץ ניתוח מחודש. אם תרצה להוסיף עוד משהו בעתיד — תמיד אפשר לחזור לכאן.";
+
       if (specificTopic && !userSharedOpinion) {
-        // First response — only ask their opinion, don't start questions yet
-        phaseInstruction = `\n\nהמשתמש רוצה לדייק נושא ספציפי. שאל אותו בקצרה מה דעתו ומה בדיוק לא מרגיש לו מדויק. **אל תשאל שום שאלה נוספת ואל תציג שאלות כיול.** רק תקשיב ותבקש שיפרט.`;
+        // Step 1: only ask their opinion
+        phaseInstruction = `\n\n## מבנה ההודעה — חובה לעקוב בדיוק
+המשתמש רוצה לדייק נושא ספציפי.
+**ההודעה שלך חייבת להכיל אך ורק:**
+1. משפט אחד קצר שמכיר בכך שהם רוצים לדייק
+2. שאלה אחת: "מה בדיוק לא מרגיש לך מדויק? ספר/י לי מה דעתך"
+
+**אסור:** לנתח, להסביר, להציע חלופות, לשאול שאלות כיול, או לכתוב יותר מ-3 שורות.`;
       } else if (specificTopic && calibrationQuestionsAsked < MAX_CALIBRATION_QUESTIONS) {
-        // User shared opinion — now ask calibration questions
+        // Steps 2-4: ask calibration questions one at a time
         const nextQ = CALIBRATION_QUESTIONS[specificTopic][calibrationQuestionsAsked];
         if (calibrationQuestionsAsked === 0) {
-          phaseInstruction = `\n\nתגיב בקצרה לדעת המשתמש (משפט-שניים, אל תתגונן). ואז אמור שאתה רוצה לשאול כמה שאלות כדי לדייק את הניתוח, ושאל:\n"${nextQ}"`;
+          phaseInstruction = `\n\n## מבנה ההודעה — חובה לעקוב בדיוק
+**ההודעה שלך חייבת להכיל אך ורק:**
+1. תגובה קצרה (משפט אחד-שניים) לדעת המשתמש — בלי להתגונן
+2. המשפט: "אני רוצה לשאול אותך כמה שאלות קצרות כדי לדייק את הניתוח"
+3. השאלה הבאה (חובה להעתיק מילה במילה): "${nextQ}"
+
+**אסור:** לנתח, להסביר תיאוריות, להציע טיפוסים חלופיים, או לכתוב יותר מ-5 שורות.`;
         } else {
-          phaseInstruction = `\n\nתגיב בקצרה לתשובת המשתמש (משפט-שניים). ואז שאל את השאלה הבאה:\n"${nextQ}"`;
+          phaseInstruction = `\n\n## מבנה ההודעה — חובה לעקוב בדיוק
+**ההודעה שלך חייבת להכיל אך ורק:**
+1. תגובה קצרה (משפט אחד-שניים) לתשובת המשתמש
+2. השאלה הבאה (חובה להעתיק מילה במילה): "${nextQ}"
+
+**אסור:** לנתח, להסביר, לדון בתשובה באריכות, או לכתוב יותר מ-4 שורות.`;
         }
       } else if (specificTopic && calibrationQuestionsAsked >= MAX_CALIBRATION_QUESTIONS) {
         // Done with calibration — close
-        phaseInstruction = `\n\n## חובה לסגור את השיחה עכשיו\nסיימת לשאול את שאלות הדיוק. תגיב בקצרה לתשובה האחרונה. ואז סגור:\n"תודה על השיתוף, אני לוקח את כל מה שאמרת בחשבון ומריץ ניתוח מחודש. אם תרצה להוסיף עוד משהו בעתיד — תמיד מוזמן."`;
+        phaseInstruction = `\n\n## מבנה ההודעה — חובה לעקוב בדיוק
+**ההודעה שלך חייבת להכיל אך ורק:**
+1. תגובה קצרה (משפט אחד) לתשובה האחרונה
+2. המשפט הבא (חובה להעתיק מילה במילה): "${CLOSING_MSG}"
+
+**אסור:** לנתח, לתת סיכום, להמשיך את השיחה, או לשאול שאלות נוספות.`;
       } else if (qaUserMsgCount >= MAX_GENERAL_MSGS) {
-        // General flow — reached message limit, close
-        phaseInstruction = `\n\n## חובה לסגור את השיחה עכשיו\nהשיחה הגיעה למספיק הודעות. תגיב בקצרה למה שהמשתמש אמר. ואז סגור:\n"תודה על השיתוף, אני לוקח את כל מה שאמרת בחשבון ומריץ ניתוח מחודש. אם תרצה להוסיף עוד משהו בעתיד — תמיד מוזמן."`;
+        // General flow — close
+        phaseInstruction = `\n\n## מבנה ההודעה — חובה לעקוב בדיוק
+**ההודעה שלך חייבת להכיל אך ורק:**
+1. תגובה קצרה (משפט אחד-שניים) למה שהמשתמש אמר
+2. המשפט הבא (חובה להעתיק מילה במילה): "${CLOSING_MSG}"
+
+**אסור:** לשאול שאלות נוספות או להמשיך את השיחה.`;
       } else {
-        // General flow — ongoing conversation
+        // General flow — ongoing
         phaseInstruction = "";
       }
 
