@@ -453,7 +453,9 @@ export async function buildChatPrompt(
     // );
 
     // Taste test phases: msg0=explain+general questions, msg1=answer, msg2=deal-breaker1, msg3=deal-breaker2, msg4=explain profiles+"ready?", msg5+=profiles
-    const profileStartMsg = 5;
+    // If gender was unknown (first msg was gender question), shift everything by 1
+    const genderQuestionOffset = lookingForGender ? 0 : 1;
+    const profileStartMsg = 5 + genderQuestionOffset;
 
     const isCoupleTest = testUserType === "Couple Tester";
     const allProfilesText = buildTasteProfileList(profileBank);
@@ -500,10 +502,10 @@ export async function buildChatPrompt(
       if (tasteUserMsgCount === profileStartMsg - 1) {
         // Last question answered — now explain profiles and ask "ready?"
         phaseInstruction = `\n\n## שלב: מעבר לפרופילים\nתגיב בקצרה לתשובת המשתמש. ואז הסבר:\n"עכשיו אני הולך להציג לך כמה פרופילים קצרים של אנשים בסגנונות שונים. אין כאן תשובה נכונה — מעניין אותי מה התחושה הראשונית שלך.\n\nאחרי כל פרופיל אשאל אותך עד כמה הוא/היא הטעם שלך מ-1 עד 10. מוכן/ה?"\n\nחכה לאישור לפני שמציג פרופיל.`;
-      } else if (tasteUserMsgCount === 2) {
+      } else if (tasteUserMsgCount === 2 + genderQuestionOffset) {
         // Deal-breaker question 1: lifestyle
         phaseInstruction = `\n\n## שלב: שאלת דיל-ברייקר\nתגיב בקצרה לתשובת המשתמש. ואז שאל:\n"יש דברים ברמת אורח החיים שפשוט לא יעבדו מבחינתך? למשל – עישון, גידול חיות מחמד, או הרגלי תזונה מסוימים (כמו טבעונות/צמחונות)?"\nשאל רק את השאלה הזו. אל תציג פרופילים עדיין.`;
-      } else if (tasteUserMsgCount === 3) {
+      } else if (tasteUserMsgCount === 3 + genderQuestionOffset) {
         // Deal-breaker question 2: life stage
         phaseInstruction = `\n\n## שלב: שאלת דיל-ברייקר\nתגיב בקצרה לתשובת המשתמש. ואז שאל:\n"איך מרגישה לך התאמה למישהו שכבר עבר פרק א׳ בחיים? למשל, אדם שהוא גרוש, או מישהו שיש לו כבר ילדים?"\nשאל רק את השאלה הזו. אל תציג פרופילים עדיין.`;
       } else {
@@ -531,7 +533,7 @@ export async function buildChatPrompt(
       }
     } else {
       // Show next profile from the list
-      phaseInstruction = `\n\n## שלב: הצגת פרופיל\nתגיב בקצרה לתשובת המשתמש ושאל שאלת הרחבה אחת (מה אהבת? מה פחות דיבר אליך?).\nאם התשובה כבר מפורטת מספיק — עבור ישר לפרופיל הבא מהרשימה. העתק אותו בדיוק ושאל: עד כמה הוא/היא הטעם שלך מ-1 עד 10?\n\nכלל חשוב: אל תשאל שאלת הרחבה ביחד עם "נעבור לפרופיל הבא" באותה הודעה. או שאלת הרחבה, או פרופיל הבא — לא שניהם.`;
+      phaseInstruction = `\n\n## שלב: תגובה לפרופיל\n**חובה:** אם המשתמש נתן תגובה קצרה או כללית (כמו "סבבה", "אחלה", "לא", "פחות", "בסדר", ציון בלבד) — חובה לשאול שאלת הרחבה אחת לפני שמציגים פרופיל חדש. למשל:\n- "מה ספציפית דיבר אליך/לא דיבר אליך?"\n- "היה משהו שבלט לך לטובה או לרעה?"\n- "מה הרגשת כשקראת את זה?"\n\nרק אם התשובה כבר מפורטת (3+ משפטים עם הסבר ספציפי) — אפשר לעבור ישר לפרופיל הבא.\n\nכלל חשוב: אל תציג פרופיל חדש באותה הודעה עם שאלת הרחבה. או שאלה, או פרופיל — לא שניהם.`;
     }
 
     // Inject all selected profiles — AI picks the next one in order
