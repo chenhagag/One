@@ -232,7 +232,7 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
   const { device, pwa_installed } = req.body || {};
 
   try {
-    // Update device info helper — accumulates all devices seen
+    // Update device info helper — accumulates unique devices seen (dedup by device+pwa)
     async function updateDeviceInfo(userId: number) {
       if (device) {
         // Update last_device + pwa_installed as before
@@ -240,12 +240,25 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
           `UPDATE users SET last_device = $1, pwa_installed = $2, updated_at = NOW() WHERE id = $3`,
           [device, !!pwa_installed, userId]
         );
-        // Append to devices_seen if this device+pwa combo not already there
-        const entry = JSON.stringify({ device, pwa: !!pwa_installed, at: new Date().toISOString().slice(0, 10) });
+        // Upsert into devices_seen: dedup by device+pwa combo, update last_seen date
+        const today = new Date().toISOString().slice(0, 10);
+        const pwa = !!pwa_installed;
+        // Check if this device+pwa combo already exists (ignore date)
+        const existing = await pgQueryOne<{ devices_seen: any[] }>(
+          `SELECT devices_seen FROM users WHERE id = $1`, [userId]
+        );
+        const arr: any[] = Array.isArray(existing?.devices_seen) ? existing.devices_seen : [];
+        const idx = arr.findIndex((d: any) => d.device === device && d.pwa === pwa);
+        if (idx >= 0) {
+          // Update last_seen date for existing entry
+          arr[idx].last_seen = today;
+        } else {
+          // Add new entry
+          arr.push({ device, pwa, first_seen: today, last_seen: today });
+        }
         await pgQueryAll(
-          `UPDATE users SET devices_seen = COALESCE(devices_seen, '[]'::jsonb) || $1::jsonb
-           WHERE id = $2 AND NOT (COALESCE(devices_seen, '[]'::jsonb) @> $1::jsonb)`,
-          [`[${entry}]`, userId]
+          `UPDATE users SET devices_seen = $1::jsonb WHERE id = $2`,
+          [JSON.stringify(arr), userId]
         );
       }
     }

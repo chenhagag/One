@@ -131,7 +131,7 @@ export default function AuthScreen() {
           <h1 className="mb-2 text-5xl font-bold tracking-tight text-gray-900">One</h1>
           <div className="flex items-center justify-center gap-1.5">
             <p className="text-base text-gray-400" style={{ margin: 0 }}>Find your one perfect match</p>
-            <img src="/heartIcon.jpg" alt="" style={{ width: 22, height: 22, borderRadius: "50%" }} />
+            <img src="/heartIcon.jpg" alt="" style={{ width: 22, height: 22, borderRadius: 5 }} />
           </div>
         </div>
 
@@ -201,7 +201,7 @@ export default function AuthScreen() {
       <div className="mb-16 text-center">
         <div className="mb-2 flex items-center justify-center gap-2">
           <h1 className="text-5xl font-bold tracking-tight text-gray-900" style={{ margin: 0 }}>One</h1>
-          <img src="/heartIcon.jpg" alt="" style={{ width: 26, height: 26, borderRadius: "50%" }} />
+          <img src="/heartIcon.jpg" alt="" style={{ width: 26, height: 26, borderRadius: 6 }} />
         </div>
         <p className="text-base text-gray-400">Find your one perfect match</p>
       </div>

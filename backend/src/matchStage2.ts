@@ -168,9 +168,10 @@ const MATCH_CATEGORIES: CategoryDef[] = [
   ]},
 
   // מידת רגשנות — Emotionality
-  // Traits: neuroticism, emotional_intensity, emotional_expressiveness
+  // Traits: neuroticism, emotional_intensity, emotional_expressiveness + attachment styles (affect matching, not individual profile score)
   { key: "emotionality", traitNames: [
     "neuroticism", "emotional_intensity", "emotional_expressiveness",
+    "attachment_secure", "attachment_anxious", "attachment_avoidant",
   ]},
 
   // טון תקשורת — Communication Tone
@@ -180,9 +181,10 @@ const MATCH_CATEGORIES: CategoryDef[] = [
   ]},
 
   // סחיות — Vibe
-  // Traits: mainstreamness, conformity, openness_to_experience
+  // Traits: mainstreamness, conformity, openness_to_experience + gender_conformity (affects matching, not individual profile score)
   { key: "vibe", traitNames: [
     "mainstreamness", "conformity", "openness_to_experience",
+    "gender_conformity",
   ]},
 
   // עממיות — Popularity
@@ -225,6 +227,13 @@ const MATCH_CATEGORIES: CategoryDef[] = [
   // Traits: extraversion, sensing, intuition, thinking, feeling, judging, perceiving
   { key: "mbti", traitNames: [
     "extraversion", "sensing", "intuition", "thinking", "feeling", "judging", "perceiving",
+  ]},
+
+  // אניאגרם — Enneagram (9 types)
+  { key: "enneagram", traitNames: [
+    "enneagram_type_1", "enneagram_type_2", "enneagram_type_3",
+    "enneagram_type_4", "enneagram_type_5", "enneagram_type_6",
+    "enneagram_type_7", "enneagram_type_8", "enneagram_type_9",
   ]},
 ];
 
@@ -299,6 +308,7 @@ interface CategoryScores {
   score_style: number | null;
   score_general: number | null;
   score_mbti: number | null;
+  score_enneagram: number | null;
 }
 
 // Compute confidence-weighted average score for a set of traits
@@ -382,6 +392,7 @@ function calculateProfileScore(categories: CategoryScores, externalScore: number
     ["score_popularity", 0.25],
     ["score_vibe", 0.25],
     ["score_mbti", 0.5],
+    ["score_enneagram", 0.5],
   ];
 
   let sumW = 0, sumC = 0;
@@ -498,7 +509,7 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
   const emptyCategories: CategoryScores = {
     score_cognitive: null, score_emotional_social: null, score_emotionality: null,
     score_communication: null, score_vibe: null, score_popularity: null,
-    score_big_five: null, score_schwartz: null, score_style: null, score_general: null, score_mbti: null,
+    score_big_five: null, score_schwartz: null, score_style: null, score_general: null, score_mbti: null, score_enneagram: null,
   };
 
   for (const row of pending) {
@@ -550,7 +561,7 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
              score_cognitive = $5, score_emotional_social = $6, score_emotionality = $7,
              score_communication = $8, score_vibe = $9, score_popularity = $10,
              score_big_five = $11, score_schwartz = $12, score_style = $13,
-             score_general = $14, score_mbti = $15, profile_score = $16,
+             score_general = $14, score_mbti = $15, score_enneagram = $16, profile_score = $17,
              status = 'scored', last_evaluated_at = NOW(), updated_at = NOW()
          WHERE id = $4`,
         [u.internal, u.external, u.final, u.id,
@@ -559,7 +570,7 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
          u.categories.score_vibe, u.categories.score_popularity,
          u.categories.score_big_five, u.categories.score_schwartz,
          u.categories.score_style, u.categories.score_general, u.categories.score_mbti,
-         u.profile_score]
+         u.categories.score_enneagram, u.profile_score]
       );
     }
   });

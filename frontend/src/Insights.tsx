@@ -4,7 +4,8 @@ interface InsightsProps {
   user: { id: number; first_name: string; email: string };
   onBack: () => void;
   onOpenChat?: (initialMessage: string, channel: string) => void;
-  initialView?: "main" | "mbti" | "values" | "bigfive";
+  initialView?: "main" | "mbti" | "values" | "bigfive" | "enneagram" | "attachment";
+  resetKey?: number;
 }
 
 interface DetailedProfile {
@@ -14,6 +15,21 @@ interface DetailedProfile {
     alternateType: string | null;
     alternateDescription: string | null;
     dimensions: Record<string, number | null>;
+  };
+  enneagram: {
+    primaryType: number | null;
+    primaryName: string | null;
+    wing: number | null;
+    typeLabel: string | null;
+    description: string | null;
+    allTypes: { type: number; name: string; score: number; description: string; relationship: string }[];
+  };
+  attachment: {
+    dominant: string | null;
+    dominantHe: string | null;
+    description: string | null;
+    relationship: string | null;
+    styles: { name: string; he: string; score: number; description: string; relationship: string }[];
   };
   allValues: { name: string; he: string; score: number; description: string; relationship: string }[];
   allBigFive: { name: string; he: string; score: number; description: string; relationship: string }[];
@@ -101,11 +117,16 @@ function renderScoreBar(score: number) {
   );
 }
 
-export default function Insights({ user, onBack, onOpenChat, initialView }: InsightsProps) {
+export default function Insights({ user, onBack, onOpenChat, initialView, resetKey }: InsightsProps) {
   const [profile, setProfile] = useState<DetailedProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [gender, setGender] = useState<string | null>(null);
-  const [detailView, setDetailView] = useState<"main" | "mbti" | "values" | "bigfive">(initialView || "main");
+  const [detailView, setDetailView] = useState<"main" | "mbti" | "values" | "bigfive" | "enneagram" | "attachment">(initialView || "main");
+
+  // Sync detailView when initialView or resetKey changes (e.g., sidebar click resets to "main")
+  useEffect(() => {
+    if (initialView) setDetailView(initialView);
+  }, [initialView, resetKey]);
 
   useEffect(() => {
     fetch(`/api/users/${user.id}/detailed-traits`)
@@ -122,7 +143,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView }: Insi
   const isFemale = gender === "woman";
   const g = (male: string, female: string) => isFemale ? female : male;
 
-  const hasData = profile && (profile.mbti.type || profile.allValues.length > 0 || profile.allBigFive.length > 0);
+  const hasData = profile && (profile.mbti.type || profile.allValues.length > 0 || profile.allBigFive.length > 0 || profile.enneagram?.primaryType || profile.attachment?.dominant);
   const strongValues = profile?.allValues.filter(v => v.score > 60) || [];
   const weakValues = profile?.allValues.filter(v => v.score < 40) || [];
   const highBigFive = profile?.allBigFive.filter(v => v.score >= 65) || [];
@@ -318,6 +339,105 @@ export default function Insights({ user, onBack, onOpenChat, initialView }: Insi
     );
   }
 
+  // ── Detail: Enneagram ──
+  if (detailView === "enneagram" && profile?.enneagram?.primaryType) {
+    const ennea = profile.enneagram;
+    const topTypes = ennea.allTypes.slice(0, 5);
+    return (
+      <div style={s.container}><div style={s.content}>
+        <button style={s.backBtn} onClick={() => setDetailView("main")}>← חזרה לתובנות</button>
+        <h2 style={s.heading}>🔷 אניאגרם: טיפוס {ennea.typeLabel}</h2>
+
+        <div style={s.card}>
+          <div style={{ textAlign: "center", marginBottom: 16 }}>
+            <div style={{ fontSize: 36, fontWeight: 800, color: "#6366f1" }}>{ennea.typeLabel}</div>
+            <div style={{ fontSize: 18, fontWeight: 600, color: "#555", marginTop: 4 }}>{ennea.primaryName}</div>
+            {ennea.description && <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, margin: "8px 0 0" }}>{ennea.description}</p>}
+          </div>
+        </div>
+
+        <div style={s.explainCard}>
+          <p style={s.explainTitle}>מהו אניאגרם?</p>
+          <p style={s.explainText}>האניאגרם הוא מודל אישיות עתיק שמתאר 9 טיפוסים בסיסיים של מוטיבציה פנימית. בניגוד ל-MBTI שמתמקד באיך אתה חושב, האניאגרם מתמקד בלמה אתה עושה מה שאתה עושה — המוטיבציה העמוקה שמניעה אותך. כל אדם מזוהה עם טיפוס ראשי ו"כנף" (טיפוס שכן שמשפיע).</p>
+        </div>
+
+        {ennea.allTypes.length > 0 && (
+          <div style={s.card}>
+            <p style={{ fontSize: 15, fontWeight: 600, color: "#1a1a2e", margin: "0 0 10px" }}>פיזור הטיפוסים {g("שלך", "שלך")}</p>
+            {ennea.allTypes.map(t => {
+              const level = getTraitLevel(t.score);
+              return (
+                <div key={t.type} style={{ marginBottom: 14 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e" }}>טיפוס {t.type} — {t.name}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, padding: "2px 10px", borderRadius: 12, background: level.color + "22", color: level.color }}>{level.label}</span>
+                  </div>
+                  {renderScoreBar(t.score)}
+                  <p style={{ fontSize: 13, color: "#555", lineHeight: 1.5, margin: "4px 0 0" }}>{t.description}</p>
+                  <p style={{ fontSize: 12, color: "#3f6212", lineHeight: 1.5, margin: "4px 0 0" }}>{t.relationship}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {renderDisagreeSection("אניאגרם")}
+      </div></div>
+    );
+  }
+
+  // ── Detail: Attachment ──
+  if (detailView === "attachment" && profile?.attachment?.dominant) {
+    const att = profile.attachment;
+    return (
+      <div style={s.container}><div style={s.content}>
+        <button style={s.backBtn} onClick={() => setDetailView("main")}>← חזרה לתובנות</button>
+        <h2 style={s.heading}>🔗 סגנון ההתקשרות {g("שלך", "שלך")}</h2>
+
+        <div style={s.card}>
+          <div style={{ textAlign: "center", marginBottom: 16 }}>
+            <div style={{ fontSize: 22, fontWeight: 700, color: "#6366f1" }}>{att.dominantHe}</div>
+            {att.description && <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, margin: "8px 0 0" }}>{att.description}</p>}
+          </div>
+          {att.relationship && (
+            <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "10px 14px", marginTop: 8 }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "#166534", margin: "0 0 4px" }}>מה זה אומר בזוגיות?</p>
+              <p style={{ fontSize: 13, color: "#3f6212", lineHeight: 1.6, margin: 0 }}>{att.relationship}</p>
+            </div>
+          )}
+        </div>
+
+        <div style={s.explainCard}>
+          <p style={s.explainTitle}>מהו סגנון התקשרות?</p>
+          <p style={s.explainText}>תיאוריית ההתקשרות מתארת את הדרך שבה אנחנו ניגשים למערכות יחסים קרובות. סגנון ההתקשרות נוצר בילדות ומשפיע על איך אנחנו מתנהלים בזוגיות — כמה אנחנו נוחים עם קרבה, איך אנחנו מגיבים לריחוק, ומה אנחנו צריכים כדי להרגיש בטוחים.</p>
+        </div>
+
+        <div style={s.card}>
+          <p style={{ fontSize: 15, fontWeight: 600, color: "#1a1a2e", margin: "0 0 10px" }}>הפרופיל {g("שלך", "שלך")}</p>
+          {att.styles.map(st => {
+            const level = getTraitLevel(st.score);
+            const isDominant = st.name === att.dominant;
+            return (
+              <div key={st.name} style={{ marginBottom: 14, ...(isDominant ? { background: "#f0f0ff", borderRadius: 8, padding: "10px 12px", marginRight: -12, marginLeft: -12 } : {}) }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e" }}>
+                    {st.he} {isDominant && <span style={{ fontSize: 11, color: "#6366f1" }}>← דומיננטי</span>}
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 600, padding: "2px 10px", borderRadius: 12, background: level.color + "22", color: level.color }}>{level.label}</span>
+                </div>
+                {renderScoreBar(st.score)}
+                <p style={{ fontSize: 13, color: "#555", lineHeight: 1.5, margin: "4px 0 0" }}>{st.description}</p>
+                <p style={{ fontSize: 12, color: "#3f6212", lineHeight: 1.5, margin: "4px 0 0" }}>{st.relationship}</p>
+              </div>
+            );
+          })}
+        </div>
+
+        {renderDisagreeSection("סגנון ההתקשרות")}
+      </div></div>
+    );
+  }
+
   // ── Main view ──
   return (
     <div style={s.container}><div style={s.content}>
@@ -328,7 +448,6 @@ export default function Insights({ user, onBack, onOpenChat, initialView }: Insi
       ) : !hasData ? (
         <div style={{ textAlign: "center", padding: "40px 20px" }}>
           <p style={{ fontSize: 15, color: "#888", lineHeight: 1.6, margin: "4px 0" }}>הנתונים {g("שלך", "שלך")} עדיין לא נותחו לעומק במערכת, ולכן עדיין אין תובנות מובנות להציג.</p>
-          <p style={{ fontSize: 15, color: "#888", lineHeight: 1.6, margin: "4px 0" }}>בינתיים, {g("אתה יכול", "את יכולה")} לשאול את הצ'אט "מה למדת עליי עד עכשיו?" ולקבל ממנו רשמים ראשוניים על בסיס השיחה.</p>
           <p style={{ fontSize: 13, color: "#aaa", lineHeight: 1.5, marginTop: 16 }}>{g("המשך", "המשיכי")} לשוחח וברגע שיהיה מספיק מידע, הניתוח ירוץ אוטומטית והתובנות יופיעו כאן.</p>
         </div>
       ) : (
@@ -380,6 +499,33 @@ export default function Insights({ user, onBack, onOpenChat, initialView }: Insi
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {profile?.enneagram?.primaryType && (
+            <div style={s.card}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0 }}>🔷 אניאגרם</h3>
+                <button style={s.expandBtn} onClick={() => setDetailView("enneagram")}>הרחבה →</button>
+              </div>
+              <div style={{ textAlign: "center", marginTop: 12 }}>
+                <div style={{ fontSize: 28, fontWeight: 800, color: "#6366f1" }}>{profile.enneagram.typeLabel}</div>
+                <div style={{ fontSize: 15, fontWeight: 500, color: "#555", marginTop: 4 }}>{profile.enneagram.primaryName}</div>
+                {profile.enneagram.description && <p style={{ fontSize: 13, color: "#777", lineHeight: 1.5, margin: "6px 0 0" }}>{profile.enneagram.description}</p>}
+              </div>
+            </div>
+          )}
+
+          {profile?.attachment?.dominant && (
+            <div style={s.card}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0 }}>🔗 סגנון התקשרות</h3>
+                <button style={s.expandBtn} onClick={() => setDetailView("attachment")}>הרחבה →</button>
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: "#6366f1" }}>{profile.attachment.dominantHe}</div>
+                {profile.attachment.description && <p style={{ fontSize: 13, color: "#555", lineHeight: 1.5, margin: "6px 0 0" }}>{profile.attachment.description}</p>}
               </div>
             </div>
           )}

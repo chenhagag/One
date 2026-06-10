@@ -368,7 +368,14 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
         <td style={s.td}><PartnerCell userId={u.id} value={u.partner_name || ""} /></td>
         <td style={s.td}>
           {(() => {
-            const devices: any[] = Array.isArray(u.devices_seen) && u.devices_seen.length > 0 ? u.devices_seen : (u.last_device ? [{ device: u.last_device, pwa: u.pwa_installed }] : []);
+            const raw: any[] = Array.isArray(u.devices_seen) && u.devices_seen.length > 0 ? u.devices_seen : (u.last_device ? [{ device: u.last_device, pwa: u.pwa_installed }] : []);
+            // Dedup by device+pwa (in case old entries with dates exist)
+            const seen = new Set<string>();
+            const devices: any[] = [];
+            for (const d of raw) {
+              const key = `${d.device}|${d.pwa}`;
+              if (!seen.has(key)) { seen.add(key); devices.push(d); }
+            }
             if (devices.length === 0) return "-";
             return devices.map((d: any, i: number) => (
               <span key={i} style={{ ...s.badge, fontSize: 10, marginRight: 3, background: d.device === "iphone" ? "#e0e7ff" : d.device === "android" ? "#d1fae5" : "#f3f4f6" }}>
@@ -933,6 +940,51 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
     return types;
   })();
 
+  // Enneagram type
+  const enneagramInfo = (() => {
+    const types: { type: number; score: number }[] = [];
+    for (let t = 1; t <= 9; t++) {
+      const d = traitData(`enneagram_type_${t}`);
+      if (d) types.push({ type: t, score: d.score });
+    }
+    if (types.length === 0) return null;
+    types.sort((a, b) => b.score - a.score);
+    const primary = types[0];
+    const names: Record<number, string> = { 1: "רפורמיסט", 2: "עוזר", 3: "הישגיסט", 4: "אינדיבידואליסט", 5: "חוקר", 6: "נאמן", 7: "הרפתקן", 8: "בוס", 9: "משכין שלום" };
+    // Wing = adjacent type with highest score
+    const adj1 = primary.type === 1 ? 9 : primary.type - 1;
+    const adj2 = primary.type === 9 ? 1 : primary.type + 1;
+    const s1 = traitData(`enneagram_type_${adj1}`)?.score ?? 0;
+    const s2 = traitData(`enneagram_type_${adj2}`)?.score ?? 0;
+    const wing = s1 >= s2 ? adj1 : adj2;
+    return { label: `${primary.type}w${wing}`, name: names[primary.type] ?? "", score: primary.score };
+  })();
+
+  // Attachment style
+  const attachmentInfo = (() => {
+    const styles = [
+      { name: "attachment_secure", he: "בטוח" },
+      { name: "attachment_anxious", he: "חרדתי" },
+      { name: "attachment_avoidant", he: "נמנע" },
+    ];
+    const scores: { name: string; he: string; score: number }[] = [];
+    for (const st of styles) {
+      const d = traitData(st.name);
+      if (d) scores.push({ ...st, score: d.score });
+    }
+    if (scores.length === 0) return null;
+    scores.sort((a, b) => b.score - a.score);
+    const best = scores[0];
+    // Compound label for secure + secondary >= 50
+    if (best.name === "attachment_secure" && scores.length >= 2 && scores[1].score >= 50) {
+      return { label: `${best.he}-${scores[1].he}`, scores };
+    }
+    return { label: best.he, scores };
+  })();
+
+  // Gender conformity
+  const genderConformity = traitData("gender_conformity");
+
   // Personal Style highlights (score >= 65)
   const styleHighlights = (() => {
     const styleTraits: { name: string; he: string }[] = [
@@ -1273,6 +1325,41 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                     <div style={{ fontSize: mbtiTypes.length > 2 ? 18 : 28, fontWeight: 700, color: "#0ea5e9" }}>
                       {mbtiTypes.join(" / ")}
                     </div>
+                  </div>
+                )}
+                {enneagramInfo && (
+                  <div style={{
+                    flex: "1 1 140px", padding: "14px 16px", borderRadius: 12,
+                    background: "#f8fafc", border: "2px solid #6366f140",
+                    textAlign: "center", minWidth: 140,
+                  }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#333", marginBottom: 6 }}>אניאגרם</div>
+                    <div style={{ fontSize: 28, fontWeight: 700, color: "#6366f1" }}>{enneagramInfo.label}</div>
+                    <div style={{ fontSize: 12, color: "#555" }}>{enneagramInfo.name}</div>
+                  </div>
+                )}
+                {attachmentInfo && (
+                  <div style={{
+                    flex: "1 1 140px", padding: "14px 16px", borderRadius: 12,
+                    background: "#f8fafc", border: "2px solid #10b98140",
+                    textAlign: "center", minWidth: 140,
+                  }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#333", marginBottom: 6 }}>סגנון התקשרות</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: "#10b981" }}>{attachmentInfo.label}</div>
+                    <div style={{ fontSize: 11, color: "#555", marginTop: 4 }}>
+                      {attachmentInfo.scores.map(s => `${s.he}: ${s.score}`).join(" | ")}
+                    </div>
+                  </div>
+                )}
+                {genderConformity && (
+                  <div style={{
+                    flex: "1 1 140px", padding: "14px 16px", borderRadius: 12,
+                    background: "#f8fafc", border: "2px solid #f4364740",
+                    textAlign: "center", minWidth: 140,
+                  }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#333", marginBottom: 6 }}>התאמה מגדרית</div>
+                    <div style={{ fontSize: 28, fontWeight: 700, color: "#f43647" }}>{genderConformity.score}</div>
+                    <div style={{ fontSize: 11, color: "#555" }}>{genderConformity.score >= 65 ? "קלאסי" : genderConformity.score <= 35 ? "חורג" : "מאוזן"}</div>
                   </div>
                 )}
               </div>
@@ -2860,6 +2947,7 @@ function CandidateMatchesTab() {
                 <th style={s.th}>סגנון</th>
                 <th style={s.th}>כללי</th>
                 <th style={s.th}>MBTI</th>
+                <th style={s.th}>אניאגרם</th>
               </tr>
             </thead>
             <tbody>
@@ -2885,6 +2973,7 @@ function CandidateMatchesTab() {
                   <td style={s.td}>{cm.score_style ?? "-"}</td>
                   <td style={s.td}>{cm.score_general ?? "-"}</td>
                   <td style={s.td}>{cm.score_mbti ?? "-"}</td>
+                  <td style={s.td}>{cm.score_enneagram ?? "-"}</td>
                 </tr>
               ))}
             </tbody>

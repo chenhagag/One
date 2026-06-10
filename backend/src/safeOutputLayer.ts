@@ -68,6 +68,98 @@ const BIG_FIVE_INFO: Record<string, { he: string; desc: string; relationship: st
   neuroticism: { he: "רגישות רגשית", desc: "עוצמת התגובה הרגשית, מודעות פנימית ורגישות לשינויים ולחצים", relationship: "חשוב בן/בת זוג שמבין את הצרכים הרגשיים ויודע לספק ביטחון ורוגע" },
 };
 
+const ENNEAGRAM_INFO: Record<number, { name: string; desc: string; relationship: string }> = {
+  1: { name: "הרפורמיסט", desc: "עקרוני, אידיאליסטי, שואף לשלמות. בעל חוש מוסרי חזק ואחריות גבוהה.", relationship: "מתאים לבן/בת זוג שמעריכים יושרה, סדר ורצון לשפר — אך גם סבלניים כלפי ביקורתיות עצמית" },
+  2: { name: "העוזר", desc: "אכפתי, חם ונדיב. ממוקד בצרכים של אחרים ורוצה להרגיש נחוץ.", relationship: "מתאים לבן/בת זוג שמעריכים דאגה ונתינה — ומחזירים תשומת לב ואהבה" },
+  3: { name: "ההישגיסט", desc: "שאפתני, יעיל ומוכוון הצלחה. מונע מהישגים והכרה.", relationship: "מתאים לבן/בת זוג שתומכים בשאפתנות ומבינים את הצורך בהצלחה" },
+  4: { name: "האינדיבידואליסט", desc: "רגיש, אינטרוספקטיבי וייחודי. מחפש משמעות, עומק וזהות אותנטית.", relationship: "מתאים לבן/בת זוג שמעריכים עומק רגשי, ייחודיות ואותנטיות" },
+  5: { name: "החוקר", desc: "סקרן, אנליטי ועצמאי. שואף להבין לעומק ושומר על גבולות.", relationship: "מתאים לבן/בת זוג שמכבדים מרחב אישי וסקרנות אינטלקטואלית" },
+  6: { name: "הנאמן", desc: "אחראי, מחויב וערני. מחפש ביטחון, מסגרת ותמיכה.", relationship: "מתאים לבן/בת זוג שמספקים ביטחון, עקביות ונאמנות" },
+  7: { name: "ההרפתקן", desc: "אופטימי, ספונטני ותאב חוויות. מחפש הנאה, גיוון וחדשנות.", relationship: "מתאים לבן/בת זוג שאוהבים ריגושים, שמחה ופתיחות לחוויות חדשות" },
+  8: { name: "הבוס", desc: "דומיננטי, ישיר ובטוח בעצמו. מגן על חלשים ולא מפחד מעימות.", relationship: "מתאים לבן/בת זוג חזקים שלא נבהלים מעוצמה ומעריכים ישירות" },
+  9: { name: "המשכין שלום", desc: "שקט, מפשר ומקבל. מחפש הרמוניה ונמנע מעימותים.", relationship: "מתאים לבן/בת זוג שמעריכים שקט, הרמוניה וסבלנות" },
+};
+
+const ATTACHMENT_INFO: Record<string, { he: string; desc: string; relationship: string }> = {
+  attachment_secure: { he: "התקשרות בטוחה", desc: "נוח עם קרבה רגשית, סומך על אחרים, מסוגל לתת ולקבל תמיכה", relationship: "יוצר יחסים יציבים, פתוח ונגיש רגשית — מתאים למי שמחפש ביטחון וקרבה" },
+  attachment_anxious: { he: "התקשרות חרדתית", desc: "צורך גבוה בוודאות רגשית, חשש מנטישה, רגישות לסימני ריחוק", relationship: "צריך בן/בת זוג שמספקים ביטחון רגשי, עקביות ותקשורת פתוחה" },
+  attachment_avoidant: { he: "התקשרות נמנעת", desc: "מעדיף עצמאות, אי-נוחות מקרבה רגשית עמוקה, צורך במרחב", relationship: "צריך בן/בת זוג שמכבדים מרחב אישי ולא לוחצים לקרבה מיידית" },
+};
+
+const COMPOUND_ATTACHMENT_DESC: Record<string, { desc: string; relationship: string }> = {
+  "בטוח-חרדתי": {
+    desc: "ביסודו בטוח ומסוגל ליחסים יציבים, אך נוטה לחרדה ברגעי אי-ודאות — צורך בוידוא שהכל בסדר, רגישות מוגברת לשינויים בזמינות של בן/בת הזוג",
+    relationship: "מתפקד היטב בזוגיות יציבה, אך ברגעים של ריחוק או לחץ עולה הצורך בביטחון רגשי. מתאים לבן/בת זוג עקביים שלא נבהלים מצורך בקרבה",
+  },
+  "בטוח-נמנע": {
+    desc: "ביסודו בטוח ומסוגל ליחסים בריאים, אך נוטה לשמור מרחק רגשי ברגעי לחץ — צורך במרחב אישי, לוקח זמן להיפתח עד הסוף",
+    relationship: "מסוגל ליחסים עמוקים אך צריך בן/בת זוג שמבינים שהצורך במרחב הוא לא דחייה אלא דרך ההתמודדות שלו. סבלנות ומרחב יביאו לקרבה גדולה יותר",
+  },
+};
+
+function computeEnneagramType(traitMap: Map<string, number>): { primary: number | null; wing: number | null } {
+  let best: { type: number; score: number } | null = null;
+  let second: { type: number; score: number } | null = null;
+
+  for (let t = 1; t <= 9; t++) {
+    const score = traitMap.get(`enneagram_type_${t}`);
+    if (score == null) continue;
+    if (!best || score > best.score) {
+      second = best;
+      best = { type: t, score };
+    } else if (!second || score > second.score) {
+      second = { type: t, score };
+    }
+  }
+
+  if (!best) return { primary: null, wing: null };
+
+  // Wing must be an adjacent type (e.g., type 4 can have wing 3 or 5; type 1 can have wing 9 or 2)
+  const adj1 = best.type === 1 ? 9 : best.type - 1;
+  const adj2 = best.type === 9 ? 1 : best.type + 1;
+  const adjScore1 = traitMap.get(`enneagram_type_${adj1}`) ?? 0;
+  const adjScore2 = traitMap.get(`enneagram_type_${adj2}`) ?? 0;
+  const wing = adjScore1 >= adjScore2 ? adj1 : adj2;
+
+  return { primary: best.type, wing };
+}
+
+function computeAttachmentLabel(traitMap: Map<string, number>): { dominant: string | null; label: string | null; labelHe: string | null } {
+  const styles = ["attachment_secure", "attachment_anxious", "attachment_avoidant"];
+  const scores: { name: string; score: number }[] = [];
+  for (const s of styles) {
+    const score = traitMap.get(s);
+    if (score != null) scores.push({ name: s, score });
+  }
+  if (scores.length === 0) return { dominant: null, label: null, labelHe: null };
+
+  scores.sort((a, b) => b.score - a.score);
+  const best = scores[0];
+
+  const heNames: Record<string, string> = {
+    attachment_secure: "בטוח",
+    attachment_anxious: "חרדתי",
+    attachment_avoidant: "נמנע",
+  };
+
+  // If dominant is secure and second style is >= 50, show compound label
+  if (best.name === "attachment_secure" && scores.length >= 2 && scores[1].score >= 50) {
+    const second = scores[1];
+    return {
+      dominant: best.name,
+      label: `${best.name}+${second.name}`,
+      labelHe: `${heNames[best.name]}-${heNames[second.name]}`,
+    };
+  }
+
+  // Otherwise, just dominant style
+  return {
+    dominant: best.name,
+    label: best.name,
+    labelHe: heNames[best.name] ?? null,
+  };
+}
+
 function computeMbtiType(traits: Map<string, number>): string | null {
   const ext = traits.get("extraversion");
   const sen = traits.get("sensing");
@@ -79,7 +171,8 @@ function computeMbtiType(traits: Map<string, number>): string | null {
 
   if (sen == null && int_ == null && thi == null && fee == null && jud == null && per == null) return null;
 
-  const a1 = ext == null ? "X" : ext > 50 ? "E" : ext < 50 ? "I" : "E";
+  // AI tends to inflate extraversion — scores 50-55 are borderline E/I
+  const a1 = ext == null ? "X" : ext > 55 ? "E" : ext < 50 ? "I" : "E"; // 50-55 → E but flagged as borderline
   const a2 = (sen == null && int_ == null) ? "X" : sen == null ? "N" : int_ == null ? "S" :
     sen > int_ ? "S" : sen < int_ ? "N" : "S";
   const adjT = (thi ?? 0) + 10;
@@ -89,6 +182,20 @@ function computeMbtiType(traits: Map<string, number>): string | null {
     jud > per ? "J" : jud < per ? "P" : "J";
 
   return a1 + a2 + a3 + a4;
+}
+
+/** Returns display label like "ENFP/INFP" when extraversion is 50-55 (borderline E/I) */
+function computeMbtiDisplayLabel(traits: Map<string, number>): string | null {
+  const type = computeMbtiType(traits);
+  if (!type || type.includes("X")) return type;
+
+  const ext = traits.get("extraversion");
+  if (ext != null && ext >= 50 && ext <= 55) {
+    // Borderline — show both variants
+    const flipped = (type[0] === "E" ? "I" : "E") + type.slice(1);
+    return `${type}/${flipped}`;
+  }
+  return type;
 }
 
 /**
@@ -135,9 +242,10 @@ export async function getSafeUserProfile(userId: number): Promise<SafeUserProfil
     }))
     .sort((a, b) => b.score - a.score);
 
+  const mbtiDisplayLabel = computeMbtiDisplayLabel(traitMap);
   return {
     mbti: {
-      type: mbtiType,
+      type: mbtiDisplayLabel,
       description: mbtiType ? (MBTI_DESCRIPTIONS[mbtiType] ?? null) : null,
     },
     values,
@@ -166,6 +274,21 @@ export interface DetailedUserProfile {
       perceiving: number | null;
     };
   };
+  enneagram: {
+    primaryType: number | null;
+    primaryName: string | null;
+    wing: number | null;
+    typeLabel: string | null;
+    description: string | null;
+    allTypes: { type: number; name: string; score: number; description: string; relationship: string }[];
+  };
+  attachment: {
+    dominant: string | null;
+    dominantHe: string | null;
+    description: string | null;
+    relationship: string | null;
+    styles: { name: string; he: string; score: number; description: string; relationship: string }[];
+  };
   allValues: { name: string; he: string; score: number; description: string; relationship: string }[];
   allBigFive: { name: string; he: string; score: number; description: string; relationship: string }[];
 }
@@ -179,19 +302,20 @@ function computeAlternateMbtiType(traits: Map<string, number>): string | null {
   const jud = traits.get("judging");
   const per = traits.get("perceiving");
 
-  // Check if any dimension is borderline (within 5 points of 50 or pair difference <= 10)
-  const isBorderline = (a: number | undefined, b: number | undefined, threshold: number) => {
+  // Check if any dimension is borderline (pair difference <= 5)
+  const isBorderline = (a: number | undefined, b: number | undefined) => {
     if (a == null && b == null) return false;
-    if (a != null && b == null) return Math.abs(a - 50) <= 5;
-    if (a == null && b != null) return Math.abs(b - 50) <= 5;
-    return Math.abs(a! - b!) <= 10;
+    if (a != null && b == null) return Math.abs(a - 50) <= 3;
+    if (a == null && b != null) return Math.abs(b - 50) <= 3;
+    return Math.abs(a! - b!) <= 5;
   };
 
-  const eiBorderline = ext != null && Math.abs(ext - 50) <= 5;
-  const snBorderline = isBorderline(sen, int_, 10);
+  // E/I borderline handled separately via computeMbtiDisplayLabel (50-55 range)
+  const eiBorderline = false;
+  const snBorderline = isBorderline(sen, int_);
   const adjT = (thi ?? 0) + 10;
-  const tfBorderline = thi != null && fee != null && Math.abs(adjT - fee) <= 10;
-  const jpBorderline = isBorderline(jud, per, 10);
+  const tfBorderline = thi != null && fee != null && Math.abs(adjT - fee) <= 5;
+  const jpBorderline = isBorderline(jud, per);
 
   if (!eiBorderline && !snBorderline && !tfBorderline && !jpBorderline) return null;
 
@@ -234,6 +358,7 @@ export async function getDetailedUserProfile(userId: number): Promise<DetailedUs
   }
 
   const mbtiType = computeMbtiType(traitMap);
+  const mbtiDisplayLabel = computeMbtiDisplayLabel(traitMap);
   const alternateType = computeAlternateMbtiType(traitMap);
 
   const schwartzNames = Object.keys(VALUE_INFO);
@@ -260,9 +385,43 @@ export async function getDetailedUserProfile(userId: number): Promise<DetailedUs
     }))
     .sort((a, b) => b.score - a.score);
 
+  // Enneagram
+  const ennea = computeEnneagramType(traitMap);
+  const enneagramAllTypes = [];
+  for (let t = 1; t <= 9; t++) {
+    const score = traitMap.get(`enneagram_type_${t}`);
+    if (score == null) continue;
+    const info = ENNEAGRAM_INFO[t];
+    enneagramAllTypes.push({
+      type: t,
+      name: info.name,
+      score,
+      description: info.desc,
+      relationship: info.relationship,
+    });
+  }
+  enneagramAllTypes.sort((a, b) => b.score - a.score);
+
+  const enneagramLabel = ennea.primary && ennea.wing
+    ? `${ennea.primary}w${ennea.wing}`
+    : ennea.primary ? `${ennea.primary}` : null;
+
+  // Attachment
+  const attachmentResult = computeAttachmentLabel(traitMap);
+  const attachmentStyles = Object.keys(ATTACHMENT_INFO)
+    .filter(name => traitMap.has(name))
+    .map(name => ({
+      name,
+      he: ATTACHMENT_INFO[name].he,
+      score: traitMap.get(name)!,
+      description: ATTACHMENT_INFO[name].desc,
+      relationship: ATTACHMENT_INFO[name].relationship,
+    }))
+    .sort((a, b) => b.score - a.score);
+
   return {
     mbti: {
-      type: mbtiType,
+      type: mbtiDisplayLabel,
       description: mbtiType ? (MBTI_DESCRIPTIONS[mbtiType] ?? null) : null,
       alternateType,
       alternateDescription: alternateType ? (MBTI_DESCRIPTIONS[alternateType] ?? null) : null,
@@ -275,6 +434,25 @@ export async function getDetailedUserProfile(userId: number): Promise<DetailedUs
         judging: traitMap.get("judging") ?? null,
         perceiving: traitMap.get("perceiving") ?? null,
       },
+    },
+    enneagram: {
+      primaryType: ennea.primary,
+      primaryName: ennea.primary ? ENNEAGRAM_INFO[ennea.primary]?.name ?? null : null,
+      wing: ennea.wing,
+      typeLabel: enneagramLabel,
+      description: ennea.primary ? ENNEAGRAM_INFO[ennea.primary]?.desc ?? null : null,
+      allTypes: enneagramAllTypes,
+    },
+    attachment: {
+      dominant: attachmentResult.dominant,
+      dominantHe: attachmentResult.labelHe,
+      description: attachmentResult.labelHe && COMPOUND_ATTACHMENT_DESC[attachmentResult.labelHe]
+        ? COMPOUND_ATTACHMENT_DESC[attachmentResult.labelHe].desc
+        : attachmentResult.dominant ? ATTACHMENT_INFO[attachmentResult.dominant]?.desc ?? null : null,
+      relationship: attachmentResult.labelHe && COMPOUND_ATTACHMENT_DESC[attachmentResult.labelHe]
+        ? COMPOUND_ATTACHMENT_DESC[attachmentResult.labelHe].relationship
+        : attachmentResult.dominant ? ATTACHMENT_INFO[attachmentResult.dominant]?.relationship ?? null : null,
+      styles: attachmentStyles,
     },
     allValues,
     allBigFive,
@@ -352,10 +530,11 @@ export async function formatRichProfileForChat(userId: number): Promise<string> 
 
   // MBTI with dimension detail
   const mbtiType = computeMbtiType(traitMap);
+  const mbtiLabel = computeMbtiDisplayLabel(traitMap);
   const altType = computeAlternateMbtiType(traitMap);
   if (mbtiType) {
     parts.push(`## MBTI`);
-    parts.push(`טיפוס: ${mbtiType} — ${MBTI_DESCRIPTIONS[mbtiType] || ""}`);
+    parts.push(`טיפוס: ${mbtiLabel} — ${MBTI_DESCRIPTIONS[mbtiType] || ""}`);
     if (altType) parts.push(`טיפוס חלופי אפשרי: ${altType} — ${MBTI_DESCRIPTIONS[altType] || ""}`);
     parts.push(`ממדים:`);
     const dims = [
@@ -395,6 +574,43 @@ export async function formatRichProfileForChat(userId: number): Promise<string> 
     const info = VALUE_INFO[name];
     const level = scoreToLevel(score);
     parts.push(`  - ${info.he}: ${level} (ציון פנימי: ${Math.round(score)}) — ${info.desc}`);
+  }
+
+  // Enneagram
+  const ennea = computeEnneagramType(traitMap);
+  if (ennea.primary) {
+    const info = ENNEAGRAM_INFO[ennea.primary];
+    parts.push(`\n## אניאגרם`);
+    parts.push(`טיפוס ראשי: ${ennea.primary} — ${info?.name || ""}`);
+    if (info) parts.push(`  ${info.desc}`);
+    if (ennea.wing) {
+      const wingInfo = ENNEAGRAM_INFO[ennea.wing];
+      parts.push(`כנף: ${ennea.wing} — ${wingInfo?.name || ""}`);
+    }
+    // Show top 3 types with scores
+    const topTypes = [];
+    for (let t = 1; t <= 9; t++) {
+      const s = traitMap.get(`enneagram_type_${t}`);
+      if (s != null) topTypes.push({ t, s });
+    }
+    topTypes.sort((a, b) => b.s - a.s);
+    parts.push(`פיזור:`);
+    for (const { t, s } of topTypes.slice(0, 4)) {
+      parts.push(`  - טיפוס ${t} (${ENNEAGRAM_INFO[t]?.name || ""}): ${scoreToLevel(s)} (ציון פנימי: ${Math.round(s)})`);
+    }
+  }
+
+  // Attachment
+  const attLabel = computeAttachmentLabel(traitMap);
+  if (attLabel.dominant) {
+    parts.push(`\n## סגנון התקשרות: ${attLabel.labelHe}`);
+    for (const [name, info] of Object.entries(ATTACHMENT_INFO)) {
+      const score = traitMap.get(name);
+      if (score != null) {
+        const marker = name === attLabel.dominant ? " ← דומיננטי" : "";
+        parts.push(`  - ${info.he}: ${scoreToLevel(score)} (ציון פנימי: ${Math.round(score)})${marker}`);
+      }
+    }
   }
 
   // Safe positive traits — only high scores (>= 65)

@@ -81,10 +81,20 @@ function HowItWorks() {
           <div>
             <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 4px 0" }}>5. קבלת ההתאמה (One)</p>
             <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, margin: 0 }}>
-              המערכת מציגה לך התאמה אחת בלבד — האדם בעל אחוז ההלימה הגבוה ביותר עבורך ברמה העמוקה ביותר.
+              המערכת מציגה לך התאמה אחת בלבד — האדם בעל אחוז ההלימה הגבוה ביותר עבורך ברמה העמוקה ביותר. אנחנו לא מתפשרים על התאמות בינוניות ולכן תקבלו התאמה רק כאשר אדם כזה יימצא, זה עשוי לקחת זמן, במיוחד בשלבי ההתחלה כשאנחנו עוד בונים את מאגר המשתמשים שלנו.
             </p>
             <p style={{ fontSize: 12, color: "#888", lineHeight: 1.5, margin: "6px 0 0" }}>
               ברגע שתמצא ההתאמה הטובה ביותר — תקבלו הודעה חגיגית המלווה בהסבר על סיבות החיבור, ותוכלו להתחיל לדבר ולהכיר בצ'אט המשותף. בהצלחה!
+            </p>
+          </div>
+
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 4px 0" }}>6. ומה קורה אם החיבור לא הצליח?</p>
+            <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, margin: 0 }}>
+              אנחנו עושים את המיטב כדי שהחיבור הראשון יהיה ה-One שלכם, אבל אם ניסיתם וגיליתם שזה לא הלך — החיפוש לא נעצר. נחזיר אתכם מיד למאגר, אבל לא לפני שנערוך שיחת דיוק קצרה כדי להבין יחד מה עבד ומה פחות.
+            </p>
+            <p style={{ fontSize: 12, color: "#888", lineHeight: 1.5, margin: "6px 0 0" }}>
+              כל פידבק שלכם וכל התאמה שלא צלחה הם דאטה קריטי שמלמד את ה-AI מה נכון לכם לפעם הבאה. אנחנו מערכת לומדת — גם מכירה יותר אתכם ומה עובד עבורכם וגם מייצרת לקחים רוחביים מהתאמות אחרות. ככל שהמאגר של One גדל — אנחנו משתפרים ומדייקים את עצמנו.
             </p>
           </div>
         </div>
@@ -164,7 +174,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
     const v = localStorage.getItem(`insight_rotation_${user.id}`);
     return v ? parseInt(v, 10) : 0;
   });
-  const [insightInitialView, setInsightInitialView] = useState<"main" | "mbti" | "values" | "bigfive">("main");
+  const [insightInitialView, setInsightInitialView] = useState<"main" | "mbti" | "values" | "bigfive" | "enneagram" | "attachment">("main");
+  const [insightResetKey, setInsightResetKey] = useState(0);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -461,7 +472,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   setMenuOpen(false);
                   return;
                 }
-                if (item.action === "insights") setInsightInitialView("main");
+                if (item.action === "insights") { setInsightInitialView("main"); setInsightResetKey(k => k + 1); }
                 setScreen(item.action as any);
                 setMenuOpen(false);
               }}
@@ -542,7 +553,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
         {screen === "insights" && (
           <div className="nc-screen-fade" key="insights" style={{ flex: 1, overflowY: "auto" }}>
-            <Insights user={user} onBack={() => { setScreen("home"); setInsightInitialView("main"); }} onOpenChat={(msg, ch) => sendMessage(msg, ch)} initialView={insightInitialView} />
+            <Insights user={user} onBack={() => { setScreen("home"); setInsightInitialView("main"); }} onOpenChat={(msg, ch) => sendMessage(msg, ch)} initialView={insightInitialView} resetKey={insightResetKey} />
           </div>
         )}
 
@@ -821,12 +832,12 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
                     {/* ── Dashboard: Insight Drip Feed — shown for all users including couples ── */}
                     {insightCard && (() => {
-                      const rot = insightRotation % 3;
+                      const rot = insightRotation % 5;
                       let emoji = "";
                       let title = "";
                       let text = "";
                       let hasContent = false;
-                      let targetView: "mbti" | "values" | "bigfive" = "mbti";
+                      let targetView: "mbti" | "values" | "bigfive" | "enneagram" | "attachment" = "mbti";
 
                       if (rot === 0 && insightCard.mbti?.type) {
                         emoji = "🧠";
@@ -844,6 +855,31 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           targetView = "values";
                         }
                       }
+                      if (!hasContent && rot === 2 && insightCard.allBigFive?.length > 0) {
+                        const top = insightCard.allBigFive.filter((v: any) => v.score > 60).slice(0, 2);
+                        if (top.length > 0) {
+                          emoji = "🎭";
+                          title = "תכונות אישיות בולטות";
+                          text = top.map((v: any) => `${v.he} — ${v.description}`).join(". ");
+                          hasContent = true;
+                          targetView = "bigfive";
+                        }
+                      }
+                      if (!hasContent && rot === 3 && insightCard.enneagram?.primaryType) {
+                        emoji = "🔷";
+                        title = `אניאגרם: טיפוס ${insightCard.enneagram.typeLabel}`;
+                        text = insightCard.enneagram.description || "";
+                        hasContent = true;
+                        targetView = "enneagram";
+                      }
+                      if (!hasContent && rot === 4 && insightCard.attachment?.dominant) {
+                        emoji = "🔗";
+                        title = `סגנון התקשרות: ${insightCard.attachment.dominantHe}`;
+                        text = insightCard.attachment.description || "";
+                        hasContent = true;
+                        targetView = "attachment";
+                      }
+                      // Fallback: try Big Five if nothing matched yet
                       if (!hasContent && insightCard.allBigFive?.length > 0) {
                         const top = insightCard.allBigFive.filter((v: any) => v.score > 60).slice(0, 2);
                         if (top.length > 0) {

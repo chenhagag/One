@@ -169,9 +169,11 @@ function hasSpecialSexualIdentity(
 export async function runStage1(_db: Database.Database, options?: { skipMatchableFilter?: boolean; skipAllFilters?: boolean }): Promise<{ pairs: number; skipped: number; users: number }> {
 
   // 1. Load eligible users from pg
-  const whereClause = (options?.skipAllFilters || options?.skipMatchableFilter)
+  const whereClause = options?.skipAllFilters
+    ? "WHERE u.in_matching_pool = TRUE AND u.valid_person = TRUE"
+    : options?.skipMatchableFilter
     ? "WHERE u.valid_person = TRUE"
-    : "WHERE u.in_matching_pool = TRUE AND u.is_matchable = TRUE AND u.valid_person = TRUE AND u.user_status = 'waiting_match'";
+    : "WHERE u.in_matching_pool = TRUE AND u.valid_person = TRUE";
 
   // 0. Resolve trait IDs dynamically from pg (no hardcoded IDs)
   const traitDefs = await queryAll<{ id: number; internal_name: string; trait_group: string | null }>(

@@ -437,16 +437,15 @@ export async function buildChatPrompt(
     const isBoth = lookingForGender !== "woman" && lookingForGender !== "man";
 
     // Check if user already shared taste preferences in general chat
-    const hasPriorTasteInfo = userSummary && (
-      (userSummary.taste_and_style && userSummary.taste_and_style.trim().length > 0) ||
-      (userSummary.relationships && userSummary.relationships.trim().length > 0)
-    );
+    // NOTE: hasPriorTasteInfo disabled — all users get full question flow (general + deal-breakers)
+    // To re-enable shortcut: uncomment and use `const profileStartMsg = hasPriorTasteInfo ? 1 : 5;`
+    // const hasPriorTasteInfo = userSummary && (
+    //   (userSummary.taste_and_style && userSummary.taste_and_style.trim().length > 0) ||
+    //   (userSummary.relationships && userSummary.relationships.trim().length > 0)
+    // );
 
-    // Determine taste test phases:
-    // Without prior taste info: msg0=explain+general questions, msg1-2=answers, msg3=explain profiles+"ready?", msg4+=profiles
-    // With prior taste info: msg0=explain profiles+"ready?", msg1+=profiles
-    // We use a "profileStartMsg" threshold to know when profiles begin
-    const profileStartMsg = hasPriorTasteInfo ? 1 : 3;
+    // Taste test phases: msg0=explain+general questions, msg1=answer, msg2=deal-breaker1, msg3=deal-breaker2, msg4=explain profiles+"ready?", msg5+=profiles
+    const profileStartMsg = 5;
 
     const isCoupleTest = testUserType === "Couple Tester";
     const allProfilesText = buildTasteProfileList(profileBank);
@@ -483,19 +482,22 @@ export async function buildChatPrompt(
       if (!lookingForGender) {
         // Need to ask gender preference first
         phaseInstruction = `\n\n## שלב: פתיחה\nזו ההודעה הראשונה. לפני שמתחילים, שאל את המשתמש/ת בצורה עדינה: "לפני שנתחיל — אני רוצה להציג לך פרופילים של אנשים בסגנונות שונים. מה מעניין אותך — פרופילים של גברים, נשים, או שניהם?"\nחכה לתשובה לפני שמציג פרופיל.`;
-      } else if (hasPriorTasteInfo) {
-        // Already know their taste — skip to profile explanation + ready
-        phaseInstruction = `\n\n## שלב: פתיחה\nזו ההודעה הראשונה. הסבר למשתמש:\n"בוא/י נעשה רגע בדיקת טעם עמוקה יותר.\nאני אציג לך כמה פרופילים קצרים של אנשים בסגנונות שונים. אין כאן תשובה נכונה — מעניין אותי מה התחושה הראשונית שלך.\n\nאחרי כל פרופיל אשאל אותך עד כמה הוא/היא הטעם שלך מ-1 עד 10, מה עובד לך, ומה פחות. מוכן/ה?"\n\nאל תציג פרופיל — חכה שהמשתמש יאשר.`;
       } else {
-        // No prior taste info — start with general taste questions
+        // Start with general taste questions (all users get full flow)
         const genderWord = lookingForGender === "woman" ? "נשים" : lookingForGender === "man" ? "גברים" : "אנשים";
         phaseInstruction = `\n\n## שלב: פתיחה + שאלות כלליות על טעם\nזו ההודעה הראשונה. הסבר בקצרה שאנחנו הולכים לעשות בדיקת טעם כדי להבין מה מושך את המשתמש ומה פחות.\n\nלפני שמציגים פרופילים, שאל 2-3 שאלות כלליות על הטעם שלו. למשל:\n- "איך היית מגדיר/ה את הטעם שלך ב${genderWord}? מה מושך אותך?"\n- "מה הכי רחוק מהטעם שלך? מה הכי מוריד לך?"\n- "יש משהו ספציפי שחשוב לך מבחינה חיצונית?"\n\nנסח את השאלות בצורה טבעית ונעימה. שאל שאלה אחת-שתיים עכשיו, והמשך לפי התשובה. אל תציג פרופילים בשלב הזה.`;
       }
     } else if (tasteUserMsgCount < profileStartMsg) {
-      // Still in general taste questions phase (only when no prior info)
+      // Still in general/deal-breaker questions phase (only when no prior info)
       if (tasteUserMsgCount === profileStartMsg - 1) {
-        // Last general question answered — now explain profiles and ask "ready?"
+        // Last question answered — now explain profiles and ask "ready?"
         phaseInstruction = `\n\n## שלב: מעבר לפרופילים\nתגיב בקצרה לתשובת המשתמש. ואז הסבר:\n"עכשיו אני הולך להציג לך כמה פרופילים קצרים של אנשים בסגנונות שונים. אין כאן תשובה נכונה — מעניין אותי מה התחושה הראשונית שלך.\n\nאחרי כל פרופיל אשאל אותך עד כמה הוא/היא הטעם שלך מ-1 עד 10. מוכן/ה?"\n\nחכה לאישור לפני שמציג פרופיל.`;
+      } else if (tasteUserMsgCount === 2) {
+        // Deal-breaker question 1: lifestyle
+        phaseInstruction = `\n\n## שלב: שאלת דיל-ברייקר\nתגיב בקצרה לתשובת המשתמש. ואז שאל:\n"יש דברים ברמת אורח החיים שפשוט לא יעבדו מבחינתך? למשל – עישון, גידול חיות מחמד, או הרגלי תזונה מסוימים (כמו טבעונות/צמחונות)?"\nשאל רק את השאלה הזו. אל תציג פרופילים עדיין.`;
+      } else if (tasteUserMsgCount === 3) {
+        // Deal-breaker question 2: life stage
+        phaseInstruction = `\n\n## שלב: שאלת דיל-ברייקר\nתגיב בקצרה לתשובת המשתמש. ואז שאל:\n"איך מרגישה לך התאמה למישהו שכבר עבר פרק א׳ בחיים? למשל, אדם שהוא גרוש, או מישהו שיש לו כבר ילדים?"\nשאל רק את השאלה הזו. אל תציג פרופילים עדיין.`;
       } else {
         // Continue general taste questions
         phaseInstruction = `\n\n## שלב: שאלות כלליות על טעם\nתגיב לתשובת המשתמש, ואז שאל עוד שאלה על הטעם שלו. למשל:\n- "מה הכי רחוק מהטעם שלך? מה מוריד לך?"\n- "יש משהו ספציפי שחשוב לך מבחינה חיצונית?"\nשאל שאלה אחת בכל תור. אל תציג פרופילים עדיין.`;

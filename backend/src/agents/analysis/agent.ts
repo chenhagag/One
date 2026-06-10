@@ -93,6 +93,7 @@ const GROUP_LABEL_EN: Record<string, string> = {
   "General Info": "general",
   "MBTI": "mbti",
   "MBTI Test": "mbti",
+  "Enneagram": "mbti",
   // Legacy Hebrew names (in case sqlite bridge still feeds them)
   "כללי": "general",
   "אורח חיים": "lifestyle",
@@ -626,7 +627,7 @@ const GROUP_PROMPT_MAP: Record<string, { promptFile: string; traitGroups: string
   "style": { promptFile: "personal-style-system.txt", traitGroups: ["Personal Style"] },
   "emotional": { promptFile: "emotional-profile-system.txt", traitGroups: ["Emotional Profile"] },
   "general": { promptFile: "general-info-system.txt", traitGroups: ["General Info"] },
-  "mbti": { promptFile: "mbti-system.txt", traitGroups: ["MBTI", "MBTI Test"] },
+  "mbti": { promptFile: "mbti-system.txt", traitGroups: ["MBTI", "MBTI Test", "Enneagram"] },
   "external": { promptFile: "external-system.txt", traitGroups: [] }, // special handling
 };
 
