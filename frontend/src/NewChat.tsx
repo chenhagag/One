@@ -289,15 +289,28 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [channelMessages, channel]);
 
-  // Also scroll to bottom when switching back to chat screen
+  // Also scroll to bottom when switching to chat screen (delay for DOM to settle on iOS)
   useEffect(() => {
     if (screen === "chat") {
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 150);
     }
   }, [screen]);
 
-  // Mobile keyboard: scroll input into view when keyboard opens
-  // iOS standalone keyboard handling: no JS tricks, handled via CSS only
+  // iOS keyboard: scroll input into view when virtual keyboard opens
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => {
+      // When keyboard opens, visualViewport height shrinks — scroll input into view
+      if (inputRef.current && document.activeElement === inputRef.current) {
+        requestAnimationFrame(() => {
+          inputRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+        });
+      }
+    };
+    vv.addEventListener("resize", onResize);
+    return () => vv.removeEventListener("resize", onResize);
+  }, []);
 
   async function sendMessage(text?: string, channelOverride?: string) {
     const msg = (text ?? input).trim();
