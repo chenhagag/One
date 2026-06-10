@@ -431,18 +431,29 @@ export async function buildChatPrompt(
         ],
       };
 
-      // Determine which calibration question to ask (if in specific-topic flow)
-      // Count how many calibration questions were already asked by scanning AI messages for question patterns
+      // Count calibration questions asked by counting user messages AFTER the offer was accepted
+      // Flow: msg0=initial, msg1=opinion, msg2=offer, msg3=accept, msg4+=answers to calibration questions
+      // So calibrationQuestionsAsked = number of user messages after acceptance
       let calibrationQuestionsAsked = 0;
-      if (specificTopic && Array.isArray(history)) {
-        const questions = CALIBRATION_QUESTIONS[specificTopic];
-        for (const h of history) {
-          if (h.role === "assistant") {
-            for (const q of questions) {
-              // Check if first 40 chars of question appear in AI message
-              if (h.content.includes(q.slice(0, 40))) calibrationQuestionsAsked++;
-            }
+      const offeredQuestionsCheck = specificTopic && Array.isArray(history) &&
+        history.some((h: any) => h.role === "assistant" && /רוצה שאשאל|לשאול.*שאלות.*לדייק|יכול לשאול/i.test(h.content));
+      if (offeredQuestionsCheck) {
+        // Find the index of the offer message
+        let offerIdx = -1;
+        for (let i = 0; i < history.length; i++) {
+          if (history[i].role === "assistant" && /רוצה שאשאל|לשאול.*שאלות.*לדייק|יכול לשאול/i.test(history[i].content)) {
+            offerIdx = i;
+            break;
           }
+        }
+        // Count user messages after the offer (excluding the acceptance message itself)
+        if (offerIdx >= 0) {
+          let userMsgsAfterOffer = 0;
+          for (let i = offerIdx + 1; i < history.length; i++) {
+            if (history[i].role === "user") userMsgsAfterOffer++;
+          }
+          // First user msg after offer = acceptance, rest = answers to calibration questions
+          calibrationQuestionsAsked = Math.max(0, userMsgsAfterOffer - 1);
         }
       }
 
