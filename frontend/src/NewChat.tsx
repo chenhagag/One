@@ -922,15 +922,9 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           </div>
                           <button
                             style={styles.insightCardBtn}
-                            onClick={() => { setInsightInitialView("main"); setInsightResetKey(k => k + 1); setScreen("insights"); }}
-                          >
-                            לכל התובנות →
-                          </button>
-                          <button
-                            style={{ ...styles.insightCardBtn, fontSize: 11, color: "#999", fontWeight: 400, marginTop: 2 }}
                             onClick={() => { setInsightInitialView(targetView); setScreen("insights"); }}
                           >
-                            הרחבה על {title.split(":")[0]} →
+                            לקריאת הניתוח המלא →
                           </button>
                           {!analysisCompleted && (
                             <p style={{ fontSize: 11, color: "#aaa", margin: "6px 0 0", textAlign: "center" }}>

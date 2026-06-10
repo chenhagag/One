@@ -169,7 +169,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
           );
         })()}
         <button style={{ background: "none", border: "none", color: "#6366f1", fontSize: 13, cursor: "pointer", fontFamily: "inherit", padding: "8px 0 0", display: "block" }} onClick={() => setDetailView("main")}>
-          ← לשאר התובנות
+          ← לתובנות נוספות
         </button>
       </div>
     );
