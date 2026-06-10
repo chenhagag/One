@@ -431,53 +431,60 @@ export async function buildChatPrompt(
         ],
       };
 
-      // Count calibration questions asked by counting user messages AFTER the offer was accepted
-      // Flow: msg0=initial, msg1=opinion, msg2=offer, msg3=accept, msg4+=answers to calibration questions
-      // So calibrationQuestionsAsked = number of user messages after acceptance
-      let calibrationQuestionsAsked = 0;
-      const offeredQuestionsCheck = specificTopic && Array.isArray(history) &&
-        history.some((h: any) => h.role === "assistant" && /רוצה שאשאל|לשאול.*שאלות.*לדייק|יכול לשאול/i.test(h.content));
-      if (offeredQuestionsCheck) {
-        // Find the index of the offer message
-        let offerIdx = -1;
-        for (let i = 0; i < history.length; i++) {
-          if (history[i].role === "assistant" && /רוצה שאשאל|לשאול.*שאלות.*לדייק|יכול לשאול/i.test(history[i].content)) {
-            offerIdx = i;
+      // Find the LAST closing message in history — everything after it is a new round
+      const closingPattern = /לוקח את כל מה שאמרת בחשבון|מריץ את הניתוח מחדש|תמיד אפשר לחזור/i;
+      const offerPattern = /רוצה שאשאל|לשאול.*שאלות.*לדייק|יכול לשאול/i;
+      let lastClosingIdx = -1;
+      if (Array.isArray(history)) {
+        for (let i = history.length - 1; i >= 0; i--) {
+          if (history[i].role === "assistant" && closingPattern.test(history[i].content)) {
+            lastClosingIdx = i;
             break;
           }
         }
-        // Count user messages after the offer (excluding the acceptance message itself)
-        if (offerIdx >= 0) {
-          let userMsgsAfterOffer = 0;
-          for (let i = offerIdx + 1; i < history.length; i++) {
-            if (history[i].role === "user") userMsgsAfterOffer++;
-          }
-          // First user msg after offer = acceptance, rest = answers to calibration questions
-          calibrationQuestionsAsked = Math.max(0, userMsgsAfterOffer - 1);
+      }
+
+      // Only look at messages AFTER the last closing (= current round)
+      const currentRoundHistory = lastClosingIdx >= 0
+        ? history.slice(lastClosingIdx + 1)
+        : (history || []);
+      const currentRoundUserMsgs = currentRoundHistory.filter((h: any) => h.role === "user").length;
+
+      // Find last offer in current round
+      let lastOfferIdx = -1;
+      for (let i = 0; i < currentRoundHistory.length; i++) {
+        if (currentRoundHistory[i].role === "assistant" && offerPattern.test(currentRoundHistory[i].content)) {
+          lastOfferIdx = i;
         }
+      }
+
+      // Count calibration questions = user messages after last offer (minus acceptance)
+      let calibrationQuestionsAsked = 0;
+      if (lastOfferIdx >= 0) {
+        let userMsgsAfterOffer = 0;
+        for (let i = lastOfferIdx + 1; i < currentRoundHistory.length; i++) {
+          if (currentRoundHistory[i].role === "user") userMsgsAfterOffer++;
+        }
+        calibrationQuestionsAsked = Math.max(0, userMsgsAfterOffer - 1);
       }
 
       // Build phase-specific instructions
       const isDisagreeFlow = channel === "qa_insights";
-      const MAX_GENERAL_MSGS = 4; // max user messages for general "what did you learn" flow
+      const MAX_GENERAL_MSGS = 4;
       const MAX_CALIBRATION_QUESTIONS = 3;
 
       let phaseInstruction = "";
       const CLOSING_MSG = "תודה רבה על השיתוף, אני לוקח את כל מה שאמרת בחשבון ומריץ את הניתוח מחדש בהתאם למידע החדש. אם תרצה להוסיף עוד משהו בעתיד — תמיד אפשר לחזור לכאן.";
 
-      // Detect if user agreed to calibration questions (look for agreement in last message)
-      const userAgreedToQuestions = specificTopic && qaUserMsgCount >= 3 &&
+      // State detection — all relative to current round
+      const offeredQuestions = lastOfferIdx >= 0;
+      const userAgreedToQuestions = offeredQuestions && currentRoundUserMsgs >= 3 &&
         /כן|בטח|יאללה|אשמח|בוא|סבבה|אוקי|ok|בסדר|מוכן|sure/i.test(message.trim());
-      // Track if we already offered questions (check AI messages for the offer)
-      const offeredQuestions = specificTopic && Array.isArray(history) &&
-        history.some((h: any) => h.role === "assistant" && /רוצה שאשאל|לשאול.*שאלות.*לדייק/i.test(h.content));
-      // User declined if they responded after offer without agreement
-      const userDeclinedQuestions = offeredQuestions && qaUserMsgCount >= 3 && !userAgreedToQuestions && calibrationQuestionsAsked === 0 &&
+      const userDeclinedQuestions = offeredQuestions && currentRoundUserMsgs >= 3 && !userAgreedToQuestions && calibrationQuestionsAsked === 0 &&
         /לא|לא צריך|מספיק|לא רוצה|עזוב/i.test(message.trim());
-      // Already in calibration flow (questions started)
       const inCalibrationFlow = calibrationQuestionsAsked > 0;
 
-      if (specificTopic && qaUserMsgCount < 2) {
+      if (specificTopic && currentRoundUserMsgs < 2) {
         // Step 1: only ask their opinion
         phaseInstruction = `\n\n## מבנה ההודעה — חובה לעקוב בדיוק
 המשתמש רוצה לדייק נושא ספציפי.
@@ -511,7 +518,7 @@ export async function buildChatPrompt(
 2. המשפט הבא (חובה להעתיק מילה במילה): "${CLOSING_MSG}"
 
 **אסור:** לנתח, לתת סיכום, להמשיך את השיחה, או לשאול שאלות נוספות.`;
-      } else if ((specificTopic && userDeclinedQuestions) || qaUserMsgCount >= MAX_GENERAL_MSGS) {
+      } else if ((specificTopic && userDeclinedQuestions) || currentRoundUserMsgs >= MAX_GENERAL_MSGS) {
         // User declined questions OR general flow reached limit — close
         phaseInstruction = `\n\n## מבנה ההודעה — חובה לעקוב בדיוק
 **ההודעה שלך חייבת להכיל אך ורק:**
