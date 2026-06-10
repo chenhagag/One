@@ -847,15 +847,6 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       </p>
                     )}
 
-                    {/* ── Analysis not completed notice ── */}
-                    {!analysisCompleted && insightCard && (
-                      <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 10, padding: "10px 14px", marginBottom: 10 }}>
-                        <p style={{ fontSize: 12, color: "#92400e", lineHeight: 1.5, margin: 0 }}>
-                          הניתוח עוד לא הושלם — התובנות מתבססות על ניתוח חלקי. נעדכן כשיושלם.
-                        </p>
-                      </div>
-                    )}
-
                     {/* ── Dashboard: Insight Drip Feed — shown for all users including couples ── */}
                     {insightCard && (() => {
                       const rot = insightRotation % 5;
@@ -935,6 +926,11 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           >
                             לקריאת הניתוח המלא →
                           </button>
+                          {!analysisCompleted && (
+                            <p style={{ fontSize: 11, color: "#aaa", margin: "6px 0 0", textAlign: "center" }}>
+                              * התובנות מתבססות על ניתוח חלקי, נעדכן כשיושלם
+                            </p>
+                          )}
                         </div>
                       );
                     })()}
