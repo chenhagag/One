@@ -228,9 +228,7 @@ export default function PWAInstallFlow({ userName, gender, testUserType, onCompl
         {userName}, {isFemale ? "ברוכה הבאה" : "ברוך הבא"} ל-One
       </h1>
       <p style={s.subheading}>
-        {isFemale
-          ? "התקיני את האפליקציה למסך הבית לחוויה המלאה והנוחה ביותר"
-          : "התקן את האפליקציה למסך הבית לחוויה המלאה והנוחה ביותר"}
+        כדי ליהנות מהחוויה המלאה, המהירה והנוחה ביותר (עוד לפני שאנחנו נוחתים בחנויות האפליקציות), אנחנו ממליצים להוסיף את One למסך הבית שלך.
       </p>
 
       {/* Features */}
