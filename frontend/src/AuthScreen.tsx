@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "./lib/supabase";
+import PWAInstallFlow from "./PWAInstallFlow";
 
 export default function AuthScreen() {
   const [loading, setLoading] = useState<"google" | "apple" | null>(null);
@@ -202,7 +203,10 @@ export default function AuthScreen() {
 
           {/* CTA button */}
           <button
-            onClick={() => setShowLanding(false)}
+            onClick={() => {
+              setShowLanding(false);
+              if (isMobile && !isStandalone) setShowPWAInstall(true);
+            }}
             style={{
               width: "100%",
               maxWidth: 320,
@@ -227,62 +231,7 @@ export default function AuthScreen() {
 
   // ── PWA install screen (in-app browser users) ──
   if (showPWAInstall) {
-    return (
-      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 24px)" }}>
-        <div style={{ maxWidth: 360, width: "100%", textAlign: "center", direction: "rtl" }}>
-          <img src="/ScatchLogo.png" alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", marginBottom: 16 }} />
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", margin: "0 0 8px" }}>התקינו את One</h2>
-          <p style={{ fontSize: 14, color: "#888", margin: "0 0 28px" }}>
-            לחוויה הטובה ביותר, התקינו את האפליקציה על המסך הראשי
-          </p>
-
-          <div style={{
-            background: "#f5f0fb", borderRadius: 16, padding: "20px 20px",
-            textAlign: "right", marginBottom: 20,
-          }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
-                1. לחצו על <strong>⋯</strong> (שלוש נקודות) בחלק העליון של המסך
-              </p>
-              <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
-                2. בחרו <strong>"Open in external browser"</strong>
-              </p>
-              <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
-                3. שם תוכלו להתקין ולהתחבר בקלות
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={() => setShowPWAInstall(false)}
-            style={{
-              width: "100%",
-              padding: "14px 24px",
-              fontSize: 16,
-              fontWeight: 600,
-              background: "#1a1a2e",
-              color: "#fff",
-              border: "none",
-              borderRadius: 14,
-              cursor: "pointer",
-              fontFamily: "inherit",
-              marginBottom: 8,
-            }}
-          >
-            המשך להתחברות
-          </button>
-          <button
-            onClick={() => setShowPWAInstall(false)}
-            style={{
-              background: "none", border: "none", color: "#888",
-              fontSize: 13, cursor: "pointer", fontFamily: "inherit",
-            }}
-          >
-            דלגו בינתיים
-          </button>
-        </div>
-      </div>
-    );
+    return <PWAInstallFlow userName="" gender="" testUserType={null} onComplete={() => setShowPWAInstall(false)} />;
   }
 
   // ── Magic link sent — success screen ──

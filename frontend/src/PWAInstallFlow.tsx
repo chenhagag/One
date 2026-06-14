@@ -105,7 +105,7 @@ export default function PWAInstallFlow({ userName, gender, testUserType, onCompl
         <div style={{ textAlign: "center", marginBottom: 24 }}>
           <img src="/ScatchLogo.png" alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", marginBottom: 12, display: "block", margin: "0 auto 12px" }} />
           <h2 style={{ fontSize: 26, fontWeight: 700, color: "#1a1a2e", marginBottom: 0 }}>
-            {userName}, {isFemale ? "ברוכה הבאה" : "ברוך הבא"} ל-One
+            {userName ? `${userName}, ` : ""}{isFemale ? "ברוכה הבאה" : "ברוכים הבאים"} ל-One
           </h2>
         </div>
         <div style={{ background: "#f8f9fa", borderRadius: 12, padding: 24, marginBottom: 20, lineHeight: 1.8, fontSize: 15, color: "#333" }}>
@@ -206,7 +206,7 @@ export default function PWAInstallFlow({ userName, gender, testUserType, onCompl
       <div style={{ maxWidth: 360, width: "100%", textAlign: "center", direction: "rtl" }}>
         <img src="/ScatchLogo.png" alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", marginBottom: 16 }} />
         <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", margin: "0 0 8px" }}>
-          {userName}, {isFemale ? "ברוכה הבאה" : "ברוך הבא"} ל-One
+          {userName ? `${userName}, ` : ""}{isFemale ? "ברוכה הבאה" : "ברוכים הבאים"} ל-One
         </h2>
         <p style={{ fontSize: 14, color: "#888", margin: "0 0 28px", lineHeight: 1.6 }}>
           כדי ליהנות מהחוויה המלאה, המהירה והנוחה ביותר (עוד לפני שאנחנו נוחתים בחנויות האפליקציות), אנחנו ממליצים להוסיף את One למסך הבית שלך.
