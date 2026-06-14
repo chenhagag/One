@@ -16,18 +16,14 @@ interface NewChatProps {
   onLogout?: () => void;
 }
 
-const isDarkMode = window.matchMedia("(prefers-color-scheme: dark)").matches;
 const IconImg = ({ src, size = 18 }: { src: string; size?: number }) => {
-  if (isDarkMode) {
-    const pad = Math.round(size * 0.35);
-    const s = size + pad * 2;
-    return (
-      <div style={{ width: s, height: s, borderRadius: "50%", overflow: "hidden", flexShrink: 0, background: "#FCF8F5", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-        <img src={src} alt="" style={{ width: size, height: size, objectFit: "contain" }} />
-      </div>
-    );
-  }
-  return <img src={src} alt="" style={{ width: size, height: size, objectFit: "contain", flexShrink: 0 }} />;
+  const pad = Math.round(size * 0.35);
+  const s = size + pad * 2;
+  return (
+    <div style={{ width: s, height: s, borderRadius: "50%", overflow: "hidden", flexShrink: 0, background: "#FCF8F5", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+      <img src={src} alt="" style={{ width: size, height: size, objectFit: "contain" }} />
+    </div>
+  );
 };
 
 const STEP_OPTIONS: { icon: string; text: string; channel: string }[] = [

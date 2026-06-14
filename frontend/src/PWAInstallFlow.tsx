@@ -268,17 +268,33 @@ export default function PWAInstallFlow({ userName, gender, testUserType, onCompl
           </div>
         )}
 
-        {/* No prompt available — generic */}
+        {/* No native prompt — show manual instructions */}
         {!deferredPrompt && !showIOSGuide && (
           <div style={{
-            background: "#f5f0fb", borderRadius: 16, padding: "16px 20px",
-            marginBottom: 20,
+            background: "#f5f0fb", borderRadius: 16, padding: "20px 20px",
+            textAlign: "right", marginBottom: 20,
           }}>
-            <p style={{ margin: 0, fontSize: 14, color: "#666", textAlign: "center", lineHeight: 1.6 }}>
-              {isFemale
-                ? "ניתן להוסיף את האתר למסך הבית דרך תפריט הדפדפן"
-                : "ניתן להוסיף את האתר למסך הבית דרך תפריט הדפדפן"}
-            </p>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 12px" }}>להתקנה:</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#8b7ba8", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>1</span>
+                <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
+                  {isFemale ? "לחצי" : "לחץ"} על <strong>☰</strong> (תפריט) בפינה הימנית התחתונה של המסך
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#8b7ba8", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>2</span>
+                <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
+                  {isFemale ? "בחרי" : "בחר"} <strong>"Add page to"</strong> → <strong>"Home screen"</strong>
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#8b7ba8", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>3</span>
+                <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
+                  {isFemale ? "אשרי" : "אשר"} את ההוספה — האפליקציה תופיע במסך הבית
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
