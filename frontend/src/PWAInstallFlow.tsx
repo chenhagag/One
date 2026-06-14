@@ -63,8 +63,10 @@ export default function PWAInstallFlow({ userName, gender, testUserType, onCompl
       }
     };
     grabPrompt();
-    // Retry after short delay in case event fires between page load and mount
-    const retryTimer = setTimeout(grabPrompt, 500);
+    // Retry multiple times — event may fire late depending on browser
+    const retryTimer1 = setTimeout(grabPrompt, 500);
+    const retryTimer2 = setTimeout(grabPrompt, 1500);
+    const retryTimer3 = setTimeout(grabPrompt, 3000);
     const handler = (e: Event) => {
       e.preventDefault();
       promptRef.current = e;
@@ -81,7 +83,7 @@ export default function PWAInstallFlow({ userName, gender, testUserType, onCompl
     // Fade in
     requestAnimationFrame(() => setFadeIn(true));
 
-    return () => { clearTimeout(retryTimer); window.removeEventListener("beforeinstallprompt", handler); };
+    return () => { clearTimeout(retryTimer1); clearTimeout(retryTimer2); clearTimeout(retryTimer3); window.removeEventListener("beforeinstallprompt", handler); };
   }, []);
 
   // Android install handler

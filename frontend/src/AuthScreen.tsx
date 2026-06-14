@@ -270,7 +270,7 @@ export default function AuthScreen() {
         <div className="mb-10 text-center">
           <img src="/nameLogoTrans.png" alt="One" style={{ height: 28, objectFit: "contain", margin: "0 auto 8px" }} />
           <div className="flex items-center justify-center gap-1.5">
-            <p className="text-base text-gray-400" style={{ margin: 0 }}>Understand yourself. Find your One</p>
+            <p className="text-base text-gray-400" style={{ margin: 0 }}>One who truly fits</p>
           </div>
         </div>
 
@@ -341,7 +341,7 @@ export default function AuthScreen() {
         <div className="mb-2 flex items-center justify-center gap-2">
           <img src="/nameLogoTrans.png" alt="One" style={{ height: 32, objectFit: "contain" }} />
         </div>
-        <p className="text-base text-gray-400">Understand yourself. Find your One</p>
+        <p className="text-base text-gray-400">One who truly fits</p>
       </div>
 
       {/* Google OAuth + email fallback */}
