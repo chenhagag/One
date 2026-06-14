@@ -16,23 +16,27 @@ interface NewChatProps {
   onLogout?: () => void;
 }
 
+const IconImg = ({ src, size = 18 }: { src: string; size?: number }) => (
+  <img src={src} alt="" style={{ width: size, height: size, objectFit: "contain", flexShrink: 0 }} />
+);
+
 const STEP_OPTIONS: { icon: string; text: string; channel: string }[] = [
-  { icon: "🧠", text: "בוא נבין את סגנון החשיבה שלי", channel: "new_chat_cognitive" },
-  { icon: "🔍", text: "נתח את הטעם שלי לעומק", channel: "new_chat_taste" },
+  { icon: "/icons/thinkingType.png", text: "בוא נבין את סגנון החשיבה שלי", channel: "new_chat_cognitive" },
+  { icon: "/icons/myTaste.png", text: "נתח את הטעם שלי לעומק", channel: "new_chat_taste" },
 ];
 const QA_OPTIONS: { icon: string; text: string; channel: string; requiresAnalysis?: boolean }[] = [
-  { icon: "🎯", text: "איך אתה מוצא לי התאמה מדויקת?", channel: "qa_system" },
-  { icon: "❓", text: "יש לי שאלה לגבי התהליך", channel: "qa_general" },
-  { icon: "📋", text: "מה למדת עליי עד עכשיו?", channel: "qa_about_me", requiresAnalysis: true },
+  { icon: "/icons/accurateMatch.png", text: "איך אתה מוצא לי התאמה מדויקת?", channel: "qa_system" },
+  { icon: "/icons/Question.png", text: "יש לי שאלה לגבי התהליך", channel: "qa_general" },
+  { icon: "/icons/aboutMe.png", text: "מה למדת עליי עד עכשיו?", channel: "qa_about_me", requiresAnalysis: true },
 ];
 
 const SIDEBAR_ITEMS: { icon: string; label: string; action?: string }[] = [
-  { icon: "🔬", label: "איך המערכת עובדת?", action: "how_it_works" },
-  { icon: "👤", label: "הפרטים שלי", action: "profile_edit" },
-  { icon: "💡", label: "תובנות על עצמי", action: "insights" },
-  { icon: "🎯", label: "בדיקת טעם חיצוני", action: "taste_test" },
-  { icon: "✨", label: "עזרו לנו להשתפר", action: "bug_report" },
-  { icon: "⚙️", label: "הגדרות", action: "settings" },
+  { icon: "/icons/HowItWorks.png", label: "איך המערכת עובדת?", action: "how_it_works" },
+  { icon: "/icons/Profile.png", label: "הפרטים שלי", action: "profile_edit" },
+  { icon: "/icons/Insightes.png", label: "תובנות על עצמי", action: "insights" },
+  { icon: "/icons/externalTaste.png", label: "בדיקת טעם חיצוני", action: "taste_test" },
+  { icon: "/icons/Improve.png", label: "עזרו לנו להשתפר", action: "bug_report" },
+  { icon: "/icons/settings.png", label: "הגדרות", action: "settings" },
 ];
 
 function HowItWorks() {
@@ -449,7 +453,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
       {/* Sidebar */}
       <div className={`nc-sidebar${menuOpen ? " open" : ""}`} style={styles.sidebar}>
         <div style={styles.logo}>
-          <img src="/heartIcon.jpg" alt="" style={styles.logoIcon} />
+          <img src="/ScatchLogo.png" alt="" style={styles.logoIcon} />
           <span style={styles.logoText}>One</span>
         </div>
 
@@ -459,7 +463,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             style={screen === "home" ? styles.sidebarItemActive : styles.sidebarItem}
             onClick={() => { setScreen("home"); setMenuOpen(false); }}
           >
-            <span style={{ fontSize: 16 }}>🏠</span>
+            <IconImg src="/icons/home.png" />
             <span>מסך ראשי</span>
           </button>
 
@@ -469,7 +473,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               style={screen === "chat" && channel === "new_chat" ? styles.sidebarItemActive : styles.sidebarItem}
               onClick={() => { setChannel("new_chat"); setScreen("chat"); setMenuOpen(false); }}
             >
-              <span style={{ fontSize: 16 }}>💬</span>
+              <IconImg src="/icons/backToConversation.png" />
               <span style={{ flex: 1 }}>חזרה לשיחה</span>
               {/* Sidebar badge: completed channel indicator */}
               {closedChannels["new_chat"] && <span style={styles.completedBadge}>✓</span>}
@@ -494,7 +498,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 setMenuOpen(false);
               }}
             >
-              <span style={{ fontSize: 16 }}>{item.icon}</span>
+              <IconImg src={item.icon} />
               <span style={{ flex: 1 }}>{item.label}</span>
               {item.action === "profile_edit" && recommendations.has_profile_details && <span style={styles.completedBadge}>✓</span>}
             </button>
@@ -505,7 +509,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               style={screen === "couple_insights" ? styles.sidebarItemActive : styles.sidebarItem}
               onClick={() => { setScreen("couple_insights"); setMenuOpen(false); }}
             >
-              <span style={{ fontSize: 16 }}>💕</span>
+              <IconImg src="/icons/Improve.png" />
               <span>כרטיס התאמה</span>
             </button>
           )}
@@ -537,14 +541,14 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             {!menuOpen && <span style={{ position: "absolute", top: 2, left: 2, width: 7, height: 7, borderRadius: "50%", background: "#6366f1" }} />}
           </button>
           <span style={{ ...styles.headerTitle, flex: 1 }}>
-            {screen === "home" ? "One" :
+            {screen === "home" ? <img src="/logoOneSmall.png" alt="One" style={{ height: 16, objectFit: "contain", display: "block" }} /> :
              screen === "chat" ? (channel === "new_chat" ? "שיחת היכרות" : channel === "new_chat_cognitive" ? "סגנון חשיבה" : channel === "new_chat_taste" ? "בדיקת טעם" : channel === "qa_about_me" ? "מה למדת עליי" : channel === "qa_system" ? "איך המערכת עובדת" : channel === "qa_general" ? "שאלות ותשובות" : channel === "qa_insights" ? "דיון על התובנות" : "שיחה") :
              screen === "profile_edit" ? "הפרטים שלי" :
              screen === "insights" ? "תובנות על עצמי" :
              screen === "couple_insights" ? "כרטיס התאמה" :
              screen === "how_it_works" ? "איך המערכת עובדת?" :
              screen === "bug_report" ? "עזרו לנו להשתפר" :
-             screen === "settings" ? "הגדרות" : "One"}
+             screen === "settings" ? "הגדרות" : <img src="/logoOneSmall.png" alt="One" style={{ height: 16, objectFit: "contain", display: "block" }} />}
           </span>
           {/* Mobile user avatar + logout dropdown */}
           <div className="nc-menu-btn" style={{ position: "relative" }}>
@@ -670,7 +674,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         {screen === "couple_insights" && coupleInsights && (
           <div className="nc-screen-fade" key="couple_insights" style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
             <div className="nc-sub-screen" style={{ maxWidth: 600, margin: "0 auto", padding: "32px 24px" }}>
-              <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", marginBottom: 4 }}>💕 כרטיס התאמה</h2>
+              <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}><IconImg src="/icons/accurateMatch.png" size={24} /> כרטיס התאמה</h2>
               <p style={{ fontSize: 13, color: "#888", marginBottom: 20 }}>סיכום ותובנות על הזוגיות שלכם</p>
               <div style={{ fontSize: 15, lineHeight: 1.8, color: "#333", whiteSpace: "pre-wrap" }}>
                 {coupleInsights}
@@ -684,7 +688,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         {screen === ("taste_test" as any) && (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", direction: "rtl" }}>
             <div style={{ textAlign: "center", padding: 24 }}>
-              <div style={{ fontSize: 40, marginBottom: 16 }}>🎯</div>
+              <div style={{ marginBottom: 16 }}><IconImg src="/icons/externalTaste.png" size={40} /></div>
               <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", marginBottom: 8 }}>בדיקת טעם חיצוני</h2>
               <p style={{ fontSize: 14, color: "#888" }}>המסך עוד בבנייה, בקרוב יהיה זמין!</p>
             </div>
@@ -699,7 +703,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 const allChatsCompleted = closedChannels["new_chat"] && recommendations.has_cognitive && recommendations.has_taste_info;
                 return (
                   <div style={styles.welcomeBlock}>
-                    <img src="/heartIcon.jpg" alt="" style={styles.welcomeIcon} />
+                    <img src="/ScatchLogo.png" alt="" style={styles.welcomeIcon} />
                     <h2 style={styles.welcomeTitle}>ברוכים הבאים ל-One</h2>
                     <p style={styles.welcomeText}>
                       העוזר האישי שלך למציאת התאמה מדויקת ומשמעותית.
@@ -722,7 +726,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 <>
                   {messages.map((msg, i) => (
                     <div key={i} style={msg.role === "user" ? styles.userMsgRow : styles.assistantMsgRow}>
-                      {msg.role === "assistant" && <img src="/heartIcon.jpg" alt="" style={styles.assistantIcon} />}
+                      {msg.role === "assistant" && <img src="/ScatchLogo.png" alt="" style={styles.assistantIcon} />}
                       <div style={msg.role === "user" ? styles.userBubble : styles.assistantBubble}>
                         {msg.content}
                       </div>
@@ -731,7 +735,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
                   {sending && (
                     <div style={styles.assistantMsgRow}>
-                      <img src="/heartIcon.jpg" alt="" style={styles.assistantIcon} />
+                      <img src="/ScatchLogo.png" alt="" style={styles.assistantIcon} />
                       <div style={{ ...styles.assistantBubble, display: "flex", alignItems: "center", gap: 4, padding: "14px 20px" }}>
                         <span className="nc-typing-dot" style={{ ...styles.typingDot, animationDelay: "0s" }} />
                         <span className="nc-typing-dot" style={{ ...styles.typingDot, animationDelay: "0.2s" }} />
@@ -747,21 +751,21 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     const cogDone = isCouple ? recommendations.cognitive_count >= 3 : has_cognitive;
                     const tasteDone = isCouple ? has_taste_info : has_taste_info;
                     const bubbles: { icon: string; text: string; ch: string }[] = [];
-                    if (!cogDone && channel !== "new_chat_cognitive") bubbles.push({ icon: "🧠", text: "בוא נבין את סגנון החשיבה שלי", ch: "new_chat_cognitive" });
-                    if (!tasteDone && channel !== "new_chat_taste") bubbles.push({ icon: "🔍", text: "נתח את הטעם שלי לעומק", ch: "new_chat_taste" });
-                    if (channel !== "new_chat" && !closedChannels["new_chat"] && (recommendations.summary_fields < 8)) bubbles.push({ icon: "💬", text: "בוא נמשיך להכיר", ch: "new_chat" });
+                    if (!cogDone && channel !== "new_chat_cognitive") bubbles.push({ icon: "/icons/thinkingType.png", text: "בוא נבין את סגנון החשיבה שלי", ch: "new_chat_cognitive" });
+                    if (!tasteDone && channel !== "new_chat_taste") bubbles.push({ icon: "/icons/myTaste.png", text: "נתח את הטעם שלי לעומק", ch: "new_chat_taste" });
+                    if (channel !== "new_chat" && !closedChannels["new_chat"] && (recommendations.summary_fields < 8)) bubbles.push({ icon: "/icons/Conversation.png", text: "בוא נמשיך להכיר", ch: "new_chat" });
                     if (bubbles.length === 0) return null;
                     return (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginTop: 12 }}>
                         {bubbles.map((b, i) => (
-                          <button key={i} style={{ padding: "8px 16px", border: "1px solid #e0e0e8", borderRadius: 20, background: "#fff", fontSize: 13, color: "#6366f1", cursor: "pointer", fontWeight: 600 }} onClick={() => {
+                          <button key={i} style={{ padding: "8px 16px", border: "1px solid #e0e0e8", borderRadius: 20, background: "#FCF8F5", fontSize: 13, color: "#6366f1", cursor: "pointer", fontWeight: 600 }} onClick={() => {
                             if (channelMessages[b.ch]?.length > 0) {
                               setChannel(b.ch);
                             } else {
                               sendMessage(b.text, b.ch);
                             }
                           }}>
-                            <span style={{ fontSize: 14, marginLeft: 4 }}>{b.icon}</span> {b.text}
+                            <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle", marginLeft: 4 }}><IconImg src={b.icon} size={16} /></span> {b.text}
                           </button>
                         ))}
                       </div>
@@ -857,7 +861,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       let targetView: "mbti" | "values" | "bigfive" | "enneagram" | "attachment" = "mbti";
 
                       if (rot === 0 && insightCard.mbti?.type) {
-                        emoji = "🧠";
+                        emoji = "/icons/thinkingType.png";
                         title = `טיפוס MBTI: ${insightCard.mbti.type}`;
                         text = insightCard.mbti.description || "";
                         hasContent = true;
@@ -865,7 +869,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       } else if ((rot === 1 || (rot === 0 && !insightCard.mbti?.type)) && insightCard.allValues?.length > 0) {
                         const top = insightCard.allValues.filter((v: any) => v.score > 60).slice(0, 2);
                         if (top.length > 0) {
-                          emoji = "💎";
+                          emoji = "/icons/Insightes.png";
                           title = "הערכים המובילים שלך";
                           text = top.map((v: any) => `${v.he} — ${v.description}`).join(". ");
                           hasContent = true;
@@ -875,7 +879,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       if (!hasContent && rot === 2 && insightCard.allBigFive?.length > 0) {
                         const top = insightCard.allBigFive.filter((v: any) => v.score > 60).slice(0, 2);
                         if (top.length > 0) {
-                          emoji = "🎭";
+                          emoji = "/icons/aboutMe.png";
                           title = "תכונות אישיות בולטות";
                           text = top.map((v: any) => `${v.he} — ${v.description}`).join(". ");
                           hasContent = true;
@@ -883,14 +887,14 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                         }
                       }
                       if (!hasContent && rot === 3 && insightCard.enneagram?.primaryType) {
-                        emoji = "🔷";
+                        emoji = "/icons/HowItWorks.png";
                         title = `אניאגרם: טיפוס ${insightCard.enneagram.typeLabel}`;
                         text = insightCard.enneagram.description || "";
                         hasContent = true;
                         targetView = "enneagram";
                       }
                       if (!hasContent && rot === 4 && insightCard.attachment?.dominant) {
-                        emoji = "🔗";
+                        emoji = "/icons/accurateMatch.png";
                         title = `סגנון התקשרות: ${insightCard.attachment.dominantHe}`;
                         text = insightCard.attachment.description || "";
                         hasContent = true;
@@ -900,7 +904,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       if (!hasContent && insightCard.allBigFive?.length > 0) {
                         const top = insightCard.allBigFive.filter((v: any) => v.score > 60).slice(0, 2);
                         if (top.length > 0) {
-                          emoji = "🎭";
+                          emoji = "/icons/aboutMe.png";
                           title = "תכונות אישיות בולטות";
                           text = top.map((v: any) => `${v.he} — ${v.description}`).join(". ");
                           hasContent = true;
@@ -912,9 +916,9 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
                       return (
                         <div style={styles.dashboardCard}>
-                          <p style={styles.dashboardTitle}>מה ה-AI למד עליך?</p>
+                          <p style={styles.dashboardTitle}>מה למדנו עליך</p>
                           <div style={styles.insightCardContent}>
-                            <span style={{ fontSize: 22 }}>{emoji}</span>
+                            <IconImg src={emoji} size={28} />
                             <div style={{ flex: 1 }}>
                               <p style={styles.insightCardTitle}>{title}</p>
                               <p style={styles.insightCardText}>{text}</p>
@@ -959,7 +963,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   ...(allChatsComplete ? styles.qaBubble : styles.suggestionBtn),
                   ...(chatDone
                     ? { borderColor: "#22c55e", color: "#22c55e" }
-                    : { background: "#6366f1", color: "#fff", border: "1px solid #6366f1" }),
+                    : { background: "#8b7ba8", color: "#fff", border: "1px solid #8b7ba8" }),
                 }} onClick={() => {
                   setChannel("new_chat");
                   if (!hasMessages) {
@@ -972,7 +976,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   }
                   setScreen("chat");
                 }}>
-                  <span style={{ fontSize: 14 }}>{chatDone ? "✓" : "💬"}</span> {chatDone ? "חזרה לשיחה" : hasMessages ? "בוא נמשיך" : "בוא נתחיל"}
+                  <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}>{chatDone ? <IconImg src="/icons/backToConversation.png" size={16} /> : <IconImg src="/icons/StartConversationPurple.png" size={16} />}</span> {chatDone ? "חזרה לשיחה" : hasMessages ? "בוא נמשיך" : "בוא נתחיל"}
                 </button>
 
                 {/* Step bubbles — cognitive & taste */}
@@ -987,7 +991,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       sendMessage(s.text, s.channel);
                     }
                   }}>
-                    <span style={{ fontSize: 14, opacity: 0.6 }}>{isChannelDone ? "✓" : s.icon}</span> {s.text}
+                    <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle", opacity: 0.8 }}>{isChannelDone ? "✓" : <IconImg src={s.icon} size={16} />}</span> {s.text}
                   </button>
                   );
                 })}
@@ -1006,7 +1010,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           sendMessage(q.text, q.channel);
                         }
                       }}>
-                        <span style={{ fontSize: 12 }}>{q.icon}</span> {q.text}
+                        <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}><IconImg src={q.icon} size={14} /></span> {q.text}
                       </button>
                     ))}
                   </div>
@@ -1285,7 +1289,7 @@ const styles: Record<string, React.CSSProperties> = {
   // Sidebar
   sidebar: {
     width: 220,
-    background: "#fff",
+    background: "#FCF8F5",
     borderLeft: "1px solid #e5e7eb",
     display: "flex",
     flexDirection: "column",
@@ -1300,7 +1304,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderBottom: "1px solid #f0f0f0",
     marginBottom: 8,
   },
-  logoIcon: { width: 28, height: 28, borderRadius: 6 },
+  logoIcon: { width: 28, height: 28, borderRadius: "50%", objectFit: "cover" as const },
   logoText: { fontSize: 18, fontWeight: 700, color: "#1a1a2e" },
   sidebarItems: {
     display: "flex",
@@ -1329,7 +1333,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 10,
     padding: "10px 12px",
     border: "none",
-    background: "#f0f0ff",
+    background: "#f5f0fb",
     borderRadius: 8,
     cursor: "pointer",
     fontSize: 14,
@@ -1442,7 +1446,8 @@ const styles: Record<string, React.CSSProperties> = {
   welcomeIcon: {
     width: 48,
     height: 48,
-    borderRadius: 12,
+    borderRadius: "50%",
+    objectFit: "cover" as const,
     marginBottom: 16,
     display: "block",
     marginLeft: "auto",
@@ -1473,9 +1478,9 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.5,
     margin: "8px 0",
     padding: "10px 14px",
-    background: "#f0f4ff",
+    background: "#f5f0fb",
     borderRadius: 10,
-    borderRight: "3px solid #6366f1",
+    borderRight: "3px solid #8b7ba8",
   },
   recommendationBadge: {
     fontSize: 11,
@@ -1494,7 +1499,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "flex-end",
   },
   userBubble: {
-    background: "#6366f1",
+    background: "#8b7ba8",
     color: "#fff",
     padding: "10px 16px",
     borderRadius: "16px 16px 4px 16px",
@@ -1535,7 +1540,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "8px 16px",
     border: "1px solid #e0e0e8",
     borderRadius: 20,
-    background: "#fff",
+    background: "#FCF8F5",
     fontSize: 13,
     color: "#555",
     cursor: "pointer",
@@ -1544,7 +1549,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "4px 8px",
     border: "1px solid #e0e0e8",
     borderRadius: 12,
-    background: "#fff",
+    background: "#FCF8F5",
     fontSize: 10,
     color: "#777",
     cursor: "pointer",
@@ -1690,9 +1695,9 @@ const styles: Record<string, React.CSSProperties> = {
   chipBtn: {
     padding: "8px 16px",
     borderRadius: 20,
-    border: "1px solid #c7d2fe",
-    background: "#f0f0ff",
-    color: "#4f46e5",
+    border: "1px solid #d4c5e0",
+    background: "#f5f0fb",
+    color: "#6b5b7a",
     fontSize: 13,
     fontWeight: 500,
     cursor: "pointer",

@@ -128,45 +128,54 @@ export default function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
 
   const opts = (cat: string): EnumOption[] => enums[cat] || [];
 
-  // Inline styles matching the Register.tsx look
+  // Inline styles — elegant black/lilac theme
   const s: Record<string, React.CSSProperties> = {
-    section: { marginBottom: 28, padding: "20px", background: "#fafafa", borderRadius: 12 },
-    label: { display: "block", fontSize: 14, fontWeight: 500, marginBottom: 6, color: "#444" },
+    section: { marginBottom: 24, padding: "20px 20px 4px", background: "#fff", borderRadius: 16, border: "1px solid #e8e4ee", boxShadow: "0 1px 4px rgba(139,123,168,0.06)" },
+    label: { display: "block", fontSize: 14, fontWeight: 500, marginBottom: 6, color: "#1a1a2e" },
     input: {
-      width: "100%", padding: "10px 12px", fontSize: 15,
-      border: "1px solid #ddd", borderRadius: 8,
+      width: "100%", padding: "10px 14px", fontSize: 15,
+      border: "1px solid #e0dce6", borderRadius: 10,
       boxSizing: "border-box" as const, marginBottom: 16, outline: "none",
+      fontFamily: "inherit",
     },
     select: {
-      width: "100%", padding: "10px 12px", fontSize: 15,
-      border: "1px solid #ddd", borderRadius: 8,
+      width: "100%", padding: "10px 14px", fontSize: 15,
+      border: "1px solid #e0dce6", borderRadius: 10,
       boxSizing: "border-box" as const, marginBottom: 16, outline: "none", background: "#fff",
+      fontFamily: "inherit",
     },
     chip: {
       padding: "6px 14px", borderRadius: 20,
-      border: "1px solid #ddd", background: "#fff",
+      border: "1px solid #e0dce6", background: "#fff",
       fontSize: 13, cursor: "pointer", transition: "all 0.15s",
+      fontFamily: "inherit",
     },
     chipActive: {
       padding: "6px 14px", borderRadius: 20,
-      border: "1px solid #1a1a1a", background: "#1a1a1a",
+      border: "1px solid #8b7ba8", background: "#8b7ba8",
       color: "#fff", fontSize: 13, cursor: "pointer",
+      fontFamily: "inherit",
     },
     btn: {
       width: "100%", padding: "14px", fontSize: 16, fontWeight: 600,
-      background: "#1a1a1a", color: "#fff", border: "none",
-      borderRadius: 8, cursor: "pointer", marginTop: 8,
+      background: "#1a1a2e", color: "#fff", border: "none",
+      borderRadius: 14, cursor: "pointer", marginTop: 8,
+      fontFamily: "inherit",
     },
     error: { color: "#c0392b", fontSize: 13, marginTop: 10 },
   };
 
   return (
-    <div style={{ maxWidth: 680, margin: "0 auto", padding: "40px 20px", fontFamily: "system-ui, sans-serif" }}>
+    <div style={{ maxWidth: 520, margin: "0 auto", padding: "32px 20px", fontFamily: "'Segoe UI', system-ui, sans-serif" }}>
       <form onSubmit={handleSubmit} dir="rtl">
-        <h2 style={{ marginTop: 0, marginBottom: 8, fontSize: 22 }}>נתוני פתיחה</h2>
-        <p style={{ color: "#666", marginBottom: 32, marginTop: 0 }}>
-          כמה פרטים טכניים, כדי שהמערכת תדע לכוון לאנשים הרלוונטיים עבורך.
-        </p>
+        {/* Logo */}
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <img src="/ScatchLogo.png" alt="" style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", marginBottom: 12 }} />
+          <h2 style={{ marginTop: 0, marginBottom: 6, fontSize: 22, fontWeight: 700, color: "#1a1a2e" }}>נתוני פתיחה</h2>
+          <p style={{ color: "#888", marginBottom: 0, marginTop: 0, fontSize: 14 }}>
+            כמה פרטים טכניים, כדי שהמערכת תדע לכוון לאנשים הרלוונטיים עבורך.
+          </p>
+        </div>
 
         <div style={s.section}>
           <label style={s.label}>שם *</label>
@@ -238,14 +247,14 @@ export default function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
           )}
         </div>
 
-        <div style={{ ...s.section, background: "#f8f9fb" }}>
-          <p style={{ fontSize: 14, fontWeight: 600, color: "#333", margin: "0 0 12px" }}>עדכונים והתראות</p>
+        <div style={{ ...s.section, background: "#f5f0fb", border: "1px solid #e8e0f0" }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 12px" }}>עדכונים והתראות</p>
           <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 13, color: "#444", lineHeight: 1.6, marginBottom: 12 }}>
-            <input type="checkbox" checked={emailUpdates} onChange={e => setEmailUpdates(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, cursor: "pointer", accentColor: "#111827", flexShrink: 0 }} />
+            <input type="checkbox" checked={emailUpdates} onChange={e => setEmailUpdates(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }} />
             <span>אני מעוניין/ת לקבל עדכונים במייל לגבי התאמות ועדכונים חשובים (לא נשלח דיוור שיווקי)</span>
           </label>
           <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 13, color: "#444", lineHeight: 1.6 }}>
-            <input type="checkbox" checked={whatsappUpdates} onChange={e => setWhatsappUpdates(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, cursor: "pointer", accentColor: "#111827", flexShrink: 0 }} />
+            <input type="checkbox" checked={whatsappUpdates} onChange={e => setWhatsappUpdates(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }} />
             <span>אני מעוניין/ת לקבל עדכונים גם בהודעות WhatsApp או SMS</span>
           </label>
           {whatsappUpdates && (

@@ -4,6 +4,7 @@ import { supabase } from "./lib/supabase";
 export default function AuthScreen() {
   const [loading, setLoading] = useState<"google" | "apple" | null>(null);
   const [error, setError] = useState("");
+  const [showLanding, setShowLanding] = useState(true);
 
   // Magic link state
   const [showEmailForm, setShowEmailForm] = useState(false);
@@ -94,6 +95,131 @@ export default function AuthScreen() {
     }
   }
 
+  // ── Landing page — before auth ──
+  if (showLanding) {
+    return (
+      <div style={{
+        minHeight: "100dvh",
+        display: "flex",
+        flexDirection: "column",
+        background: "linear-gradient(to bottom, #e8e4e0 0%, #f2efec 30%, #fff 60%)",
+      }}>
+        {/* Cover image — fades softly into warm gray */}
+        <div style={{
+          width: "100%",
+          height: 260,
+          backgroundImage: "url(/coverMainScreen.png)",
+          backgroundSize: "cover",
+          backgroundPosition: "center 40%",
+          position: "relative",
+          flexShrink: 0,
+        }}>
+          {/* Bottom fade — into warm gray that continues below */}
+          <div style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 120,
+            background: "linear-gradient(to bottom, transparent 0%, rgba(232,228,224,0.6) 50%, #e8e4e0 100%)",
+          }} />
+          {/* Side fades */}
+          <div style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            bottom: 0,
+            width: 60,
+            background: "linear-gradient(to right, rgba(232,228,224,0.4), transparent)",
+          }} />
+          <div style={{
+            position: "absolute",
+            top: 0,
+            right: 0,
+            bottom: 0,
+            width: 60,
+            background: "linear-gradient(to left, rgba(232,228,224,0.4), transparent)",
+          }} />
+        </div>
+
+        {/* Content */}
+        <div style={{
+          flex: 1,
+          padding: "0 28px 32px",
+          marginTop: -24,
+          direction: "rtl",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          maxWidth: 480,
+          margin: "-24px auto 0",
+          width: "100%",
+          position: "relative",
+          zIndex: 1,
+        }}>
+          {/* Logo */}
+          <img src="/logoOneGraishSmall.png" alt="One" style={{ height: 32, objectFit: "contain", marginTop: 16, marginBottom: 20 }} />
+
+          {/* Welcome text */}
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", margin: "0 0 20px", textAlign: "center" }}>
+            ברוכים הבאים ל-One
+          </h2>
+
+          <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 14px", textAlign: "right", width: "100%" }}>
+            איך זה עובד?
+          </p>
+
+          <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
+            {[
+              { num: "1", text: "מנהלים שיחה — משוחחים עם ה-AI שלנו: מי אתם, מה חשוב לכם בקשר, מה אתם מחפשים." },
+              { num: "2", text: "מקבלים תובנות — בסיום השיחה, תקבלו מפת אישיות מעמיקה הרלוונטית למערכות יחסים." },
+              { num: "3", text: "נכנסים למאגר — אנחנו בונים את הפרופיל שלכם ומדייקים על בסיס תיאוריות פסיכולוגיות מוכחות." },
+              { num: "4", text: "ממתינים להתאמה — אנחנו לא מתפשרים על התאמות בינוניות. אנחנו מחפשים איכות, לא כמות." },
+              { num: "5", text: "מוודאים משיכה — ברגע שתעלה התאמה, נשלח לכם תמונה לאישור כדי לוודא גם חיבור ויזואלי." },
+              { num: "6", text: "מתחילים להכיר — תקבלו את ההתאמה המדויקת ביותר עבורכם ותוכלו לצאת לדרך." },
+            ].map(step => (
+              <div key={step.num} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <span style={{
+                  width: 24, height: 24, borderRadius: "50%", background: "#8b7ba8", color: "#fff",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 12, fontWeight: 700, flexShrink: 0, marginTop: 1,
+                }}>
+                  {step.num}
+                </span>
+                <p style={{ fontSize: 13, color: "#444", lineHeight: 1.6, margin: 0 }}>{step.text}</p>
+              </div>
+            ))}
+          </div>
+
+          <p style={{ fontSize: 14, color: "#555", textAlign: "center", margin: "0 0 24px", lineHeight: 1.6 }}>
+            בהצלחה,<br />צוות One
+          </p>
+
+          {/* CTA button */}
+          <button
+            onClick={() => setShowLanding(false)}
+            style={{
+              width: "100%",
+              maxWidth: 320,
+              padding: "14px 24px",
+              fontSize: 16,
+              fontWeight: 600,
+              background: "#1a1a2e",
+              color: "#fff",
+              border: "none",
+              borderRadius: 14,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              marginBottom: 8,
+            }}
+          >
+            המשך לאפליקציה
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // ── Magic link sent — success screen ──
   if (magicLinkSent) {
     return (
@@ -128,10 +254,9 @@ export default function AuthScreen() {
     return (
       <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6 pt-[env(safe-area-inset-top,0px)]">
         <div className="mb-10 text-center">
-          <h1 className="mb-2 text-5xl font-bold tracking-tight text-gray-900">One</h1>
+          <img src="/logoOneSmall.png" alt="One" style={{ height: 28, objectFit: "contain", margin: "0 auto 8px" }} />
           <div className="flex items-center justify-center gap-1.5">
-            <p className="text-base text-gray-400" style={{ margin: 0 }}>Find your one perfect match</p>
-            <img src="/heartIcon.jpg" alt="" style={{ width: 22, height: 22, borderRadius: 5 }} />
+            <p className="text-base text-gray-400" style={{ margin: 0 }}>Understand yourself. Find your One</p>
           </div>
         </div>
 
@@ -182,7 +307,7 @@ export default function AuthScreen() {
     );
   }
 
-  // ── Main landing screen ──
+  // ── Main auth screen (Google + email) ──
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6 pt-[env(safe-area-inset-top,0px)]">
       {/* Loading overlay */}
@@ -200,10 +325,9 @@ export default function AuthScreen() {
       {/* Logo + tagline */}
       <div className="mb-16 text-center">
         <div className="mb-2 flex items-center justify-center gap-2">
-          <h1 className="text-5xl font-bold tracking-tight text-gray-900" style={{ margin: 0 }}>One</h1>
-          <img src="/heartIcon.jpg" alt="" style={{ width: 26, height: 26, borderRadius: 6 }} />
+          <img src="/logoOneSmall.png" alt="One" style={{ height: 32, objectFit: "contain" }} />
         </div>
-        <p className="text-base text-gray-400">Find your one perfect match</p>
+        <p className="text-base text-gray-400">Understand yourself. Find your One</p>
       </div>
 
       {/* Google OAuth + email fallback — shown to all browsers */}

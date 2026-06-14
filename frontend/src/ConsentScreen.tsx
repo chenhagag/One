@@ -43,14 +43,23 @@ export default function ConsentScreen({ user, onComplete }: ConsentScreenProps) 
     <div style={{
       display: "flex", minHeight: "100dvh", flexDirection: "column",
       alignItems: "center", justifyContent: "center", background: "#fff",
-      padding: "env(safe-area-inset-top, 0px) 24px 0",
+      padding: "env(safe-area-inset-top, 0px) 24px 24px",
     }}>
-      <div style={{ maxWidth: 560, width: "100%", textAlign: "right" }} dir="rtl">
-        <h1 style={{ fontSize: 24, fontWeight: 700, color: "#111827", marginBottom: 24, textAlign: "center" }}>
-          לפני שמתחילים
-        </h1>
+      <div style={{ maxWidth: 520, width: "100%", textAlign: "right" }} dir="rtl">
+        {/* Logo */}
+        <div style={{ textAlign: "center", marginBottom: 20 }}>
+          <img src="/ScatchLogo.png" alt="" style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", marginBottom: 10 }} />
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", margin: "0 0 4px" }}>
+            לפני שמתחילים
+          </h1>
+        </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, fontSize: 14, color: "#4b5563", lineHeight: 1.7 }}>
+        <div style={{
+          background: "#fff", border: "1px solid #e8e4ee", borderRadius: 16,
+          padding: "20px 22px", boxShadow: "0 1px 4px rgba(139,123,168,0.06)",
+          display: "flex", flexDirection: "column", gap: 14,
+          fontSize: 14, color: "#4b5563", lineHeight: 1.7,
+        }}>
           <p style={{ margin: 0 }}>
             One היא אפליקציית שידוכים שנועדה להכיר אותך לעומק — להבין מה חשוב לך, מה מושך אותך, מה נכון לך בקשר, ואיזה סוג חיבור באמת יכול להתאים לך.
           </p>
@@ -80,19 +89,19 @@ export default function ConsentScreen({ user, onComplete }: ConsentScreenProps) 
           </p>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 28 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 24 }}>
           <label style={{
             display: "flex", alignItems: "flex-start", gap: 10,
-            cursor: "pointer", fontSize: 14, color: "#111827", lineHeight: 1.6,
+            cursor: "pointer", fontSize: 14, color: "#1a1a2e", lineHeight: 1.6,
           }}>
             <input
               type="checkbox"
               checked={checked}
               onChange={(e) => setChecked(e.target.checked)}
-              style={{ marginTop: 4, width: 18, height: 18, cursor: "pointer", accentColor: "#111827", flexShrink: 0 }}
+              style={{ marginTop: 4, width: 18, height: 18, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }}
             />
             <span>
-              {f ? "קראתי ואני מסכימה" : "קראתי ואני מסכים"} ל<a href="/terms" target="_blank" style={{ color: "#6366f1", textDecoration: "underline" }}>תנאי השימוש</a> ול<a href="/privacy" target="_blank" style={{ color: "#6366f1", textDecoration: "underline" }}>מדיניות הפרטיות</a>, {f ? "ומסכימה" : "ומסכים"} ש־One תשתמש במידע שאשתף לצורך ניתוח באמצעות AI, יצירת תובנות והצעת התאמות.
+              {f ? "קראתי ואני מסכימה" : "קראתי ואני מסכים"} ל<a href="/terms" target="_blank" style={{ color: "#8b7ba8", textDecoration: "underline" }}>תנאי השימוש</a> ול<a href="/privacy" target="_blank" style={{ color: "#8b7ba8", textDecoration: "underline" }}>מדיניות הפרטיות</a>, {f ? "ומסכימה" : "ומסכים"} ש־One תשתמש במידע שאשתף לצורך ניתוח באמצעות AI, יצירת תובנות והצעת התאמות.
             </span>
           </label>
         </div>
@@ -101,12 +110,13 @@ export default function ConsentScreen({ user, onComplete }: ConsentScreenProps) 
           onClick={handleAccept}
           disabled={!checked || loading}
           style={{
-            width: "100%", height: 48, borderRadius: 12,
-            background: checked ? "#111827" : "#d1d5db",
-            color: "#fff", fontSize: 15, fontWeight: 500,
+            width: "100%", height: 50, borderRadius: 14,
+            background: checked ? "#1a1a2e" : "#d1d5db",
+            color: "#fff", fontSize: 16, fontWeight: 600,
             border: "none", cursor: checked ? "pointer" : "not-allowed",
             opacity: loading ? 0.5 : 1, marginTop: 20,
             transition: "background 0.2s",
+            fontFamily: "inherit",
           }}
         >
           {loading ? "שומר..." : "המשך"}
