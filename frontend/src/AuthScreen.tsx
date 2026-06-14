@@ -202,14 +202,7 @@ export default function AuthScreen() {
 
           {/* CTA button */}
           <button
-            onClick={() => {
-              if (isInAppBrowser && isMobile && !isStandalone) {
-                setShowLanding(false);
-                setShowPWAInstall(true);
-              } else {
-                setShowLanding(false);
-              }
-            }}
+            onClick={() => setShowLanding(false)}
             style={{
               width: "100%",
               maxWidth: 320,
@@ -247,37 +240,17 @@ export default function AuthScreen() {
             background: "#f5f0fb", borderRadius: 16, padding: "20px 20px",
             textAlign: "right", marginBottom: 20,
           }}>
-            {isIOS ? (
-              <>
-                <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 12px" }}>באייפון:</p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
-                    1. לחצו על כפתור השיתוף <span style={{ fontSize: 16 }}>⬆</span> בתחתית המסך
-                  </p>
-                  <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
-                    2. גללו ובחרו <strong>"Add to Home Screen"</strong>
-                  </p>
-                  <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
-                    3. לחצו <strong>"Add"</strong>
-                  </p>
-                </div>
-              </>
-            ) : (
-              <>
-                <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 12px" }}>באנדרואיד:</p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
-                    1. לחצו על <strong>⋮</strong> (שלוש נקודות) בפינה העליונה
-                  </p>
-                  <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
-                    2. בחרו <strong>"Open in browser"</strong> / "פתח בדפדפן"
-                  </p>
-                  <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
-                    3. שם תוכלו להתקין ולהתחבר בקלות
-                  </p>
-                </div>
-              </>
-            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
+                1. לחצו על <strong>⋯</strong> (שלוש נקודות) בחלק העליון של המסך
+              </p>
+              <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
+                2. בחרו <strong>"Open in external browser"</strong>
+              </p>
+              <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
+                3. שם תוכלו להתקין ולהתחבר בקלות
+              </p>
+            </div>
           </div>
 
           <button
@@ -463,15 +436,9 @@ export default function AuthScreen() {
           <p style={{ fontSize: 13, fontWeight: 600, color: "#1a1a2e", margin: "0 0 6px" }}>
             להתחברות מהירה
           </p>
-          {isIOS ? (
-            <p style={{ fontSize: 12, color: "#666", margin: 0, lineHeight: 1.6 }}>
-              לחצו על <span style={{ fontSize: 15 }}>⬆</span> (שיתוף) בתחתית המסך → <strong>"Open in Safari"</strong>
-            </p>
-          ) : (
-            <p style={{ fontSize: 12, color: "#666", margin: 0, lineHeight: 1.6 }}>
-              לחצו על <strong>⋮</strong> (תפריט) בפינה העליונה → <strong>"Open in Chrome"</strong>
-            </p>
-          )}
+          <p style={{ fontSize: 12, color: "#666", margin: 0, lineHeight: 1.6 }}>
+            לחצו על <strong>⋯</strong> (שלוש נקודות) בחלק העליון של המסך → <strong>"Open in external browser"</strong>
+          </p>
         </div>
       )}
 
