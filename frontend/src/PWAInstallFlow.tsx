@@ -26,6 +26,10 @@ interface PWAInstallFlowProps {
   onComplete: () => void;
 }
 
+function isInAppBrowser(): boolean {
+  return /FBAN|FBAV|Instagram|LinkedInApp|Line\//i.test(navigator.userAgent);
+}
+
 export default function PWAInstallFlow({ userName, gender, testUserType, onComplete }: PWAInstallFlowProps) {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [installing, setInstalling] = useState(false);
@@ -33,6 +37,7 @@ export default function PWAInstallFlow({ userName, gender, testUserType, onCompl
   const [isDesktop, setIsDesktop] = useState(false);
   const [fadeIn, setFadeIn] = useState(false);
   const promptRef = useRef<any>(null);
+  const inApp = isInAppBrowser();
 
   // If already standalone — skip immediately
   useEffect(() => {
@@ -139,6 +144,66 @@ export default function PWAInstallFlow({ userName, gender, testUserType, onCompl
         >
           להמשיך לאפליקציה
         </button>
+      </div>
+    );
+  }
+
+  // ── In-app browser: show "open in external browser" instructions ──
+  if (inApp) {
+    return (
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 24px)" }}>
+        <div style={{ maxWidth: 360, width: "100%", textAlign: "center", direction: "rtl" }}>
+          <img src="/ScatchLogo.png" alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", marginBottom: 16 }} />
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", margin: "0 0 8px" }}>התקינו את One</h2>
+          <p style={{ fontSize: 14, color: "#888", margin: "0 0 28px" }}>
+            כדי להתקין את האפליקציה, יש לפתוח את הלינק בדפדפן הרגיל של הטלפון
+          </p>
+
+          <div style={{
+            background: "#f5f0fb", borderRadius: 16, padding: "20px 20px",
+            textAlign: "right", marginBottom: 20,
+          }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
+                1. {isFemale ? "לחצי" : "לחץ"} על <strong>⋯</strong> (שלוש נקודות) בחלק העליון של המסך
+              </p>
+              <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
+                2. {isFemale ? "בחרי" : "בחר"} <strong>"Open in external browser"</strong>
+              </p>
+              <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
+                3. שם {isFemale ? "תוכלי" : "תוכל"} להתקין את האפליקציה בקלות
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={onComplete}
+            style={{
+              width: "100%",
+              padding: "14px 24px",
+              fontSize: 16,
+              fontWeight: 600,
+              background: "#1a1a2e",
+              color: "#fff",
+              border: "none",
+              borderRadius: 14,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              marginBottom: 8,
+            }}
+          >
+            {isFemale ? "המשיכי" : "המשך"} בינתיים בלי התקנה
+          </button>
+          <button
+            onClick={onComplete}
+            style={{
+              background: "none", border: "none", color: "#888",
+              fontSize: 13, cursor: "pointer", fontFamily: "inherit",
+            }}
+          >
+            {isFemale ? "דלגי" : "דלג"} בינתיים
+          </button>
+        </div>
       </div>
     );
   }
