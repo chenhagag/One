@@ -16,25 +16,9 @@ interface NewChatProps {
   onLogout?: () => void;
 }
 
-const IconImg = ({ src, size = 18 }: { src: string; size?: number }) => {
-  const dark = window.matchMedia?.("(prefers-color-scheme: dark)").matches
-    || document.documentElement.getAttribute("data-theme") === "dark"
-    || document.body.style.backgroundColor === "rgb(0, 0, 0)"
-    || (window.getComputedStyle(document.body).backgroundColor !== "rgb(255, 255, 255)"
-        && window.getComputedStyle(document.body).backgroundColor !== "rgba(0, 0, 0, 0)"
-        && window.getComputedStyle(document.body).backgroundColor !== ""
-        && window.getComputedStyle(document.body).backgroundColor !== "transparent");
-  if (dark) {
-    const pad = Math.round(size * 0.35);
-    const s = size + pad * 2;
-    return (
-      <div style={{ width: s, height: s, borderRadius: "50%", overflow: "hidden", flexShrink: 0, background: "#2a2a3e", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-        <img src={src} alt="" style={{ width: size, height: size, objectFit: "contain" }} />
-      </div>
-    );
-  }
-  return <img src={src} alt="" style={{ width: size, height: size, objectFit: "contain", flexShrink: 0 }} />;
-};
+const IconImg = ({ src, size = 18 }: { src: string; size?: number }) => (
+  <img src={src} alt="" style={{ width: size, height: size, objectFit: "contain", flexShrink: 0 }} />
+);
 
 const STEP_OPTIONS: { icon: string; text: string; channel: string }[] = [
   { icon: "/icons/thinkingType.png", text: "בוא נבין את סגנון החשיבה שלי", channel: "new_chat_cognitive" },
