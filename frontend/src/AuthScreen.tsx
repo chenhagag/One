@@ -5,7 +5,7 @@ import PWAInstallFlow from "./PWAInstallFlow";
 export default function AuthScreen() {
   const [loading, setLoading] = useState<"google" | "apple" | null>(null);
   const [error, setError] = useState("");
-  const [showLanding, setShowLanding] = useState(true);
+  const [showLanding, setShowLanding] = useState(() => !sessionStorage.getItem("one_seen_landing"));
   const [showPWAInstall, setShowPWAInstall] = useState(false);
 
   // Magic link state
@@ -204,6 +204,7 @@ export default function AuthScreen() {
           {/* CTA button */}
           <button
             onClick={() => {
+              sessionStorage.setItem("one_seen_landing", "1");
               setShowLanding(false);
               if (isMobile && !isStandalone) setShowPWAInstall(true);
             }}
