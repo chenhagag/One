@@ -16,27 +16,37 @@ interface NewChatProps {
   onLogout?: () => void;
 }
 
-const IconImg = ({ src, size = 18 }: { src: string; size?: number }) => (
-  <img src={src} alt="" style={{ width: size, height: size, objectFit: "contain", flexShrink: 0 }} />
-);
+const isDarkMode = window.matchMedia("(prefers-color-scheme: dark)").matches;
+const IconImg = ({ src, size = 18 }: { src: string; size?: number }) => {
+  if (isDarkMode) {
+    const pad = Math.round(size * 0.35);
+    const s = size + pad * 2;
+    return (
+      <div style={{ width: s, height: s, borderRadius: "50%", overflow: "hidden", flexShrink: 0, background: "#FCF8F5", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+        <img src={src} alt="" style={{ width: size, height: size, objectFit: "contain" }} />
+      </div>
+    );
+  }
+  return <img src={src} alt="" style={{ width: size, height: size, objectFit: "contain", flexShrink: 0 }} />;
+};
 
 const STEP_OPTIONS: { icon: string; text: string; channel: string }[] = [
-  { icon: "/icons/thinkingType.png", text: "בוא נבין את סגנון החשיבה שלי", channel: "new_chat_cognitive" },
-  { icon: "/icons/myTaste.png", text: "נתח את הטעם שלי לעומק", channel: "new_chat_taste" },
+  { icon: "/icons/sidebar/thinkingType.png", text: "בוא נבין את סגנון החשיבה שלי", channel: "new_chat_cognitive" },
+  { icon: "/icons/sidebar/myTaste.png", text: "נתח את הטעם שלי לעומק", channel: "new_chat_taste" },
 ];
 const QA_OPTIONS: { icon: string; text: string; channel: string; requiresAnalysis?: boolean }[] = [
-  { icon: "/icons/accurateMatch.png", text: "איך אתה מוצא לי התאמה מדויקת?", channel: "qa_system" },
-  { icon: "/icons/Question.png", text: "יש לי שאלה לגבי התהליך", channel: "qa_general" },
-  { icon: "/icons/aboutMe.png", text: "מה למדת עליי עד עכשיו?", channel: "qa_about_me", requiresAnalysis: true },
+  { icon: "/icons/sidebar/accurateMatch.png", text: "איך אתה מוצא לי התאמה מדויקת?", channel: "qa_system" },
+  { icon: "/icons/sidebar/Question.png", text: "יש לי שאלה לגבי התהליך", channel: "qa_general" },
+  { icon: "/icons/sidebar/aboutMe.png", text: "מה למדת עליי עד עכשיו?", channel: "qa_about_me", requiresAnalysis: true },
 ];
 
 const SIDEBAR_ITEMS: { icon: string; label: string; action?: string }[] = [
-  { icon: "/icons/HowItWorks.png", label: "איך המערכת עובדת?", action: "how_it_works" },
-  { icon: "/icons/Profile.png", label: "הפרטים שלי", action: "profile_edit" },
-  { icon: "/icons/Insightes.png", label: "תובנות על עצמי", action: "insights" },
-  { icon: "/icons/externalTaste.png", label: "בדיקת טעם חיצוני", action: "taste_test" },
-  { icon: "/icons/Improve.png", label: "עזרו לנו להשתפר", action: "bug_report" },
-  { icon: "/icons/settings.png", label: "הגדרות", action: "settings" },
+  { icon: "/icons/sidebar/HowItWorks.png", label: "איך המערכת עובדת?", action: "how_it_works" },
+  { icon: "/icons/sidebar/Profile.png", label: "הפרטים שלי", action: "profile_edit" },
+  { icon: "/icons/sidebar/Insightes.png", label: "תובנות על עצמי", action: "insights" },
+  { icon: "/icons/sidebar/externalTaste.png", label: "בדיקת טעם חיצוני", action: "taste_test" },
+  { icon: "/icons/sidebar/Improve.png", label: "עזרו לנו להשתפר", action: "bug_report" },
+  { icon: "/icons/sidebar/settings.png", label: "הגדרות", action: "settings" },
 ];
 
 function HowItWorks() {
@@ -463,7 +473,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             style={screen === "home" ? styles.sidebarItemActive : styles.sidebarItem}
             onClick={() => { setScreen("home"); setMenuOpen(false); }}
           >
-            <IconImg src="/icons/home.png" />
+            <IconImg src="/icons/sidebar/home.png" />
             <span>מסך ראשי</span>
           </button>
 
@@ -473,7 +483,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               style={screen === "chat" && channel === "new_chat" ? styles.sidebarItemActive : styles.sidebarItem}
               onClick={() => { setChannel("new_chat"); setScreen("chat"); setMenuOpen(false); }}
             >
-              <IconImg src="/icons/backToConversation.png" />
+              <IconImg src="/icons/sidebar/backToConversation.png" />
               <span style={{ flex: 1 }}>חזרה לשיחה</span>
               {/* Sidebar badge: completed channel indicator */}
               {closedChannels["new_chat"] && <span style={styles.completedBadge}>✓</span>}
@@ -674,7 +684,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         {screen === "couple_insights" && coupleInsights && (
           <div className="nc-screen-fade" key="couple_insights" style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
             <div className="nc-sub-screen" style={{ maxWidth: 600, margin: "0 auto", padding: "32px 24px" }}>
-              <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}><IconImg src="/icons/accurateMatch.png" size={24} /> כרטיס התאמה</h2>
+              <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}><IconImg src="/icons/sidebar/accurateMatch.png" size={24} /> כרטיס התאמה</h2>
               <p style={{ fontSize: 13, color: "#888", marginBottom: 20 }}>סיכום ותובנות על הזוגיות שלכם</p>
               <div style={{ fontSize: 15, lineHeight: 1.8, color: "#333", whiteSpace: "pre-wrap" }}>
                 {coupleInsights}
@@ -688,7 +698,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         {screen === ("taste_test" as any) && (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", direction: "rtl" }}>
             <div style={{ textAlign: "center", padding: 24 }}>
-              <div style={{ marginBottom: 16 }}><IconImg src="/icons/externalTaste.png" size={40} /></div>
+              <div style={{ marginBottom: 16 }}><IconImg src="/icons/sidebar/externalTaste.png" size={40} /></div>
               <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", marginBottom: 8 }}>בדיקת טעם חיצוני</h2>
               <p style={{ fontSize: 14, color: "#888" }}>המסך עוד בבנייה, בקרוב יהיה זמין!</p>
             </div>
@@ -751,9 +761,9 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     const cogDone = isCouple ? recommendations.cognitive_count >= 3 : has_cognitive;
                     const tasteDone = isCouple ? has_taste_info : has_taste_info;
                     const bubbles: { icon: string; text: string; ch: string }[] = [];
-                    if (!cogDone && channel !== "new_chat_cognitive") bubbles.push({ icon: "/icons/thinkingType.png", text: "בוא נבין את סגנון החשיבה שלי", ch: "new_chat_cognitive" });
-                    if (!tasteDone && channel !== "new_chat_taste") bubbles.push({ icon: "/icons/myTaste.png", text: "נתח את הטעם שלי לעומק", ch: "new_chat_taste" });
-                    if (channel !== "new_chat" && !closedChannels["new_chat"] && (recommendations.summary_fields < 8)) bubbles.push({ icon: "/icons/Conversation.png", text: "בוא נמשיך להכיר", ch: "new_chat" });
+                    if (!cogDone && channel !== "new_chat_cognitive") bubbles.push({ icon: "/icons/sidebar/thinkingType.png", text: "בוא נבין את סגנון החשיבה שלי", ch: "new_chat_cognitive" });
+                    if (!tasteDone && channel !== "new_chat_taste") bubbles.push({ icon: "/icons/sidebar/myTaste.png", text: "נתח את הטעם שלי לעומק", ch: "new_chat_taste" });
+                    if (channel !== "new_chat" && !closedChannels["new_chat"] && (recommendations.summary_fields < 8)) bubbles.push({ icon: "/icons/sidebar/Conversation.png", text: "בוא נמשיך להכיר", ch: "new_chat" });
                     if (bubbles.length === 0) return null;
                     return (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginTop: 12 }}>
@@ -861,7 +871,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       let targetView: "mbti" | "values" | "bigfive" | "enneagram" | "attachment" = "mbti";
 
                       if (rot === 0 && insightCard.mbti?.type) {
-                        emoji = "/icons/thinkingType.png";
+                        emoji = "/icons/sidebar/thinkingType.png";
                         title = `טיפוס MBTI: ${insightCard.mbti.type}`;
                         text = insightCard.mbti.description || "";
                         hasContent = true;
@@ -879,7 +889,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       if (!hasContent && rot === 2 && insightCard.allBigFive?.length > 0) {
                         const top = insightCard.allBigFive.filter((v: any) => v.score > 60).slice(0, 2);
                         if (top.length > 0) {
-                          emoji = "/icons/aboutMe.png";
+                          emoji = "/icons/sidebar/aboutMe.png";
                           title = "תכונות אישיות בולטות";
                           text = top.map((v: any) => `${v.he} — ${v.description}`).join(". ");
                           hasContent = true;
@@ -887,14 +897,14 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                         }
                       }
                       if (!hasContent && rot === 3 && insightCard.enneagram?.primaryType) {
-                        emoji = "/icons/HowItWorks.png";
+                        emoji = "/icons/sidebar/HowItWorks.png";
                         title = `אניאגרם: טיפוס ${insightCard.enneagram.typeLabel}`;
                         text = insightCard.enneagram.description || "";
                         hasContent = true;
                         targetView = "enneagram";
                       }
                       if (!hasContent && rot === 4 && insightCard.attachment?.dominant) {
-                        emoji = "/icons/accurateMatch.png";
+                        emoji = "/icons/sidebar/accurateMatch.png";
                         title = `סגנון התקשרות: ${insightCard.attachment.dominantHe}`;
                         text = insightCard.attachment.description || "";
                         hasContent = true;
@@ -904,7 +914,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       if (!hasContent && insightCard.allBigFive?.length > 0) {
                         const top = insightCard.allBigFive.filter((v: any) => v.score > 60).slice(0, 2);
                         if (top.length > 0) {
-                          emoji = "/icons/aboutMe.png";
+                          emoji = "/icons/sidebar/aboutMe.png";
                           title = "תכונות אישיות בולטות";
                           text = top.map((v: any) => `${v.he} — ${v.description}`).join(". ");
                           hasContent = true;
@@ -976,7 +986,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   }
                   setScreen("chat");
                 }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}>{chatDone ? <IconImg src="/icons/backToConversation.png" size={16} /> : <IconImg src="/icons/StartConversationPurple.png" size={16} />}</span> {chatDone ? "חזרה לשיחה" : hasMessages ? "בוא נמשיך" : "בוא נתחיל"}
+                  <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}>{chatDone ? <IconImg src="/icons/sidebar/backToConversation.png" size={16} /> : <IconImg src="/icons/sidebar/StartConversationPurple.png" size={16} />}</span> {chatDone ? "חזרה לשיחה" : hasMessages ? "בוא נמשיך" : "בוא נתחיל"}
                 </button>
 
                 {/* Step bubbles — cognitive & taste */}
