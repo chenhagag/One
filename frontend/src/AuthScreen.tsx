@@ -14,6 +14,7 @@ export default function AuthScreen() {
 
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   const isSafari = isIOS || (/^((?!chrome|android).)*safari/i.test(navigator.userAgent));
+  const isInAppBrowser = /FBAN|FBAV|Instagram|LinkedInApp|Line\//i.test(navigator.userAgent);
 
   async function handleOAuth(provider: "google" | "apple") {
     setLoading(provider);
@@ -309,7 +310,7 @@ export default function AuthScreen() {
 
   // ── Main auth screen (Google + email) ──
   return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6 pt-[env(safe-area-inset-top,0px)]">
+    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 24px)" }}>
       {/* Loading overlay */}
       {loading && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
