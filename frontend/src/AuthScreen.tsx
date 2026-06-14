@@ -5,6 +5,7 @@ export default function AuthScreen() {
   const [loading, setLoading] = useState<"google" | "apple" | null>(null);
   const [error, setError] = useState("");
   const [showLanding, setShowLanding] = useState(true);
+  const [showPWAInstall, setShowPWAInstall] = useState(false);
 
   // Magic link state
   const [showEmailForm, setShowEmailForm] = useState(false);
@@ -13,8 +14,11 @@ export default function AuthScreen() {
   const [magicLinkLoading, setMagicLinkLoading] = useState(false);
 
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isAndroid = /android/i.test(navigator.userAgent);
   const isSafari = isIOS || (/^((?!chrome|android).)*safari/i.test(navigator.userAgent));
   const isInAppBrowser = /FBAN|FBAV|Instagram|LinkedInApp|Line\//i.test(navigator.userAgent);
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
+  const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
 
   async function handleOAuth(provider: "google" | "apple") {
     setLoading(provider);
@@ -197,69 +201,112 @@ export default function AuthScreen() {
           </p>
 
           {/* CTA button */}
-          {isInAppBrowser ? (
-            <>
-              <button
-                onClick={() => {
-                  const url = window.location.href;
-                  // Android: try intent URL to open in Chrome
-                  if (/android/i.test(navigator.userAgent)) {
-                    window.location.href = `intent://${url.replace(/^https?:\/\//, "")}#Intent;scheme=https;package=com.android.chrome;end`;
-                    return;
-                  }
-                  // iOS: can't force Safari — show instructions
-                  setShowLanding(false);
-                }}
-                style={{
-                  width: "100%",
-                  maxWidth: 320,
-                  padding: "14px 24px",
-                  fontSize: 16,
-                  fontWeight: 600,
-                  background: "#1a1a2e",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 14,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  marginBottom: 12,
-                }}
-              >
-                המשך לאפליקציה
-              </button>
-              <div style={{
-                width: "100%", maxWidth: 320, padding: "12px 16px",
-                background: "#f5f0fb", borderRadius: 12, textAlign: "center",
-              }}>
-                <p style={{ fontSize: 13, color: "#1a1a2e", margin: "0 0 4px", fontWeight: 600 }}>
-                  טיפ: לחוויה הטובה ביותר
-                </p>
-                <p style={{ fontSize: 12, color: "#666", margin: 0, lineHeight: 1.5 }}>
-                  לחצו על ⋮ (תפריט) למעלה ובחרו<br />"Open in browser" / "פתח בדפדפן"
-                </p>
-              </div>
-            </>
-          ) : (
-            <button
-              onClick={() => setShowLanding(false)}
-              style={{
-                width: "100%",
-                maxWidth: 320,
-                padding: "14px 24px",
-                fontSize: 16,
-                fontWeight: 600,
-                background: "#1a1a2e",
-                color: "#fff",
-                border: "none",
-                borderRadius: 14,
-                cursor: "pointer",
-                fontFamily: "inherit",
-                marginBottom: 8,
-              }}
-            >
-              המשך לאפליקציה
-            </button>
-          )}
+          <button
+            onClick={() => {
+              if (isInAppBrowser && isMobile && !isStandalone) {
+                setShowLanding(false);
+                setShowPWAInstall(true);
+              } else {
+                setShowLanding(false);
+              }
+            }}
+            style={{
+              width: "100%",
+              maxWidth: 320,
+              padding: "14px 24px",
+              fontSize: 16,
+              fontWeight: 600,
+              background: "#1a1a2e",
+              color: "#fff",
+              border: "none",
+              borderRadius: 14,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              marginBottom: 8,
+            }}
+          >
+            המשך לאפליקציה
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── PWA install screen (in-app browser users) ──
+  if (showPWAInstall) {
+    return (
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 24px)" }}>
+        <div style={{ maxWidth: 360, width: "100%", textAlign: "center", direction: "rtl" }}>
+          <img src="/ScatchLogo.png" alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", marginBottom: 16 }} />
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", margin: "0 0 8px" }}>התקינו את One</h2>
+          <p style={{ fontSize: 14, color: "#888", margin: "0 0 28px" }}>
+            לחוויה הטובה ביותר, התקינו את האפליקציה על המסך הראשי
+          </p>
+
+          <div style={{
+            background: "#f5f0fb", borderRadius: 16, padding: "20px 20px",
+            textAlign: "right", marginBottom: 20,
+          }}>
+            {isIOS ? (
+              <>
+                <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 12px" }}>באייפון:</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
+                    1. לחצו על כפתור השיתוף <span style={{ fontSize: 16 }}>⬆</span> בתחתית המסך
+                  </p>
+                  <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
+                    2. גללו ובחרו <strong>"Add to Home Screen"</strong>
+                  </p>
+                  <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
+                    3. לחצו <strong>"Add"</strong>
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 12px" }}>באנדרואיד:</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
+                    1. לחצו על <strong>⋮</strong> (שלוש נקודות) בפינה העליונה
+                  </p>
+                  <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
+                    2. בחרו <strong>"Open in browser"</strong> / "פתח בדפדפן"
+                  </p>
+                  <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
+                    3. שם תוכלו להתקין ולהתחבר בקלות
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+
+          <button
+            onClick={() => setShowPWAInstall(false)}
+            style={{
+              width: "100%",
+              padding: "14px 24px",
+              fontSize: 16,
+              fontWeight: 600,
+              background: "#1a1a2e",
+              color: "#fff",
+              border: "none",
+              borderRadius: 14,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              marginBottom: 8,
+            }}
+          >
+            המשך להתחברות
+          </button>
+          <button
+            onClick={() => setShowPWAInstall(false)}
+            style={{
+              background: "none", border: "none", color: "#888",
+              fontSize: 13, cursor: "pointer", fontFamily: "inherit",
+            }}
+          >
+            דלגו בינתיים
+          </button>
         </div>
       </div>
     );
@@ -404,6 +451,27 @@ export default function AuthScreen() {
       {error && (
         <div className="mt-6 w-full max-w-xs rounded-lg bg-red-50 px-4 py-3 text-center text-sm text-red-600" dir="rtl">
           {error}
+        </div>
+      )}
+
+      {/* In-app browser tip */}
+      {isInAppBrowser && (
+        <div style={{
+          marginTop: 24, width: "100%", maxWidth: 320, padding: "14px 16px",
+          background: "#f5f0fb", borderRadius: 12, textAlign: "center", direction: "rtl",
+        }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: "#1a1a2e", margin: "0 0 6px" }}>
+            להתחברות מהירה
+          </p>
+          {isIOS ? (
+            <p style={{ fontSize: 12, color: "#666", margin: 0, lineHeight: 1.6 }}>
+              לחצו על <span style={{ fontSize: 15 }}>⬆</span> (שיתוף) בתחתית המסך → <strong>"Open in Safari"</strong>
+            </p>
+          ) : (
+            <p style={{ fontSize: 12, color: "#666", margin: 0, lineHeight: 1.6 }}>
+              לחצו על <strong>⋮</strong> (תפריט) בפינה העליונה → <strong>"Open in Chrome"</strong>
+            </p>
+          )}
         </div>
       )}
 
