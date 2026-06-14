@@ -1,6 +1,194 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-06-08–09 (Major UX Overhaul — Waiting State + Insights + Q&A Channels + Registration)
+## Latest Session: 2026-06-12–15 (UI Redesign + Branding + Landing Page + In-App Browser)
+
+### Deployment
+- All changes pushed to both main (production) and staging
+
+### What We Did
+
+#### 1. New Branding — Logo & Icons
+- **New logos**: ScatchLogo (round heart), logoOneSmall (name logo), roundLogo — replaced old heartIcon everywhere
+- **Custom-designed icons** replace all emoji icons (sidebar, chat buttons, Q&A bubbles, insight cards, feedback categories)
+- **Transparent icons** (RGBA) for all custom icons — work on any background
+- **Dark mode support**: icons wrapped in dark circle (`#2a2a3e`) in dark mode, transparent in light mode
+- **PWA app icon**: replaced with logoRound (icon-192/512), apple-touch-icon updated
+- **manifest.json**: theme_color updated to lilac (`#8b7ba8`)
+
+#### 2. Color Palette Updates
+- **Completed channel badges**: green → lilac (`#8b7ba8`)
+- **User chat bubble**: indigo → lilac (`#8b7ba8`)
+- **Recommendation/system message backgrounds**: blue-tinted → soft purple (`#f5f0fb`)
+- **Sidebar & button backgrounds**: white → cream (`#FCF8F5`)
+- **Header**: shows logoOneSmall instead of "One" text
+- **Recommendation border**: indigo → lilac (`#8b7ba8`)
+
+#### 3. Landing Page (Pre-Auth)
+- **New welcome screen** with cover image (black & white couple on beach)
+- Cover image fades via gradient into warm gray background (`#e8e4e0 → #fff`)
+- Logo + "ברוכים הבאים ל-One" + 6 numbered onboarding steps with lilac badges
+- "בהצלחה, צוות One" + CTA button
+- Tagline: "One who truly fits"
+
+#### 4. Screen Redesigns
+- **ProfileSetup**: logo at top, card sections with lilac borders/shadows, lilac checkboxes, notifications section with lavender background
+- **ConsentScreen**: logo at top, card layout with lilac borders, lilac links/checkboxes
+- **PWAInstallFlow**: redesigned for all scenarios:
+  - **In-app browser** (Instagram/Facebook): dark card with "Open in external browser" instructions
+  - **Samsung Internet**: step-by-step install instructions (☰ → Add page to → Home screen)
+  - **iOS Safari**: share → Add to Home Screen instructions
+  - **Chrome Android**: native install button
+  - Skip button is subtle text link to encourage installation
+- **Auth screen**: padding fix for logo clipping, in-app browser tip at bottom
+
+#### 5. In-App Browser Handling
+- Detection: `FBAN|FBAV|Instagram|LinkedInApp|Line` in user agent
+- Auth screen shows tip: "לחצו על ⋯ → Open in external browser"
+- Device-specific instructions (unified for iOS/Android in Instagram)
+
+#### 6. Text Changes
+- "מה ה-AI למד עליך?" → "מה למדנו עליך" (insight drip feed title)
+- Tagline: "Find your one perfect match" → "One who truly fits"
+
+### Files Modified
+- `frontend/src/NewChat.tsx` — icons, colors, dark mode wrapper, drip feed title
+- `frontend/src/AuthScreen.tsx` — landing page, logos, in-app browser handling, tagline
+- `frontend/src/PWAInstallFlow.tsx` — redesigned install screens, in-app browser detection
+- `frontend/src/ProfileSetup.tsx` — card layout, lilac accents
+- `frontend/src/ConsentScreen.tsx` — logo, card layout, lilac accents
+- `frontend/src/Insights.tsx` — completed badge color
+- `frontend/index.html` — apple-touch-icon updated
+- `frontend/public/manifest.json` — theme_color updated
+
+### Files Created
+- `frontend/public/icons/` — 17 custom transparent icons
+- `frontend/public/icons/sidebar/` — cream-background icon versions
+- `frontend/public/roundLogo.png`, `nameLogoTrans.png`, `ScatchLogo.png`, `coverMainScreen.png`
+- `frontend/public/logoRound.png`, `icon-192.png`, `icon-512.png` (PWA icons)
+
+---
+
+## Session: 2026-06-10 (Enneagram + Attachment + Personal Insights + Bug Fixes)
+
+### Deployment
+- All changes pushed to both main (production) and staging
+
+### What We Did
+
+#### 1. New Analysis Traits — Enneagram, Attachment, Gender Conformity
+- **9 Enneagram types** added to MBTI prompt with detailed per-type instructions (signals, non-signals, score ranges)
+- **3 attachment styles** (secure/anxious/avoidant) added to emotional profile prompt
+- **Gender conformity** trait added to personal style prompt (gender-specific scoring criteria)
+- Seed script `seedAdditionalTraits.ts` created and run on both DBs — 13 new trait_definitions
+- Analysis agent updated: "Enneagram" group runs with MBTI prompt group
+- `safeOutputLayer.ts`: Enneagram type+wing computation, attachment compound labels (e.g., "בטוח-חרדתי")
+
+#### 2. Matching Algorithm Updates
+- New `enneagram` category (weight 0.5) with `score_enneagram` column in candidate_matches
+- Attachment styles added to `emotionality` category
+- Gender conformity added to `vibe` category
+- matchStage1: simplified filter logic
+
+#### 3. Personal Insights (Admin-Written)
+- 3 new DB columns: `personal_insights_short`, `personal_insights_full`, `analysis_completed`
+- **Admin**: PersonalInsightsEditor for all users — short text, full text, "ניתוח הושלם" toggle
+- **Insights screen**: "ניתוח עוד לא הושלם" yellow notice when incomplete, short summary at top, full text as expandable card with dedicated detail view
+- **Home drip feed**: small gray notice when analysis not completed (inside card, not standalone banner)
+- **qa_about_me chat**: full personal insights injected as expert analysis context
+- **API**: GET /users/:id/personal-insights endpoint
+
+#### 4. Insights Screen Enhancements
+- Enneagram detail screen: type + wing display, top 5 types with score bars
+- Attachment detail screen: dominant style, compound labels, all styles with scores
+- Admin: Enneagram type, attachment style, gender conformity in user profile
+- Drip feed expanded from 3 to 5 rotations (includes enneagram + attachment)
+- "← לתובנות נוספות" link at bottom of each detail view
+
+#### 5. Taste Test Fixes
+- **Follow-up questions strengthened**: mandatory for short responses (סבבה, אחלה, לא), skip only if 3+ detailed sentences
+- **Gender question offset**: when looking_for_gender unknown, first message is gender question — all phase thresholds shift by 1
+- **Deal-breaker questions**: 2 new questions before profiles (lifestyle + life stage), profileStartMsg raised to 5
+- **hasPriorTasteInfo disabled**: all users get full question flow
+
+#### 6. Post-Close Bubbles Fix
+- **Root cause**: taste_closed used `tasteCount >= 6` which triggered after deal-breaker questions (before any profiles)
+- **Fix**: cognitive_closing_stage and taste_closing_stage now persisted to DB (in topic_injection_counts) when chatManager returns closingStage=3
+- Status endpoint reads saved closing states instead of message count thresholds
+- has_taste_info and has_cognitive aligned with saved closing states
+- Legacy fallbacks: cognitiveCount>=7 for cognitive, tasteCount>=25 for taste (pre-fix users)
+- Fixed TS build error: hasTasteInfo moved after convState declaration
+
+#### 7. Bug Fixes from Testing
+- **Logo**: borderRadius "50%" → 6px (was circle in square, now rounded square)
+- **JS Error on iPhone**: global error catcher now dev-only (localhost), "Script error." suppressed everywhere (cross-origin Supabase SDK)
+- **Device dedup in admin**: dedup by device+pwa (was including date, causing duplicates per day), first_seen/last_seen tracking
+- **iOS keyboard**: visualViewport resize listener scrolls input into view when keyboard opens
+- **"חזרה למסך הראשי"**: small gray button below chat input area
+
+#### 8. HowItWorks Page
+- Added step 6: "ומה קורה אם החיבור לא הצליח?" with re-matching explanation
+- Step 5: expanded text about no compromise on mediocre matches
+
+### Files Modified
+- `backend/src/agents/analysis/agent.ts` — Enneagram group mapping
+- `backend/src/agents/analysis/prompts/mbti-system.txt` — 9 Enneagram types + instructions
+- `backend/src/agents/analysis/prompts/emotional-profile-system.txt` — 3 attachment styles
+- `backend/src/agents/analysis/prompts/personal-style-system.txt` — gender_conformity trait
+- `backend/src/agents/conversation/chatManager.ts` — taste test fixes, personal insights context
+- `backend/src/index.ts` — personal-insights API, closing state persistence, PATCH fields, status fixes
+- `backend/src/matchStage1.ts` — filter simplification
+- `backend/src/matchStage2.ts` — enneagram category, attachment/gender_conformity in categories
+- `backend/src/safeOutputLayer.ts` — enneagram/attachment computation
+- `backend/src/schema.pg.ts` — score_enneagram, personal_insights columns
+- `frontend/src/AdminView.tsx` — PersonalInsightsEditor, enneagram/attachment display, device dedup
+- `frontend/src/AuthScreen.tsx` — logo borderRadius fix
+- `frontend/src/Insights.tsx` — enneagram/attachment detail views, personal insights display
+- `frontend/src/NewChat.tsx` — home button, iOS keyboard, drip feed notice, analysis status
+- `frontend/index.html` — error catcher dev-only + Script error suppression
+
+### Files Created
+- `backend/src/seedAdditionalTraits.ts` — seed 13 new trait definitions
+
+### DB Changes
+- `candidate_matches.score_enneagram` — new column
+- `users.personal_insights_short` — admin-written short text
+- `users.personal_insights_full` — admin-written full text
+- `users.analysis_completed` — boolean toggle
+- `topic_injection_counts.cognitive_closing_stage` — persisted closing state
+- `topic_injection_counts.taste_closing_stage` — persisted closing state
+
+### Key Decisions
+- Enneagram runs with MBTI prompt (same analysis call) to save tokens
+- Attachment styles in emotionality category (affects matching), not separate category
+- Personal insights: admin-written, not auto-generated — gives control over quality
+- "ניתוח הושלם" is a toggle (reversible), not one-time
+- Never deploy to production without explicit user instruction
+
+#### 9. qa_about_me Chat — Calibration Questions Flow
+- **Structured flow**: opinion → offer calibration questions → user accepts/declines → 3 questions → close
+- **5 question banks** (3 questions each): MBTI (E/I, T/F, J/P), Enneagram (coping, fear, group role), Values/Schwartz (security vs openness, achievement vs universalism, tradition vs self-direction), Big Five (neuroticism, conscientiousness, openness), Attachment (distance, intensity, vulnerability)
+- **Per-round state**: each topic discussion is a separate "round" — closing message resets state for next topic
+- **Topic detection**: scans only current round's user messages (not entire history) to avoid cross-contamination
+- **Strict prompt structure**: "מבנה ההודעה — חובה לעקוב בדיוק" with explicit allowed/forbidden lists per step
+- **Auto-close**: after calibration questions or after 4 general messages
+- **Closing message**: "מריץ את הניתוח מחדש בהתאם למידע החדש"
+
+#### 10. QA Chat — max_tokens Fix
+- QA channels (qa_system, qa_about_me, etc.) raised from 300 → 600 tokens
+- Fixes long system explanations getting cut off mid-sentence
+
+#### 11. Visual Matching Explanation
+- Updated context-system-info.txt with detailed visual matching process
+- AI photo analysis with consent, taste matching between sides, photo sharing on match
+
+#### 12. Old Users Reset (Staging)
+- Initialized user_chat_summaries for old users (Nadav, נטלי שבתאי, אנה) on staging
+- Empty summary + conversation state allows them to start fresh new_chat flow
+- Old interviewer/psychologist messages preserved for future analysis
+
+---
+
+## Previous Session: 2026-06-08–09 (Major UX Overhaul — Waiting State + Insights + Q&A Channels + Registration)
 
 ### Deployment
 - All changes pushed to both main (production) and staging
