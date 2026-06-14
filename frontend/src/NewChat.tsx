@@ -1620,7 +1620,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   // Dashboard styles
   dashboardCard: {
-    background: "#fff",
+    background: "#FCF8F5",
     border: "1px solid #e5e7eb",
     borderRadius: 12,
     padding: "16px 20px",

@@ -331,30 +331,61 @@ export default function AuthScreen() {
         <p className="text-base text-gray-400">Understand yourself. Find your One</p>
       </div>
 
-      {/* Google OAuth + email fallback — shown to all browsers */}
-      <div className="flex w-full max-w-xs flex-col gap-3">
-        <button
-          onClick={() => handleOAuth("google")}
-          disabled={!!loading}
-          className="flex h-[52px] w-full items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white text-[15px] font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50"
-        >
-          <GoogleLogo />
-          Continue with Google
-        </button>
-      </div>
+      {isInAppBrowser ? (
+        <>
+          {/* In-app browser (Instagram/Facebook) — email first */}
+          <div className="flex w-full max-w-xs flex-col gap-3">
+            <button
+              onClick={() => setShowEmailForm(true)}
+              className="flex h-[52px] w-full items-center justify-center rounded-xl bg-gray-900 text-[15px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
+            >
+              התחברות עם אימייל
+            </button>
+          </div>
 
-      <div className="my-6 flex w-full max-w-xs items-center gap-3">
-        <div className="h-px flex-1 bg-gray-200" />
-        <span className="text-xs text-gray-400">or</span>
-        <div className="h-px flex-1 bg-gray-200" />
-      </div>
+          <div className="my-6 flex w-full max-w-xs items-center gap-3">
+            <div className="h-px flex-1 bg-gray-200" />
+            <span className="text-xs text-gray-400">or</span>
+            <div className="h-px flex-1 bg-gray-200" />
+          </div>
 
-      <button
-        onClick={() => setShowEmailForm(true)}
-        className="text-sm text-gray-400 transition-colors hover:text-gray-600"
-      >
-        Login / Register with email
-      </button>
+          <button
+            onClick={() => handleOAuth("google")}
+            disabled={!!loading}
+            className="flex items-center gap-2 text-sm text-gray-400 transition-colors hover:text-gray-600"
+          >
+            <GoogleLogo />
+            Continue with Google
+          </button>
+        </>
+      ) : (
+        <>
+          {/* Normal browser — Google first */}
+          <div className="flex w-full max-w-xs flex-col gap-3">
+            <button
+              onClick={() => handleOAuth("google")}
+              disabled={!!loading}
+              className="flex h-[52px] w-full items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white text-[15px] font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50"
+            >
+              <GoogleLogo />
+              Continue with Google
+            </button>
+          </div>
+
+          <div className="my-6 flex w-full max-w-xs items-center gap-3">
+            <div className="h-px flex-1 bg-gray-200" />
+            <span className="text-xs text-gray-400">or</span>
+            <div className="h-px flex-1 bg-gray-200" />
+          </div>
+
+          <button
+            onClick={() => setShowEmailForm(true)}
+            className="text-sm text-gray-400 transition-colors hover:text-gray-600"
+          >
+            Login / Register with email
+          </button>
+        </>
+      )}
 
       {/* Error message */}
       {error && (
