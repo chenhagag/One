@@ -6,7 +6,14 @@ export default function AuthScreen() {
   const [loading, setLoading] = useState<"google" | "apple" | null>(null);
   const [error, setError] = useState("");
   const [showLanding, setShowLanding] = useState(() => !sessionStorage.getItem("one_seen_landing"));
-  const [showPWAInstall, setShowPWAInstall] = useState(false);
+  const [showPWAInstall, setShowPWAInstall] = useState(() => {
+    const seenLanding = sessionStorage.getItem("one_seen_landing");
+    const seenPWA = sessionStorage.getItem("one_seen_pwa");
+    // Show PWA only if landing was seen but PWA wasn't, and on mobile non-standalone
+    const mob = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
+    const standalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
+    return !!seenLanding && !seenPWA && mob && !standalone;
+  });
 
   // Magic link state
   const [showEmailForm, setShowEmailForm] = useState(false);
@@ -232,7 +239,7 @@ export default function AuthScreen() {
 
   // ── PWA install screen (in-app browser users) ──
   if (showPWAInstall) {
-    return <PWAInstallFlow userName="" gender="" testUserType={null} onComplete={() => setShowPWAInstall(false)} />;
+    return <PWAInstallFlow userName="" gender="" testUserType={null} onComplete={() => { sessionStorage.setItem("one_seen_pwa", "1"); setShowPWAInstall(false); }} />;
   }
 
   // ── Magic link sent — success screen ──
