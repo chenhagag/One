@@ -85,13 +85,14 @@ function clearSession() {
   localStorage.removeItem("matchme_user_email");
 }
 
-function getDeviceInfo(): { device: string; pwa_installed: boolean } {
+function getDeviceInfo(): { device: string; pwa_installed: boolean; dark_mode: boolean } {
   const ua = navigator.userAgent;
   const isStandalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
+  const darkMode = window.matchMedia?.("(prefers-color-scheme: dark)").matches || false;
   let device = "desktop";
   if (/iphone|ipad|ipod/i.test(ua)) device = "iphone";
   else if (/android/i.test(ua)) device = "android";
-  return { device, pwa_installed: isStandalone };
+  return { device, pwa_installed: isStandalone, dark_mode: darkMode };
 }
 
 function getSavedSession(): { id: number; email: string } | null {

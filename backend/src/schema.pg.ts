@@ -640,6 +640,18 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
     END $$;
   `);
 
+  // dark_mode column
+  await pool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'dark_mode'
+      ) THEN
+        ALTER TABLE users ADD COLUMN dark_mode BOOLEAN DEFAULT FALSE;
+      END IF;
+    END $$;
+  `);
+
   // ── User Chat Summaries ───────────────────────────────────────
   await pool.query(`
     CREATE TABLE IF NOT EXISTS user_chat_summaries (

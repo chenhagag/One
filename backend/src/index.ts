@@ -229,7 +229,7 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
     user_metadata?.full_name || user_metadata?.name || email.split("@")[0];
 
   // Device info from frontend
-  const { device, pwa_installed } = req.body || {};
+  const { device, pwa_installed, dark_mode } = req.body || {};
 
   try {
     // Update device info helper — accumulates unique devices seen (dedup by device+pwa)
@@ -237,8 +237,8 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
       if (device) {
         // Update last_device + pwa_installed as before
         await pgQueryAll(
-          `UPDATE users SET last_device = $1, pwa_installed = $2, updated_at = NOW() WHERE id = $3`,
-          [device, !!pwa_installed, userId]
+          `UPDATE users SET last_device = $1, pwa_installed = $2, dark_mode = $3, updated_at = NOW() WHERE id = $4`,
+          [device, !!pwa_installed, !!dark_mode, userId]
         );
         // Upsert into devices_seen: dedup by device+pwa combo, update last_seen date
         const today = new Date().toISOString().slice(0, 10);

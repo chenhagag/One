@@ -473,7 +473,7 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
             return devices.map((d: any, i: number) => (
               <span key={i} style={{ ...s.badge, fontSize: 10, marginRight: 3, background: d.device === "iphone" ? "#e0e7ff" : d.device === "android" ? "#d1fae5" : "#f3f4f6" }}>
                 {d.device === "iphone" ? "🍎" : d.device === "android" ? "🤖" : "🖥️"}{" "}
-                {d.device}{d.pwa ? " (PWA)" : ""}
+                {d.device}{d.pwa ? " (PWA)" : ""}{u.dark_mode ? " 🌙" : ""}
               </span>
             ));
           })()}
