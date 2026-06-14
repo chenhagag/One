@@ -16,9 +16,15 @@ interface NewChatProps {
   onLogout?: () => void;
 }
 
-const isDarkMode = window.matchMedia("(prefers-color-scheme: dark)").matches;
 const IconImg = ({ src, size = 18 }: { src: string; size?: number }) => {
-  if (isDarkMode) {
+  const dark = window.matchMedia?.("(prefers-color-scheme: dark)").matches
+    || document.documentElement.getAttribute("data-theme") === "dark"
+    || document.body.style.backgroundColor === "rgb(0, 0, 0)"
+    || (window.getComputedStyle(document.body).backgroundColor !== "rgb(255, 255, 255)"
+        && window.getComputedStyle(document.body).backgroundColor !== "rgba(0, 0, 0, 0)"
+        && window.getComputedStyle(document.body).backgroundColor !== ""
+        && window.getComputedStyle(document.body).backgroundColor !== "transparent");
+  if (dark) {
     const pad = Math.round(size * 0.35);
     const s = size + pad * 2;
     return (
