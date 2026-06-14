@@ -199,10 +199,17 @@ export default function AuthScreen() {
           {/* CTA button */}
           {isInAppBrowser ? (
             <>
-              <a
-                href={window.location.href}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                onClick={() => {
+                  const url = window.location.href;
+                  // Android: try intent URL to open in Chrome
+                  if (/android/i.test(navigator.userAgent)) {
+                    window.location.href = `intent://${url.replace(/^https?:\/\//, "")}#Intent;scheme=https;package=com.android.chrome;end`;
+                    return;
+                  }
+                  // iOS: can't force Safari — show instructions
+                  setShowLanding(false);
+                }}
                 style={{
                   width: "100%",
                   maxWidth: 320,
@@ -215,18 +222,22 @@ export default function AuthScreen() {
                   borderRadius: 14,
                   cursor: "pointer",
                   fontFamily: "inherit",
-                  marginBottom: 8,
-                  textAlign: "center",
-                  textDecoration: "none",
-                  display: "block",
-                  boxSizing: "border-box",
+                  marginBottom: 12,
                 }}
               >
-                פתחו בדפדפן להתחברות
-              </a>
-              <p style={{ fontSize: 12, color: "#888", textAlign: "center", margin: "4px 0 0", lineHeight: 1.5 }}>
-                לחצו כדי לפתוח בדפדפן הרגיל של הטלפון
-              </p>
+                המשך לאפליקציה
+              </button>
+              <div style={{
+                width: "100%", maxWidth: 320, padding: "12px 16px",
+                background: "#f5f0fb", borderRadius: 12, textAlign: "center",
+              }}>
+                <p style={{ fontSize: 13, color: "#1a1a2e", margin: "0 0 4px", fontWeight: 600 }}>
+                  טיפ: לחוויה הטובה ביותר
+                </p>
+                <p style={{ fontSize: 12, color: "#666", margin: 0, lineHeight: 1.5 }}>
+                  לחצו על ⋮ (תפריט) למעלה ובחרו<br />"Open in browser" / "פתח בדפדפן"
+                </p>
+              </div>
             </>
           ) : (
             <button
