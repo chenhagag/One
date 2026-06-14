@@ -155,29 +155,68 @@ export default function PWAInstallFlow({ userName, gender, testUserType, onCompl
         <div style={{ maxWidth: 360, width: "100%", textAlign: "center", direction: "rtl" }}>
           <img src="/ScatchLogo.png" alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", marginBottom: 16 }} />
           <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", margin: "0 0 8px" }}>התקינו את One</h2>
-          <p style={{ fontSize: 14, color: "#888", margin: "0 0 28px" }}>
+          <p style={{ fontSize: 14, color: "#888", margin: "0 0 24px", lineHeight: 1.6 }}>
             כדי להתקין את האפליקציה, יש לפתוח את הלינק בדפדפן הרגיל של הטלפון
           </p>
 
           <div style={{
-            background: "#f5f0fb", borderRadius: 16, padding: "20px 20px",
-            textAlign: "right", marginBottom: 20,
+            background: "#1a1a2e", borderRadius: 16, padding: "20px 20px",
+            textAlign: "right", marginBottom: 28,
           }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "#fff", margin: "0 0 12px" }}>כך עושים את זה:</p>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
-                1. {isFemale ? "לחצי" : "לחץ"} על <strong>⋯</strong> (שלוש נקודות) בחלק העליון של המסך
-              </p>
-              <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
-                2. {isFemale ? "בחרי" : "בחר"} <strong>"Open in external browser"</strong>
-              </p>
-              <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
-                3. שם {isFemale ? "תוכלי" : "תוכל"} להתקין את האפליקציה בקלות
-              </p>
+              <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#8b7ba8", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>1</span>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", margin: 0, lineHeight: 1.6 }}>
+                  {isFemale ? "לחצי" : "לחץ"} על <strong>⋯</strong> (שלוש נקודות) בחלק העליון של המסך
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#8b7ba8", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>2</span>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", margin: 0, lineHeight: 1.6 }}>
+                  {isFemale ? "בחרי" : "בחר"} <strong>"Open in external browser"</strong>
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#8b7ba8", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>3</span>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", margin: 0, lineHeight: 1.6 }}>
+                  שם {isFemale ? "תוכלי" : "תוכל"} להתקין את האפליקציה בקלות
+                </p>
+              </div>
             </div>
           </div>
 
           <button
             onClick={onComplete}
+            style={{
+              background: "none", border: "none", color: "#aaa",
+              fontSize: 13, cursor: "pointer", fontFamily: "inherit",
+            }}
+          >
+            {isFemale ? "המשיכי" : "המשך"} בינתיים בלי התקנה →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Normal browser: styled install screen ──
+  return (
+    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 24px)" }}>
+      <div style={{ maxWidth: 360, width: "100%", textAlign: "center", direction: "rtl" }}>
+        <img src="/ScatchLogo.png" alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", marginBottom: 16 }} />
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", margin: "0 0 8px" }}>
+          {userName}, {isFemale ? "ברוכה הבאה" : "ברוך הבא"} ל-One
+        </h2>
+        <p style={{ fontSize: 14, color: "#888", margin: "0 0 28px", lineHeight: 1.6 }}>
+          כדי ליהנות מהחוויה המלאה, המהירה והנוחה ביותר (עוד לפני שאנחנו נוחתים בחנויות האפליקציות), אנחנו ממליצים להוסיף את One למסך הבית שלך.
+        </p>
+
+        {/* Android: Native install button */}
+        {deferredPrompt && !showIOSGuide && (
+          <button
+            onClick={handleInstall}
+            disabled={installing}
             style={{
               width: "100%",
               padding: "14px 24px",
@@ -189,121 +228,66 @@ export default function PWAInstallFlow({ userName, gender, testUserType, onCompl
               borderRadius: 14,
               cursor: "pointer",
               fontFamily: "inherit",
-              marginBottom: 8,
+              marginBottom: 20,
+              opacity: installing ? 0.7 : 1,
             }}
           >
-            {isFemale ? "המשיכי" : "המשך"} בינתיים בלי התקנה
+            {installing ? "מתקין..." : "התקן עכשיו"}
           </button>
-          <button
-            onClick={onComplete}
-            style={{
-              background: "none", border: "none", color: "#888",
-              fontSize: 13, cursor: "pointer", fontFamily: "inherit",
-            }}
-          >
-            {isFemale ? "דלגי" : "דלג"} בינתיים
-          </button>
-        </div>
-      </div>
-    );
-  }
+        )}
 
-  return (
-    <div style={{
-      ...s.container,
-      opacity: fadeIn ? 1 : 0,
-      transform: fadeIn ? "translateY(0)" : "translateY(20px)",
-    }}>
-      {/* Glow background */}
-      <div style={s.glowOrb} />
-      <div style={s.glowOrb2} />
+        {/* iOS: Safari instructions */}
+        {showIOSGuide && (
+          <div style={{
+            background: "#f5f0fb", borderRadius: 16, padding: "20px 20px",
+            textAlign: "right", marginBottom: 20,
+          }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 12px" }}>להתקנה:</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#8b7ba8", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>1</span>
+                <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
+                  {isFemale ? "לחצי" : "לחץ"} על כפתור השיתוף <ShareIcon /> בתחתית המסך
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#8b7ba8", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>2</span>
+                <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>
+                  {isFemale ? "גללי" : "גלול"} למטה {isFemale ? "ובחרי" : "ובחר"} <strong>"Add to Home Screen"</strong> <PlusSquareIcon />
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
-      {/* Logo */}
-      <div style={s.logoWrap}>
-        <img src="/ScatchLogo.png" alt="" style={s.logo} />
-      </div>
+        {/* No prompt available — generic */}
+        {!deferredPrompt && !showIOSGuide && (
+          <div style={{
+            background: "#f5f0fb", borderRadius: 16, padding: "16px 20px",
+            marginBottom: 20,
+          }}>
+            <p style={{ margin: 0, fontSize: 14, color: "#666", textAlign: "center", lineHeight: 1.6 }}>
+              {isFemale
+                ? "ניתן להוסיף את האתר למסך הבית דרך תפריט הדפדפן"
+                : "ניתן להוסיף את האתר למסך הבית דרך תפריט הדפדפן"}
+            </p>
+          </div>
+        )}
 
-      {/* Heading */}
-      <h1 style={s.heading}>
-        {userName}, {isFemale ? "ברוכה הבאה" : "ברוך הבא"} ל-One
-      </h1>
-      <p style={s.subheading}>
-        כדי ליהנות מהחוויה המלאה, המהירה והנוחה ביותר (עוד לפני שאנחנו נוחתים בחנויות האפליקציות), אנחנו ממליצים להוסיף את One למסך הבית שלך.
-      </p>
-
-      {/* Features */}
-      <div style={s.features}>
-        <Feature icon="⚡" text="גישה מהירה בלחיצה אחת" />
-        <Feature icon="🔒" text="השיחות שלך פרטיות ומאובטחות" />
-        <Feature icon="🎯" text="התאמות מדויקות ואישיות" />
-      </div>
-
-      {/* Android: Native install button */}
-      {deferredPrompt && !showIOSGuide && (
         <button
+          onClick={onComplete}
           style={{
-            ...s.installBtn,
-            opacity: installing ? 0.7 : 1,
+            background: "none", border: "none", color: "#aaa",
+            fontSize: 13, cursor: "pointer", fontFamily: "inherit",
           }}
-          onClick={handleInstall}
-          disabled={installing}
         >
-          {installing ? "מתקין..." : "התקן עכשיו"}
+          {isFemale ? "המשיכי" : "המשך"} בדפדפן →
         </button>
-      )}
 
-      {/* iOS: Safari instructions */}
-      {showIOSGuide && (
-        <div style={s.iosCard}>
-          <p style={s.iosTitle}>להתקנה במכשיר שלך:</p>
-          <div style={s.iosStep}>
-            <div style={s.iosStepNum}>1</div>
-            <div style={s.iosStepText}>
-              {isFemale ? "לחצי" : "לחץ"} על כפתור השיתוף (Share)
-              <span style={s.iosIcon}>
-                <ShareIcon />
-              </span>
-              בתחתית המסך
-            </div>
-          </div>
-          <div style={s.iosStep}>
-            <div style={s.iosStepNum}>2</div>
-            <div style={s.iosStepText}>
-              {isFemale ? "גללי" : "גלול"} למטה {isFemale ? "ובחרי" : "ובחר"} "Add to Home Screen"
-              <span style={s.iosIcon}>
-                <PlusSquareIcon />
-              </span>
-            </div>
-          </div>
-
-          {/* Bouncing arrow */}
-          <div style={s.arrowWrap}>
-            <style>{bounceKeyframes}</style>
-            <div style={s.bouncingArrow}>↓</div>
-          </div>
-        </div>
-      )}
-
-      {/* No prompt available — waiting or unsupported */}
-      {!deferredPrompt && !showIOSGuide && (
-        <div style={s.genericCard}>
-          <p style={{ margin: 0, fontSize: 14, color: "#666", textAlign: "center", lineHeight: 1.6 }}>
-            {isFemale
-              ? "ניתן גם להוסיף לאתר למסך הבית דרך תפריט הדפדפן"
-              : "ניתן גם להוסיף את האתר למסך הבית דרך תפריט הדפדפן"}
-          </p>
-        </div>
-      )}
-
-      {/* Continue in browser */}
-      <button style={s.skipBtn} onClick={onComplete}>
-        {isFemale ? "המשיכי" : "המשך"} בדפדפן →
-      </button>
-
-      {/* Trust badge */}
-      <p style={s.trustText}>
-        100% פרטי ומאובטח. הנתונים שלך לעיני ה-AI בלבד.
-      </p>
+        <p style={{ fontSize: 11, color: "#ccc", marginTop: 24 }}>
+          100% פרטי ומאובטח. הנתונים שלך לעיני ה-AI בלבד.
+        </p>
+      </div>
     </div>
   );
 }
