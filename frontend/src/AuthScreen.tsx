@@ -164,7 +164,7 @@ export default function AuthScreen() {
           zIndex: 1,
         }}>
           {/* Logo */}
-          <img src="/logoOneGraishSmall.png" alt="One" style={{ height: 32, objectFit: "contain", marginTop: 16, marginBottom: 20 }} />
+          <img src="/nameLogoTrans.png" alt="One" style={{ height: 32, objectFit: "contain", marginTop: 16, marginBottom: 20 }} />
 
           {/* Welcome text */}
           <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", margin: "0 0 20px", textAlign: "center" }}>
@@ -268,7 +268,7 @@ export default function AuthScreen() {
     return (
       <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6 pt-[env(safe-area-inset-top,0px)]">
         <div className="mb-10 text-center">
-          <img src="/logoOneSmall.png" alt="One" style={{ height: 28, objectFit: "contain", margin: "0 auto 8px" }} />
+          <img src="/nameLogoTrans.png" alt="One" style={{ height: 28, objectFit: "contain", margin: "0 auto 8px" }} />
           <div className="flex items-center justify-center gap-1.5">
             <p className="text-base text-gray-400" style={{ margin: 0 }}>Understand yourself. Find your One</p>
           </div>
@@ -339,7 +339,7 @@ export default function AuthScreen() {
       {/* Logo + tagline */}
       <div className="mb-16 text-center">
         <div className="mb-2 flex items-center justify-center gap-2">
-          <img src="/logoOneSmall.png" alt="One" style={{ height: 32, objectFit: "contain" }} />
+          <img src="/nameLogoTrans.png" alt="One" style={{ height: 32, objectFit: "contain" }} />
         </div>
         <p className="text-base text-gray-400">Understand yourself. Find your One</p>
       </div>

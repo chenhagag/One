@@ -48,7 +48,7 @@ export default function ConsentScreen({ user, onComplete }: ConsentScreenProps) 
       <div style={{ maxWidth: 520, width: "100%", textAlign: "right" }} dir="rtl">
         {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: 20 }}>
-          <img src="/ScatchLogo.png" alt="" style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", marginBottom: 10 }} />
+          <img src="/roundLogo.png" alt="" style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", marginBottom: 10 }} />
           <h1 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", margin: "0 0 4px" }}>
             לפני שמתחילים
           </h1>

@@ -56,14 +56,20 @@ export default function PWAInstallFlow({ userName, gender, testUserType, onCompl
     // Android / Chrome: capture beforeinstallprompt
     // Check if already captured globally (event may fire before React mounts)
     const w = window as any;
-    if (w.__pwaInstallPrompt) {
-      promptRef.current = w.__pwaInstallPrompt;
-      setDeferredPrompt(w.__pwaInstallPrompt);
-    }
+    const grabPrompt = () => {
+      if (w.__pwaInstallPrompt && !promptRef.current) {
+        promptRef.current = w.__pwaInstallPrompt;
+        setDeferredPrompt(w.__pwaInstallPrompt);
+      }
+    };
+    grabPrompt();
+    // Retry after short delay in case event fires between page load and mount
+    const retryTimer = setTimeout(grabPrompt, 500);
     const handler = (e: Event) => {
       e.preventDefault();
       promptRef.current = e;
       setDeferredPrompt(e);
+      w.__pwaInstallPrompt = e;
     };
     window.addEventListener("beforeinstallprompt", handler);
 
@@ -75,7 +81,7 @@ export default function PWAInstallFlow({ userName, gender, testUserType, onCompl
     // Fade in
     requestAnimationFrame(() => setFadeIn(true));
 
-    return () => window.removeEventListener("beforeinstallprompt", handler);
+    return () => { clearTimeout(retryTimer); window.removeEventListener("beforeinstallprompt", handler); };
   }, []);
 
   // Android install handler
@@ -103,7 +109,7 @@ export default function PWAInstallFlow({ userName, gender, testUserType, onCompl
         opacity: fadeIn ? 1 : 0, transition: "opacity 0.6s ease",
       }}>
         <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <img src="/ScatchLogo.png" alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", marginBottom: 12, display: "block", margin: "0 auto 12px" }} />
+          <img src="/roundLogo.png" alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", marginBottom: 12, display: "block", margin: "0 auto 12px" }} />
           <h2 style={{ fontSize: 26, fontWeight: 700, color: "#1a1a2e", marginBottom: 0 }}>
             {userName ? `${userName}, ` : ""}{isFemale ? "ברוכה הבאה" : "ברוכים הבאים"} ל-One
           </h2>
@@ -153,7 +159,7 @@ export default function PWAInstallFlow({ userName, gender, testUserType, onCompl
     return (
       <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 24px)" }}>
         <div style={{ maxWidth: 360, width: "100%", textAlign: "center", direction: "rtl" }}>
-          <img src="/ScatchLogo.png" alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", marginBottom: 16 }} />
+          <img src="/roundLogo.png" alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", marginBottom: 16 }} />
           <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", margin: "0 0 8px" }}>התקינו את One</h2>
           <p style={{ fontSize: 14, color: "#888", margin: "0 0 24px", lineHeight: 1.6 }}>
             כדי להתקין את האפליקציה, יש לפתוח את הלינק בדפדפן הרגיל של הטלפון
@@ -204,7 +210,7 @@ export default function PWAInstallFlow({ userName, gender, testUserType, onCompl
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 24px)" }}>
       <div style={{ maxWidth: 360, width: "100%", textAlign: "center", direction: "rtl" }}>
-        <img src="/ScatchLogo.png" alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", marginBottom: 16 }} />
+        <img src="/roundLogo.png" alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", marginBottom: 16 }} />
         <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", margin: "0 0 8px" }}>
           {userName ? `${userName}, ` : ""}{isFemale ? "ברוכה הבאה" : "ברוכים הבאים"} ל-One
         </h2>

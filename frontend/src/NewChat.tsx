@@ -453,7 +453,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
       {/* Sidebar */}
       <div className={`nc-sidebar${menuOpen ? " open" : ""}`} style={styles.sidebar}>
         <div style={styles.logo}>
-          <img src="/ScatchLogo.png" alt="" style={styles.logoIcon} />
+          <img src="/roundLogo.png" alt="" style={styles.logoIcon} />
           <span style={styles.logoText}>One</span>
         </div>
 
@@ -541,14 +541,14 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             {!menuOpen && <span style={{ position: "absolute", top: 2, left: 2, width: 7, height: 7, borderRadius: "50%", background: "#6366f1" }} />}
           </button>
           <span style={{ ...styles.headerTitle, flex: 1 }}>
-            {screen === "home" ? <img src="/logoOneSmall.png" alt="One" style={{ height: 16, objectFit: "contain", display: "block" }} /> :
+            {screen === "home" ? <img src="/nameLogoTrans.png" alt="One" style={{ height: 16, objectFit: "contain", display: "block" }} /> :
              screen === "chat" ? (channel === "new_chat" ? "שיחת היכרות" : channel === "new_chat_cognitive" ? "סגנון חשיבה" : channel === "new_chat_taste" ? "בדיקת טעם" : channel === "qa_about_me" ? "מה למדת עליי" : channel === "qa_system" ? "איך המערכת עובדת" : channel === "qa_general" ? "שאלות ותשובות" : channel === "qa_insights" ? "דיון על התובנות" : "שיחה") :
              screen === "profile_edit" ? "הפרטים שלי" :
              screen === "insights" ? "תובנות על עצמי" :
              screen === "couple_insights" ? "כרטיס התאמה" :
              screen === "how_it_works" ? "איך המערכת עובדת?" :
              screen === "bug_report" ? "עזרו לנו להשתפר" :
-             screen === "settings" ? "הגדרות" : <img src="/logoOneSmall.png" alt="One" style={{ height: 16, objectFit: "contain", display: "block" }} />}
+             screen === "settings" ? "הגדרות" : <img src="/nameLogoTrans.png" alt="One" style={{ height: 16, objectFit: "contain", display: "block" }} />}
           </span>
           {/* Mobile user avatar + logout dropdown */}
           <div className="nc-menu-btn" style={{ position: "relative" }}>
@@ -703,7 +703,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 const allChatsCompleted = closedChannels["new_chat"] && recommendations.has_cognitive && recommendations.has_taste_info;
                 return (
                   <div style={styles.welcomeBlock}>
-                    <img src="/ScatchLogo.png" alt="" style={styles.welcomeIcon} />
+                    <img src="/roundLogo.png" alt="" style={styles.welcomeIcon} />
                     <h2 style={styles.welcomeTitle}>ברוכים הבאים ל-One</h2>
                     <p style={styles.welcomeText}>
                       העוזר האישי שלך למציאת התאמה מדויקת ומשמעותית.
@@ -726,7 +726,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 <>
                   {messages.map((msg, i) => (
                     <div key={i} style={msg.role === "user" ? styles.userMsgRow : styles.assistantMsgRow}>
-                      {msg.role === "assistant" && <img src="/ScatchLogo.png" alt="" style={styles.assistantIcon} />}
+                      {msg.role === "assistant" && <img src="/roundLogo.png" alt="" style={styles.assistantIcon} />}
                       <div style={msg.role === "user" ? styles.userBubble : styles.assistantBubble}>
                         {msg.content}
                       </div>
@@ -735,7 +735,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
                   {sending && (
                     <div style={styles.assistantMsgRow}>
-                      <img src="/ScatchLogo.png" alt="" style={styles.assistantIcon} />
+                      <img src="/roundLogo.png" alt="" style={styles.assistantIcon} />
                       <div style={{ ...styles.assistantBubble, display: "flex", alignItems: "center", gap: 4, padding: "14px 20px" }}>
                         <span className="nc-typing-dot" style={{ ...styles.typingDot, animationDelay: "0s" }} />
                         <span className="nc-typing-dot" style={{ ...styles.typingDot, animationDelay: "0.2s" }} />
