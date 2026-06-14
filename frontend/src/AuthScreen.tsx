@@ -108,7 +108,7 @@ export default function AuthScreen() {
         minHeight: "100dvh",
         display: "flex",
         flexDirection: "column",
-        background: "linear-gradient(to bottom, #e8e4e0 0%, #f2efec 30%, #fff 60%)",
+        background: "linear-gradient(to bottom, #e8e4e0 0%, #f0ece8 40%, #f7f5f3 70%, #fff 100%)",
       }}>
         {/* Cover image — fades softly into warm gray */}
         <div style={{
