@@ -1,6 +1,6 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-06-12–15 (UI Redesign + Branding + Landing Page + In-App Browser)
+## Latest Session: 2026-06-12–15 (UI Redesign + Branding + Landing Page + In-App Browser + Dark Mode Tracking)
 
 ### Deployment
 - All changes pushed to both main (production) and staging
@@ -8,10 +8,9 @@
 ### What We Did
 
 #### 1. New Branding — Logo & Icons
-- **New logos**: ScatchLogo (round heart), logoOneSmall (name logo), roundLogo — replaced old heartIcon everywhere
-- **Custom-designed icons** replace all emoji icons (sidebar, chat buttons, Q&A bubbles, insight cards, feedback categories)
-- **Transparent icons** (RGBA) for all custom icons — work on any background
-- **Dark mode support**: icons wrapped in dark circle (`#2a2a3e`) in dark mode, transparent in light mode
+- **New logos**: roundLogo (round heart), nameLogoTrans (name logo with transparency) — replaced old heartIcon everywhere
+- **Custom-designed icons** replace all emoji icons (sidebar, chat buttons, Q&A bubbles, insight cards)
+- **All icons are transparent (RGBA)** — verified with color type byte check
 - **PWA app icon**: replaced with logoRound (icon-192/512), apple-touch-icon updated
 - **manifest.json**: theme_color updated to lilac (`#8b7ba8`)
 
@@ -19,52 +18,80 @@
 - **Completed channel badges**: green → lilac (`#8b7ba8`)
 - **User chat bubble**: indigo → lilac (`#8b7ba8`)
 - **Recommendation/system message backgrounds**: blue-tinted → soft purple (`#f5f0fb`)
-- **Sidebar & button backgrounds**: white → cream (`#FCF8F5`)
-- **Header**: shows logoOneSmall instead of "One" text
+- **Dashboard card ("מה למדנו עליך")**: background → cream (`#FCF8F5`)
+- **Header**: shows nameLogoTrans instead of "One" text
 - **Recommendation border**: indigo → lilac (`#8b7ba8`)
 
 #### 3. Landing Page (Pre-Auth)
 - **New welcome screen** with cover image (black & white couple on beach)
-- Cover image fades via gradient into warm gray background (`#e8e4e0 → #fff`)
+- Cover image fades via gradient into warm gray background (`#e8e4e0 → #f7f5f3 → #fff`)
 - Logo + "ברוכים הבאים ל-One" + 6 numbered onboarding steps with lilac badges
+- Onboarding text matches exact copy from instructions file
 - "בהצלחה, צוות One" + CTA button
 - Tagline: "One who truly fits"
+- **Auth loop fix**: sessionStorage tracks seen_landing and seen_pwa to prevent loops after Google OAuth redirect
 
 #### 4. Screen Redesigns
 - **ProfileSetup**: logo at top, card sections with lilac borders/shadows, lilac checkboxes, notifications section with lavender background
 - **ConsentScreen**: logo at top, card layout with lilac borders, lilac links/checkboxes
 - **PWAInstallFlow**: redesigned for all scenarios:
   - **In-app browser** (Instagram/Facebook): dark card with "Open in external browser" instructions
-  - **Samsung Internet**: step-by-step install instructions (☰ → Add page to → Home screen)
+  - **Samsung Internet**: step-by-step install instructions (☰ → Add page to → Home screen) with numbered lilac badges
   - **iOS Safari**: share → Add to Home Screen instructions
-  - **Chrome Android**: native install button
+  - **Chrome Android**: native install button with retry timer (500ms/1.5s/3s)
   - Skip button is subtle text link to encourage installation
+  - PWA install shown before auth for all mobile users
 - **Auth screen**: padding fix for logo clipping, in-app browser tip at bottom
 
 #### 5. In-App Browser Handling
 - Detection: `FBAN|FBAV|Instagram|LinkedInApp|Line` in user agent
 - Auth screen shows tip: "לחצו על ⋯ → Open in external browser"
-- Device-specific instructions (unified for iOS/Android in Instagram)
+- Unified instructions for iOS/Android in Instagram
 
-#### 6. Text Changes
+#### 6. Dark Mode
+- Explored dark mode icon wrapping (cream circles in dark, transparent in light) — **removed** because the app doesn't have full dark mode support yet
+- **Dark mode tracking added**: `dark_mode` boolean column in users table, sent via `getDeviceInfo()` on auth/sync, visible in admin with 🌙 badge
+
+#### 7. Text Changes
 - "מה ה-AI למד עליך?" → "מה למדנו עליך" (insight drip feed title)
 - Tagline: "Find your one perfect match" → "One who truly fits"
+- PWA subtitle: custom text about adding to home screen before app stores
 
 ### Files Modified
-- `frontend/src/NewChat.tsx` — icons, colors, dark mode wrapper, drip feed title
-- `frontend/src/AuthScreen.tsx` — landing page, logos, in-app browser handling, tagline
-- `frontend/src/PWAInstallFlow.tsx` — redesigned install screens, in-app browser detection
+- `frontend/src/NewChat.tsx` — icons, colors, drip feed title, dashboard card bg
+- `frontend/src/AuthScreen.tsx` — landing page, logos, in-app browser, tagline, auth loop fix
+- `frontend/src/PWAInstallFlow.tsx` — redesigned install screens, in-app browser detection, Samsung instructions
 - `frontend/src/ProfileSetup.tsx` — card layout, lilac accents
 - `frontend/src/ConsentScreen.tsx` — logo, card layout, lilac accents
-- `frontend/src/Insights.tsx` — completed badge color
+- `frontend/src/App.tsx` — dark_mode in getDeviceInfo
+- `frontend/src/AdminView.tsx` — dark mode 🌙 badge
 - `frontend/index.html` — apple-touch-icon updated
 - `frontend/public/manifest.json` — theme_color updated
+- `backend/src/index.ts` — dark_mode stored on auth/sync
+- `backend/src/schema.pg.ts` — dark_mode column migration
 
 ### Files Created
-- `frontend/public/icons/` — 17 custom transparent icons
+- `frontend/public/icons/` — 17 custom transparent (RGBA) icons
 - `frontend/public/icons/sidebar/` — cream-background icon versions
-- `frontend/public/roundLogo.png`, `nameLogoTrans.png`, `ScatchLogo.png`, `coverMainScreen.png`
+- `frontend/public/roundLogo.png`, `nameLogoTrans.png`, `coverMainScreen.png`
 - `frontend/public/logoRound.png`, `icon-192.png`, `icon-512.png` (PWA icons)
+
+### DB Changes
+- `users.dark_mode BOOLEAN DEFAULT FALSE` — tracks user's dark mode preference
+
+### Key Decisions
+- Dark mode icon wrapping removed — needs full app dark mode support first
+- Landing/PWA screens use sessionStorage to prevent auth redirect loops
+- PWA install shown before auth (not after) for all mobile users
+- Samsung Internet gets manual install instructions (no beforeinstallprompt support)
+- All icons truly transparent (RGBA verified) — no cream/white background baked in
+
+### Next Up: Capacitor Native App
+- Plan ready for wrapping the web app with Capacitor for Android + iOS
+- Capacitor dependencies installed (`@capacitor/core`, `@capacitor/cli`, `@capacitor/app`, `@capacitor/browser`, etc.)
+- Still need: `npx cap init`, platform setup, OAuth deep links, API base URL for native, CORS, Supabase redirect URL config
+- iOS builds require macOS — Android can be done on Windows
+- Continue in a new session
 
 ---
 
