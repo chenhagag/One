@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getApiBaseUrl } from "./platform";
 
 // ── Token persistence (our own localStorage keys) ──────────────
 // Safari ITP can block Supabase's internal storage on its third-party
@@ -84,5 +85,5 @@ export async function apiFetch(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  return fetch(`/api${path}`, { ...options, headers });
+  return fetch(`${getApiBaseUrl()}/api${path}`, { ...options, headers });
 }

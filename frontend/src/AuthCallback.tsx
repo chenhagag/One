@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase";
 import { saveSupabaseTokens } from "./lib/api";
+import { getApiBaseUrl } from "./lib/platform";
 import type { User } from "./App";
 
 interface AuthCallbackProps {
@@ -72,7 +73,7 @@ export default function AuthCallback({ onSuccess, onError }: AuthCallbackProps) 
           else if (/android/i.test(ua)) device = "android";
           return { device, pwa_installed: isStandalone };
         })();
-        const res = await fetch("/auth/sync", {
+        const res = await fetch(`${getApiBaseUrl()}/auth/sync`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -109,7 +110,7 @@ export default function AuthCallback({ onSuccess, onError }: AuthCallbackProps) 
       if (code) {
         setStatus("Verifying your identity...");
         try {
-          const res = await fetch("/auth/exchange-code", {
+          const res = await fetch(`${getApiBaseUrl()}/auth/exchange-code`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ code }),
@@ -182,7 +183,7 @@ export default function AuthCallback({ onSuccess, onError }: AuthCallbackProps) 
 
     setResending(true);
     try {
-      const res = await fetch("/auth/magic-link", {
+      const res = await fetch(`${getApiBaseUrl()}/auth/magic-link`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: trimmed, redirectTo: `${window.location.origin}/auth/callback` }),

@@ -1,12 +1,18 @@
 import { useState } from "react";
 import { supabase } from "./lib/supabase";
+import { isNativeApp, getOAuthRedirectUrl, getApiBaseUrl } from "./lib/platform";
+import { Browser } from "@capacitor/browser";
 import PWAInstallFlow from "./PWAInstallFlow";
 
 export default function AuthScreen() {
   const [loading, setLoading] = useState<"google" | "apple" | null>(null);
   const [error, setError] = useState("");
-  const [showLanding, setShowLanding] = useState(() => !sessionStorage.getItem("one_seen_landing"));
+  const [showLanding, setShowLanding] = useState(() => {
+    if (isNativeApp()) return false; // Native app skips landing
+    return !sessionStorage.getItem("one_seen_landing");
+  });
   const [showPWAInstall, setShowPWAInstall] = useState(() => {
+    if (isNativeApp()) return false; // Native app doesn't need PWA install
     const seenLanding = sessionStorage.getItem("one_seen_landing");
     const seenPWA = sessionStorage.getItem("one_seen_pwa");
     // Show PWA only if landing was seen but PWA wasn't, and on mobile non-standalone
@@ -35,7 +41,7 @@ export default function AuthScreen() {
     try {
       if (!supabase) { setError("OAuth not configured"); setLoading(null); return; }
 
-      const redirectTo = `${window.location.origin}/auth/callback`;
+      const redirectTo = getOAuthRedirectUrl();
 
       const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
@@ -52,7 +58,13 @@ export default function AuthScreen() {
       }
 
       if (data?.url) {
-        window.location.href = data.url;
+        if (isNativeApp()) {
+          // Native: open OAuth in system browser, deep link brings user back
+          await Browser.open({ url: data.url });
+          setLoading(null);
+        } else {
+          window.location.href = data.url;
+        }
       } else {
         setError("Could not get sign-in URL. Please try email login.");
         setLoading(null);
@@ -87,10 +99,10 @@ export default function AuthScreen() {
 
     try {
       // Send magic link via our backend (bypasses Safari ITP blocking Supabase)
-      const res = await fetch("/auth/magic-link", {
+      const res = await fetch(`${getApiBaseUrl()}/auth/magic-link`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmed, redirectTo: `${window.location.origin}/auth/callback` }),
+        body: JSON.stringify({ email: trimmed, redirectTo: getOAuthRedirectUrl() }),
       });
 
       const data = await res.json();

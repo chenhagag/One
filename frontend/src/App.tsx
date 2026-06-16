@@ -12,6 +12,8 @@ import ProfileSetup from "./ProfileSetup";
 import ConsentScreen from "./ConsentScreen";
 import { supabase } from "./lib/supabase";
 import { saveSupabaseTokens, clearSupabaseTokens } from "./lib/api";
+import { isNativeApp, getApiBaseUrl } from "./lib/platform";
+import { App as CapApp } from "@capacitor/app";
 
 type View =
   | "landing"
@@ -199,7 +201,7 @@ export default function App() {
             // Persist tokens in our own storage (Safari ITP resilience)
             saveSupabaseTokens(session.access_token, session.refresh_token);
             try {
-              const res = await fetch("/auth/sync", {
+              const res = await fetch(`${getApiBaseUrl()}/auth/sync`, {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
@@ -236,7 +238,7 @@ export default function App() {
       const saved = getSavedSession();
       if (saved) {
         try {
-          const res = await fetch("/api/login", {
+          const res = await fetch(`${getApiBaseUrl()}/api/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email: saved.email }),
@@ -274,8 +276,25 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // ── Deep link listener for native OAuth callback ──
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    const listener = CapApp.addListener("appUrlOpen", ({ url }) => {
+      // Handle OAuth callback deep link
+      if (url.includes("/auth/callback")) {
+        const urlObj = new URL(url);
+        // Pass the full URL to auth callback handler
+        window.location.hash = urlObj.hash || "";
+        window.location.search = urlObj.search || "";
+        setView("auth_callback");
+      }
+    });
+    return () => { listener.then(l => l.remove()); };
+  }, []);
+
   // Check if should show PWA install (mobile + not standalone)
   function shouldShowPWAInstall(): boolean {
+    if (isNativeApp()) return false;
     const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
     const isStandalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
     return isMobile && !isStandalone;
