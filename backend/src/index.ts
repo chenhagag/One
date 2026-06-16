@@ -24,6 +24,7 @@ import { getDetailedUserProfile } from "./safeOutputLayer";
 import { shouldSummarize, getUserSummary, runSummarization } from "./agents/conversation/summarizer";
 import { maybeAutoAnalyze, maybeAutoAnalyzeAfterChat, maybeAutoAnalyzeAfterAll } from "./agents/conversation/autoAnalysis";
 import OpenAI from "openai";
+import { Resend } from "resend";
 import { trackTokens } from "./tokenTracker";
 import { requireAuth, optionalAuth } from "./auth";
 
@@ -31,6 +32,9 @@ dotenv.config();
 
 // Single OpenAI client instance — reused across all requests
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// Resend email client (for admin emails + future notifications)
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -2030,6 +2034,41 @@ app.get("/admin/users/:id/waiting", async (req, res) => {
     is_waiting: user.waiting_since !== null,
     user_status: user.user_status,
   });
+});
+
+// POST /admin/users/:id/send-email — Send a custom email to a user
+app.post("/admin/users/:id/send-email", async (req, res) => {
+  if (!resend) return res.status(500).json({ error: "Email service not configured (missing RESEND_API_KEY)" });
+
+  const userId = parseInt(req.params.id, 10);
+  const { subject, html } = req.body;
+
+  if (!subject?.trim()) return res.status(400).json({ error: "subject is required" });
+  if (!html?.trim()) return res.status(400).json({ error: "html body is required" });
+
+  const user = await pgQueryOne<any>("SELECT id, first_name, email FROM users WHERE id = $1", [userId]);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  if (!user.email) return res.status(400).json({ error: "User has no email address" });
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: "One <noreply@joinone.io>",
+      to: user.email,
+      subject: subject.trim(),
+      html: html.trim(),
+    });
+
+    if (error) {
+      console.error(`[email] Failed to send to user ${userId}:`, error);
+      return res.status(500).json({ error: error.message || "Failed to send email" });
+    }
+
+    console.log(`[email] Sent to user ${userId} (${user.email}), subject: "${subject}", resend_id: ${data?.id}`);
+    return res.json({ success: true, resend_id: data?.id });
+  } catch (err: any) {
+    console.error(`[email] Error sending to user ${userId}:`, err.message);
+    return res.status(500).json({ error: err.message || "Failed to send email" });
+  }
 });
 
 // Keep old GET /users for backward compatibility

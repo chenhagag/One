@@ -1,6 +1,55 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-06-12–15 (UI Redesign + Branding + Landing Page + In-App Browser + Dark Mode Tracking)
+## Latest Session: 2026-06-15 (Capacitor Native App Setup)
+
+### What We Did
+
+#### Capacitor Initialization
+- Upgraded `@capacitor/cli` from v6 to v8 (to match `@capacitor/core` v8)
+- Switched Node to v22.14.0 (required by Capacitor CLI v8)
+- Ran `npx cap init "One" "io.joinone.app" --web-dir dist`
+- Installed `@capacitor/android` and ran `npx cap add android`
+- Configured `capacitor.config.ts`: `androidScheme: 'https'`, `iosScheme: 'https'`, SplashScreen settings
+
+#### Platform Detection & Native API Support
+- Created `frontend/src/lib/platform.ts`:
+  - `isNativeApp()` — detects Capacitor native shell
+  - `getApiBaseUrl()` — returns `https://joinone.io` for native, `''` for web
+  - `getOAuthRedirectUrl()` — returns appropriate redirect URL per platform
+- Updated `api.ts` — `apiFetch()` now prefixes base URL for native (relative paths don't work in WebView)
+- Updated `AuthCallback.tsx` — all `/auth/*` fetch calls use `getApiBaseUrl()`
+- Updated `App.tsx` — `/auth/sync` and `/api/login` calls use `getApiBaseUrl()`
+
+#### Native OAuth Flow
+- `AuthScreen.tsx`:
+  - OAuth opens via `@capacitor/browser` (system browser) on native instead of `window.location.href`
+  - Landing page and PWA install screens skipped when `isNativeApp()`
+- `App.tsx`:
+  - Added `appUrlOpen` deep link listener (via `@capacitor/app`) to catch OAuth callback
+  - `shouldShowPWAInstall()` returns `false` for native
+
+#### Android Configuration
+- `AndroidManifest.xml`: Added intent-filter for `https://joinone.io/auth/callback` deep link with `autoVerify="true"`
+
+### Build Status
+- Frontend builds successfully, `npx cap sync android` completed
+- Android project at `frontend/android/`
+
+### Next Steps (To Resume Later)
+1. **Android Studio** — `npx cap open android` → test on emulator/real device
+2. **App icons** — Generate platform-specific sizes from logo, replace defaults in `android/app/src/main/res/mipmap-*`
+3. **Supabase Dashboard** — Add `https://joinone.io/auth/callback?source=capacitor` to allowed redirect URLs
+4. **assetlinks.json** — Upload to `joinone.io/.well-known/assetlinks.json` for Android deep link verification (needs SHA-256 fingerprint from signing key)
+5. **Signing key** — Generate release keystore for Google Play
+6. **iOS** — `npx cap add ios` (requires macOS for build/test)
+7. **Status bar** — Configure `@capacitor/status-bar` styling (color, overlay)
+8. **Splash screen** — Design and add splash screen assets
+9. **Test full flow** — Auth → chat → sidebar → insights on native
+10. **Google Play** — Build signed APK/AAB, upload to Play Console (plan already documented)
+
+---
+
+## Previous Session: 2026-06-12–15 (UI Redesign + Branding + Landing Page + In-App Browser + Dark Mode Tracking)
 
 ### Deployment
 - All changes pushed to both main (production) and staging

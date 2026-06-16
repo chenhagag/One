@@ -589,6 +589,13 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   const [analysisStatus, setAnalysisStatus] = useState<{ run_count: number; runs: { id: number; label: string; date: string }[]; messages_since_last: number } | null>(null);
   const [savingLookTraits, setSavingLookTraits] = useState(false);
   const [lookTraitsSaved, setLookTraitsSaved] = useState(false);
+  const [showEmailComposer, setShowEmailComposer] = useState(false);
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailHtml, setEmailHtml] = useState("");
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailPreview, setEmailPreview] = useState(false);
 
   function loadMatches() {
     fetch(`/api/admin/users/${userId}/matches`)
@@ -641,6 +648,31 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
       .then(setData)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
+  }
+
+  async function handleSendEmail() {
+    if (!emailSubject.trim() || !emailHtml.trim()) return;
+    setSendingEmail(true);
+    setEmailError(null);
+    setEmailSent(false);
+    try {
+      const r = await fetch(`/api/admin/users/${userId}/send-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subject: emailSubject, html: emailHtml }),
+      });
+      const json = await r.json();
+      if (!r.ok) {
+        setEmailError(json.error || "Failed to send");
+      } else {
+        setEmailSent(true);
+        setTimeout(() => setEmailSent(false), 3000);
+      }
+    } catch (err: any) {
+      setEmailError(err.message || "Network error");
+    } finally {
+      setSendingEmail(false);
+    }
   }
 
   async function handleReanalyze() {
@@ -1575,12 +1607,65 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
             >
               {runningCognitiveTest ? "Running..." : "Cognitive Test"}
             </button>
+            <button
+              style={{ padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#0ea5e9", color: "#fff", border: "none", borderRadius: 4 }}
+              onClick={() => { setShowEmailComposer(!showEmailComposer); setEmailSent(false); setEmailError(null); }}
+            >
+              {showEmailComposer ? "Close Email" : "Send Email"}
+            </button>
             {traits.length === 0 && lookTraits.length === 0 && (
               <span style={{ fontSize: 12, color: "#856404", background: "#fff3cd", padding: "4px 10px", borderRadius: 4 }}>
                 No trait data — click Re-analyze to generate
               </span>
             )}
           </div>
+
+          {/* Email Composer */}
+          {showEmailComposer && (
+            <div style={{ marginBottom: 16, padding: 16, border: "1px solid #e2e8f0", borderRadius: 8, background: "#f8fafc" }}>
+              <div style={{ marginBottom: 8 }}>
+                <span style={{ fontSize: 12, color: "#64748b" }}>To: {data?.user?.email || "—"}</span>
+              </div>
+              <input
+                type="text"
+                placeholder="Subject"
+                value={emailSubject}
+                onChange={e => setEmailSubject(e.target.value)}
+                style={{ width: "100%", padding: "8px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6, marginBottom: 8, boxSizing: "border-box" }}
+              />
+              <div style={{ display: "flex", gap: 4, marginBottom: 6, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 11, color: "#94a3b8" }}>HTML supported — use tags for formatting</span>
+                <button
+                  style={{ fontSize: 11, color: "#0ea5e9", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+                  onClick={() => setEmailPreview(!emailPreview)}
+                >{emailPreview ? "Edit" : "Preview"}</button>
+              </div>
+              {emailPreview ? (
+                <div
+                  style={{ width: "100%", minHeight: 200, padding: 12, fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", boxSizing: "border-box", overflow: "auto" }}
+                  dangerouslySetInnerHTML={{ __html: emailHtml }}
+                />
+              ) : (
+                <textarea
+                  placeholder="Email body (HTML)&#10;&#10;Example:&#10;<h2>שלום {name}!</h2>&#10;<p>הודעה חשובה מצוות One</p>&#10;<img src=&quot;https://...&quot; width=&quot;200&quot; />"
+                  value={emailHtml}
+                  onChange={e => setEmailHtml(e.target.value)}
+                  style={{ width: "100%", minHeight: 200, padding: "8px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6, fontFamily: "monospace", resize: "vertical", boxSizing: "border-box" }}
+                />
+              )}
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
+                <button
+                  onClick={handleSendEmail}
+                  disabled={sendingEmail || !emailSubject.trim() || !emailHtml.trim()}
+                  style={{ padding: "6px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", background: sendingEmail ? "#94a3b8" : "#0ea5e9", color: "#fff", border: "none", borderRadius: 6, opacity: (!emailSubject.trim() || !emailHtml.trim()) ? 0.5 : 1 }}
+                >
+                  {sendingEmail ? "Sending..." : "Send"}
+                </button>
+                {emailSent && <span style={{ fontSize: 12, color: "#16a34a", fontWeight: 600 }}>Sent successfully!</span>}
+                {emailError && <span style={{ fontSize: 12, color: "#dc2626" }}>{emailError}</span>}
+              </div>
+            </div>
+          )}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 12 }}>
             <span style={{ fontSize: 11, color: "#888", alignSelf: "center", marginRight: 4 }}>Run single group:</span>
             {[

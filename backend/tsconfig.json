@@ -6,6 +6,7 @@
     "rootDir": "./src",
     "strict": false,
     "esModuleInterop": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "skipLibCheck": true
   }
 }
