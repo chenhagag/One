@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 
 /**
  * Admin View — Multi-table data explorer
@@ -3231,6 +3231,9 @@ function parseFeedbackCategory(text: string): { category: string | null; body: s
 function AnalyticsTab() {
   const [stats, setStats] = useState<{ byPage: any[]; byDay: any[] } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [expandedPage, setExpandedPage] = useState<string | null>(null);
+  const [pageDetail, setPageDetail] = useState<{ page: string; visits: any[] } | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/page-views/stats")
@@ -3239,6 +3242,20 @@ function AnalyticsTab() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  function togglePageDetail(page: string) {
+    if (expandedPage === page) {
+      setExpandedPage(null);
+      return;
+    }
+    setExpandedPage(page);
+    setDetailLoading(true);
+    fetch(`/api/admin/page-views/detail/${encodeURIComponent(page)}`)
+      .then(r => r.json())
+      .then(setPageDetail)
+      .catch(() => {})
+      .finally(() => setDetailLoading(false));
+  }
 
   if (loading) return <div>Loading analytics...</div>;
   if (!stats) return <div>Failed to load analytics</div>;
@@ -3252,7 +3269,7 @@ function AnalyticsTab() {
       {stats.byPage.length === 0 ? (
         <p style={{ color: "#94a3b8", fontSize: 13 }}>No data yet — views will appear once users start using the app</p>
       ) : (
-        <table style={{ borderCollapse: "collapse", marginBottom: 24, fontSize: 13 }}>
+        <table style={{ borderCollapse: "collapse", marginBottom: 24, fontSize: 13, width: "100%", maxWidth: 600 }}>
           <thead>
             <tr>
               <th style={{ textAlign: "left", padding: "6px 16px 6px 0", borderBottom: "1px solid #e2e8f0", fontWeight: 600 }}>Page</th>
@@ -3262,11 +3279,42 @@ function AnalyticsTab() {
           </thead>
           <tbody>
             {stats.byPage.map((p: any) => (
-              <tr key={p.page}>
-                <td style={{ padding: "4px 16px 4px 0", borderBottom: "1px solid #f1f5f9" }}>{p.page}</td>
-                <td style={{ padding: "4px 16px 4px 0", borderBottom: "1px solid #f1f5f9", textAlign: "right" }}>{p.views}</td>
-                <td style={{ padding: "4px 0", borderBottom: "1px solid #f1f5f9", textAlign: "right" }}>{p.unique_users}</td>
-              </tr>
+              <Fragment key={p.page}>
+                <tr
+                  style={{ cursor: "pointer", background: expandedPage === p.page ? "#f0f9ff" : undefined }}
+                  onClick={() => togglePageDetail(p.page)}
+                >
+                  <td style={{ padding: "4px 16px 4px 0", borderBottom: "1px solid #f1f5f9" }}>
+                    <span style={{ color: "#0ea5e9", marginRight: 4, fontSize: 10 }}>{expandedPage === p.page ? "▼" : "▶"}</span>
+                    {p.page}
+                  </td>
+                  <td style={{ padding: "4px 16px 4px 0", borderBottom: "1px solid #f1f5f9", textAlign: "right" }}>{p.views}</td>
+                  <td style={{ padding: "4px 0", borderBottom: "1px solid #f1f5f9", textAlign: "right" }}>{p.unique_users}</td>
+                </tr>
+                {expandedPage === p.page && (
+                  <tr>
+                    <td colSpan={3} style={{ padding: "8px 0 8px 20px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
+                      {detailLoading ? (
+                        <span style={{ color: "#94a3b8", fontSize: 12 }}>Loading...</span>
+                      ) : pageDetail && pageDetail.page === p.page ? (
+                        pageDetail.visits.length === 0 ? (
+                          <span style={{ color: "#94a3b8", fontSize: 12 }}>No visits</span>
+                        ) : (
+                          <div style={{ maxHeight: 200, overflow: "auto" }}>
+                            {pageDetail.visits.map((v: any, i: number) => (
+                              <div key={i} style={{ fontSize: 12, color: "#475569", padding: "2px 0", display: "flex", gap: 8 }}>
+                                <span style={{ color: "#94a3b8", minWidth: 130 }}>{new Date(v.viewed_at).toLocaleString("he-IL")}</span>
+                                <span style={{ fontWeight: 500 }}>{v.first_name || "—"}</span>
+                                <span style={{ color: "#94a3b8" }}>{v.email || `user #${v.user_id}`}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      ) : null}
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </tbody>
         </table>

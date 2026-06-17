@@ -2170,6 +2170,21 @@ app.get("/admin/page-views/stats", async (_req, res) => {
   return res.json({ byPage, byDay });
 });
 
+// GET /admin/page-views/detail/:page — Users who visited a specific page
+app.get("/admin/page-views/detail/:page", async (req, res) => {
+  const page = req.params.page;
+  const visits = await pgQueryAll<any>(
+    `SELECT pv.user_id, u.first_name, u.email, pv.viewed_at
+     FROM page_views pv
+     LEFT JOIN users u ON u.id = pv.user_id
+     WHERE pv.page = $1
+     ORDER BY pv.viewed_at DESC
+     LIMIT 200`,
+    [page]
+  );
+  return res.json({ page, visits });
+});
+
 // ════════════════════════════════════════════════════════════════
 // BUG REPORTS
 // ════════════════════════════════════════════════════════════════
