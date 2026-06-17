@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
  * - Matches
  */
 
-type Tab = "overview" | "users" | "profiles" | "traits" | "look_traits" | "enums" | "config" | "matches" | "candidates" | "bugs";
+type Tab = "overview" | "users" | "profiles" | "traits" | "look_traits" | "enums" | "config" | "matches" | "candidates" | "bugs" | "email";
 
 const s: Record<string, React.CSSProperties> = {
   heading: { marginTop: 0, marginBottom: 8, fontSize: 22 },
@@ -331,6 +331,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
           ["candidates", "Candidate Matches"],
           ["matches", "Matched"],
           ["bugs", "משוב ודיווחים"],
+          ["email", "Send Email"],
         ] as [Tab, string][]).map(([key, label]) => (
           <button
             key={key}
@@ -352,6 +353,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
       {tab === "matches" && <MatchesTab />}
       {tab === "candidates" && <CandidateMatchesTab />}
       {tab === "bugs" && <BugReportsTab />}
+      {tab === "email" && <SendEmailTab />}
     </div>
   );
 }
@@ -3180,6 +3182,107 @@ function parseFeedbackCategory(text: string): { category: string | null; body: s
   const match = text.match(/^\[(bug|idea|general|request)\]\s*/);
   if (match) return { category: match[1], body: text.slice(match[0].length) };
   return { category: null, body: text };
+}
+
+function SendEmailTab() {
+  const [to, setTo] = useState("");
+  const [subject, setSubject] = useState("");
+  const [html, setHtml] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState(false);
+  const [sentLog, setSentLog] = useState<{ to: string; subject: string; time: string }[]>([]);
+
+  async function handleSend() {
+    if (!to.trim() || !subject.trim() || !html.trim()) return;
+    setSending(true);
+    setError(null);
+    setSent(false);
+    try {
+      const r = await fetch("/api/admin/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to, subject, html }),
+      });
+      const json = await r.json();
+      if (!r.ok) {
+        setError(json.error || "Failed to send");
+      } else {
+        setSent(true);
+        setSentLog(prev => [{ to, subject, time: new Date().toLocaleTimeString("he-IL") }, ...prev]);
+        setTimeout(() => setSent(false), 3000);
+      }
+    } catch (err: any) {
+      setError(err.message || "Network error");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div>
+      <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Send Email</h3>
+      <div style={{ maxWidth: 600, display: "flex", flexDirection: "column", gap: 10 }}>
+        <input
+          type="email"
+          placeholder="To (email address)"
+          value={to}
+          onChange={e => setTo(e.target.value)}
+          style={{ padding: "8px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6 }}
+        />
+        <input
+          type="text"
+          placeholder="Subject"
+          value={subject}
+          onChange={e => setSubject(e.target.value)}
+          style={{ padding: "8px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6 }}
+        />
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <span style={{ fontSize: 11, color: "#94a3b8" }}>HTML supported</span>
+          <button
+            style={{ fontSize: 11, color: "#0ea5e9", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+            onClick={() => setPreview(!preview)}
+          >{preview ? "Edit" : "Preview"}</button>
+        </div>
+        {preview ? (
+          <div
+            style={{ minHeight: 200, padding: 12, fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", overflow: "auto" }}
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        ) : (
+          <textarea
+            placeholder={"Email body (HTML)\n\nExample:\n<div dir=\"rtl\">\n  <h2>שלום!</h2>\n  <p>הודעה מצוות One</p>\n</div>"}
+            value={html}
+            onChange={e => setHtml(e.target.value)}
+            style={{ minHeight: 200, padding: "8px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6, fontFamily: "monospace", resize: "vertical" }}
+          />
+        )}
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button
+            onClick={handleSend}
+            disabled={sending || !to.trim() || !subject.trim() || !html.trim()}
+            style={{ padding: "8px 24px", fontSize: 13, fontWeight: 600, cursor: "pointer", background: sending ? "#94a3b8" : "#0ea5e9", color: "#fff", border: "none", borderRadius: 6, opacity: (!to.trim() || !subject.trim() || !html.trim()) ? 0.5 : 1 }}
+          >
+            {sending ? "Sending..." : "Send"}
+          </button>
+          {sent && <span style={{ fontSize: 12, color: "#16a34a", fontWeight: 600 }}>Sent!</span>}
+          {error && <span style={{ fontSize: 12, color: "#dc2626" }}>{error}</span>}
+        </div>
+      </div>
+
+      {sentLog.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <h4 style={{ fontSize: 13, fontWeight: 600, color: "#64748b", marginBottom: 8 }}>Sent this session</h4>
+          {sentLog.map((entry, i) => (
+            <div key={i} style={{ fontSize: 12, color: "#94a3b8", marginBottom: 4 }}>
+              {entry.time} — <span style={{ color: "#475569" }}>{entry.to}</span> — {entry.subject}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function BugReportsTab() {

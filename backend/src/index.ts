@@ -2036,6 +2036,37 @@ app.get("/admin/users/:id/waiting", async (req, res) => {
   });
 });
 
+// POST /admin/send-email — Send a custom email to any address
+app.post("/admin/send-email", async (req, res) => {
+  if (!resend) return res.status(500).json({ error: "Email service not configured (missing RESEND_API_KEY)" });
+
+  const { to, subject, html } = req.body;
+
+  if (!to?.trim()) return res.status(400).json({ error: "to is required" });
+  if (!subject?.trim()) return res.status(400).json({ error: "subject is required" });
+  if (!html?.trim()) return res.status(400).json({ error: "html body is required" });
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: "One <noreply@joinone.io>",
+      to: to.trim(),
+      subject: subject.trim(),
+      html: html.trim(),
+    });
+
+    if (error) {
+      console.error(`[email] Failed to send to ${to}:`, error);
+      return res.status(500).json({ error: error.message || "Failed to send email" });
+    }
+
+    console.log(`[email] Sent to ${to}, subject: "${subject}", resend_id: ${data?.id}`);
+    return res.json({ success: true, resend_id: data?.id });
+  } catch (err: any) {
+    console.error(`[email] Error sending to ${to}:`, err.message);
+    return res.status(500).json({ error: err.message || "Failed to send email" });
+  }
+});
+
 // POST /admin/users/:id/send-email — Send a custom email to a user
 app.post("/admin/users/:id/send-email", async (req, res) => {
   if (!resend) return res.status(500).json({ error: "Email service not configured (missing RESEND_API_KEY)" });
