@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
  * - Matches
  */
 
-type Tab = "overview" | "users" | "profiles" | "traits" | "look_traits" | "enums" | "config" | "matches" | "candidates" | "bugs" | "email";
+type Tab = "overview" | "users" | "profiles" | "traits" | "look_traits" | "enums" | "config" | "matches" | "candidates" | "bugs" | "email" | "analytics";
 
 const s: Record<string, React.CSSProperties> = {
   heading: { marginTop: 0, marginBottom: 8, fontSize: 22 },
@@ -331,6 +331,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
           ["candidates", "Candidate Matches"],
           ["matches", "Matched"],
           ["bugs", "משוב ודיווחים"],
+          ["analytics", "Analytics"],
           ["email", "Send Email"],
         ] as [Tab, string][]).map(([key, label]) => (
           <button
@@ -353,6 +354,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
       {tab === "matches" && <MatchesTab />}
       {tab === "candidates" && <CandidateMatchesTab />}
       {tab === "bugs" && <BugReportsTab />}
+      {tab === "analytics" && <AnalyticsTab />}
       {tab === "email" && <SendEmailTab />}
     </div>
   );
@@ -3224,6 +3226,78 @@ function parseFeedbackCategory(text: string): { category: string | null; body: s
   const match = text.match(/^\[(bug|idea|general|request)\]\s*/);
   if (match) return { category: match[1], body: text.slice(match[0].length) };
   return { category: null, body: text };
+}
+
+function AnalyticsTab() {
+  const [stats, setStats] = useState<{ byPage: any[]; byDay: any[] } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/admin/page-views/stats")
+      .then(r => r.json())
+      .then(setStats)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div>Loading analytics...</div>;
+  if (!stats) return <div>Failed to load analytics</div>;
+
+  return (
+    <div>
+      <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Page Analytics</h3>
+
+      {/* Pages table */}
+      <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Pages</h4>
+      {stats.byPage.length === 0 ? (
+        <p style={{ color: "#94a3b8", fontSize: 13 }}>No data yet — views will appear once users start using the app</p>
+      ) : (
+        <table style={{ borderCollapse: "collapse", marginBottom: 24, fontSize: 13 }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: "left", padding: "6px 16px 6px 0", borderBottom: "1px solid #e2e8f0", fontWeight: 600 }}>Page</th>
+              <th style={{ textAlign: "right", padding: "6px 16px 6px 0", borderBottom: "1px solid #e2e8f0", fontWeight: 600 }}>Views</th>
+              <th style={{ textAlign: "right", padding: "6px 0", borderBottom: "1px solid #e2e8f0", fontWeight: 600 }}>Unique Users</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stats.byPage.map((p: any) => (
+              <tr key={p.page}>
+                <td style={{ padding: "4px 16px 4px 0", borderBottom: "1px solid #f1f5f9" }}>{p.page}</td>
+                <td style={{ padding: "4px 16px 4px 0", borderBottom: "1px solid #f1f5f9", textAlign: "right" }}>{p.views}</td>
+                <td style={{ padding: "4px 0", borderBottom: "1px solid #f1f5f9", textAlign: "right" }}>{p.unique_users}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {/* Daily activity */}
+      <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Daily Activity (last 30 days)</h4>
+      {stats.byDay.length === 0 ? (
+        <p style={{ color: "#94a3b8", fontSize: 13 }}>No data yet</p>
+      ) : (
+        <table style={{ borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: "left", padding: "6px 16px 6px 0", borderBottom: "1px solid #e2e8f0", fontWeight: 600 }}>Date</th>
+              <th style={{ textAlign: "right", padding: "6px 16px 6px 0", borderBottom: "1px solid #e2e8f0", fontWeight: 600 }}>Views</th>
+              <th style={{ textAlign: "right", padding: "6px 0", borderBottom: "1px solid #e2e8f0", fontWeight: 600 }}>Unique Users</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stats.byDay.map((d: any) => (
+              <tr key={d.day}>
+                <td style={{ padding: "4px 16px 4px 0", borderBottom: "1px solid #f1f5f9" }}>{new Date(d.day).toLocaleDateString("he-IL")}</td>
+                <td style={{ padding: "4px 16px 4px 0", borderBottom: "1px solid #f1f5f9", textAlign: "right" }}>{d.views}</td>
+                <td style={{ padding: "4px 0", borderBottom: "1px solid #f1f5f9", textAlign: "right" }}>{d.unique_users}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
 }
 
 function SendEmailTab() {
