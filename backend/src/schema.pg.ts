@@ -665,4 +665,17 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS idx_chat_summaries_user ON user_chat_summaries(user_id);
   `);
+
+  // ── Page Views (analytics) ────────────────────────────────────
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS page_views (
+      id          SERIAL PRIMARY KEY,
+      user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      page        VARCHAR(100) NOT NULL,
+      viewed_at   TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_page_views_user ON page_views(user_id);
+    CREATE INDEX IF NOT EXISTS idx_page_views_page ON page_views(page);
+    CREATE INDEX IF NOT EXISTS idx_page_views_time ON page_views(viewed_at);
+  `);
 }

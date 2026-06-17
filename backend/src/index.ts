@@ -2119,6 +2119,58 @@ app.get("/users", async (_req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════
+// PAGE VIEW TRACKING
+// ════════════════════════════════════════════════════════════════
+
+// POST /api/track-page — Log a page view for the current user
+app.post("/api/track-page", optionalAuth, async (req: any, res) => {
+  const { page, user_id } = req.body;
+  if (!page) return res.status(400).json({ error: "page is required" });
+
+  const uid = req.user?.id || user_id || null;
+
+  try {
+    await pgQueryOne(
+      "INSERT INTO page_views (user_id, page) VALUES ($1, $2) RETURNING id",
+      [uid, page.slice(0, 100)]
+    );
+    return res.json({ ok: true });
+  } catch (err: any) {
+    console.error("[track-page] Error:", err.message);
+    return res.status(500).json({ error: "Failed to track" });
+  }
+});
+
+// GET /admin/users/:id/page-views — Page view history for a user
+app.get("/admin/users/:id/page-views", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const views = await pgQueryAll<any>(
+    `SELECT page, viewed_at FROM page_views WHERE user_id = $1 ORDER BY viewed_at DESC LIMIT 200`,
+    [userId]
+  );
+  const summary = await pgQueryAll<any>(
+    `SELECT page, COUNT(*)::int AS count, MAX(viewed_at) AS last_visit
+     FROM page_views WHERE user_id = $1
+     GROUP BY page ORDER BY count DESC`,
+    [userId]
+  );
+  return res.json({ views, summary });
+});
+
+// GET /admin/page-views/stats — Global page view stats
+app.get("/admin/page-views/stats", async (_req, res) => {
+  const byPage = await pgQueryAll<any>(
+    `SELECT page, COUNT(*)::int AS views, COUNT(DISTINCT user_id)::int AS unique_users
+     FROM page_views GROUP BY page ORDER BY views DESC`
+  );
+  const byDay = await pgQueryAll<any>(
+    `SELECT DATE(viewed_at) AS day, COUNT(*)::int AS views, COUNT(DISTINCT user_id)::int AS unique_users
+     FROM page_views GROUP BY DATE(viewed_at) ORDER BY day DESC LIMIT 30`
+  );
+  return res.json({ byPage, byDay });
+});
+
+// ════════════════════════════════════════════════════════════════
 // BUG REPORTS
 // ════════════════════════════════════════════════════════════════
 

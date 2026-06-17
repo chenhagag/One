@@ -591,6 +591,8 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   const [analysisStatus, setAnalysisStatus] = useState<{ run_count: number; runs: { id: number; label: string; date: string }[]; messages_since_last: number } | null>(null);
   const [savingLookTraits, setSavingLookTraits] = useState(false);
   const [lookTraitsSaved, setLookTraitsSaved] = useState(false);
+  const [pageViews, setPageViews] = useState<{ summary: any[]; views: any[] } | null>(null);
+  const [showPageViews, setShowPageViews] = useState(false);
   const [showEmailComposer, setShowEmailComposer] = useState(false);
   const [emailSubject, setEmailSubject] = useState("");
   const [emailHtml, setEmailHtml] = useState("");
@@ -771,6 +773,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
     fetch(`/api/admin/users/${userId}/full-transcript`).then(r => r.json()).then(setTranscript).catch(() => {});
     fetch(`/api/admin/users/${userId}/analysis-run`).then(r => r.json()).then(setAnalysisRun).catch(() => {});
     fetch(`/api/admin/users/${userId}/analysis-status`).then(r => r.json()).then(setAnalysisStatus).catch(() => {});
+    fetch(`/api/admin/users/${userId}/page-views`).then(r => r.json()).then(setPageViews).catch(() => {});
   }, [userId]);
 
   // Navigate to another user's profile from match candidates
@@ -1230,6 +1233,9 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
         <span style={{ ...s.badge, fontSize: 12 }}>age {user.age}</span>
         <span style={{ ...s.badge, fontSize: 12 }}>{user.city}</span>
         {!user.is_real_user && <span style={{ ...s.badge, background: "#e8daef", fontSize: 11 }}>seed user</span>}
+        {user.created_at && <span style={{ ...s.badge, fontSize: 11, background: "#e0f2fe", color: "#0369a1" }}>
+          Joined {new Date(user.created_at).toLocaleDateString("he-IL")} {new Date(user.created_at).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
+        </span>}
       </div>
       <p style={{ ...s.sub, marginBottom: 8 }}>
         Status: <strong>{user.user_status}</strong> |
@@ -1321,6 +1327,42 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
           )}
         </div>
       )}
+
+      {/* Page Views */}
+      <div style={{ background: "#f8f9fa", borderRadius: 8, padding: "10px 16px", marginBottom: 16, fontSize: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => setShowPageViews(!showPageViews)}>
+          <strong>Page Views</strong>
+          {pageViews?.summary && <span style={{ color: "#888" }}>({pageViews.summary.reduce((s: number, p: any) => s + p.count, 0)} total)</span>}
+          <span style={{ color: "#0ea5e9", fontSize: 11 }}>{showPageViews ? "hide" : "show"}</span>
+        </div>
+        {showPageViews && pageViews && (
+          <div style={{ marginTop: 8 }}>
+            {pageViews.summary.length === 0 ? (
+              <span style={{ color: "#94a3b8" }}>No page views yet</span>
+            ) : (
+              <>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+                  {pageViews.summary.map((p: any) => (
+                    <span key={p.page} style={{ background: "#e0f2fe", color: "#0369a1", padding: "2px 8px", borderRadius: 4, fontSize: 11 }}>
+                      {p.page}: <strong>{p.count}</strong> <span style={{ color: "#64748b" }}>({new Date(p.last_visit).toLocaleDateString("he-IL")})</span>
+                    </span>
+                  ))}
+                </div>
+                <details>
+                  <summary style={{ cursor: "pointer", color: "#64748b", fontSize: 11 }}>Recent visits ({pageViews.views.length})</summary>
+                  <div style={{ maxHeight: 200, overflow: "auto", marginTop: 4 }}>
+                    {pageViews.views.map((v: any, i: number) => (
+                      <div key={i} style={{ fontSize: 11, color: "#64748b", padding: "1px 0" }}>
+                        {new Date(v.viewed_at).toLocaleString("he-IL")} — <strong>{v.page}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Two-column layout */}
       <div style={{ display: "flex", gap: 32, flexWrap: "wrap" }}>

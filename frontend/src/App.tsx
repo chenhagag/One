@@ -13,6 +13,7 @@ import ConsentScreen from "./ConsentScreen";
 import { supabase } from "./lib/supabase";
 import { saveSupabaseTokens, clearSupabaseTokens } from "./lib/api";
 import { isNativeApp, getApiBaseUrl } from "./lib/platform";
+import { trackPage } from "./lib/trackPage";
 import { App as CapApp } from "@capacitor/app";
 
 type View =
@@ -170,6 +171,11 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [autoLoginDone, setAutoLoginDone] = useState(false);
+
+  // ── Track page views (user-facing screens only) ────────────────
+  useEffect(() => {
+    if (view && autoLoginDone && view !== "admin") trackPage(view, user?.id);
+  }, [view, autoLoginDone]);
 
   // ── Auto-login on mount: Supabase session + legacy fallback ────
   useEffect(() => {

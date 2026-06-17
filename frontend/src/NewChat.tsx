@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import ProfileEdit from "./ProfileEdit";
 import Insights from "./Insights";
+import { trackPage } from "./lib/trackPage";
 import type { User } from "./App";
 
 interface Message {
@@ -238,6 +239,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
   useEffect(() => { loadRecommendations(); }, [user.id]);
   useEffect(() => { if (screen === "home") loadRecommendations(); }, [screen]);
+  useEffect(() => { trackPage(`newchat_${screen}`, user?.id); }, [screen]);
 
   // Load couple insights + personal insights status
   useEffect(() => {
