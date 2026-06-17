@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { trackPage } from "./lib/trackPage";
 
 interface InsightsProps {
   user: { id: number; first_name: string; email: string };
@@ -128,6 +129,11 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
   useEffect(() => {
     if (initialView) setDetailView(initialView);
   }, [initialView, resetKey]);
+
+  // Track insight sub-views
+  useEffect(() => {
+    if (detailView !== "main") trackPage(`insights_${detailView}`, user?.id);
+  }, [detailView]);
 
   useEffect(() => {
     fetch(`/api/users/${user.id}/detailed-traits`)
