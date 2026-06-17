@@ -2122,8 +2122,8 @@ app.get("/users", async (_req, res) => {
 // PAGE VIEW TRACKING
 // ════════════════════════════════════════════════════════════════
 
-// POST /api/track-page — Log a page view for the current user
-app.post("/api/track-page", optionalAuth, async (req: any, res) => {
+// POST /track-page — Log a page view for the current user
+app.post("/track-page", optionalAuth, async (req: any, res) => {
   const { page, user_id } = req.body;
   if (!page) return res.status(400).json({ error: "page is required" });
 
