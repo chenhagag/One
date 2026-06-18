@@ -32,6 +32,8 @@ export default function AuthScreen({ onOtpSuccess }: AuthScreenProps) {
   const [otpCode, setOtpCode] = useState(["", "", "", "", "", ""]);
   const [otpLoading, setOtpLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [magicLinkLoading, setMagicLinkLoading] = useState(false);
   const digitRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const isInAppBrowser = /FBAN|FBAV|Instagram|LinkedInApp|Line\//i.test(navigator.userAgent);
@@ -92,6 +94,30 @@ export default function AuthScreen({ onOtpSuccess }: AuthScreenProps) {
       setError(`לא הצלחנו להתחבר לשירות: ${err.message}`);
     } finally {
       setOtpLoading(false);
+    }
+  }
+
+  async function handleMagicLink() {
+    const trimmed = email.trim();
+    if (!trimmed) { setError("הזינו כתובת אימייל"); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) { setError("כתובת האימייל לא תקינה"); return; }
+
+    setMagicLinkLoading(true);
+    setError("");
+    localStorage.setItem("user_login_email", trimmed);
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/api/auth/magic-link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed, redirectTo: getOAuthRedirectUrl() }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(`שליחת הלינק נכשלה: ${data.error || "Unknown error"}`); return; }
+      setMagicLinkSent(true);
+    } catch (err: any) {
+      setError(`לא הצלחנו להתחבר לשירות: ${err.message}`);
+    } finally {
+      setMagicLinkLoading(false);
     }
   }
 
@@ -260,6 +286,34 @@ export default function AuthScreen({ onOtpSuccess }: AuthScreenProps) {
     return <PWAInstallFlow userName="" gender="" testUserType={null} onComplete={() => { sessionStorage.setItem("one_seen_pwa", "1"); setShowPWAInstall(false); }} />;
   }
 
+  // ── Magic link sent screen (regular browser) ──
+  if (magicLinkSent) {
+    return (
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6 pt-[env(safe-area-inset-top,0px)]">
+        <div className="mb-6 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-50">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 2L11 13" /><path d="M22 2L15 22L11 13L2 9L22 2Z" />
+            </svg>
+          </div>
+          <h1 className="mb-2 text-2xl font-bold text-gray-900">שלחנו לך לינק להתחברות</h1>
+          <p className="text-base text-gray-500" dir="rtl">
+            בדקו את תיבת המייל שלכם ב-<span className="font-medium text-gray-700">{email.trim()}</span> ולחצו על הלינק כדי להיכנס.
+          </p>
+          <p className="mt-3 text-sm text-gray-400" dir="rtl">
+            לא קיבלתם? בדקו בספאם או נסו שוב.
+          </p>
+        </div>
+        <button
+          onClick={() => { setMagicLinkSent(false); setError(""); }}
+          className="mt-4 text-sm text-gray-400 transition-colors hover:text-gray-600"
+        >
+          חזרה למסך ההתחברות
+        </button>
+      </div>
+    );
+  }
+
   // ── OTP code entry screen ──
   if (otpSent) {
     return (
@@ -331,6 +385,10 @@ export default function AuthScreen({ onOtpSuccess }: AuthScreenProps) {
 
   // ── Email form screen ──
   if (showEmailForm) {
+    const emailAction = isInAppBrowser ? handleSendOtp : handleMagicLink;
+    const emailLoading = isInAppBrowser ? otpLoading : magicLinkLoading;
+    const emailButtonText = isInAppBrowser ? "שלחו לי קוד כניסה" : "שלחו לי לינק להתחברות";
+
     return (
       <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6 pt-[env(safe-area-inset-top,0px)]">
         <div className="mb-10 text-center">
@@ -345,22 +403,22 @@ export default function AuthScreen({ onOtpSuccess }: AuthScreenProps) {
             type="email"
             value={email}
             onChange={(e) => { setEmail(e.target.value); setError(""); }}
-            onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
+            onKeyDown={(e) => e.key === "Enter" && emailAction()}
             placeholder="הזינו אימייל"
             dir="rtl"
             autoFocus
             className="h-[52px] w-full rounded-xl border border-gray-200 bg-white px-4 text-[15px] text-gray-700 outline-none transition-colors placeholder:text-gray-400 focus:border-gray-400"
-            disabled={otpLoading}
+            disabled={emailLoading}
           />
           <button
-            onClick={handleSendOtp}
-            disabled={otpLoading}
+            onClick={emailAction}
+            disabled={emailLoading}
             className="flex h-[52px] w-full items-center justify-center rounded-xl bg-gray-900 text-[15px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-50"
           >
-            {otpLoading ? (
+            {emailLoading ? (
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
             ) : (
-              "שלחו לי קוד כניסה"
+              emailButtonText
             )}
           </button>
         </div>
@@ -408,47 +466,64 @@ export default function AuthScreen({ onOtpSuccess }: AuthScreenProps) {
         <p className="text-base text-gray-400">One who truly fits</p>
       </div>
 
-      <div className="flex w-full max-w-xs flex-col gap-3">
-        <button
-          onClick={() => handleOAuth("google")}
-          disabled={!!loading}
-          className="flex h-[52px] w-full items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white text-[15px] font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50"
-        >
-          <GoogleLogo />
-          Continue with Google
-        </button>
-      </div>
+      {isInAppBrowser ? (
+        <>
+          {/* In-app browser: OTP email is primary */}
+          <div className="flex w-full max-w-xs flex-col gap-3">
+            <button
+              onClick={() => setShowEmailForm(true)}
+              className="flex h-[52px] w-full items-center justify-center rounded-xl bg-gray-900 text-[15px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
+            >
+              כניסה עם אימייל
+            </button>
+          </div>
 
-      <div className="my-6 flex w-full max-w-xs items-center gap-3">
-        <div className="h-px flex-1 bg-gray-200" />
-        <span className="text-xs text-gray-400">or</span>
-        <div className="h-px flex-1 bg-gray-200" />
-      </div>
+          <div className="my-6 flex w-full max-w-xs items-center gap-3">
+            <div className="h-px flex-1 bg-gray-200" />
+            <span className="text-xs text-gray-400">or</span>
+            <div className="h-px flex-1 bg-gray-200" />
+          </div>
 
-      <button
-        onClick={() => setShowEmailForm(true)}
-        className="text-sm text-gray-400 transition-colors hover:text-gray-600"
-      >
-        Login / Register with email
-      </button>
+          <button
+            onClick={() => handleOAuth("google")}
+            disabled={!!loading}
+            className="text-sm text-gray-400 transition-colors hover:text-gray-600"
+          >
+            Continue with Google
+          </button>
+        </>
+      ) : (
+        <>
+          {/* Regular browser: Google is primary */}
+          <div className="flex w-full max-w-xs flex-col gap-3">
+            <button
+              onClick={() => handleOAuth("google")}
+              disabled={!!loading}
+              className="flex h-[52px] w-full items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white text-[15px] font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50"
+            >
+              <GoogleLogo />
+              Continue with Google
+            </button>
+          </div>
+
+          <div className="my-6 flex w-full max-w-xs items-center gap-3">
+            <div className="h-px flex-1 bg-gray-200" />
+            <span className="text-xs text-gray-400">or</span>
+            <div className="h-px flex-1 bg-gray-200" />
+          </div>
+
+          <button
+            onClick={() => setShowEmailForm(true)}
+            className="text-sm text-gray-400 transition-colors hover:text-gray-600"
+          >
+            Login / Register with email
+          </button>
+        </>
+      )}
 
       {error && (
         <div className="mt-6 w-full max-w-xs rounded-lg bg-red-50 px-4 py-3 text-center text-sm text-red-600" dir="rtl">
           {error}
-        </div>
-      )}
-
-      {isInAppBrowser && (
-        <div style={{
-          marginTop: 24, width: "100%", maxWidth: 320, padding: "14px 16px",
-          background: "#f5f0fb", borderRadius: 12, textAlign: "center", direction: "rtl",
-        }}>
-          <p style={{ fontSize: 13, fontWeight: 600, color: "#1a1a2e", margin: "0 0 6px" }}>
-            להתחברות מהירה
-          </p>
-          <p style={{ fontSize: 12, color: "#666", margin: 0, lineHeight: 1.6 }}>
-            לחצו על <strong>⋯</strong> (שלוש נקודות) בחלק העליון של המסך → <strong>"Open in external browser"</strong>
-          </p>
         </div>
       )}
 
