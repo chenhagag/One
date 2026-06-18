@@ -203,37 +203,20 @@ export default function AuthScreen({ onOtpSuccess }: AuthScreenProps) {
         minHeight: "100dvh",
         display: "flex",
         flexDirection: "column",
-        background: "linear-gradient(to bottom, #e8e4e0 0%, #f0ece8 40%, #f7f5f3 70%, #fff 100%)",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundImage: "linear-gradient(rgba(255,255,255,0.35), rgba(255,255,255,0.35)), url(/background.png)",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        padding: "32px 28px",
       }}>
         <div style={{
-          width: "100%",
-          height: 260,
-          backgroundImage: "url(/coverMainScreen.png)",
-          backgroundSize: "cover",
-          backgroundPosition: "center 40%",
-          position: "relative",
-          flexShrink: 0,
-        }}>
-          <div style={{
-            position: "absolute", bottom: 0, left: 0, right: 0, height: 120,
-            background: "linear-gradient(to bottom, transparent 0%, rgba(232,228,224,0.6) 50%, #e8e4e0 100%)",
-          }} />
-          <div style={{
-            position: "absolute", top: 0, left: 0, bottom: 0, width: 60,
-            background: "linear-gradient(to right, rgba(232,228,224,0.4), transparent)",
-          }} />
-          <div style={{
-            position: "absolute", top: 0, right: 0, bottom: 0, width: 60,
-            background: "linear-gradient(to left, rgba(232,228,224,0.4), transparent)",
-          }} />
-        </div>
-
-        <div style={{
-          flex: 1, padding: "0 28px 32px", marginTop: -24, direction: "rtl",
           display: "flex", flexDirection: "column", alignItems: "center",
-          maxWidth: 480, margin: "-24px auto 0", width: "100%", position: "relative", zIndex: 1,
+          maxWidth: 480, width: "100%", direction: "rtl",
         }}>
-          <img src="/nameLogoTrans.png" alt="One" style={{ height: 32, objectFit: "contain", marginTop: 16, marginBottom: 20 }} />
+          <img src="/nameLogoTrans.png" alt="One" style={{ height: 36, objectFit: "contain", marginBottom: 12 }} />
+          <p style={{ fontSize: 15, color: "#555", textAlign: "center", margin: "0 0 32px" }}>Meet as you are</p>
+
           <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", margin: "0 0 20px", textAlign: "center" }}>
             ברוכים הבאים ל-One
           </h2>
@@ -244,7 +227,7 @@ export default function AuthScreen({ onOtpSuccess }: AuthScreenProps) {
             {[
               { num: "1", text: "מנהלים שיחה: משוחחים עם ה-AI שלנו - מי אתם, מה חשוב לכם בקשר, מה אתם מחפשים." },
               { num: "2", text: "מקבלים תובנות: בסיום השיחה, תקבלו מפת אישיות מעמיקה הרלוונטית למערכות יחסים (סגנון היקשרות, טיפוס MBTI, אניאגרם ועוד)." },
-              { num: "3", text: "נכנסים למאגר: אנחנו בונים את הפרופיל שלכם ומדייקים את מה שאנחנו מחפשים עבורכם, על בסיס תיאוריות פסיכולוגיות מוכחות ונתונים של זוגות אמיתיים." },
+              { num: "3", text: "נכנסים למאגר: אנחנו בונים את הניתוח שלכם ומדייקים את מה שאנחנו מחפשים עבורכם, על בסיס תיאוריות פסיכולוגיות מוכחות ונתונים של זוגות אמיתיים." },
               { num: "4", text: "ממתינים להתאמה: אנחנו לא מתפשרים על התאמות בינוניות, זה עשוי לקחת קצת זמן, אבל אנחנו מחפשים איכות, לא כמות." },
               { num: "5", text: "מוודאים משיכה: ברגע שתעלה התאמה פוטנציאלית, נשלח לכם תמונה שלהם לאישור, כדי לוודא שיש גם חיבור ויזואלי ומשיכה." },
               { num: "6", text: "מתחילים להכיר: לאחר שקלול סופי של כל הנתונים, תקבלו את ההתאמה המדויקת ביותר עבורכם – פנימית וחיצונית – ותוכלו לצאת לדרך." },
@@ -255,11 +238,11 @@ export default function AuthScreen({ onOtpSuccess }: AuthScreenProps) {
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontSize: 12, fontWeight: 700, flexShrink: 0, marginTop: 1,
                 }}>{step.num}</span>
-                <p style={{ fontSize: 13, color: "#444", lineHeight: 1.6, margin: 0 }}>{step.text}</p>
+                <p style={{ fontSize: 13, color: "#2a2a3e", lineHeight: 1.6, margin: 0 }}>{step.text}</p>
               </div>
             ))}
           </div>
-          <p style={{ fontSize: 14, color: "#555", textAlign: "center", margin: "0 0 24px", lineHeight: 1.6 }}>
+          <p style={{ fontSize: 14, color: "#2a2a3e", textAlign: "center", margin: "0 0 24px", lineHeight: 1.6 }}>
             בהצלחה,<br />צוות One
           </p>
           <button
@@ -394,7 +377,7 @@ export default function AuthScreen({ onOtpSuccess }: AuthScreenProps) {
         <div className="mb-10 text-center">
           <img src="/nameLogoTrans.png" alt="One" style={{ height: 28, objectFit: "contain", margin: "0 auto 8px" }} />
           <div className="flex items-center justify-center gap-1.5">
-            <p className="text-base text-gray-400" style={{ margin: 0 }}>One who truly fits</p>
+            <p className="text-base text-gray-400" style={{ margin: 0 }}>Meet as you are</p>
           </div>
         </div>
 
@@ -463,7 +446,7 @@ export default function AuthScreen({ onOtpSuccess }: AuthScreenProps) {
         <div className="mb-2 flex items-center justify-center gap-2">
           <img src="/nameLogoTrans.png" alt="One" style={{ height: 32, objectFit: "contain" }} />
         </div>
-        <p className="text-base text-gray-400">One who truly fits</p>
+        <p className="text-base text-gray-400">Meet as you are</p>
       </div>
 
       {isInAppBrowser ? (

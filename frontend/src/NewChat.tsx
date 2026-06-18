@@ -760,7 +760,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     return (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginTop: 12 }}>
                         {bubbles.map((b, i) => (
-                          <button key={i} style={{ padding: "8px 16px", border: "1px solid #e0e0e8", borderRadius: 20, background: "#FCF8F5", fontSize: 13, color: "#6366f1", cursor: "pointer", fontWeight: 600 }} onClick={() => {
+                          <button key={i} style={{ padding: "8px 16px", border: "1px solid #e0e0e8", borderRadius: 20, background: "#fff", fontSize: 13, color: "#6366f1", cursor: "pointer", fontWeight: 600 }} onClick={() => {
                             if (channelMessages[b.ch]?.length > 0) {
                               setChannel(b.ch);
                             } else {
@@ -1291,7 +1291,7 @@ const styles: Record<string, React.CSSProperties> = {
   // Sidebar
   sidebar: {
     width: 220,
-    background: "#FCF8F5",
+    background: "#f4f2f8",
     borderLeft: "1px solid #e5e7eb",
     display: "flex",
     flexDirection: "column",
@@ -1335,7 +1335,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 10,
     padding: "10px 12px",
     border: "none",
-    background: "#f5f0fb",
+    background: "#f5f5f7",
     borderRadius: 8,
     cursor: "pointer",
     fontSize: 14,
@@ -1480,7 +1480,7 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.5,
     margin: "8px 0",
     padding: "10px 14px",
-    background: "#f5f0fb",
+    background: "#f5f5f7",
     borderRadius: 10,
     borderRight: "3px solid #8b7ba8",
   },
@@ -1542,7 +1542,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "8px 16px",
     border: "1px solid #e0e0e8",
     borderRadius: 20,
-    background: "#FCF8F5",
+    background: "#fff",
     fontSize: 13,
     color: "#555",
     cursor: "pointer",
@@ -1551,7 +1551,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "4px 8px",
     border: "1px solid #e0e0e8",
     borderRadius: 12,
-    background: "#FCF8F5",
+    background: "#fff",
     fontSize: 10,
     color: "#777",
     cursor: "pointer",
@@ -1622,7 +1622,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   // Dashboard styles
   dashboardCard: {
-    background: "#FCF8F5",
+    background: "#fff",
     border: "1px solid #e5e7eb",
     borderRadius: 12,
     padding: "16px 20px",
@@ -1698,7 +1698,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "8px 16px",
     borderRadius: 20,
     border: "1px solid #d4c5e0",
-    background: "#f5f0fb",
+    background: "#f5f5f7",
     color: "#6b5b7a",
     fontSize: 13,
     fontWeight: 500,
