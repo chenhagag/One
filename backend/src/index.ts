@@ -308,6 +308,113 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════
+// OTP EMAIL LOGIN
+// ════════════════════════════════════════════════════════════════
+
+// POST /auth/send-otp — Send a 6-digit code to user's email
+app.post("/auth/send-otp", async (req, res) => {
+  const { email } = req.body;
+  if (!email?.trim()) return res.status(400).json({ error: "email is required" });
+  if (!resend) return res.status(500).json({ error: "Email service not configured" });
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  // Invalidate any previous unused codes for this email
+  await pgQueryAll(
+    "UPDATE otp_codes SET used = TRUE WHERE email = $1 AND used = FALSE",
+    [normalizedEmail]
+  );
+
+  // Generate 6-digit code
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+  await pgQueryOne(
+    "INSERT INTO otp_codes (email, code, expires_at) VALUES ($1, $2, $3) RETURNING id",
+    [normalizedEmail, code, expiresAt]
+  );
+
+  try {
+    const { error } = await resend.emails.send({
+      from: "One <noreply@joinone.io>",
+      to: normalizedEmail,
+      subject: `${code} — קוד הכניסה שלך ל-One`,
+      html: `
+        <div dir="rtl" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 400px; margin: 0 auto; padding: 32px 24px; text-align: center;">
+          <img src="https://joinone.io/nameLogoTrans.png" alt="One" style="height: 28px; margin-bottom: 24px;" />
+          <p style="font-size: 16px; color: #1a1a2e; margin: 0 0 8px;">קוד הכניסה שלך:</p>
+          <div style="font-size: 36px; font-weight: 700; letter-spacing: 8px; color: #1a1a2e; background: #f5f0fb; border-radius: 12px; padding: 16px 24px; margin: 16px 0; display: inline-block;">${code}</div>
+          <p style="font-size: 13px; color: #888; margin: 16px 0 0;">הקוד תקף ל-10 דקות</p>
+          <p style="font-size: 12px; color: #aaa; margin: 24px 0 0;">אם לא ביקשת קוד, אפשר להתעלם מהמייל הזה.</p>
+        </div>
+      `,
+    });
+
+    if (error) {
+      console.error(`[otp] Failed to send to ${normalizedEmail}:`, error);
+      return res.status(500).json({ error: "Failed to send code" });
+    }
+
+    console.log(`[otp] Code sent to ${normalizedEmail}`);
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error(`[otp] Error:`, err.message);
+    return res.status(500).json({ error: "Failed to send code" });
+  }
+});
+
+// POST /auth/verify-otp — Verify code and return user
+app.post("/auth/verify-otp", async (req, res) => {
+  const { email, code } = req.body;
+  if (!email?.trim() || !code?.trim()) {
+    return res.status(400).json({ error: "email and code are required" });
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedCode = code.trim();
+
+  // Find valid, unused code
+  const otpRow = await pgQueryOne<any>(
+    `SELECT id FROM otp_codes
+     WHERE email = $1 AND code = $2 AND used = FALSE AND expires_at > NOW()
+     ORDER BY created_at DESC LIMIT 1`,
+    [normalizedEmail, normalizedCode]
+  );
+
+  if (!otpRow) {
+    return res.status(401).json({ error: "invalid_code" });
+  }
+
+  // Mark code as used
+  await pgQueryAll("UPDATE otp_codes SET used = TRUE WHERE id = $1", [otpRow.id]);
+
+  try {
+    // Find existing user by email
+    let user = await pgQueryOne<any>(
+      "SELECT * FROM users WHERE email = $1",
+      [normalizedEmail]
+    );
+
+    if (user) {
+      return res.json({ ...user, profile_complete: user.profile_complete ?? true });
+    }
+
+    // New user — create minimal row
+    user = await pgQueryOne<any>(
+      `INSERT INTO users (first_name, email, auth_provider, profile_complete)
+       VALUES ($1, $2, 'otp', false)
+       RETURNING *`,
+      ["", normalizedEmail]
+    );
+
+    return res.status(201).json(user);
+  } catch (err: any) {
+    console.error("[otp/verify]", err.message);
+    return res.status(500).json({ error: "Failed to verify" });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
 // REGISTRATION
 // ════════════════════════════════════════════════════════════════
 

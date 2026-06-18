@@ -666,6 +666,19 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_chat_summaries_user ON user_chat_summaries(user_id);
   `);
 
+  // ── OTP Codes (email login) ────────────────────────────────────
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS otp_codes (
+      id          SERIAL PRIMARY KEY,
+      email       VARCHAR(255) NOT NULL,
+      code        VARCHAR(6) NOT NULL,
+      expires_at  TIMESTAMPTZ NOT NULL,
+      used        BOOLEAN DEFAULT FALSE,
+      created_at  TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_otp_email ON otp_codes(email, used);
+  `);
+
   // ── Page Views (analytics) ────────────────────────────────────
   await pool.query(`
     CREATE TABLE IF NOT EXISTS page_views (

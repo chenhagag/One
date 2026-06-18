@@ -239,7 +239,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
   useEffect(() => { loadRecommendations(); }, [user.id]);
   useEffect(() => { if (screen === "home") loadRecommendations(); }, [screen]);
-  useEffect(() => { trackPage(`newchat_${screen}`, user?.id); }, [screen]);
+  useEffect(() => { trackPage(screen === "chat" ? "chat" : screen === "home" ? "home" : screen, user?.id); }, [screen]);
 
   // Load couple insights + personal insights status
   useEffect(() => {

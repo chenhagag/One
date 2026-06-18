@@ -392,7 +392,7 @@ export default function App() {
 
       {/* Auth screen — OAuth buttons (new default landing) */}
       {(view === "landing" || view === "auth") && (
-        <AuthScreen />
+        <AuthScreen onOtpSuccess={handleAuthSuccess} />
       )}
 
       {/* OAuth callback — handles redirect from Google/Apple */}

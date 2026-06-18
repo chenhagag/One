@@ -1,35 +1,39 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { supabase } from "./lib/supabase";
 import { isNativeApp, getOAuthRedirectUrl, getApiBaseUrl } from "./lib/platform";
 import { Browser } from "@capacitor/browser";
 import PWAInstallFlow from "./PWAInstallFlow";
+import type { User } from "./App";
 
-export default function AuthScreen() {
+interface AuthScreenProps {
+  onOtpSuccess?: (user: User, profileComplete: boolean) => void;
+}
+
+export default function AuthScreen({ onOtpSuccess }: AuthScreenProps) {
   const [loading, setLoading] = useState<"google" | "apple" | null>(null);
   const [error, setError] = useState("");
   const [showLanding, setShowLanding] = useState(() => {
-    if (isNativeApp()) return false; // Native app skips landing
+    if (isNativeApp()) return false;
     return !sessionStorage.getItem("one_seen_landing");
   });
   const [showPWAInstall, setShowPWAInstall] = useState(() => {
-    if (isNativeApp()) return false; // Native app doesn't need PWA install
+    if (isNativeApp()) return false;
     const seenLanding = sessionStorage.getItem("one_seen_landing");
     const seenPWA = sessionStorage.getItem("one_seen_pwa");
-    // Show PWA only if landing was seen but PWA wasn't, and on mobile non-standalone
     const mob = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
     const standalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
     return !!seenLanding && !seenPWA && mob && !standalone;
   });
 
-  // Magic link state
+  // Email + OTP state
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [email, setEmail] = useState("");
-  const [magicLinkSent, setMagicLinkSent] = useState(false);
-  const [magicLinkLoading, setMagicLinkLoading] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState(["", "", "", "", "", ""]);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const digitRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  const isAndroid = /android/i.test(navigator.userAgent);
-  const isSafari = isIOS || (/^((?!chrome|android).)*safari/i.test(navigator.userAgent));
   const isInAppBrowser = /FBAN|FBAV|Instagram|LinkedInApp|Line\//i.test(navigator.userAgent);
   const isStandalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
   const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
@@ -37,29 +41,16 @@ export default function AuthScreen() {
   async function handleOAuth(provider: "google" | "apple") {
     setLoading(provider);
     setError("");
-
     try {
       if (!supabase) { setError("OAuth not configured"); setLoading(null); return; }
-
       const redirectTo = getOAuthRedirectUrl();
-
       const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
-        options: {
-          redirectTo,
-          skipBrowserRedirect: true,
-        },
+        options: { redirectTo, skipBrowserRedirect: true },
       });
-
-      if (oauthError) {
-        setError(`Sign-in failed: ${oauthError.message}`);
-        setLoading(null);
-        return;
-      }
-
+      if (oauthError) { setError(`Sign-in failed: ${oauthError.message}`); setLoading(null); return; }
       if (data?.url) {
         if (isNativeApp()) {
-          // Native: open OAuth in system browser, deep link brings user back
           await Browser.open({ url: data.url });
           setLoading(null);
         } else {
@@ -75,48 +66,107 @@ export default function AuthScreen() {
     }
   }
 
-  async function handleMagicLink() {
+  async function handleSendOtp() {
     const trimmed = email.trim();
-    if (!trimmed) {
-      setError("הזינו כתובת אימייל");
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-      setError("כתובת האימייל לא תקינה");
-      return;
-    }
+    if (!trimmed) { setError("הזינו כתובת אימייל"); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) { setError("כתובת האימייל לא תקינה"); return; }
 
-    if (!supabase) {
-      setError("Authentication service is not configured");
-      return;
-    }
-
-    setMagicLinkLoading(true);
+    setOtpLoading(true);
     setError("");
-
-    // Save email for resend on expired link
-    localStorage.setItem("user_login_email", trimmed);
-
     try {
-      // Send magic link via our backend (bypasses Safari ITP blocking Supabase)
-      const res = await fetch(`${getApiBaseUrl()}/auth/magic-link`, {
+      const res = await fetch(`${getApiBaseUrl()}/api/auth/send-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmed, redirectTo: getOAuthRedirectUrl() }),
+        body: JSON.stringify({ email: trimmed }),
       });
-
       const data = await res.json();
-
       if (!res.ok) {
-        setError(`שליחת הלינק נכשלה: ${data.error || "Unknown error"}`);
+        setError(data.error || "שליחת הקוד נכשלה");
         return;
       }
-
-      setMagicLinkSent(true);
+      setOtpSent(true);
+      setOtpCode(["", "", "", "", "", ""]);
+      // Focus first digit after render
+      setTimeout(() => digitRefs.current[0]?.focus(), 100);
     } catch (err: any) {
       setError(`לא הצלחנו להתחבר לשירות: ${err.message}`);
     } finally {
-      setMagicLinkLoading(false);
+      setOtpLoading(false);
+    }
+  }
+
+  async function handleVerifyOtp(codeArr: string[]) {
+    const code = codeArr.join("");
+    if (code.length !== 6) return;
+
+    setVerifying(true);
+    setError("");
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/api/auth/verify-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), code }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.error === "invalid_code") {
+          setError("הקוד שגוי או שפג תוקפו. נסו שוב.");
+        } else {
+          setError(data.error || "אימות נכשל");
+        }
+        setOtpCode(["", "", "", "", "", ""]);
+        setTimeout(() => digitRefs.current[0]?.focus(), 100);
+        return;
+      }
+      // Success — pass user to App
+      if (onOtpSuccess) {
+        onOtpSuccess(data as User, data.profile_complete !== false);
+      }
+    } catch (err: any) {
+      setError(`שגיאת רשת: ${err.message}`);
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  function handleDigitChange(index: number, value: string) {
+    // Allow only digits
+    const digit = value.replace(/\D/g, "").slice(-1);
+    const newCode = [...otpCode];
+    newCode[index] = digit;
+    setOtpCode(newCode);
+
+    if (digit && index < 5) {
+      digitRefs.current[index + 1]?.focus();
+    }
+
+    // Auto-submit when all 6 digits filled
+    if (digit && index === 5 && newCode.every(d => d)) {
+      handleVerifyOtp(newCode);
+    }
+  }
+
+  function handleDigitKeyDown(index: number, e: React.KeyboardEvent) {
+    if (e.key === "Backspace" && !otpCode[index] && index > 0) {
+      digitRefs.current[index - 1]?.focus();
+    }
+  }
+
+  function handlePaste(e: React.ClipboardEvent) {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    if (pasted.length === 0) return;
+    const newCode = [...otpCode];
+    for (let i = 0; i < pasted.length; i++) {
+      newCode[i] = pasted[i];
+    }
+    setOtpCode(newCode);
+    // Focus the next empty or last digit
+    const nextIdx = Math.min(pasted.length, 5);
+    digitRefs.current[nextIdx]?.focus();
+    // Auto-submit if all 6
+    if (pasted.length === 6) {
+      handleVerifyOtp(newCode);
     }
   }
 
@@ -129,7 +179,6 @@ export default function AuthScreen() {
         flexDirection: "column",
         background: "linear-gradient(to bottom, #e8e4e0 0%, #f0ece8 40%, #f7f5f3 70%, #fff 100%)",
       }}>
-        {/* Cover image — fades softly into warm gray */}
         <div style={{
           width: "100%",
           height: 260,
@@ -139,61 +188,32 @@ export default function AuthScreen() {
           position: "relative",
           flexShrink: 0,
         }}>
-          {/* Bottom fade — into warm gray that continues below */}
           <div style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: 120,
+            position: "absolute", bottom: 0, left: 0, right: 0, height: 120,
             background: "linear-gradient(to bottom, transparent 0%, rgba(232,228,224,0.6) 50%, #e8e4e0 100%)",
           }} />
-          {/* Side fades */}
           <div style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            bottom: 0,
-            width: 60,
+            position: "absolute", top: 0, left: 0, bottom: 0, width: 60,
             background: "linear-gradient(to right, rgba(232,228,224,0.4), transparent)",
           }} />
           <div style={{
-            position: "absolute",
-            top: 0,
-            right: 0,
-            bottom: 0,
-            width: 60,
+            position: "absolute", top: 0, right: 0, bottom: 0, width: 60,
             background: "linear-gradient(to left, rgba(232,228,224,0.4), transparent)",
           }} />
         </div>
 
-        {/* Content */}
         <div style={{
-          flex: 1,
-          padding: "0 28px 32px",
-          marginTop: -24,
-          direction: "rtl",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          maxWidth: 480,
-          margin: "-24px auto 0",
-          width: "100%",
-          position: "relative",
-          zIndex: 1,
+          flex: 1, padding: "0 28px 32px", marginTop: -24, direction: "rtl",
+          display: "flex", flexDirection: "column", alignItems: "center",
+          maxWidth: 480, margin: "-24px auto 0", width: "100%", position: "relative", zIndex: 1,
         }}>
-          {/* Logo */}
           <img src="/nameLogoTrans.png" alt="One" style={{ height: 32, objectFit: "contain", marginTop: 16, marginBottom: 20 }} />
-
-          {/* Welcome text */}
           <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", margin: "0 0 20px", textAlign: "center" }}>
             ברוכים הבאים ל-One
           </h2>
-
           <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 14px", textAlign: "right", width: "100%" }}>
             איך זה עובד?
           </p>
-
           <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
             {[
               { num: "1", text: "מנהלים שיחה: משוחחים עם ה-AI שלנו - מי אתם, מה חשוב לכם בקשר, מה אתם מחפשים." },
@@ -208,19 +228,14 @@ export default function AuthScreen() {
                   width: 24, height: 24, borderRadius: "50%", background: "#8b7ba8", color: "#fff",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontSize: 12, fontWeight: 700, flexShrink: 0, marginTop: 1,
-                }}>
-                  {step.num}
-                </span>
+                }}>{step.num}</span>
                 <p style={{ fontSize: 13, color: "#444", lineHeight: 1.6, margin: 0 }}>{step.text}</p>
               </div>
             ))}
           </div>
-
           <p style={{ fontSize: 14, color: "#555", textAlign: "center", margin: "0 0 24px", lineHeight: 1.6 }}>
             בהצלחה,<br />צוות One
           </p>
-
-          {/* CTA button */}
           <button
             onClick={() => {
               sessionStorage.setItem("one_seen_landing", "1");
@@ -228,18 +243,9 @@ export default function AuthScreen() {
               if (isMobile && !isStandalone) setShowPWAInstall(true);
             }}
             style={{
-              width: "100%",
-              maxWidth: 320,
-              padding: "14px 24px",
-              fontSize: 16,
-              fontWeight: 600,
-              background: "#1a1a2e",
-              color: "#fff",
-              border: "none",
-              borderRadius: 14,
-              cursor: "pointer",
-              fontFamily: "inherit",
-              marginBottom: 8,
+              width: "100%", maxWidth: 320, padding: "14px 24px", fontSize: 16, fontWeight: 600,
+              background: "#1a1a2e", color: "#fff", border: "none", borderRadius: 14,
+              cursor: "pointer", fontFamily: "inherit", marginBottom: 8,
             }}
           >
             המשך לאפליקציה
@@ -249,41 +255,81 @@ export default function AuthScreen() {
     );
   }
 
-  // ── PWA install screen (in-app browser users) ──
+  // ── PWA install screen ──
   if (showPWAInstall) {
     return <PWAInstallFlow userName="" gender="" testUserType={null} onComplete={() => { sessionStorage.setItem("one_seen_pwa", "1"); setShowPWAInstall(false); }} />;
   }
 
-  // ── Magic link sent — success screen ──
-  if (magicLinkSent) {
+  // ── OTP code entry screen ──
+  if (otpSent) {
     return (
       <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6 pt-[env(safe-area-inset-top,0px)]">
-        <div className="mb-6 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-50">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 2L11 13" /><path d="M22 2L15 22L11 13L2 9L22 2Z" />
-            </svg>
-          </div>
-          <h1 className="mb-2 text-2xl font-bold text-gray-900">שלחנו לך לינק להתחברות</h1>
-          <p className="text-base text-gray-500" dir="rtl">
-            בדקו את תיבת המייל שלכם ב-<span className="font-medium text-gray-700">{email.trim()}</span> ולחצו על הלינק כדי להיכנס.
-          </p>
-          <p className="mt-3 text-sm text-gray-400" dir="rtl">
-            לא קיבלתם? בדקו בספאם או נסו שוב.
+        <div className="mb-8 text-center">
+          <img src="/nameLogoTrans.png" alt="One" style={{ height: 28, objectFit: "contain", margin: "0 auto 16px" }} />
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", margin: "0 0 8px" }}>הזינו את הקוד</h1>
+          <p style={{ fontSize: 14, color: "#888", margin: 0 }} dir="rtl">
+            שלחנו קוד בן 6 ספרות ל-<span style={{ fontWeight: 600, color: "#555" }}>{email.trim()}</span>
           </p>
         </div>
 
-        <button
-          onClick={() => { setMagicLinkSent(false); setError(""); }}
-          className="mt-4 text-sm text-gray-400 transition-colors hover:text-gray-600"
-        >
-          חזרה למסך ההתחברות
-        </button>
+        {/* 6-digit code input */}
+        <div style={{ display: "flex", gap: 8, direction: "ltr", marginBottom: 16 }} onPaste={handlePaste}>
+          {otpCode.map((digit, i) => (
+            <input
+              key={i}
+              ref={el => { digitRefs.current[i] = el; }}
+              type="text"
+              inputMode="numeric"
+              maxLength={1}
+              value={digit}
+              onChange={e => handleDigitChange(i, e.target.value)}
+              onKeyDown={e => handleDigitKeyDown(i, e)}
+              disabled={verifying}
+              style={{
+                width: 44, height: 52, textAlign: "center", fontSize: 22, fontWeight: 700,
+                border: `2px solid ${digit ? "#1a1a2e" : "#d1d5db"}`,
+                borderRadius: 10, outline: "none", color: "#1a1a2e",
+                transition: "border-color 0.15s",
+              }}
+              onFocus={e => e.target.style.borderColor = "#8b7ba8"}
+              onBlur={e => e.target.style.borderColor = digit ? "#1a1a2e" : "#d1d5db"}
+            />
+          ))}
+        </div>
+
+        {verifying && (
+          <div style={{ marginBottom: 12 }}>
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-200 border-t-gray-800" style={{ margin: "0 auto" }} />
+          </div>
+        )}
+
+        {error && (
+          <div className="mb-4 w-full max-w-xs rounded-lg bg-red-50 px-4 py-3 text-center text-sm text-red-600" dir="rtl">
+            {error}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 16, alignItems: "center", marginTop: 8 }}>
+          <button
+            onClick={() => { setOtpSent(false); setOtpCode(["", "", "", "", "", ""]); setError(""); }}
+            className="text-sm text-gray-400 transition-colors hover:text-gray-600"
+          >
+            שינוי אימייל
+          </button>
+          <button
+            onClick={() => { setError(""); handleSendOtp(); }}
+            disabled={otpLoading}
+            className="text-sm text-gray-400 transition-colors hover:text-gray-600"
+            style={{ fontWeight: 500 }}
+          >
+            {otpLoading ? "שולח..." : "שליחה מחדש"}
+          </button>
+        </div>
       </div>
     );
   }
 
-  // ── Email form screen (after clicking "Login / Register") ──
+  // ── Email form screen ──
   if (showEmailForm) {
     return (
       <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6 pt-[env(safe-area-inset-top,0px)]">
@@ -299,22 +345,22 @@ export default function AuthScreen() {
             type="email"
             value={email}
             onChange={(e) => { setEmail(e.target.value); setError(""); }}
-            onKeyDown={(e) => e.key === "Enter" && handleMagicLink()}
+            onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
             placeholder="הזינו אימייל"
             dir="rtl"
             autoFocus
             className="h-[52px] w-full rounded-xl border border-gray-200 bg-white px-4 text-[15px] text-gray-700 outline-none transition-colors placeholder:text-gray-400 focus:border-gray-400"
-            disabled={magicLinkLoading}
+            disabled={otpLoading}
           />
           <button
-            onClick={handleMagicLink}
-            disabled={magicLinkLoading}
+            onClick={handleSendOtp}
+            disabled={otpLoading}
             className="flex h-[52px] w-full items-center justify-center rounded-xl bg-gray-900 text-[15px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-50"
           >
-            {magicLinkLoading ? (
+            {otpLoading ? (
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
             ) : (
-              "שלחו לי לינק להתחברות"
+              "שלחו לי קוד כניסה"
             )}
           </button>
         </div>
@@ -344,7 +390,6 @@ export default function AuthScreen() {
   // ── Main auth screen (Google + email) ──
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 24px)" }}>
-      {/* Loading overlay */}
       {loading && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
           <div className="flex flex-col items-center gap-3">
@@ -356,7 +401,6 @@ export default function AuthScreen() {
         </div>
       )}
 
-      {/* Logo + tagline */}
       <div className="mb-16 text-center">
         <div className="mb-2 flex items-center justify-center gap-2">
           <img src="/nameLogoTrans.png" alt="One" style={{ height: 32, objectFit: "contain" }} />
@@ -364,7 +408,6 @@ export default function AuthScreen() {
         <p className="text-base text-gray-400">One who truly fits</p>
       </div>
 
-      {/* Google OAuth + email fallback */}
       <div className="flex w-full max-w-xs flex-col gap-3">
         <button
           onClick={() => handleOAuth("google")}
@@ -389,14 +432,12 @@ export default function AuthScreen() {
         Login / Register with email
       </button>
 
-      {/* Error message */}
       {error && (
         <div className="mt-6 w-full max-w-xs rounded-lg bg-red-50 px-4 py-3 text-center text-sm text-red-600" dir="rtl">
           {error}
         </div>
       )}
 
-      {/* In-app browser tip */}
       {isInAppBrowser && (
         <div style={{
           marginTop: 24, width: "100%", maxWidth: 320, padding: "14px 16px",
@@ -411,7 +452,6 @@ export default function AuthScreen() {
         </div>
       )}
 
-      {/* Footer */}
       <p className="mt-auto pt-12 text-center text-xs text-gray-300">
         By continuing, you agree to our Terms of Service
         <br />
@@ -421,35 +461,13 @@ export default function AuthScreen() {
   );
 }
 
-// ── Brand logos (inline SVG for zero-dependency) ────────────────
-
-function AppleLogo() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor">
-      <path d="M14.94 13.38c-.36.83-.53 1.2-.99 1.93-.64.99-1.54 2.23-2.66 2.24-1 .01-1.25-.65-2.6-.64-1.35.01-1.63.66-2.63.65-1.12-.01-1.97-1.12-2.61-2.12C1.78 12.58 1.6 9.47 2.72 7.82c.8-1.17 2.04-1.86 3.2-1.86 1.19 0 1.94.66 2.93.66.95 0 1.53-.66 2.91-.66 1.03 0 2.12.56 2.91 1.53-2.56 1.4-2.14 5.05.27 6.89zM11.37 4.2c.5-.64.88-1.54.74-2.46-.81.06-1.76.57-2.31 1.24-.5.6-.92 1.52-.76 2.4.89.03 1.81-.5 2.33-1.18z" />
-    </svg>
-  );
-}
-
 function GoogleLogo() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24">
-      <path
-        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
-        fill="#4285F4"
-      />
-      <path
-        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-        fill="#34A853"
-      />
-      <path
-        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-        fill="#FBBC05"
-      />
-      <path
-        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-        fill="#EA4335"
-      />
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
     </svg>
   );
 }
