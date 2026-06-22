@@ -1694,55 +1694,67 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                 const name = data?.user?.first_name || "שם";
                 const isFemale = data?.user?.gender === "woman";
                 const g = (m: string, f: string) => isFemale ? f : m;
+                const btn = (text: string) => `<p style="margin:28px 0"><a href="https://joinone.io" style="display:inline-block;background-color:#7b5fa3;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold">${text}</a></p>`;
+                const footer = `<p style="margin-top:8px">נשמח ${g("לראות אותך", "לראות אותך")} בפנים,<br>צוות One</p>`;
+                const wrap = (inner: string) => `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#333;max-width:500px">${inner}</div>`;
+
                 const templates: { label: string; subject: string; html: string }[] = [
                   {
                     label: "לא התחיל/ה שיחה",
-                    subject: `${g("ברוך הבא", "ברוכה הבאה")} ל-One, ${name}`,
-                    html: `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#333;max-width:500px">
-<h2 style="color:#1B1464">היי ${name} 👋</h2>
+                    subject: `${g("ברוך הבא", "ברוכה הבאה")} ל-One`,
+                    html: wrap(`
+<h2 style="color:#1B1464">היי ${name},</h2>
 <p>שמנו לב ש${g("נרשמת", "נרשמת")} ל-One אבל עדיין לא ${g("התחלת", "התחלת")} את שיחת ההיכרות.</p>
-<p>השיחה היא הבסיס לכל מה שקורה אחר כך — ממנה נבנה פרופיל העומק ${g("שלך", "שלך")} ועל בסיסו נחפש ${g("לך", "לך")} התאמה מדויקת ומשמעותית.</p>
+<p>השיחה היא הבסיס לכל מה שקורה אחר כך — ממנה נבנה את פרופיל העומק ${g("שלך", "שלך")}, ועל בסיסו נחפש ${g("לך", "לך")} התאמה מדויקת ומשמעותית.</p>
 <p>זה לוקח כמה דקות, בקצב ${g("שלך", "שלך")}, בשיחה טבעית.</p>
-<p><a href="https://joinone.io" style="color:#1B1464;font-weight:bold;text-decoration:underline">${g("היכנס", "היכנסי")} ל-One ${g("והתחל", "והתחילי")} את השיחה →</a></p>
-<p style="margin-top:24px;color:#999;font-size:13px">צוות One</p>
-</div>`
+${btn(`${g("להתחלת", "להתחלת")} השיחה`)}
+${footer}`)
                   },
                   {
                     label: `לא ${g("סיים", "סיימה")} שיחה`,
-                    subject: `${name}, נשארו עוד כמה צעדים`,
-                    html: `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#333;max-width:500px">
-<h2 style="color:#1B1464">היי ${name} 👋</h2>
-<p>${g("התחלת", "התחלת")} את שיחת ההיכרות ב-One אבל עדיין לא ${g("סיימת", "סיימת")} אותה.</p>
+                    subject: `נשארו עוד כמה צעדים`,
+                    html: wrap(`
+<h2 style="color:#1B1464">היי ${name},</h2>
+<p>${g("התחלת", "התחלת")} את תהליך ההיכרות ב-One, אבל עדיין לא ${g("השלמת", "השלמת")} אותו.</p>
 <p>כדי שנוכל לבנות ${g("לך", "לך")} פרופיל מדויק ולהתחיל לחפש ${g("לך", "לך")} התאמה — ${g("צריך", "צריכה")} להשלים את השיחה.</p>
-<p>זה לא ארוך, ואפשר להמשיך מאיפה ש${g("עצרת", "עצרת")}.</p>
-<p><a href="https://joinone.io" style="color:#1B1464;font-weight:bold;text-decoration:underline">${g("היכנס", "היכנסי")} ל-One ${g("והמשך", "והמשיכי")} מאיפה ש${g("הפסקת", "הפסקת")} →</a></p>
-<p style="margin-top:24px;color:#999;font-size:13px">צוות One</p>
-</div>`
+<p>אפשר להיכנס למערכת ולהמשיך מהמקום שבו ${g("עצרת", "עצרת")}.</p>
+${btn("להמשך התהליך")}
+${footer}`)
+                  },
+                  {
+                    label: `${g("סיים", "סיימה")} שיחה — לא המשיך/ה`,
+                    subject: `נשארו עוד כמה צעדים להשלמת התהליך`,
+                    html: wrap(`
+<h2 style="color:#1B1464">היי ${name},</h2>
+<p>שיחת ההיכרות הושלמה בהצלחה, ואנחנו כבר מתחילים ${g("להכיר אותך", "להכיר אותך")}.</p>
+<p>כדי שנוכל לדייק את ההתאמה ולבנות פרופיל מלא, נשארו עוד שני שלבים קצרים — מבחן סגנון חשיבה וניתוח טעם אישי.</p>
+<p>בסיום התהליך נוכל להכניס ${g("אותך", "אותך")} למאגר ולהתחיל לחפש ${g("עבורך", "עבורך")} התאמה מדויקת.</p>
+<p>אפשר להיכנס למערכת ולהמשיך מהמקום שבו ${g("עצרת", "עצרת")}.</p>
+${btn("להמשך התהליך")}
+${footer}`)
                   },
                   {
                     label: `יש תובנות — ${g("ממשיך", "ממשיכה")}`,
-                    subject: `${name}, התובנות ${g("שלך", "שלך")} מוכנות`,
-                    html: `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#333;max-width:500px">
-<h2 style="color:#1B1464">היי ${name} 👋</h2>
-<p>רצינו לעדכן ${g("אותך", "אותך")} שכבר יש לנו תובנות ראשוניות על הפרופיל ${g("שלך", "שלך")}!</p>
-<p>${g("מוזמן", "מוזמנת")} להיכנס ל-One ולקרוא את הניתוח האישי — מה למדנו ${g("עליך", "עליך")} עד כה.</p>
-<p>במקביל, כדי שנוכל לדייק את ההתאמה עוד יותר, ${g("מומלץ", "מומלצת")} להשלים את השיחה.</p>
-<p><a href="https://joinone.io" style="color:#1B1464;font-weight:bold;text-decoration:underline">${g("היכנס", "היכנסי")} לקרוא את התובנות ולהמשיך בשיחה →</a></p>
-<p style="margin-top:24px;color:#999;font-size:13px">צוות One</p>
-</div>`
+                    subject: `התובנות ${g("שלך", "שלך")} מוכנות`,
+                    html: wrap(`
+<h2 style="color:#1B1464">היי ${name},</h2>
+<p>רצינו לעדכן ${g("אותך", "אותך")} שכבר יש לנו תובנות ראשוניות על הפרופיל ${g("שלך", "שלך")}.</p>
+<p>${g("מוזמן", "מוזמנת")} להיכנס למערכת ולקרוא את הניתוח האישי — מה למדנו ${g("עליך", "עליך")} עד כה.</p>
+<p>במקביל, כדי שנוכל לדייק את ההתאמה עוד יותר, כדאי להשלים את התהליך.</p>
+${btn("לקריאת התובנות")}
+${footer}`)
                   },
                   {
                     label: "הושלם — נכנס למאגר",
-                    subject: `${name}, ${g("נכנסת", "נכנסת")} למאגר של One!`,
-                    html: `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#333;max-width:500px">
-<h2 style="color:#1B1464">היי ${name} 🎉</h2>
-<p>כל השלבים הושלמו בהצלחה!</p>
+                    subject: `${g("ברוך הבא", "ברוכה הבאה")} ל-One!`,
+                    html: wrap(`
+<h2 style="color:#1B1464">היי ${name},</h2>
+<p>כל השלבים הושלמו בהצלחה.</p>
 <p>הניתוח ${g("שלך", "שלך")} הושלם ו${g("נכנסת", "נכנסת")} למאגר ההתאמות של One. מעכשיו המערכת פועלת ברקע ומחפשת ${g("לך", "לך")} התאמה מדויקת ומשמעותית.</p>
-<p>${g("מוזמן", "מוזמנת")} להיכנס ל-One ולצפות בניתוח האישי המלא — כולל תובנות על הפרופיל הפסיכולוגי ${g("שלך", "שלך")}.</p>
+<p>${g("מוזמן", "מוזמנת")} להיכנס למערכת ולצפות בניתוח האישי המלא — כולל תובנות על הפרופיל הפסיכולוגי ${g("שלך", "שלך")}.</p>
 <p>נעדכן ${g("אותך", "אותך")} ברגע שתעלה התאמה. ב-One מעדיפים איכות על מהירות 🖤</p>
-<p><a href="https://joinone.io" style="color:#1B1464;font-weight:bold;text-decoration:underline">${g("היכנס", "היכנסי")} לצפייה בניתוח המלא →</a></p>
-<p style="margin-top:24px;color:#999;font-size:13px">צוות One</p>
-</div>`
+${btn("לצפייה בניתוח המלא")}
+${footer}`)
                   },
                 ];
                 return (
