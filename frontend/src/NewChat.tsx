@@ -171,7 +171,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [bugText, setBugText] = useState("");
   const [bugSent, setBugSent] = useState(false);
   const [feedbackCategory, setFeedbackCategory] = useState<string>("");
-  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null }>({ has_cognitive: true, has_taste_info: true, chat_count: 0, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null });
+  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null });
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
   const [matchingProgress, setMatchingProgress] = useState<{ total_pool_profiles: number; scanned_profiles: number; status_text: string } | null>(null);
   const [insightCard, setInsightCard] = useState<{ mbti: { type: string | null; description: string | null }; allValues: { name: string; he: string; score: number; description: string }[]; allBigFive: { name: string; he: string; score: number; description: string }[] } | null>(null);
@@ -789,6 +789,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               const tasteDoneForCouple = isCouple ? recommendations.cognitive_count >= 3 && has_taste_info : has_taste_info;
               const chatNotEnough = summary_fields < 8 && chat_count > 0 && !chatClosed;
 
+              // Don't show recommendations before data is loaded
+              if (chat_count < 0) return null;
               // Priority 0: General chat never started — suggest starting it
               if (chat_count === 0 && !chatClosed) {
                 return (
