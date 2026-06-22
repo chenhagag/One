@@ -1683,6 +1683,74 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                 onChange={e => setEmailSubject(e.target.value)}
                 style={{ width: "100%", padding: "8px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6, marginBottom: 8, boxSizing: "border-box" }}
               />
+              {/* Email templates */}
+              {(() => {
+                const name = data?.user?.first_name || "שם";
+                const isFemale = data?.user?.gender === "woman";
+                const g = (m: string, f: string) => isFemale ? f : m;
+                const templates: { label: string; subject: string; html: string }[] = [
+                  {
+                    label: "לא התחיל/ה שיחה",
+                    subject: `${name}, ההיכרות מחכה לך ב-One`,
+                    html: `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#333;max-width:500px">
+<h2 style="color:#1B1464">היי ${name} 👋</h2>
+<p>שמנו לב ש${g("נרשמת", "נרשמת")} ל-One אבל עדיין לא ${g("התחלת", "התחלת")} את שיחת ההיכרות.</p>
+<p>השיחה היא הבסיס לכל מה שקורה אחר כך — ממנה נבנה פרופיל העומק ${g("שלך", "שלך")} ועל בסיסו נחפש ${g("לך", "לך")} התאמה מדויקת ומשמעותית.</p>
+<p>זה לוקח כמה דקות, בקצב ${g("שלך", "שלך")}, בשיחה טבעית.</p>
+<p><strong>${g("היכנס", "היכנסי")} ל-One ${g("והתחל", "והתחילי")} את השיחה →</strong></p>
+<p style="margin-top:24px;color:#999;font-size:13px">צוות One</p>
+</div>`
+                  },
+                  {
+                    label: `לא ${g("סיים", "סיימה")} שיחה`,
+                    subject: `${name}, נשארו עוד כמה צעדים`,
+                    html: `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#333;max-width:500px">
+<h2 style="color:#1B1464">היי ${name} 👋</h2>
+<p>${g("התחלת", "התחלת")} את שיחת ההיכרות ב-One אבל עדיין לא ${g("סיימת", "סיימת")} אותה.</p>
+<p>כדי שנוכל לבנות ${g("לך", "לך")} פרופיל מדויק ולהתחיל לחפש ${g("לך", "לך")} התאמה — ${g("צריך", "צריכה")} להשלים את השיחה.</p>
+<p>זה לא ארוך, ואפשר להמשיך מאיפה ש${g("עצרת", "עצרת")}.</p>
+<p><strong>${g("היכנס", "היכנסי")} ל-One ${g("והמשך", "והמשיכי")} מאיפה ש${g("הפסקת", "הפסקת")} →</strong></p>
+<p style="margin-top:24px;color:#999;font-size:13px">צוות One</p>
+</div>`
+                  },
+                  {
+                    label: `יש תובנות — ${g("ממשיך", "ממשיכה")}`,
+                    subject: `${name}, התובנות ${g("שלך", "שלך")} מוכנות`,
+                    html: `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#333;max-width:500px">
+<h2 style="color:#1B1464">היי ${name} 👋</h2>
+<p>רצינו לעדכן ${g("אותך", "אותך")} שכבר יש לנו תובנות ראשוניות על הפרופיל ${g("שלך", "שלך")}!</p>
+<p>${g("מוזמן", "מוזמנת")} להיכנס ל-One ולקרוא את הניתוח האישי — מה למדנו ${g("עליך", "עליך")} עד כה.</p>
+<p>במקביל, כדי שנוכל לדייק את ההתאמה עוד יותר, ${g("מומלץ", "מומלצת")} להשלים את השיחה.</p>
+<p><strong>${g("היכנס", "היכנסי")} לקרוא את התובנות ולהמשיך בשיחה →</strong></p>
+<p style="margin-top:24px;color:#999;font-size:13px">צוות One</p>
+</div>`
+                  },
+                  {
+                    label: "הושלם — נכנס למאגר",
+                    subject: `${name}, ${g("נכנסת", "נכנסת")} למאגר של One!`,
+                    html: `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#333;max-width:500px">
+<h2 style="color:#1B1464">היי ${name} 🎉</h2>
+<p>כל השלבים הושלמו בהצלחה!</p>
+<p>הניתוח ${g("שלך", "שלך")} הושלם ו${g("נכנסת", "נכנסת")} למאגר ההתאמות של One. מעכשיו המערכת פועלת ברקע ומחפשת ${g("לך", "לך")} התאמה מדויקת ומשמעותית.</p>
+<p>${g("מוזמן", "מוזמנת")} להיכנס ל-One ולצפות בניתוח האישי המלא — כולל תובנות על הפרופיל הפסיכולוגי ${g("שלך", "שלך")}.</p>
+<p>נעדכן ${g("אותך", "אותך")} ברגע שתעלה התאמה. ב-One מעדיפים איכות על מהירות 💜</p>
+<p><strong>${g("היכנס", "היכנסי")} לצפייה בניתוח המלא →</strong></p>
+<p style="margin-top:24px;color:#999;font-size:13px">צוות One</p>
+</div>`
+                  },
+                ];
+                return (
+                  <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 11, color: "#64748b", alignSelf: "center" }}>תבנית:</span>
+                    {templates.map((t, i) => (
+                      <button key={i} style={{ fontSize: 11, padding: "3px 10px", borderRadius: 12, border: "1px solid #d1d5db", background: "#fff", color: "#475569", cursor: "pointer" }}
+                        onClick={() => { setEmailSubject(t.subject); setEmailHtml(t.html); setEmailPreview(false); }}>
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
               <div style={{ display: "flex", gap: 4, marginBottom: 6, flexWrap: "wrap" }}>
                 <span style={{ fontSize: 11, color: "#94a3b8" }}>HTML supported — use tags for formatting</span>
                 <button
