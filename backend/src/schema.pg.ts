@@ -691,4 +691,15 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_page_views_page ON page_views(page);
     CREATE INDEX IF NOT EXISTS idx_page_views_time ON page_views(viewed_at);
   `);
+
+  // ── Email Log ─────────────────────────────────────────────────
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS email_log (
+      id          SERIAL PRIMARY KEY,
+      user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      subject     TEXT NOT NULL,
+      sent_at     TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_email_log_user ON email_log(user_id);
+  `);
 }

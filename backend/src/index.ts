@@ -2167,6 +2167,11 @@ app.post("/admin/send-email", async (req, res) => {
     }
 
     console.log(`[email] Sent to ${to}, subject: "${subject}", resend_id: ${data?.id}`);
+    // Log to email_log if we can find the user by email
+    const targetUser = await pgQueryOne<any>("SELECT id FROM users WHERE email = $1", [to.trim()]);
+    if (targetUser) {
+      await pgQueryOne("INSERT INTO email_log (user_id, subject) VALUES ($1, $2)", [targetUser.id, subject.trim()]);
+    }
     return res.json({ success: true, resend_id: data?.id });
   } catch (err: any) {
     console.error(`[email] Error sending to ${to}:`, err.message);
@@ -2202,6 +2207,7 @@ app.post("/admin/users/:id/send-email", async (req, res) => {
     }
 
     console.log(`[email] Sent to user ${userId} (${user.email}), subject: "${subject}", resend_id: ${data?.id}`);
+    await pgQueryOne("INSERT INTO email_log (user_id, subject) VALUES ($1, $2)", [userId, subject.trim()]);
     return res.json({ success: true, resend_id: data?.id });
   } catch (err: any) {
     console.error(`[email] Error sending to user ${userId}:`, err.message);
@@ -2290,6 +2296,142 @@ app.get("/admin/page-views/detail/:page", async (req, res) => {
     [page]
   );
   return res.json({ page, visits });
+});
+
+// ════════════════════════════════════════════════════════════════
+// USER MANAGEMENT (admin)
+// ════════════════════════════════════════════════════════════════
+
+app.get("/admin/user-management", async (_req, res) => {
+  try {
+    const users = await pgQueryAll<any>(`
+      SELECT
+        u.id, u.first_name, u.email, u.gender, u.age, u.city,
+        u.created_at, u.test_user_type, u.is_matchable, u.in_matching_pool,
+        u.analysis_run_count, u.analysis_completed,
+        u.couple_insights, u.personal_insights_short, u.personal_insights_full,
+        u.user_status
+      FROM users u
+      ORDER BY u.created_at DESC
+    `);
+
+    // Chat status per user
+    const chatStats = await pgQueryAll<any>(`
+      SELECT
+        user_id,
+        guide,
+        COUNT(*) FILTER (WHERE role = 'user') AS user_msg_count
+      FROM conversation_messages
+      GROUP BY user_id, guide
+    `);
+
+    // Conversation states (closing stages)
+    const convStates = await pgQueryAll<any>(`
+      SELECT user_id, topic_injection_counts, summary_json
+      FROM user_chat_summaries
+    `);
+
+    // Page view stats per user
+    const loginStats = await pgQueryAll<any>(`
+      SELECT
+        user_id,
+        COUNT(*)::int AS total_visits,
+        MIN(viewed_at) AS first_visit,
+        MAX(viewed_at) AS last_visit
+      FROM page_views
+      GROUP BY user_id
+    `);
+
+    // Last email sent per user
+    const emailStats = await pgQueryAll<any>(`
+      SELECT DISTINCT ON (user_id)
+        user_id, subject AS last_email_subject, sent_at AS last_email_sent
+      FROM email_log
+      ORDER BY user_id, sent_at DESC
+    `);
+
+    // Build lookup maps
+    const chatMap: Record<number, Record<string, number>> = {};
+    for (const row of chatStats) {
+      if (!chatMap[row.user_id]) chatMap[row.user_id] = {};
+      chatMap[row.user_id][row.guide] = parseInt(row.user_msg_count);
+    }
+
+    const convMap: Record<number, any> = {};
+    const summaryMap: Record<number, any> = {};
+    for (const row of convStates) {
+      convMap[row.user_id] = row.topic_injection_counts || {};
+      summaryMap[row.user_id] = row.summary_json || {};
+    }
+
+    const loginMap: Record<number, any> = {};
+    for (const row of loginStats) loginMap[row.user_id] = row;
+
+    const emailMap: Record<number, any> = {};
+    for (const row of emailStats) emailMap[row.user_id] = row;
+
+    const result = users.map((u: any) => {
+      const chat = chatMap[u.id] || {};
+      const conv = convMap[u.id] || {};
+      const summary = summaryMap[u.id] || {};
+      const login = loginMap[u.id] || {};
+      const email = emailMap[u.id] || {};
+
+      // Chat completion
+      const chatCount = chat["new_chat"] || 0;
+      const cogCount = chat["new_chat_cognitive"] || 0;
+      const tasteCount = chat["new_chat_taste"] || 0;
+
+      const closingStage = conv.closing_stage ?? 0;
+      const chatClosed = closingStage >= 1 || (conv.current_topic_index !== undefined && conv.current_topic_index >= 14);
+      const cogClosed = !!(conv.cognitive_closing_stage && conv.cognitive_closing_stage >= 3) || cogCount >= 7;
+      const tasteClosed = !!(conv.taste_closing_stage && conv.taste_closing_stage >= 3) || tasteCount >= 10;
+
+      // Summary fields filled
+      const fields = ['general_info', 'occupation', 'background_culture', 'social_style', 'taste_and_style', 'relationships', 'values', 'intellectual_world'];
+      const summaryFields = fields.filter(f => summary[f] && String(summary[f]).trim().length > 0).length;
+
+      const hasManualInsights = !!(u.personal_insights_short || u.personal_insights_full || u.couple_insights);
+
+      return {
+        id: u.id,
+        first_name: u.first_name,
+        email: u.email,
+        gender: u.gender,
+        age: u.age,
+        city: u.city,
+        created_at: u.created_at,
+        test_user_type: u.test_user_type,
+        is_matchable: u.is_matchable,
+        in_matching_pool: u.in_matching_pool,
+        user_status: u.user_status,
+        // Chat status
+        chat_count: chatCount,
+        chat_closed: chatClosed,
+        summary_fields: summaryFields,
+        cog_count: cogCount,
+        cog_closed: cogClosed,
+        taste_count: tasteCount,
+        taste_closed: tasteClosed,
+        // Analysis
+        analysis_run_count: u.analysis_run_count || 0,
+        analysis_completed: u.analysis_completed || false,
+        has_manual_insights: hasManualInsights,
+        // Login stats
+        total_visits: login.total_visits || 0,
+        first_visit: login.first_visit || null,
+        last_visit: login.last_visit || null,
+        // Email
+        last_email_subject: email.last_email_subject || null,
+        last_email_sent: email.last_email_sent || null,
+      };
+    });
+
+    return res.json(result);
+  } catch (err: any) {
+    console.error("[user-management]", err.message);
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // ════════════════════════════════════════════════════════════════

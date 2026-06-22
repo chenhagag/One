@@ -13,7 +13,7 @@ import { Fragment, useEffect, useState } from "react";
  * - Matches
  */
 
-type Tab = "overview" | "users" | "profiles" | "traits" | "look_traits" | "enums" | "config" | "matches" | "candidates" | "bugs" | "email" | "analytics";
+type Tab = "overview" | "users" | "profiles" | "traits" | "look_traits" | "enums" | "config" | "matches" | "candidates" | "bugs" | "email" | "analytics" | "user_mgmt";
 
 const s: Record<string, React.CSSProperties> = {
   heading: { marginTop: 0, marginBottom: 8, fontSize: 22 },
@@ -333,6 +333,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
           ["bugs", "משוב ודיווחים"],
           ["analytics", "Analytics"],
           ["email", "Send Email"],
+          ["user_mgmt", "ניהול משתמשים"],
         ] as [Tab, string][]).map(([key, label]) => (
           <button
             key={key}
@@ -356,6 +357,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
       {tab === "bugs" && <BugReportsTab />}
       {tab === "analytics" && <AnalyticsTab />}
       {tab === "email" && <SendEmailTab />}
+      {tab === "user_mgmt" && <UserManagementTab />}
     </div>
   );
 }
@@ -3603,6 +3605,167 @@ function BugReportsTab() {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function UserManagementTab() {
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<"all" | "incomplete" | "no_analysis" | "no_login_7d">("all");
+
+  useEffect(() => { loadData(); }, []);
+
+  function loadData() {
+    setLoading(true);
+    fetch("/api/admin/user-management")
+      .then(r => r.json())
+      .then(data => { setUsers(Array.isArray(data) ? data : []); })
+      .finally(() => setLoading(false));
+  }
+
+  function fmtDate(d: string | null) {
+    if (!d) return "—";
+    return new Date(d).toLocaleDateString("he-IL", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  }
+
+  function fmtDateTime(d: string | null) {
+    if (!d) return "—";
+    const dt = new Date(d);
+    return dt.toLocaleDateString("he-IL", { day: "2-digit", month: "2-digit" }) + " " + dt.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function timeAgo(d: string | null) {
+    if (!d) return "אף פעם";
+    const diff = Date.now() - new Date(d).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `לפני ${mins} דק'`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `לפני ${hours} שעות`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `לפני ${days} ימים`;
+    return fmtDate(d);
+  }
+
+  function chatStatusLabel(u: any) {
+    if (u.chat_closed) return { text: "הושלם", color: "#16a34a" };
+    if (u.chat_count > 0) return { text: `${u.chat_count} הודעות (${u.summary_fields}/8)`, color: "#d97706" };
+    return { text: "לא התחיל", color: "#dc2626" };
+  }
+
+  function channelBadge(closed: boolean, count: number) {
+    if (closed) return { text: "✓", color: "#16a34a", bg: "#f0fdf4" };
+    if (count > 0) return { text: `${count}`, color: "#d97706", bg: "#fffbeb" };
+    return { text: "✗", color: "#dc2626", bg: "#fef2f2" };
+  }
+
+  const filtered = users.filter(u => {
+    if (search) {
+      const q = search.toLowerCase();
+      if (!u.first_name?.toLowerCase().includes(q) && !u.email?.toLowerCase().includes(q)) return false;
+    }
+    if (filter === "incomplete") return !u.chat_closed || !u.cog_closed || !u.taste_closed;
+    if (filter === "no_analysis") return (u.analysis_run_count || 0) === 0;
+    if (filter === "no_login_7d") {
+      if (!u.last_visit) return true;
+      return Date.now() - new Date(u.last_visit).getTime() > 7 * 24 * 60 * 60 * 1000;
+    }
+    return true;
+  });
+
+  if (loading) return <p style={{ padding: 20, color: "#888" }}>טוען...</p>;
+
+  const st = {
+    card: { background: "#fff", borderRadius: 10, padding: "16px 20px", marginBottom: 10, border: "1px solid #e5e7eb", fontSize: 13 } as React.CSSProperties,
+    row: { display: "flex", gap: 16, flexWrap: "wrap" as const, alignItems: "center", marginBottom: 6 } as React.CSSProperties,
+    name: { fontWeight: 700, fontSize: 15, color: "#1e293b", minWidth: 120 } as React.CSSProperties,
+    email: { fontSize: 12, color: "#94a3b8" } as React.CSSProperties,
+    label: { fontSize: 11, color: "#64748b", fontWeight: 600, marginBottom: 2 } as React.CSSProperties,
+    value: { fontSize: 13, color: "#334155" } as React.CSSProperties,
+    badge: (color: string, bg: string): React.CSSProperties => ({ display: "inline-block", padding: "2px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600, color, background: bg, border: `1px solid ${color}20` }),
+    section: { display: "flex", gap: 20, flexWrap: "wrap" as const, marginTop: 8 } as React.CSSProperties,
+    col: { minWidth: 100 } as React.CSSProperties,
+    filterBtn: (active: boolean): React.CSSProperties => ({ padding: "4px 14px", fontSize: 12, border: "1px solid #d1d5db", borderRadius: 20, background: active ? "#6366f1" : "#fff", color: active ? "#fff" : "#475569", cursor: "pointer", fontWeight: active ? 600 : 400 }),
+  };
+
+  return (
+    <div style={{ padding: "0 0 20px" }}>
+      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
+        <input
+          placeholder="חיפוש שם / אימייל..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ padding: "6px 14px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, width: 220, direction: "rtl" }}
+        />
+        <button style={st.filterBtn(filter === "all")} onClick={() => setFilter("all")}>הכל ({users.length})</button>
+        <button style={st.filterBtn(filter === "incomplete")} onClick={() => setFilter("incomplete")}>לא השלימו צ'אט</button>
+        <button style={st.filterBtn(filter === "no_analysis")} onClick={() => setFilter("no_analysis")}>ללא ניתוח</button>
+        <button style={st.filterBtn(filter === "no_login_7d")} onClick={() => setFilter("no_login_7d")}>לא נכנסו 7+ ימים</button>
+        <span style={{ fontSize: 12, color: "#94a3b8" }}>{filtered.length} תוצאות</span>
+      </div>
+
+      {filtered.map(u => {
+        const chat = chatStatusLabel(u);
+        const cog = channelBadge(u.cog_closed, u.cog_count);
+        const taste = channelBadge(u.taste_closed, u.taste_count);
+
+        return (
+          <div key={u.id} style={st.card}>
+            <div style={st.row}>
+              <span style={st.name}>{u.first_name}</span>
+              <span style={st.email}>{u.email}</span>
+              <span style={{ fontSize: 11, color: "#94a3b8" }}>#{u.id}</span>
+              {u.test_user_type && <span style={st.badge("#6366f1", "#eef2ff")}>{u.test_user_type}</span>}
+              {u.in_matching_pool && <span style={st.badge("#16a34a", "#f0fdf4")}>במאגר</span>}
+            </div>
+
+            <div style={st.section}>
+              <div style={st.col}>
+                <div style={st.label}>צ'אט כללי</div>
+                <span style={{ ...st.value, color: chat.color, fontWeight: 600 }}>{chat.text}</span>
+              </div>
+              <div style={st.col}>
+                <div style={st.label}>סגנון חשיבה</div>
+                <span style={st.badge(cog.color, cog.bg)}>{cog.text}</span>
+              </div>
+              <div style={st.col}>
+                <div style={st.label}>ניתוח טעם</div>
+                <span style={st.badge(taste.color, taste.bg)}>{taste.text}</span>
+              </div>
+
+              <div style={st.col}>
+                <div style={st.label}>ניתוחים</div>
+                <span style={st.value}>{u.analysis_run_count || 0} {u.analysis_completed ? "✓" : ""}</span>
+              </div>
+              <div style={st.col}>
+                <div style={st.label}>תובנות ידניות</div>
+                <span style={st.badge(u.has_manual_insights ? "#16a34a" : "#94a3b8", u.has_manual_insights ? "#f0fdf4" : "#f8fafc")}>{u.has_manual_insights ? "יש" : "אין"}</span>
+              </div>
+
+              <div style={st.col}>
+                <div style={st.label}>הצטרפות</div>
+                <span style={st.value}>{fmtDate(u.created_at)}</span>
+              </div>
+              <div style={st.col}>
+                <div style={st.label}>כניסה אחרונה</div>
+                <span style={st.value}>{timeAgo(u.last_visit)}</span>
+              </div>
+              <div style={st.col}>
+                <div style={st.label}>סה"כ כניסות</div>
+                <span style={st.value}>{u.total_visits || 0}</span>
+              </div>
+
+              <div style={st.col}>
+                <div style={st.label}>מייל אחרון</div>
+                <span style={{ fontSize: 12, color: u.last_email_sent ? "#334155" : "#d1d5db" }}>
+                  {u.last_email_sent ? fmtDateTime(u.last_email_sent) : "לא נשלח"}
+                </span>
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
