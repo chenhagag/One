@@ -1657,12 +1657,18 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
             >
               {runningCognitiveTest ? "Running..." : "Cognitive Test"}
             </button>
-            <button
-              style={{ padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#0ea5e9", color: "#fff", border: "none", borderRadius: 4 }}
-              onClick={() => { setShowEmailComposer(!showEmailComposer); setEmailSent(false); setEmailError(null); }}
-            >
-              {showEmailComposer ? "Close Email" : "Send Email"}
-            </button>
+            {data?.user?.email_updates === false ? (
+              <span style={{ fontSize: 12, color: "#dc2626", background: "#fef2f2", padding: "4px 10px", borderRadius: 4, border: "1px solid #fecaca" }}>
+                ✉️ המשתמש/ת לא אישר/ה קבלת מיילים
+              </span>
+            ) : (
+              <button
+                style={{ padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#0ea5e9", color: "#fff", border: "none", borderRadius: 4 }}
+                onClick={() => { setShowEmailComposer(!showEmailComposer); setEmailSent(false); setEmailError(null); }}
+              >
+                {showEmailComposer ? "Close Email" : "Send Email"}
+              </button>
+            )}
             {traits.length === 0 && lookTraits.length === 0 && (
               <span style={{ fontSize: 12, color: "#856404", background: "#fff3cd", padding: "4px 10px", borderRadius: 4 }}>
                 No trait data — click Re-analyze to generate
