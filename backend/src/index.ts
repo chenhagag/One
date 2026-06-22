@@ -2532,7 +2532,7 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
     let summaryFields = 0;
     if (summary) {
       const fields = ['general_info', 'occupation', 'background_culture', 'social_style', 'taste_and_style', 'relationships', 'values', 'intellectual_world'];
-      summaryFields = fields.filter(f => summary[f] && summary[f].trim().length > 0).length;
+      summaryFields = fields.filter(f => summary[f] && String(summary[f]).trim().length > 0).length;
     }
 
     // Photo count
