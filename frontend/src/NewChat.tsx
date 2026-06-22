@@ -789,6 +789,16 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               const tasteDoneForCouple = isCouple ? recommendations.cognitive_count >= 3 && has_taste_info : has_taste_info;
               const chatNotEnough = summary_fields < 8 && chat_count > 0 && !chatClosed;
 
+              // Priority 0: General chat never started — suggest starting it
+              if (chat_count === 0 && !chatClosed) {
+                return (
+                  <div style={styles.recommendationBlock}>
+                    <p style={styles.recommendationText}>
+                      <span style={styles.recommendationBadge}>📊 איפה אנחנו עומדים?</span> עדיין לא התחלנו את שיחת ההיכרות. {gn("לחץ", "לחצי")} על <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => { setChannel("new_chat"); setScreen("chat"); }}>"בוא נתחיל"</span> כדי שנוכל {gn("להכיר אותך", "להכיר אותך")} ולהריץ חיפוש מדויק במאגר.
+                    </p>
+                  </div>
+                );
+              }
               // Priority 1: General chat not complete — return to chat
               if (chatNotEnough) {
                 return (

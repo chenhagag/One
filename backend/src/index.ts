@@ -2434,12 +2434,12 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
     // Cognitive closed: saved closing state OR legacy fallback (high message count for users who finished before this fix)
     const cogClosed = !!(convState.cognitive_closing_stage && convState.cognitive_closing_stage >= 3) || cognitiveCount >= 7;
 
-    // Taste closed: saved closing state OR legacy fallback (very high message count = definitely finished profiles)
-    const tasteClosed = !!(convState.taste_closing_stage && convState.taste_closing_stage >= 3) || tasteCount >= 25;
+    // Taste closed: saved closing state OR legacy fallback (enough messages = likely finished)
+    const tasteClosed = !!(convState.taste_closing_stage && convState.taste_closing_stage >= 3) || tasteCount >= 10;
 
-    // Taste info: aligned with tasteClosed, OR summary has taste data from general chat
-    const hasTasteInfo = tasteClosed ||
-      !!(summary && summary.taste_and_style && summary.taste_and_style.trim().length > 0);
+    // Taste info for display: tasteClosed OR user has some taste messages (started the channel)
+    // Note: summary.taste_and_style can be filled from general chat, so it should NOT mark taste channel as done
+    const hasTasteInfo = tasteClosed || tasteCount >= 5;
 
     return res.json({
       has_cognitive: cogClosed,
