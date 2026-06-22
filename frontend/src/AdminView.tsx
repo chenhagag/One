@@ -1697,7 +1697,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
 <p>שמנו לב ש${g("נרשמת", "נרשמת")} ל-One אבל עדיין לא ${g("התחלת", "התחלת")} את שיחת ההיכרות.</p>
 <p>השיחה היא הבסיס לכל מה שקורה אחר כך — ממנה נבנה פרופיל העומק ${g("שלך", "שלך")} ועל בסיסו נחפש ${g("לך", "לך")} התאמה מדויקת ומשמעותית.</p>
 <p>זה לוקח כמה דקות, בקצב ${g("שלך", "שלך")}, בשיחה טבעית.</p>
-<p><strong>${g("היכנס", "היכנסי")} ל-One ${g("והתחל", "והתחילי")} את השיחה →</strong></p>
+<p><a href="https://joinone.io" style="color:#1B1464;font-weight:bold;text-decoration:underline">${g("היכנס", "היכנסי")} ל-One ${g("והתחל", "והתחילי")} את השיחה →</a></p>
 <p style="margin-top:24px;color:#999;font-size:13px">צוות One</p>
 </div>`
                   },
@@ -1709,7 +1709,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
 <p>${g("התחלת", "התחלת")} את שיחת ההיכרות ב-One אבל עדיין לא ${g("סיימת", "סיימת")} אותה.</p>
 <p>כדי שנוכל לבנות ${g("לך", "לך")} פרופיל מדויק ולהתחיל לחפש ${g("לך", "לך")} התאמה — ${g("צריך", "צריכה")} להשלים את השיחה.</p>
 <p>זה לא ארוך, ואפשר להמשיך מאיפה ש${g("עצרת", "עצרת")}.</p>
-<p><strong>${g("היכנס", "היכנסי")} ל-One ${g("והמשך", "והמשיכי")} מאיפה ש${g("הפסקת", "הפסקת")} →</strong></p>
+<p><a href="https://joinone.io" style="color:#1B1464;font-weight:bold;text-decoration:underline">${g("היכנס", "היכנסי")} ל-One ${g("והמשך", "והמשיכי")} מאיפה ש${g("הפסקת", "הפסקת")} →</a></p>
 <p style="margin-top:24px;color:#999;font-size:13px">צוות One</p>
 </div>`
                   },
@@ -1721,7 +1721,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
 <p>רצינו לעדכן ${g("אותך", "אותך")} שכבר יש לנו תובנות ראשוניות על הפרופיל ${g("שלך", "שלך")}!</p>
 <p>${g("מוזמן", "מוזמנת")} להיכנס ל-One ולקרוא את הניתוח האישי — מה למדנו ${g("עליך", "עליך")} עד כה.</p>
 <p>במקביל, כדי שנוכל לדייק את ההתאמה עוד יותר, ${g("מומלץ", "מומלצת")} להשלים את השיחה.</p>
-<p><strong>${g("היכנס", "היכנסי")} לקרוא את התובנות ולהמשיך בשיחה →</strong></p>
+<p><a href="https://joinone.io" style="color:#1B1464;font-weight:bold;text-decoration:underline">${g("היכנס", "היכנסי")} לקרוא את התובנות ולהמשיך בשיחה →</a></p>
 <p style="margin-top:24px;color:#999;font-size:13px">צוות One</p>
 </div>`
                   },
@@ -1734,7 +1734,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
 <p>הניתוח ${g("שלך", "שלך")} הושלם ו${g("נכנסת", "נכנסת")} למאגר ההתאמות של One. מעכשיו המערכת פועלת ברקע ומחפשת ${g("לך", "לך")} התאמה מדויקת ומשמעותית.</p>
 <p>${g("מוזמן", "מוזמנת")} להיכנס ל-One ולצפות בניתוח האישי המלא — כולל תובנות על הפרופיל הפסיכולוגי ${g("שלך", "שלך")}.</p>
 <p>נעדכן ${g("אותך", "אותך")} ברגע שתעלה התאמה. ב-One מעדיפים איכות על מהירות 💜</p>
-<p><strong>${g("היכנס", "היכנסי")} לצפייה בניתוח המלא →</strong></p>
+<p><a href="https://joinone.io" style="color:#1B1464;font-weight:bold;text-decoration:underline">${g("היכנס", "היכנסי")} לצפייה בניתוח המלא →</a></p>
 <p style="margin-top:24px;color:#999;font-size:13px">צוות One</p>
 </div>`
                   },
