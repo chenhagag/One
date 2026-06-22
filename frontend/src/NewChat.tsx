@@ -940,7 +940,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           </div>
                           <button
                             style={styles.insightCardBtn}
-                            onClick={() => { setInsightInitialView(targetView); setScreen("insights"); }}
+                            onClick={() => { setScreen("insights"); }}
                           >
                             לקריאת הניתוח המלא →
                           </button>

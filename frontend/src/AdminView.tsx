@@ -1691,7 +1691,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                 const templates: { label: string; subject: string; html: string }[] = [
                   {
                     label: "לא התחיל/ה שיחה",
-                    subject: `${name}, ההיכרות מחכה לך ב-One`,
+                    subject: `${g("ברוך הבא", "ברוכה הבאה")} ל-One, ${name}`,
                     html: `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#333;max-width:500px">
 <h2 style="color:#1B1464">היי ${name} 👋</h2>
 <p>שמנו לב ש${g("נרשמת", "נרשמת")} ל-One אבל עדיין לא ${g("התחלת", "התחלת")} את שיחת ההיכרות.</p>
@@ -1733,7 +1733,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
 <p>כל השלבים הושלמו בהצלחה!</p>
 <p>הניתוח ${g("שלך", "שלך")} הושלם ו${g("נכנסת", "נכנסת")} למאגר ההתאמות של One. מעכשיו המערכת פועלת ברקע ומחפשת ${g("לך", "לך")} התאמה מדויקת ומשמעותית.</p>
 <p>${g("מוזמן", "מוזמנת")} להיכנס ל-One ולצפות בניתוח האישי המלא — כולל תובנות על הפרופיל הפסיכולוגי ${g("שלך", "שלך")}.</p>
-<p>נעדכן ${g("אותך", "אותך")} ברגע שתעלה התאמה. ב-One מעדיפים איכות על מהירות 💜</p>
+<p>נעדכן ${g("אותך", "אותך")} ברגע שתעלה התאמה. ב-One מעדיפים איכות על מהירות 🖤</p>
 <p><a href="https://joinone.io" style="color:#1B1464;font-weight:bold;text-decoration:underline">${g("היכנס", "היכנסי")} לצפייה בניתוח המלא →</a></p>
 <p style="margin-top:24px;color:#999;font-size:13px">צוות One</p>
 </div>`
