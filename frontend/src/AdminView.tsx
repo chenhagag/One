@@ -672,7 +672,9 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
         setEmailError(json.error || "Failed to send");
       } else {
         setEmailSent(true);
-        setTimeout(() => setEmailSent(false), 3000);
+        setEmailSubject("");
+        setEmailHtml("");
+        setTimeout(() => { setEmailSent(false); setShowEmailComposer(false); }, 2000);
       }
     } catch (err: any) {
       setEmailError(err.message || "Network error");
@@ -1707,7 +1709,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                 >
                   {sendingEmail ? "Sending..." : "Send"}
                 </button>
-                {emailSent && <span style={{ fontSize: 12, color: "#16a34a", fontWeight: 600 }}>Sent successfully!</span>}
+                {emailSent && <span style={{ fontSize: 13, color: "#16a34a", fontWeight: 700, background: "#f0fdf4", padding: "4px 12px", borderRadius: 6, border: "1px solid #bbf7d0" }}>✓ Email sent successfully!</span>}
                 {emailError && <span style={{ fontSize: 12, color: "#dc2626" }}>{emailError}</span>}
               </div>
             </div>
