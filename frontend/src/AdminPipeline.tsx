@@ -282,6 +282,7 @@ function PipelineUserCard({
   const [sent, setSent] = useState(false);
   const [msgText, setMsgText] = useState("");
   const [msgSending, setMsgSending] = useState(false);
+  const [emailError, setEmailError] = useState("");
   const [reanalyzing, setReanalyzing] = useState(false);
   const [generating, setGenerating] = useState(false);
 
@@ -313,17 +314,23 @@ function PipelineUserCard({
 
   async function handleSendEmail() {
     setSending(true);
+    setEmailError("");
     try {
       const res = await fetch(`/api/admin/users/${u.id}/send-email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subject: emailSubject, html: emailHtml }),
       });
+      const data = await res.json();
       if (res.ok) {
         setSent(true);
         setTimeout(() => { setSent(false); setShowEmail(false); }, 2000);
         onReload();
+      } else {
+        setEmailError(data.error || "שגיאה בשליחה");
       }
+    } catch (err: any) {
+      setEmailError(err.message || "שגיאת רשת");
     } finally { setSending(false); }
   }
 
@@ -557,6 +564,7 @@ function PipelineUserCard({
               {sending ? "שולח..." : "שלח"}
             </button>
             {sent && <span style={{ fontSize: 12, color: "#16a34a", fontWeight: 700 }}>✓ נשלח!</span>}
+            {emailError && <span style={{ fontSize: 12, color: "#dc2626" }}>❌ {emailError}</span>}
           </div>
         </div>
       )}
