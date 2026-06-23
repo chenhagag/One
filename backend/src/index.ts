@@ -2311,10 +2311,7 @@ app.get("/admin/user-management", async (_req, res) => {
         u.analysis_run_count, u.analysis_completed,
         u.couple_insights, u.personal_insights_short, u.personal_insights_full,
         u.user_status, u.email_updates, u.partner_name,
-        COALESCE(u.admin_contacted, FALSE) as admin_contacted,
-        COALESCE(u.admin_processing_done, FALSE) as admin_processing_done,
-        COALESCE(u.admin_checklist, '{}') as admin_checklist,
-        COALESCE(u.partner_in_system, FALSE) as partner_in_system,
+        u.admin_contacted, u.admin_processing_done, u.admin_checklist, u.partner_in_system,
         (SELECT COUNT(*)::int FROM user_photos WHERE user_id = u.id) AS photo_count
       FROM users u
       ORDER BY u.created_at DESC
@@ -2446,13 +2443,13 @@ app.get("/admin/user-management", async (_req, res) => {
           ? (new Date(activity.last_message_at) > new Date(u.updated_at) ? activity.last_message_at : u.updated_at)
           : activity.last_message_at || u.updated_at || null,
         // Pipeline fields
-        admin_contacted: u.admin_contacted,
-        admin_processing_done: u.admin_processing_done,
-        admin_checklist: u.admin_checklist,
-        partner_in_system: u.partner_in_system,
-        partner_name: u.partner_name,
+        admin_contacted: u.admin_contacted ?? false,
+        admin_processing_done: u.admin_processing_done ?? false,
+        admin_checklist: u.admin_checklist ?? {},
+        partner_in_system: u.partner_in_system ?? false,
+        partner_name: u.partner_name || null,
         photo_count: u.photo_count || 0,
-        has_profile_details: !!(u.age && u.city && u.photo_count >= 1),
+        has_profile_details: !!(u.age && u.city && (u.photo_count || 0) >= 1),
       };
     });
 
