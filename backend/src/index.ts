@@ -2311,11 +2311,19 @@ app.get("/admin/user-management", async (_req, res) => {
         u.analysis_run_count, u.analysis_completed,
         u.couple_insights, u.personal_insights_short, u.personal_insights_full,
         u.user_status, u.email_updates, u.partner_name,
-        u.admin_contacted, u.admin_processing_done, u.admin_checklist, u.partner_in_system,
         (SELECT COUNT(*)::int FROM user_photos WHERE user_id = u.id) AS photo_count
       FROM users u
       ORDER BY u.created_at DESC
     `);
+
+    // Pipeline fields — fetched separately so the main query doesn't break if columns don't exist yet
+    let pipelineMap: Record<number, any> = {};
+    try {
+      const pipelineRows = await pgQueryAll<any>(
+        `SELECT id, admin_contacted, admin_processing_done, admin_checklist, partner_in_system FROM users`
+      );
+      for (const r of pipelineRows) pipelineMap[r.id] = r;
+    } catch { /* columns not yet migrated — use defaults */ }
 
     // Chat status per user
     const chatStats = await pgQueryAll<any>(`
@@ -2389,6 +2397,7 @@ app.get("/admin/user-management", async (_req, res) => {
       const login = loginMap[u.id] || {};
       const email = emailMap[u.id] || {};
       const activity = activityMap[u.id] || {};
+      const pipe = pipelineMap[u.id] || {};
 
       // Chat completion
       const chatCount = chat["new_chat"] || 0;
@@ -2443,10 +2452,10 @@ app.get("/admin/user-management", async (_req, res) => {
           ? (new Date(activity.last_message_at) > new Date(u.updated_at) ? activity.last_message_at : u.updated_at)
           : activity.last_message_at || u.updated_at || null,
         // Pipeline fields
-        admin_contacted: u.admin_contacted ?? false,
-        admin_processing_done: u.admin_processing_done ?? false,
-        admin_checklist: u.admin_checklist ?? {},
-        partner_in_system: u.partner_in_system ?? false,
+        admin_contacted: pipe.admin_contacted ?? false,
+        admin_processing_done: pipe.admin_processing_done ?? false,
+        admin_checklist: pipe.admin_checklist ?? {},
+        partner_in_system: pipe.partner_in_system ?? false,
         partner_name: u.partner_name || null,
         photo_count: u.photo_count || 0,
         has_profile_details: !!(u.age && u.city && (u.photo_count || 0) >= 1),
