@@ -604,6 +604,11 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   const [emailSent, setEmailSent] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [emailPreview, setEmailPreview] = useState(false);
+  const [adminMsg, setAdminMsg] = useState("");
+  const [adminMsgSaving, setAdminMsgSaving] = useState(false);
+
+  // Sync admin_message from loaded data
+  useEffect(() => { if (data?.user?.admin_message != null) setAdminMsg(data.user.admin_message); }, [data?.user?.admin_message]);
 
   function loadMatches() {
     fetch(`/api/admin/users/${userId}/matches`)
@@ -1673,6 +1678,49 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
               <span style={{ fontSize: 12, color: "#856404", background: "#fff3cd", padding: "4px 10px", borderRadius: 4 }}>
                 No trait data — click Re-analyze to generate
               </span>
+            )}
+          </div>
+
+          {/* Admin Message */}
+          <div style={{ marginBottom: 16, padding: 12, border: "1px solid #e2e8f0", borderRadius: 8, background: data?.user?.admin_message ? "#fefce8" : "#f8fafc" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#64748b", marginBottom: 6 }}>💬 הודעת מערכת למשתמש (מוצגת במסך הבית)</div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                type="text"
+                placeholder="הזיני הודעה שתוצג למשתמש/ת במסך הבית..."
+                value={adminMsg}
+                onChange={e => setAdminMsg(e.target.value)}
+                style={{ flex: 1, padding: "6px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6, direction: "rtl" }}
+              />
+              <button
+                disabled={adminMsgSaving}
+                onClick={async () => {
+                  setAdminMsgSaving(true);
+                  await fetch(`/api/admin/users/${userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin_message: adminMsg.trim() || null }) });
+                  loadUserData();
+                  setAdminMsgSaving(false);
+                }}
+                style={{ padding: "6px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#6366f1", color: "#fff", border: "none", borderRadius: 6, whiteSpace: "nowrap" }}
+              >
+                {adminMsgSaving ? "שומר..." : "שמור"}
+              </button>
+              {data?.user?.admin_message && (
+                <button
+                  onClick={async () => {
+                    setAdminMsgSaving(true);
+                    setAdminMsg("");
+                    await fetch(`/api/admin/users/${userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin_message: null }) });
+                    loadUserData();
+                    setAdminMsgSaving(false);
+                  }}
+                  style={{ padding: "6px 12px", fontSize: 12, cursor: "pointer", background: "#fee2e2", color: "#dc2626", border: "1px solid #fecaca", borderRadius: 6, whiteSpace: "nowrap" }}
+                >
+                  הסר
+                </button>
+              )}
+            </div>
+            {data?.user?.admin_message && (
+              <div style={{ marginTop: 6, fontSize: 11, color: "#92400e" }}>⚡ הודעה פעילה — מוצגת כרגע במסך הבית של המשתמש/ת</div>
             )}
           </div>
 
@@ -3700,6 +3748,11 @@ function UserManagementTab() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "incomplete" | "no_analysis" | "no_login_7d">("all");
+  const [sort, setSort] = useState<"created" | "activity">("created");
+  // Admin last-viewed timestamps per user — stored in localStorage
+  const [viewed, setViewed] = useState<Record<number, string>>(() => {
+    try { return JSON.parse(localStorage.getItem("admin_user_viewed") || "{}"); } catch { return {}; }
+  });
 
   useEffect(() => { loadData(); }, []);
 
@@ -3709,6 +3762,13 @@ function UserManagementTab() {
       .then(r => r.json())
       .then(data => { setUsers(Array.isArray(data) ? data : []); })
       .finally(() => setLoading(false));
+  }
+
+  function markViewed(userId: number) {
+    const now = new Date().toISOString();
+    const next = { ...viewed, [userId]: now };
+    setViewed(next);
+    localStorage.setItem("admin_user_viewed", JSON.stringify(next));
   }
 
   function fmtDate(d: string | null) {
@@ -3746,6 +3806,21 @@ function UserManagementTab() {
     return { text: "✗", color: "#dc2626", bg: "#fef2f2" };
   }
 
+  // Highlight: purple = new user (joined after last view), blue = updated after last view
+  function nameColor(u: any): string {
+    const lastViewed = viewed[u.id];
+    if (!lastViewed) {
+      // Never viewed — new user = purple
+      return "#7c3aed";
+    }
+    const viewedAt = new Date(lastViewed).getTime();
+    // User joined after last view
+    if (u.created_at && new Date(u.created_at).getTime() > viewedAt) return "#7c3aed";
+    // User had activity after last view
+    if (u.last_activity && new Date(u.last_activity).getTime() > viewedAt) return "#2563eb";
+    return "#1e293b";
+  }
+
   const filtered = users.filter(u => {
     if (search) {
       const q = search.toLowerCase();
@@ -3760,12 +3835,23 @@ function UserManagementTab() {
     return true;
   });
 
+  const sorted = [...filtered].sort((a, b) => {
+    if (sort === "activity") {
+      const aTime = a.last_activity ? new Date(a.last_activity).getTime() : 0;
+      const bTime = b.last_activity ? new Date(b.last_activity).getTime() : 0;
+      return bTime - aTime;
+    }
+    // default: created
+    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return bTime - aTime;
+  });
+
   if (loading) return <p style={{ padding: 20, color: "#888" }}>טוען...</p>;
 
   const st = {
     card: { background: "#fff", borderRadius: 10, padding: "16px 20px", marginBottom: 10, border: "1px solid #e5e7eb", fontSize: 13 } as React.CSSProperties,
     row: { display: "flex", gap: 16, flexWrap: "wrap" as const, alignItems: "center", marginBottom: 6 } as React.CSSProperties,
-    name: { fontWeight: 700, fontSize: 15, color: "#1e293b", minWidth: 120 } as React.CSSProperties,
     email: { fontSize: 12, color: "#94a3b8" } as React.CSSProperties,
     label: { fontSize: 11, color: "#64748b", fontWeight: 600, marginBottom: 2 } as React.CSSProperties,
     value: { fontSize: 13, color: "#334155" } as React.CSSProperties,
@@ -3773,11 +3859,12 @@ function UserManagementTab() {
     section: { display: "flex", gap: 20, flexWrap: "wrap" as const, marginTop: 8 } as React.CSSProperties,
     col: { minWidth: 100 } as React.CSSProperties,
     filterBtn: (active: boolean): React.CSSProperties => ({ padding: "4px 14px", fontSize: 12, border: "1px solid #d1d5db", borderRadius: 20, background: active ? "#6366f1" : "#fff", color: active ? "#fff" : "#475569", cursor: "pointer", fontWeight: active ? 600 : 400 }),
+    sortBtn: (active: boolean): React.CSSProperties => ({ padding: "4px 14px", fontSize: 12, border: "1px solid #d1d5db", borderRadius: 20, background: active ? "#334155" : "#fff", color: active ? "#fff" : "#475569", cursor: "pointer", fontWeight: active ? 600 : 400 }),
   };
 
   return (
     <div style={{ padding: "0 0 20px" }}>
-      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
         <input
           placeholder="חיפוש שם / אימייל..."
           value={search}
@@ -3790,16 +3877,24 @@ function UserManagementTab() {
         <button style={st.filterBtn(filter === "no_login_7d")} onClick={() => setFilter("no_login_7d")}>לא נכנסו 7+ ימים</button>
         <span style={{ fontSize: 12, color: "#94a3b8" }}>{filtered.length} תוצאות</span>
       </div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 11, color: "#64748b" }}>מיון:</span>
+        <button style={st.sortBtn(sort === "created")} onClick={() => setSort("created")}>תאריך הצטרפות</button>
+        <button style={st.sortBtn(sort === "activity")} onClick={() => setSort("activity")}>עדכון אחרון</button>
+        <span style={{ fontSize: 11, color: "#c4b5fd", marginRight: 12 }}>● סגול = חדש</span>
+        <span style={{ fontSize: 11, color: "#93c5fd" }}>● כחול = עדכון</span>
+      </div>
 
-      {filtered.map(u => {
+      {sorted.map(u => {
         const chat = chatStatusLabel(u);
         const cog = channelBadge(u.cog_closed, u.cog_count);
         const taste = channelBadge(u.taste_closed, u.taste_count);
+        const nc = nameColor(u);
 
         return (
-          <div key={u.id} style={st.card}>
+          <div key={u.id} style={st.card} onClick={() => markViewed(u.id)}>
             <div style={st.row}>
-              <span style={st.name}>{u.first_name}</span>
+              <span style={{ fontWeight: 700, fontSize: 15, color: nc, minWidth: 120, cursor: "pointer" }}>{u.first_name}</span>
               <span style={st.email}>{u.email}</span>
               <span style={{ fontSize: 11, color: "#94a3b8" }}>#{u.id}</span>
               {u.test_user_type && <span style={st.badge("#6366f1", "#eef2ff")}>{u.test_user_type}</span>}
@@ -3840,6 +3935,11 @@ function UserManagementTab() {
               <div style={st.col}>
                 <div style={st.label}>סה"כ כניסות</div>
                 <span style={st.value}>{u.total_visits || 0}</span>
+              </div>
+
+              <div style={st.col}>
+                <div style={st.label}>עדכון אחרון</div>
+                <span style={st.value}>{timeAgo(u.last_activity)}</span>
               </div>
 
               <div style={st.col}>

@@ -615,6 +615,12 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       ) THEN
         ALTER TABLE users ADD COLUMN smoker BOOLEAN DEFAULT FALSE;
       END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'admin_message'
+      ) THEN
+        ALTER TABLE users ADD COLUMN admin_message TEXT;
+      END IF;
     END $$;
   `);
 

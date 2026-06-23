@@ -994,7 +994,7 @@ app.patch("/admin/users/:id", async (req, res) => {
     "desired_height_min", "desired_height_max", "height_flexibility",
     "desired_location_range", "profile_complete", "consent_accepted", "photo_ai_consent",
     "email_updates", "whatsapp_updates", "whatsapp_phone", "in_matching_pool",
-    "marital_status", "has_children", "religion", "smoker",
+    "marital_status", "has_children", "religion", "smoker", "admin_message",
   ];
   const updates: string[] = [];
   const values: any[] = [];
@@ -2342,6 +2342,13 @@ app.get("/admin/user-management", async (_req, res) => {
       GROUP BY user_id
     `);
 
+    // Last activity per user (latest message or profile update)
+    const activityStats = await pgQueryAll<any>(`
+      SELECT user_id, MAX(created_at) AS last_message_at
+      FROM conversation_messages
+      GROUP BY user_id
+    `);
+
     // Last email sent per user
     const emailStats = await pgQueryAll<any>(`
       SELECT DISTINCT ON (user_id)
@@ -2367,6 +2374,9 @@ app.get("/admin/user-management", async (_req, res) => {
     const loginMap: Record<number, any> = {};
     for (const row of loginStats) loginMap[row.user_id] = row;
 
+    const activityMap: Record<number, any> = {};
+    for (const row of activityStats) activityMap[row.user_id] = row;
+
     const emailMap: Record<number, any> = {};
     for (const row of emailStats) emailMap[row.user_id] = row;
 
@@ -2376,6 +2386,7 @@ app.get("/admin/user-management", async (_req, res) => {
       const summary = summaryMap[u.id] || {};
       const login = loginMap[u.id] || {};
       const email = emailMap[u.id] || {};
+      const activity = activityMap[u.id] || {};
 
       // Chat completion
       const chatCount = chat["new_chat"] || 0;
@@ -2424,6 +2435,10 @@ app.get("/admin/user-management", async (_req, res) => {
         // Email
         last_email_subject: email.last_email_subject || null,
         last_email_sent: email.last_email_sent || null,
+        // Activity
+        last_activity: activity.last_message_at && u.updated_at
+          ? (new Date(activity.last_message_at) > new Date(u.updated_at) ? activity.last_message_at : u.updated_at)
+          : activity.last_message_at || u.updated_at || null,
       };
     });
 
@@ -2547,11 +2562,11 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
       looking_for_gender: string | null;
       desired_age_min: number | null; desired_age_max: number | null;
       desired_height_min: number | null; desired_height_max: number | null;
-      analysis_run_count: number; gender: string | null;
+      analysis_run_count: number; gender: string | null; admin_message: string | null;
     }>(
       `SELECT age, city, height, looking_for_gender,
               desired_age_min, desired_age_max, desired_height_min, desired_height_max,
-              COALESCE(analysis_run_count, 0) as analysis_run_count, gender
+              COALESCE(analysis_run_count, 0) as analysis_run_count, gender, admin_message
        FROM users WHERE id = $1`, [userId]
     );
     const hasProfileDetails = !!(
@@ -2596,6 +2611,7 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
       taste_closed: tasteClosed,
       analysis_run_count: analysisRunCount,
       gender: userGender,
+      admin_message: profileRow?.admin_message || null,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

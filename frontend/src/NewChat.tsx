@@ -171,7 +171,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [bugText, setBugText] = useState("");
   const [bugSent, setBugSent] = useState(false);
   const [feedbackCategory, setFeedbackCategory] = useState<string>("");
-  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null });
+  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null });
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
   const [matchingProgress, setMatchingProgress] = useState<{ total_pool_profiles: number; scanned_profiles: number; status_text: string } | null>(null);
   const [insightCard, setInsightCard] = useState<{ mbti: { type: string | null; description: string | null }; allValues: { name: string; he: string; score: number; description: string }[]; allBigFive: { name: string; he: string; score: number; description: string }[] } | null>(null);
@@ -213,6 +213,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             has_profile_details: data.has_profile_details || false,
             analysis_run_count: data.analysis_run_count || 0,
             gender: data.gender || null,
+            admin_message: data.admin_message || null,
           });
           if (data.chat_closed) setClosedChannels(prev => ({ ...prev, "new_chat": true }));
           if (data.cognitive_closed) setClosedChannels(prev => ({ ...prev, "new_chat_cognitive": true }));
@@ -365,7 +366,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           if (data.closing_stage >= 3) {
             setClosedChannels(prev => ({ ...prev, [effectiveChannel]: true }));
             fetch(`/api/new-chat/status/${user.id}`).then(r => r.json()).then(d => {
-              if (d.has_cognitive !== undefined) setRecommendations({ has_cognitive: d.has_cognitive, has_taste_info: d.has_taste_info, chat_count: d.chat_count || 0, summary_fields: d.summary_fields || 0, cognitive_count: d.cognitive_count || 0, photo_count: d.photo_count || 0, has_profile_details: d.has_profile_details || false, analysis_run_count: d.analysis_run_count || 0, gender: d.gender || null });
+              if (d.has_cognitive !== undefined) setRecommendations({ has_cognitive: d.has_cognitive, has_taste_info: d.has_taste_info, chat_count: d.chat_count || 0, summary_fields: d.summary_fields || 0, cognitive_count: d.cognitive_count || 0, photo_count: d.photo_count || 0, has_profile_details: d.has_profile_details || false, analysis_run_count: d.analysis_run_count || 0, gender: d.gender || null, admin_message: d.admin_message || null });
             }).catch(() => {});
           }
         } else if (data.error) {
@@ -774,6 +775,15 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     );
                   })()}
                 </>
+              )}
+
+              {/* Admin message — shown above all recommendations */}
+              {screen === "home" && recommendations.admin_message && (
+                <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
+                  <p style={{ fontSize: 14, color: "#1B1464", lineHeight: 1.6, margin: "8px 0", padding: "12px 16px", background: "#ede9fe", borderRadius: 10, borderRight: "4px solid #7c3aed", fontWeight: 500 }}>
+                    {recommendations.admin_message}
+                  </p>
+                </div>
               )}
 
               {/* Status recommendation — one at a time, prioritized */}
