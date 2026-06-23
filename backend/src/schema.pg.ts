@@ -621,7 +621,38 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       ) THEN
         ALTER TABLE users ADD COLUMN admin_message TEXT;
       END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'admin_contacted'
+      ) THEN
+        ALTER TABLE users ADD COLUMN admin_contacted BOOLEAN DEFAULT FALSE;
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'admin_processing_done'
+      ) THEN
+        ALTER TABLE users ADD COLUMN admin_processing_done BOOLEAN DEFAULT FALSE;
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'admin_checklist'
+      ) THEN
+        ALTER TABLE users ADD COLUMN admin_checklist JSONB DEFAULT '{}';
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'partner_in_system'
+      ) THEN
+        ALTER TABLE users ADD COLUMN partner_in_system BOOLEAN DEFAULT FALSE;
+      END IF;
     END $$;
+  `);
+
+  // Backfill admin_contacted from email_log (users who already received emails)
+  await pool.query(`
+    UPDATE users SET admin_contacted = TRUE
+    WHERE admin_contacted = FALSE
+      AND id IN (SELECT DISTINCT user_id FROM email_log WHERE user_id IS NOT NULL);
   `);
 
   // Change desired_location_range default from 'my_area' to 'bit_further'

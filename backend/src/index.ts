@@ -2307,10 +2307,15 @@ app.get("/admin/user-management", async (_req, res) => {
     const users = await pgQueryAll<any>(`
       SELECT
         u.id, u.first_name, u.email, u.gender, u.age, u.city,
-        u.created_at, u.test_user_type, u.is_matchable, u.in_matching_pool,
+        u.created_at, u.updated_at, u.test_user_type, u.is_matchable, u.in_matching_pool,
         u.analysis_run_count, u.analysis_completed,
         u.couple_insights, u.personal_insights_short, u.personal_insights_full,
-        u.user_status
+        u.user_status, u.email_updates, u.partner_name,
+        COALESCE(u.admin_contacted, FALSE) as admin_contacted,
+        COALESCE(u.admin_processing_done, FALSE) as admin_processing_done,
+        COALESCE(u.admin_checklist, '{}') as admin_checklist,
+        COALESCE(u.partner_in_system, FALSE) as partner_in_system,
+        (SELECT COUNT(*)::int FROM user_photos WHERE user_id = u.id) AS photo_count
       FROM users u
       ORDER BY u.created_at DESC
     `);
@@ -2435,16 +2440,199 @@ app.get("/admin/user-management", async (_req, res) => {
         // Email
         last_email_subject: email.last_email_subject || null,
         last_email_sent: email.last_email_sent || null,
+        email_updates: u.email_updates !== false,
         // Activity
         last_activity: activity.last_message_at && u.updated_at
           ? (new Date(activity.last_message_at) > new Date(u.updated_at) ? activity.last_message_at : u.updated_at)
           : activity.last_message_at || u.updated_at || null,
+        // Pipeline fields
+        admin_contacted: u.admin_contacted,
+        admin_processing_done: u.admin_processing_done,
+        admin_checklist: u.admin_checklist,
+        partner_in_system: u.partner_in_system,
+        partner_name: u.partner_name,
+        photo_count: u.photo_count || 0,
+        has_profile_details: !!(u.age && u.city && u.photo_count >= 1),
       };
     });
 
     return res.json(result);
   } catch (err: any) {
     console.error("[user-management]", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
+// PIPELINE MANAGEMENT
+// ════════════════════════════════════════════════════════════════
+
+// POST /admin/users/:id/pipeline-action — Pipeline stage transitions
+app.post("/admin/users/:id/pipeline-action", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  if (!userId) return res.status(400).json({ error: "invalid id" });
+  const { action } = req.body;
+
+  try {
+    switch (action) {
+      case "mark_contacted":
+        await pgQueryAll("UPDATE users SET admin_contacted = TRUE, updated_at = NOW() WHERE id = $1", [userId]);
+        break;
+      case "mark_done":
+        await pgQueryAll("UPDATE users SET admin_processing_done = TRUE, updated_at = NOW() WHERE id = $1", [userId]);
+        break;
+      case "enter_pool":
+        await pgQueryAll("UPDATE users SET in_matching_pool = TRUE, updated_at = NOW() WHERE id = $1", [userId]);
+        break;
+      case "toggle_partner":
+        await pgQueryAll("UPDATE users SET partner_in_system = NOT COALESCE(partner_in_system, FALSE), updated_at = NOW() WHERE id = $1", [userId]);
+        break;
+      default:
+        return res.status(400).json({ error: `Unknown action: ${action}` });
+    }
+    const updated = await pgQueryOne<any>("SELECT admin_contacted, admin_processing_done, in_matching_pool, partner_in_system FROM users WHERE id = $1", [userId]);
+    return res.json({ ok: true, ...updated });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /admin/users/:id/update-checklist — Update admin checklist item
+app.post("/admin/users/:id/update-checklist", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  if (!userId) return res.status(400).json({ error: "invalid id" });
+  const { key, value } = req.body;
+  const validKeys = ["analysis_run", "insights_entered", "email_sent", "external_analysis"];
+  if (!validKeys.includes(key)) return res.status(400).json({ error: `Invalid key: ${key}` });
+
+  try {
+    await pgQueryAll(
+      `UPDATE users SET admin_checklist = COALESCE(admin_checklist, '{}'::jsonb) || $1::jsonb, updated_at = NOW() WHERE id = $2`,
+      [JSON.stringify({ [key]: value }), userId]
+    );
+    const updated = await pgQueryOne<any>("SELECT admin_checklist FROM users WHERE id = $1", [userId]);
+    return res.json({ ok: true, admin_checklist: updated?.admin_checklist || {} });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /admin/users/:id/generate-insights — AI-generate personal insights from full conversations
+app.post("/admin/users/:id/generate-insights", aiLimiter, async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  if (!userId) return res.status(400).json({ error: "invalid id" });
+
+  try {
+    const user = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [userId]);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    // Build full conversation transcript (all chat types)
+    const allMessages = await pgQueryAll<any>(
+      `SELECT role, content, guide, created_at FROM conversation_messages
+       WHERE user_id = $1 ORDER BY created_at ASC`,
+      [userId]
+    );
+    if (!allMessages.length) return res.status(400).json({ error: "No conversation data" });
+
+    // Format full conversations by channel
+    const channels: Record<string, string[]> = {};
+    for (const msg of allMessages) {
+      const ch = msg.guide || "unknown";
+      if (!channels[ch]) channels[ch] = [];
+      channels[ch].push(`${msg.role === "user" ? "משתמש/ת" : "מערכת"}: ${msg.content}`);
+    }
+
+    let fullTranscript = "";
+    const channelLabels: Record<string, string> = {
+      new_chat: "שיחה כללית",
+      new_chat_cognitive: "שיחת חשיבה",
+      new_chat_taste: "מבחן טעם",
+      interviewer: "ראיון אישיות",
+      psychologist: "שיחת עומק",
+    };
+    for (const [ch, msgs] of Object.entries(channels)) {
+      fullTranscript += `\n=== ${channelLabels[ch] || ch} ===\n${msgs.join("\n")}\n`;
+    }
+
+    // Get existing traits for context
+    const traits = await pgQueryAll<any>(
+      `SELECT td.name, td.display_name, ut.score
+       FROM user_traits ut JOIN trait_definitions td ON ut.trait_id = td.id
+       WHERE ut.user_id = $1 ORDER BY td.trait_group, td.name`,
+      [userId]
+    );
+    const traitsSummary = traits.map((t: any) => `${t.display_name || t.name}: ${t.score}`).join(", ");
+
+    const isFemale = user.gender === "woman";
+    const genderWord = isFemale ? "המשתמשת" : "המשתמש";
+    const searchGender = user.looking_for_gender === "woman" ? "נשים" : user.looking_for_gender === "man" ? "גברים" : "בני זוג";
+
+    const systemPrompt = `אתה מומחה להתאמות זוגיות ופסיכולוגיה בינאישית. תפקידך לכתוב ניתוח אישי מפורט ומעמיק עבור ${genderWord}.
+
+הקלט שלך: השיחות המלאות של ${genderWord} עם המערכת + ציוני התכונות שלהם.
+
+הפלט שלך צריך להיות ב-JSON עם שני שדות:
+1. "summary_short" — 2-3 משפטים תמציתיים שמסכמים מה ${genderWord} מחפש/ת ומה סוג ההתאמה הטוב עבורם. זה מופיע בראש דף התובנות.
+2. "summary_full" — ניתוח אישי מפורט ומעמיק (6-10 פסקאות) שכולל:
+   - תיאור האישיות, חוזקות ומאפיינים בולטים
+   - סגנון תקשורת ודינמיקה בינאישית
+   - מה חשוב ל${genderWord} בקשר זוגי
+   - דפוסים שעולים מהשיחה (ערכים, גבולות, צרכים)
+   - סגנון חשיבה וגישה לחיים
+   - המלצה לסוג ההתאמה האידיאלי — מה יתאים ומה פחות יתאים
+   - טעם זוגי (אם יש מידע ממבחן הטעם)
+
+כתוב בעברית, בגוף שני (${isFemale ? "את" : "אתה"}), בטון מקצועי-חם.
+אל תהיה ארוך מדי אבל כן מפורט ומעמיק. כל פסקה צריכה להוסיף ערך ותובנה אמיתית.
+החזר JSON בלבד, ללא markdown.`;
+
+    const userPrompt = `פרטי ${genderWord}:
+שם: ${user.first_name || "לא ידוע"}
+גיל: ${user.age || "לא ידוע"}
+מגדר: ${user.gender || "לא ידוע"}
+עיר: ${user.city || "לא ידוע"}
+מחפש/ת: ${searchGender}
+
+ציוני תכונות: ${traitsSummary || "אין עדיין"}
+
+${fullTranscript}`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.7,
+      max_tokens: 3000,
+      response_format: { type: "json_object" },
+    });
+
+    if (response.usage) {
+      trackTokens(userId, "generate_insights", "gpt-4o", response.usage as any);
+    }
+
+    const raw = response.choices[0]?.message?.content || "{}";
+    let parsed: { summary_short?: string; summary_full?: string };
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return res.status(500).json({ error: "Failed to parse AI response", raw });
+    }
+
+    // Save to DB
+    await pgQueryAll(
+      "UPDATE users SET personal_insights_short = $1, personal_insights_full = $2, updated_at = NOW() WHERE id = $3",
+      [parsed.summary_short || null, parsed.summary_full || null, userId]
+    );
+
+    return res.json({
+      ok: true,
+      summary_short: parsed.summary_short,
+      summary_full: parsed.summary_full,
+    });
+  } catch (err: any) {
+    console.error("[generate-insights]", err.message);
     return res.status(500).json({ error: err.message });
   }
 });
@@ -2563,10 +2751,13 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
       desired_age_min: number | null; desired_age_max: number | null;
       desired_height_min: number | null; desired_height_max: number | null;
       analysis_run_count: number; gender: string | null; admin_message: string | null;
+      test_user_type: string | null; email_updates: boolean | null;
+      partner_in_system: boolean | null;
     }>(
       `SELECT age, city, height, looking_for_gender,
               desired_age_min, desired_age_max, desired_height_min, desired_height_max,
-              COALESCE(analysis_run_count, 0) as analysis_run_count, gender, admin_message
+              COALESCE(analysis_run_count, 0) as analysis_run_count, gender, admin_message,
+              test_user_type, email_updates, COALESCE(partner_in_system, FALSE) as partner_in_system
        FROM users WHERE id = $1`, [userId]
     );
     const hasProfileDetails = !!(
@@ -2598,6 +2789,30 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
     // Note: summary.taste_and_style can be filled from general chat, so it should NOT mark taste channel as done
     const hasTasteInfo = tasteClosed || tasteCount >= 5;
 
+    // Auto system messages (fallback when no manual admin_message)
+    let displayMessage = profileRow?.admin_message || null;
+    if (!displayMessage) {
+      const isCouple = profileRow?.test_user_type === "Couple Tester";
+      const noEmail = profileRow?.email_updates === false;
+
+      if (isCouple && chatCount >= 1) {
+        const isFemale = userGender === "woman";
+        const partnerWord = isFemale ? "בן הזוג" : "בת הזוג";
+        let msg = "שלום, תודה רבה על הסיוע באימון המערכת של One ❤️. בעזרתם נוכל לדייק התאמות ולמצוא חיבורים טובים יותר למי שעוד לא מצא את האחד או האחת שלו.";
+
+        if (!profileRow?.partner_in_system) {
+          msg += `\n\nעל מנת שנוכל לתת לכם תובנות על הזוגיות שלכם — ${partnerWord} צריך/ה להיכנס למערכת גם כן. בינתיים אתם יכולים לבדוק את התובנות האישיות שלכם.`;
+        }
+        if (!chatClosed) {
+          msg += "\n\nכדי לדייק את התובנות מומלץ להמשיך בשיחה עם המערכת.";
+        }
+        msg += "\n\nתודה רבה ממערכת One";
+        displayMessage = msg;
+      } else if (noEmail) {
+        displayMessage = "מאחר וסימנתם שאינכם מעוניינים לקבל עדכונים במייל — נציג לכם הודעות חשובות במסך כאן. כדאי להיכנס מדי פעם לבדוק אם יש התאמה שלא נתפספס :) אתם מוזמנים גם לשנות את ההגדרה במסך ההגדרות.";
+      }
+    }
+
     return res.json({
       has_cognitive: cogClosed,
       cognitive_count: cognitiveCount,
@@ -2611,7 +2826,7 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
       taste_closed: tasteClosed,
       analysis_run_count: analysisRunCount,
       gender: userGender,
-      admin_message: profileRow?.admin_message || null,
+      admin_message: displayMessage,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

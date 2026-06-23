@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
+import AdminPipeline from "./AdminPipeline";
 
 /**
  * Admin View — Multi-table data explorer
@@ -357,7 +358,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
       {tab === "bugs" && <BugReportsTab />}
       {tab === "analytics" && <AnalyticsTab />}
       {tab === "email" && <SendEmailTab />}
-      {tab === "user_mgmt" && <UserManagementTab />}
+      {tab === "user_mgmt" && <AdminPipeline />}
     </div>
   );
 }

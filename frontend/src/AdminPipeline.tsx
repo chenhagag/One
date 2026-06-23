@@ -1,0 +1,596 @@
+import { useEffect, useState } from "react";
+
+// ════════════════════════════════════════════════════════════════
+// AdminPipeline — 6-stage user management dashboard
+// ════════════════════════════════════════════════════════════════
+
+interface PipelineUser {
+  id: number;
+  first_name: string;
+  email: string;
+  gender: string | null;
+  age: number | null;
+  city: string | null;
+  created_at: string;
+  test_user_type: string | null;
+  is_matchable: boolean;
+  in_matching_pool: boolean;
+  user_status: string | null;
+  // Chat
+  chat_count: number;
+  chat_closed: boolean;
+  summary_fields: number;
+  cog_count: number;
+  cog_closed: boolean;
+  taste_count: number;
+  taste_closed: boolean;
+  // Analysis
+  analysis_run_count: number;
+  analysis_completed: boolean;
+  has_manual_insights: boolean;
+  // Login
+  total_visits: number;
+  first_visit: string | null;
+  last_visit: string | null;
+  // Email
+  last_email_subject: string | null;
+  last_email_sent: string | null;
+  email_updates: boolean;
+  // Activity
+  last_activity: string | null;
+  // Pipeline
+  admin_contacted: boolean;
+  admin_processing_done: boolean;
+  admin_checklist: Record<string, boolean>;
+  partner_in_system: boolean;
+  partner_name: string | null;
+  photo_count: number;
+  has_profile_details: boolean;
+}
+
+type Stage = "new" | "in_process" | "completed" | "ready_pool" | "pool" | "couples";
+
+function getStage(u: PipelineUser): Stage {
+  if (u.test_user_type === "Couple Tester" && !u.in_matching_pool) return "couples";
+  if (u.in_matching_pool) return "pool";
+  if (u.admin_processing_done) return "ready_pool";
+  if (u.chat_closed && !u.admin_contacted) return "completed"; // completed but never contacted
+  if (u.chat_closed && u.admin_contacted) return "completed";
+  if (u.admin_contacted && !u.chat_closed) return "in_process";
+  return "new";
+}
+
+function getCompletionSub(u: PipelineUser): string {
+  const hasPhoto = u.photo_count >= 1;
+  const hasDetails = u.has_profile_details;
+  if (hasPhoto && hasDetails) return "תמונה + פרטים";
+  if (hasPhoto) return "תמונה בלבד";
+  if (hasDetails) return "פרטים בלבד";
+  return "שיחות בלבד";
+}
+
+const STAGE_CONFIG: { key: Stage; title: string; color: string; bg: string }[] = [
+  { key: "new", title: "משתמשים חדשים", color: "#7c3aed", bg: "#f5f3ff" },
+  { key: "couples", title: "זוגות חדשים", color: "#ec4899", bg: "#fdf2f8" },
+  { key: "in_process", title: "בתהליך (לא דורשים טיפול)", color: "#d97706", bg: "#fffbeb" },
+  { key: "completed", title: "השלימו את התהליך", color: "#0ea5e9", bg: "#f0f9ff" },
+  { key: "ready_pool", title: "מוכנים למאגר", color: "#16a34a", bg: "#f0fdf4" },
+  { key: "pool", title: "במאגר", color: "#059669", bg: "#ecfdf5" },
+];
+
+// ── Email Templates ──────────────────────────────────────────────
+
+function buildWelcomeEmail(name: string, isFemale: boolean): { subject: string; html: string } {
+  const g = (m: string, f: string) => isFemale ? f : m;
+  return {
+    subject: `${g("ברוך הבא", "ברוכה הבאה")} ל-One`,
+    html: wrapEmail(`
+<p>היי,</p>
+<p>${g("ברוך הבא", "ברוכה הבאה")} ל-One, ${g("שמחים שהצטרפת", "שמחים שהצטרפת")} אלינו 🤍</p>
+<p>ברגע ש${g("תשלים", "תשלימי")} את השיחה עם הצ׳אט שלנו, נוכל להתחיל לעבוד על הניתוח האישי ${g("שלך", "שלך")} — להבין טוב יותר מי ${g("אתה", "את")}, מה חשוב ${g("לך", "לך")} בקשר, ואיזה סוג חיבור באמת יכול ${g("להתאים לך", "להתאים לך")}.</p>
+<p>אנחנו נמצאים עכשיו בשלב שבו One מתרחבת ואוספת משתמשים ראשונים למאגר. ככל שיותר אנשים יצטרפו וישלימו את התהליך, נוכל להתחיל לחפש התאמות מדויקות יותר — ומקווים שבקרוב נגיע גם ל-One ${g("שלך", "שלך")}.</p>
+${emailBtn("להמשך תהליך ההיכרות")}
+<p>${g("שמחים שאתה כאן", "שמחים שאת כאן")},<br>צוות One</p>`),
+  };
+}
+
+function buildPoolEmail(name: string, isFemale: boolean): { subject: string; html: string } {
+  const g = (m: string, f: string) => isFemale ? f : m;
+  return {
+    subject: `הניתוח ${g("שלך", "שלך")} ב-One הושלם`,
+    html: wrapEmail(`
+<p>היי,</p>
+<p>${g("ברוך הבא", "ברוכה הבאה")} ל-One, ${g("שמחים שהצטרפת", "שמחים שהצטרפת")} אלינו.</p>
+<p>הניתוח האישי ${g("שלך", "שלך")} הושלם, והוא זמין ${g("עבורך", "עבורך")} כעת בתוך המערכת.</p>
+<p>הניתוח מבוסס על השיחה ש${g("קיימת", "קיימת")} עם One, ונועד לשקף תובנות ראשוניות על סגנון הקשר ${g("שלך", "שלך")}, ההעדפות המרכזיות ${g("שלך", "שלך")}, והמאפיינים שעשויים להיות משמעותיים ${g("עבורך", "עבורך")} בהתאמה זוגית.</p>
+<p>בשלב זה ${g("נכנסת", "נכנסת")} למאגר ההתאמות שלנו.<br>One נמצאת כעת בתהליך התרחבות ואיסוף משתמשים נוספים, וככל שהמאגר יגדל — נוכל לאתר התאמות מדויקות ורלוונטיות יותר.</p>
+<p>מקווים למצוא ${g("לך", "לך")} את ה-One ${g("שלך", "שלך")} בקרוב.</p>
+<p>בברכה,<br>צוות One</p>
+<p style="margin-top:16px;font-size:13px;color:#888">לנוחותך, ניתן להיכנס למערכת גם דרך:<br><a href="https://joinone.io" style="color:#7b5fa3">joinone.io</a></p>`),
+  };
+}
+
+function buildCoupleEmail(name: string, isFemale: boolean): { subject: string; html: string } {
+  const g = (m: string, f: string) => isFemale ? f : m;
+  return {
+    subject: "תודה על ההשתתפות ב-One",
+    html: wrapEmail(`
+<p>היי${name ? " " + name : ""},</p>
+<p>תודה רבה על הסיוע באימון המערכת של One 🤍</p>
+<p>בעזרתכם נוכל לדייק התאמות ולמצוא חיבורים טובים יותר למי שעוד לא מצא את האחד או האחת שלו.</p>
+<p>התובנות האישיות ${g("שלך", "שלך")} זמינות ${g("לך", "לך")} בתוך המערכת — ${g("מוזמן", "מוזמנת")} להיכנס ולקרוא אותן.</p>
+${emailBtn("לצפייה בתובנות")}
+<p>תודה רבה,<br>צוות One</p>`),
+  };
+}
+
+function emailBtn(text: string) {
+  return `<p style="margin:28px 0"><a href="https://joinone.io" style="display:inline-block;background-color:#7b5fa3;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold">${text}</a></p>`;
+}
+
+function wrapEmail(inner: string) {
+  return `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#333;max-width:500px">${inner}</div>`;
+}
+
+// ── Main Component ───────────────────────────────────────────────
+
+export default function AdminPipeline() {
+  const [users, setUsers] = useState<PipelineUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [collapsed, setCollapsed] = useState<Record<Stage, boolean>>({
+    new: false, couples: false, in_process: true, completed: false, ready_pool: false, pool: true,
+  });
+
+  useEffect(() => { loadData(); }, []);
+
+  function loadData() {
+    setLoading(true);
+    fetch("/api/admin/user-management")
+      .then(r => r.json())
+      .then(data => setUsers(Array.isArray(data) ? data : []))
+      .finally(() => setLoading(false));
+  }
+
+  async function pipelineAction(userId: number, action: string) {
+    await fetch(`/api/admin/users/${userId}/pipeline-action`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    loadData();
+  }
+
+  async function updateChecklist(userId: number, key: string, value: boolean) {
+    await fetch(`/api/admin/users/${userId}/update-checklist`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, value }),
+    });
+    loadData();
+  }
+
+  // Group users by stage
+  const grouped: Record<Stage, PipelineUser[]> = { new: [], couples: [], in_process: [], completed: [], ready_pool: [], pool: [] };
+  for (const u of users) {
+    const stage = getStage(u);
+    grouped[stage].push(u);
+  }
+
+  if (loading) return <p style={{ padding: 20, color: "#888" }}>טוען...</p>;
+
+  return (
+    <div style={{ padding: "0 0 20px" }}>
+      {/* Summary bar */}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+        {STAGE_CONFIG.map(s => (
+          <div key={s.key} style={{ background: s.bg, border: `1px solid ${s.color}30`, borderRadius: 10, padding: "8px 16px", minWidth: 100, textAlign: "center" }}>
+            <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{grouped[s.key].length}</div>
+            <div style={{ fontSize: 11, color: s.color, fontWeight: 500 }}>{s.title}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Stages */}
+      {STAGE_CONFIG.map(stageConf => (
+        <PipelineStageSection
+          key={stageConf.key}
+          config={stageConf}
+          users={grouped[stageConf.key]}
+          collapsed={collapsed[stageConf.key]}
+          onToggle={() => setCollapsed(c => ({ ...c, [stageConf.key]: !c[stageConf.key] }))}
+          onPipelineAction={pipelineAction}
+          onChecklistUpdate={updateChecklist}
+          onReload={loadData}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ── Stage Section ────────────────────────────────────────────────
+
+function PipelineStageSection({
+  config, users, collapsed, onToggle, onPipelineAction, onChecklistUpdate, onReload,
+}: {
+  config: { key: Stage; title: string; color: string; bg: string };
+  users: PipelineUser[];
+  collapsed: boolean;
+  onToggle: () => void;
+  onPipelineAction: (userId: number, action: string) => void;
+  onChecklistUpdate: (userId: number, key: string, value: boolean) => void;
+  onReload: () => void;
+}) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div
+        onClick={onToggle}
+        style={{
+          display: "flex", alignItems: "center", gap: 10, cursor: "pointer",
+          padding: "10px 16px", background: config.bg, borderRadius: 10,
+          border: `1px solid ${config.color}30`,
+        }}
+      >
+        <span style={{ fontSize: 16, transform: collapsed ? "rotate(-90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▼</span>
+        <span style={{ fontSize: 15, fontWeight: 700, color: config.color }}>{config.title}</span>
+        <span style={{
+          fontSize: 12, fontWeight: 700, color: "#fff", background: config.color,
+          borderRadius: 20, padding: "2px 10px", minWidth: 20, textAlign: "center",
+        }}>{users.length}</span>
+      </div>
+      {!collapsed && (
+        <div style={{ padding: "8px 0" }}>
+          {users.length === 0 && <p style={{ padding: "8px 16px", color: "#94a3b8", fontSize: 13 }}>אין משתמשים בשלב זה</p>}
+          {users.map(u => (
+            <PipelineUserCard
+              key={u.id}
+              user={u}
+              stage={config.key}
+              stageColor={config.color}
+              onPipelineAction={onPipelineAction}
+              onChecklistUpdate={onChecklistUpdate}
+              onReload={onReload}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── User Card ────────────────────────────────────────────────────
+
+function PipelineUserCard({
+  user: u, stage, stageColor, onPipelineAction, onChecklistUpdate, onReload,
+}: {
+  user: PipelineUser;
+  stage: Stage;
+  stageColor: string;
+  onPipelineAction: (userId: number, action: string) => void;
+  onChecklistUpdate: (userId: number, key: string, value: boolean) => void;
+  onReload: () => void;
+}) {
+  const [showEmail, setShowEmail] = useState(false);
+  const [showMessage, setShowMessage] = useState(false);
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailHtml, setEmailHtml] = useState("");
+  const [emailPreview, setEmailPreview] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [msgText, setMsgText] = useState("");
+  const [msgSending, setMsgSending] = useState(false);
+  const [reanalyzing, setReanalyzing] = useState(false);
+  const [generating, setGenerating] = useState(false);
+
+  const isFemale = u.gender === "woman";
+
+  // Red highlight for stages 4 & 5: activity after reaching this stage
+  const isRedHighlight = (stage === "ready_pool" || stage === "pool") &&
+    u.last_activity && u.admin_processing_done &&
+    // Rough heuristic: if there's recent activity, highlight
+    u.last_activity > (u.last_email_sent || u.created_at);
+
+  function loadTemplate() {
+    const name = u.first_name || "";
+    if (stage === "new") {
+      const t = buildWelcomeEmail(name, isFemale);
+      setEmailSubject(t.subject); setEmailHtml(t.html);
+    } else if (stage === "ready_pool" || stage === "pool") {
+      const t = buildPoolEmail(name, isFemale);
+      setEmailSubject(t.subject); setEmailHtml(t.html);
+    } else if (stage === "couples") {
+      const t = buildCoupleEmail(name, isFemale);
+      setEmailSubject(t.subject); setEmailHtml(t.html);
+    } else {
+      // Completed - generic
+      const t = buildWelcomeEmail(name, isFemale);
+      setEmailSubject(t.subject); setEmailHtml(t.html);
+    }
+  }
+
+  async function handleSendEmail() {
+    setSending(true);
+    try {
+      const res = await fetch(`/api/admin/users/${u.id}/send-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subject: emailSubject, html: emailHtml }),
+      });
+      if (res.ok) {
+        setSent(true);
+        setTimeout(() => { setSent(false); setShowEmail(false); }, 2000);
+        onReload();
+      }
+    } finally { setSending(false); }
+  }
+
+  async function handleSendMessage() {
+    setMsgSending(true);
+    try {
+      await fetch(`/api/admin/users/${u.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ admin_message: msgText }),
+      });
+      setShowMessage(false);
+      onReload();
+    } finally { setMsgSending(false); }
+  }
+
+  async function handleReanalyze() {
+    if (!confirm(`להריץ ניתוח מחדש עבור ${u.first_name}?`)) return;
+    setReanalyzing(true);
+    try {
+      const res = await fetch(`/api/admin/users/${u.id}/reanalyze`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`ניתוח הושלם: ${data.internal_count || 0} internal + ${data.external_count || 0} external traits`);
+        onChecklistUpdate(u.id, "analysis_run", true);
+      } else {
+        alert(`שגיאה: ${data.error}`);
+      }
+    } finally { setReanalyzing(false); onReload(); }
+  }
+
+  async function handleGenerateInsights() {
+    if (!confirm(`להפיק תובנות AI עבור ${u.first_name}?`)) return;
+    setGenerating(true);
+    try {
+      const res = await fetch(`/api/admin/users/${u.id}/generate-insights`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`תובנות הופקו בהצלחה!\n\nסיכום קצר:\n${data.summary_short}\n\nניתוח מלא:\n${(data.summary_full || "").slice(0, 300)}...`);
+        onChecklistUpdate(u.id, "insights_entered", true);
+      } else {
+        alert(`שגיאה: ${data.error}`);
+      }
+    } finally { setGenerating(false); onReload(); }
+  }
+
+  const cardStyle: React.CSSProperties = {
+    background: "#fff",
+    borderRadius: 10,
+    padding: "14px 18px",
+    marginBottom: 8,
+    border: isRedHighlight ? "2px solid #dc2626" : "1px solid #e5e7eb",
+    fontSize: 13,
+    ...(isRedHighlight ? { background: "#fef2f2" } : {}),
+  };
+
+  const labelStyle: React.CSSProperties = { fontSize: 11, color: "#64748b", fontWeight: 600 };
+  const valStyle: React.CSSProperties = { fontSize: 13, color: "#334155" };
+  const btnStyle = (color: string, disabled = false): React.CSSProperties => ({
+    padding: "4px 14px", fontSize: 12, fontWeight: 600, cursor: disabled ? "default" : "pointer",
+    background: disabled ? "#e5e7eb" : color, color: "#fff", border: "none", borderRadius: 6,
+    opacity: disabled ? 0.6 : 1,
+  });
+  const outlineBtnStyle = (color: string): React.CSSProperties => ({
+    padding: "4px 14px", fontSize: 12, fontWeight: 500, cursor: "pointer",
+    background: "#fff", color, border: `1px solid ${color}`, borderRadius: 6,
+  });
+
+  return (
+    <div style={cardStyle}>
+      {/* Header row */}
+      <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
+        <span style={{ fontWeight: 700, fontSize: 15, color: stageColor }}>{u.first_name || "ללא שם"}</span>
+        <span style={{ fontSize: 12, color: "#94a3b8" }}>{u.email}</span>
+        <span style={{ fontSize: 11, color: "#94a3b8" }}>#{u.id}</span>
+        {u.gender && <span style={{ fontSize: 11, color: "#64748b" }}>{u.gender === "woman" ? "👩" : "👨"}</span>}
+        {u.age && <span style={{ fontSize: 11, color: "#64748b" }}>גיל {u.age}</span>}
+        {u.city && <span style={{ fontSize: 11, color: "#64748b" }}>{u.city}</span>}
+        {isRedHighlight && <span style={{ fontSize: 11, color: "#dc2626", fontWeight: 700 }}>⚠️ פעילות חדשה</span>}
+      </div>
+
+      {/* Info row */}
+      <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 10 }}>
+        {(stage === "in_process" || stage === "completed" || stage === "ready_pool" || stage === "pool") && (
+          <>
+            <div><span style={labelStyle}>כניסה אחרונה</span><br/><span style={valStyle}>{fmtTimeAgo(u.last_visit)}</span></div>
+            <div><span style={labelStyle}>עדכון אחרון</span><br/><span style={valStyle}>{fmtTimeAgo(u.last_activity)}</span></div>
+          </>
+        )}
+        {stage === "new" && (
+          <div><span style={labelStyle}>הצטרפות</span><br/><span style={valStyle}>{fmtDate(u.created_at)}</span></div>
+        )}
+        {stage === "completed" && (
+          <div><span style={labelStyle}>סטטוס</span><br/><span style={{ fontSize: 12, color: "#0ea5e9", fontWeight: 600 }}>{getCompletionSub(u)}</span></div>
+        )}
+        {stage === "couples" && u.partner_name && (
+          <div><span style={labelStyle}>בן/בת זוג</span><br/><span style={valStyle}>{u.partner_name}</span></div>
+        )}
+        {/* Chat status for relevant stages */}
+        {(stage === "new" || stage === "in_process" || stage === "couples") && (
+          <>
+            <div>
+              <span style={labelStyle}>צ׳אט</span><br/>
+              <span style={{ fontSize: 12, color: u.chat_closed ? "#16a34a" : u.chat_count > 0 ? "#d97706" : "#dc2626", fontWeight: 600 }}>
+                {u.chat_closed ? "הושלם" : u.chat_count > 0 ? `${u.chat_count} הודעות` : "לא התחיל"}
+              </span>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Checklist for stage 3 */}
+      {stage === "completed" && (
+        <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
+          <label style={{ fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+            <input type="checkbox" checked={!!u.admin_checklist?.analysis_run} onChange={e => onChecklistUpdate(u.id, "analysis_run", e.target.checked)} />
+            הורץ ניתוח
+          </label>
+          <label style={{ fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+            <input type="checkbox" checked={!!u.admin_checklist?.insights_entered} onChange={e => onChecklistUpdate(u.id, "insights_entered", e.target.checked)} />
+            הוזנו תובנות
+          </label>
+          <label style={{ fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+            <input type="checkbox" checked={!!u.admin_checklist?.email_sent} onChange={e => onChecklistUpdate(u.id, "email_sent", e.target.checked)} />
+            נשלח מייל
+          </label>
+        </div>
+      )}
+
+      {/* Checklist for stage 4 */}
+      {stage === "ready_pool" && (
+        <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
+          <label style={{ fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+            <input type="checkbox" checked={!!u.admin_checklist?.external_analysis} onChange={e => onChecklistUpdate(u.id, "external_analysis", e.target.checked)} />
+            ניתוח חיצוני
+          </label>
+        </div>
+      )}
+
+      {/* Action buttons */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+
+        {/* Stage 1: New — email/message + mark contacted */}
+        {stage === "new" && (
+          <>
+            {u.email_updates ? (
+              <button style={outlineBtnStyle("#0ea5e9")} onClick={() => { setShowEmail(true); loadTemplate(); }}>📧 שלח מייל</button>
+            ) : (
+              <button style={outlineBtnStyle("#7c3aed")} onClick={() => setShowMessage(true)}>💬 כתוב הודעה</button>
+            )}
+            <button style={btnStyle("#7c3aed")} onClick={() => onPipelineAction(u.id, "mark_contacted")}>✓ סומן כנשלח</button>
+          </>
+        )}
+
+        {/* Stage 3: Completed — email, reanalyze, generate insights, mark done */}
+        {stage === "completed" && (
+          <>
+            {u.email_updates ? (
+              <button style={outlineBtnStyle("#0ea5e9")} onClick={() => { setShowEmail(true); loadTemplate(); }}>📧 שלח מייל</button>
+            ) : (
+              <button style={outlineBtnStyle("#7c3aed")} onClick={() => setShowMessage(true)}>💬 כתוב הודעה</button>
+            )}
+            <button style={outlineBtnStyle("#f59e0b")} onClick={handleReanalyze} disabled={reanalyzing}>
+              {reanalyzing ? "מנתח..." : "🔄 הרץ ניתוח"}
+            </button>
+            <button style={outlineBtnStyle("#8b5cf6")} onClick={handleGenerateInsights} disabled={generating}>
+              {generating ? "מפיק..." : "✨ הפק תובנות"}
+            </button>
+            <button style={btnStyle("#16a34a")} onClick={() => onPipelineAction(u.id, "mark_done")}>✓ סיימתי טיפול</button>
+          </>
+        )}
+
+        {/* Stage 4: Ready for pool — enter pool */}
+        {stage === "ready_pool" && (
+          <>
+            <button style={btnStyle("#059669")} onClick={() => onPipelineAction(u.id, "enter_pool")}>🏊 כניסה למאגר</button>
+            {u.email_updates ? (
+              <button style={outlineBtnStyle("#0ea5e9")} onClick={() => { setShowEmail(true); loadTemplate(); }}>📧 שלח מייל</button>
+            ) : (
+              <button style={outlineBtnStyle("#7c3aed")} onClick={() => setShowMessage(true)}>💬 כתוב הודעה</button>
+            )}
+          </>
+        )}
+
+        {/* Stage 6: Couples — email + partner toggle */}
+        {stage === "couples" && (
+          <>
+            {u.email_updates ? (
+              <button style={outlineBtnStyle("#ec4899")} onClick={() => { setShowEmail(true); loadTemplate(); }}>📧 שלח מייל</button>
+            ) : (
+              <button style={outlineBtnStyle("#7c3aed")} onClick={() => setShowMessage(true)}>💬 כתוב הודעה</button>
+            )}
+            <button
+              style={u.partner_in_system ? btnStyle("#16a34a") : outlineBtnStyle("#64748b")}
+              onClick={() => onPipelineAction(u.id, "toggle_partner")}
+            >
+              {u.partner_in_system ? "✓ בן/בת זוג במערכת" : "בן/בת זוג לא במערכת"}
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Email Composer (inline) */}
+      {showEmail && (
+        <div style={{ marginTop: 12, padding: 14, border: "1px solid #e2e8f0", borderRadius: 8, background: "#f8fafc" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <span style={{ fontSize: 12, color: "#64748b" }}>To: {u.email}</span>
+            <button style={{ fontSize: 11, color: "#94a3b8", background: "none", border: "none", cursor: "pointer" }} onClick={() => setShowEmail(false)}>✕ סגור</button>
+          </div>
+          <input
+            type="text" placeholder="נושא" value={emailSubject} onChange={e => setEmailSubject(e.target.value)}
+            style={{ width: "100%", padding: "8px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6, marginBottom: 8, boxSizing: "border-box", direction: "rtl" }}
+          />
+          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+            <button style={{ fontSize: 11, color: "#0ea5e9", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+              onClick={() => setEmailPreview(!emailPreview)}>{emailPreview ? "ערוך" : "תצוגה מקדימה"}</button>
+            <button style={{ fontSize: 11, color: "#7c3aed", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+              onClick={loadTemplate}>טען תבנית מחדש</button>
+          </div>
+          {emailPreview ? (
+            <div style={{ width: "100%", minHeight: 160, padding: 12, fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", boxSizing: "border-box", overflow: "auto" }}
+              dangerouslySetInnerHTML={{ __html: emailHtml }} />
+          ) : (
+            <textarea value={emailHtml} onChange={e => setEmailHtml(e.target.value)}
+              style={{ width: "100%", minHeight: 160, padding: "8px 12px", fontSize: 12, border: "1px solid #d1d5db", borderRadius: 6, fontFamily: "monospace", resize: "vertical", boxSizing: "border-box" }} />
+          )}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
+            <button onClick={handleSendEmail} disabled={sending || !emailSubject.trim() || !emailHtml.trim()}
+              style={btnStyle("#0ea5e9", sending || !emailSubject.trim() || !emailHtml.trim())}>
+              {sending ? "שולח..." : "שלח"}
+            </button>
+            {sent && <span style={{ fontSize: 12, color: "#16a34a", fontWeight: 700 }}>✓ נשלח!</span>}
+          </div>
+        </div>
+      )}
+
+      {/* Message Composer (for no-email users) */}
+      {showMessage && (
+        <div style={{ marginTop: 12, padding: 14, border: "1px solid #e2e8f0", borderRadius: 8, background: "#faf5ff" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <span style={{ fontSize: 12, color: "#7c3aed", fontWeight: 600 }}>הודעת מערכת ל{u.first_name}</span>
+            <button style={{ fontSize: 11, color: "#94a3b8", background: "none", border: "none", cursor: "pointer" }} onClick={() => setShowMessage(false)}>✕ סגור</button>
+          </div>
+          <textarea value={msgText} onChange={e => setMsgText(e.target.value)} placeholder="כתוב הודעה שתוצג למשתמש במסך הבית..."
+            style={{ width: "100%", minHeight: 80, padding: "8px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6, resize: "vertical", boxSizing: "border-box", direction: "rtl" }} />
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
+            <button onClick={handleSendMessage} disabled={msgSending || !msgText.trim()} style={btnStyle("#7c3aed", msgSending || !msgText.trim())}>
+              {msgSending ? "שומר..." : "שמור הודעה"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Helpers ──────────────────────────────────────────────────────
+
+function fmtDate(d: string | null): string {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("he-IL", { day: "2-digit", month: "2-digit", year: "2-digit" });
+}
+
+function fmtTimeAgo(d: string | null): string {
+  if (!d) return "אף פעם";
+  const diff = Date.now() - new Date(d).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `לפני ${mins} דק'`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `לפני ${hours} שעות`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `לפני ${days} ימים`;
+  return fmtDate(d);
+}
