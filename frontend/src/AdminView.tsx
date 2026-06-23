@@ -358,7 +358,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
       {tab === "bugs" && <BugReportsTab />}
       {tab === "analytics" && <AnalyticsTab />}
       {tab === "email" && <SendEmailTab />}
-      {tab === "user_mgmt" && <AdminPipeline />}
+      {tab === "user_mgmt" && <AdminPipeline onSelectUser={(userId) => { setTab("users"); setTimeout(() => window.dispatchEvent(new CustomEvent("admin-select-user", { detail: userId })), 100); }} />}
     </div>
   );
 }
@@ -401,6 +401,11 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
       .then(setUsers)
       .catch(() => {})
       .finally(() => setLoading(false));
+
+    // Listen for user selection from other tabs (e.g. AdminPipeline)
+    const handler = (e: Event) => setSelectedUserId((e as CustomEvent).detail);
+    window.addEventListener("admin-select-user", handler);
+    return () => window.removeEventListener("admin-select-user", handler);
   }, []);
 
   if (loading) return <p style={s.loading}>Loading...</p>;

@@ -134,7 +134,7 @@ function wrapEmail(inner: string) {
 
 // ── Main Component ───────────────────────────────────────────────
 
-export default function AdminPipeline() {
+export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId: number) => void }) {
   const [users, setUsers] = useState<PipelineUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState<Record<Stage, boolean>>({
@@ -210,7 +210,7 @@ export default function AdminPipeline() {
 // ── Stage Section ────────────────────────────────────────────────
 
 function PipelineStageSection({
-  config, users, collapsed, onToggle, onPipelineAction, onChecklistUpdate, onReload,
+  config, users, collapsed, onToggle, onPipelineAction, onChecklistUpdate, onReload, onSelectUser,
 }: {
   config: { key: Stage; title: string; color: string; bg: string };
   users: PipelineUser[];
@@ -219,6 +219,7 @@ function PipelineStageSection({
   onPipelineAction: (userId: number, action: string) => void;
   onChecklistUpdate: (userId: number, key: string, value: boolean) => void;
   onReload: () => void;
+  onSelectUser?: (userId: number) => void;
 }) {
   return (
     <div style={{ marginBottom: 16 }}>
@@ -249,6 +250,7 @@ function PipelineStageSection({
               onPipelineAction={onPipelineAction}
               onChecklistUpdate={onChecklistUpdate}
               onReload={onReload}
+              onSelectUser={onSelectUser}
             />
           ))}
         </div>
@@ -260,7 +262,7 @@ function PipelineStageSection({
 // ── User Card ────────────────────────────────────────────────────
 
 function PipelineUserCard({
-  user: u, stage, stageColor, onPipelineAction, onChecklistUpdate, onReload,
+  user: u, stage, stageColor, onPipelineAction, onChecklistUpdate, onReload, onSelectUser,
 }: {
   user: PipelineUser;
   stage: Stage;
@@ -268,6 +270,7 @@ function PipelineUserCard({
   onPipelineAction: (userId: number, action: string) => void;
   onChecklistUpdate: (userId: number, key: string, value: boolean) => void;
   onReload: () => void;
+  onSelectUser?: (userId: number) => void;
 }) {
   const [showEmail, setShowEmail] = useState(false);
   const [showMessage, setShowMessage] = useState(false);
@@ -392,7 +395,7 @@ function PipelineUserCard({
     <div style={cardStyle}>
       {/* Header row */}
       <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
-        <span style={{ fontWeight: 700, fontSize: 15, color: stageColor }}>{u.first_name || "ללא שם"}</span>
+        <span style={{ fontWeight: 700, fontSize: 15, color: stageColor, cursor: "pointer", textDecoration: "underline" }} onClick={() => onSelectUser?.(u.id)}>{u.first_name || "ללא שם"}</span>
         <span style={{ fontSize: 12, color: "#94a3b8" }}>{u.email}</span>
         <span style={{ fontSize: 11, color: "#94a3b8" }}>#{u.id}</span>
         {u.gender && <span style={{ fontSize: 11, color: "#64748b" }}>{u.gender === "woman" ? "👩" : "👨"}</span>}
@@ -504,7 +507,7 @@ function PipelineUserCard({
           </>
         )}
 
-        {/* Stage 6: Couples — email + partner toggle */}
+        {/* Stage 6: Couples — email + partner toggle + mark contacted */}
         {stage === "couples" && (
           <>
             {u.email_updates ? (
@@ -518,6 +521,7 @@ function PipelineUserCard({
             >
               {u.partner_in_system ? "✓ בן/בת זוג במערכת" : "בן/בת זוג לא במערכת"}
             </button>
+            <button style={btnStyle("#ec4899")} onClick={() => onPipelineAction(u.id, "mark_contacted")}>✓ סומן כטופל</button>
           </>
         )}
       </div>

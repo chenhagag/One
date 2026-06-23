@@ -649,11 +649,15 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
   `);
 
   // Backfill admin_contacted from email_log (users who already received emails)
-  await pool.query(`
-    UPDATE users SET admin_contacted = TRUE
-    WHERE admin_contacted = FALSE
-      AND id IN (SELECT DISTINCT user_id FROM email_log WHERE user_id IS NOT NULL);
-  `);
+  try {
+    await pool.query(`
+      UPDATE users SET admin_contacted = TRUE
+      WHERE admin_contacted = FALSE
+        AND id IN (SELECT DISTINCT user_id FROM email_log WHERE user_id IS NOT NULL);
+    `);
+  } catch (e) {
+    console.log("[schema] backfill admin_contacted skipped:", (e as Error).message);
+  }
 
   // Change desired_location_range default from 'my_area' to 'bit_further'
   await pool.query(`
