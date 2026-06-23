@@ -2562,12 +2562,12 @@ app.post("/admin/users/:id/generate-insights", aiLimiter, async (req, res) => {
 
     // Get existing traits for context
     const traits = await pgQueryAll<any>(
-      `SELECT td.name, td.display_name, ut.score
+      `SELECT td.internal_name, td.display_name_he, ut.score
        FROM user_traits ut JOIN trait_definitions td ON ut.trait_definition_id = td.id
-       WHERE ut.user_id = $1 ORDER BY td.trait_group, td.name`,
+       WHERE ut.user_id = $1 ORDER BY td.trait_group, td.internal_name`,
       [userId]
     );
-    const traitsSummary = traits.map((t: any) => `${t.display_name || t.name}: ${t.score}`).join(", ");
+    const traitsSummary = traits.map((t: any) => `${t.display_name_he || t.internal_name}: ${t.score}`).join(", ");
 
     const isFemale = user.gender === "woman";
     const genderWord = isFemale ? "המשתמשת" : "המשתמש";
