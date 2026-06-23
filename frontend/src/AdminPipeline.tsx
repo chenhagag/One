@@ -201,6 +201,7 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
           onPipelineAction={pipelineAction}
           onChecklistUpdate={updateChecklist}
           onReload={loadData}
+          onSelectUser={onSelectUser}
         />
       ))}
     </div>
