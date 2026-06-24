@@ -1693,6 +1693,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
             {data?.user?.email_updates === false ? (
               <span style={{ fontSize: 12, color: "#dc2626", background: "#fef2f2", padding: "4px 10px", borderRadius: 4, border: "1px solid #fecaca" }}>
                 ✉️ המשתמש/ת לא אישר/ה קבלת מיילים
+                {data?.user?.whatsapp_updates && <span style={{ color: "#16a34a", marginRight: 8 }}> | ✓ אישר/ה וואטסאפ</span>}
               </span>
             ) : (
               <button

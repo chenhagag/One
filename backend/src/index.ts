@@ -2763,12 +2763,13 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
       desired_height_min: number | null; desired_height_max: number | null;
       analysis_run_count: number; gender: string | null; admin_message: string | null;
       test_user_type: string | null; email_updates: boolean | null;
-      partner_in_system: boolean | null;
+      partner_in_system: boolean | null; whatsapp_updates: boolean | null;
     }>(
       `SELECT age, city, height, looking_for_gender,
               desired_age_min, desired_age_max, desired_height_min, desired_height_max,
               COALESCE(analysis_run_count, 0) as analysis_run_count, gender, admin_message,
-              test_user_type, email_updates, COALESCE(partner_in_system, FALSE) as partner_in_system
+              test_user_type, email_updates, COALESCE(partner_in_system, FALSE) as partner_in_system,
+              whatsapp_updates
        FROM users WHERE id = $1`, [userId]
     );
     const hasProfileDetails = !!(
@@ -2819,7 +2820,7 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
         }
         msg += "\n\nתודה רבה ממערכת One";
         displayMessage = msg;
-      } else if (noEmail) {
+      } else if (noEmail && !profileRow?.whatsapp_updates) {
         displayMessage = "מאחר וסימנתם שאינכם מעוניינים לקבל עדכונים במייל — נציג לכם הודעות חשובות במסך כאן. כדאי להיכנס מדי פעם לבדוק אם יש התאמה שלא נתפספס :) אתם מוזמנים גם לשנות את ההגדרה במסך ההגדרות.";
       }
     }
