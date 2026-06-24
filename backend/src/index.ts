@@ -2452,10 +2452,10 @@ app.get("/admin/user-management", async (_req, res) => {
         last_email_subject: email.last_email_subject || null,
         last_email_sent: email.last_email_sent || null,
         email_updates: u.email_updates !== false,
-        // Activity
-        last_activity: activity.last_message_at && u.updated_at
-          ? (new Date(activity.last_message_at) > new Date(u.updated_at) ? activity.last_message_at : u.updated_at)
-          : activity.last_message_at || u.updated_at || null,
+        // Activity — based on user actions only (messages + page views), not admin-triggered updated_at
+        last_activity: activity.last_message_at && login.last_visit
+          ? (new Date(activity.last_message_at) > new Date(login.last_visit) ? activity.last_message_at : login.last_visit)
+          : activity.last_message_at || login.last_visit || null,
         // Pipeline fields
         admin_contacted: pipe.admin_contacted ?? false,
         admin_processing_done: pipe.admin_processing_done ?? false,
