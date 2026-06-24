@@ -171,10 +171,11 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [autoLoginDone, setAutoLoginDone] = useState(false);
+  const [adminViewingUser, setAdminViewingUser] = useState(false);
 
-  // ── Track page views (user-facing screens only) ────────────────
+  // ── Track page views (user-facing screens only, not admin previewing) ────────────────
   useEffect(() => {
-    if (view && autoLoginDone && view !== "admin") trackPage(view, user?.id);
+    if (view && autoLoginDone && view !== "admin" && !adminViewingUser) trackPage(view, user?.id);
   }, [view, autoLoginDone]);
 
   // ── Auto-login on mount: Supabase session + legacy fallback ────
@@ -479,11 +480,13 @@ export default function App() {
             setView("chat");
           }}
           onViewDashboard={(u) => {
+            setAdminViewingUser(true);
             setUser({ id: u.id, first_name: u.first_name, email: u.email } as User);
             saveSession({ id: u.id, first_name: u.first_name, email: u.email } as User);
             setView("new_chat");
           }}
           onViewNewChat={(u) => {
+            setAdminViewingUser(true);
             setUser({ id: u.id, first_name: u.first_name, email: u.email } as User);
             saveSession({ id: u.id, first_name: u.first_name, email: u.email } as User);
             setView("new_chat");
@@ -494,7 +497,7 @@ export default function App() {
       {view === "new_chat" && user && (
         <NewChat
           user={user}
-          onBack={() => setView("admin")}
+          onBack={() => { setAdminViewingUser(false); setView("admin"); }}
           onNavigate={(v) => setView(v as View)}
           onUserUpdate={(u) => setUser(u)}
           onLogout={handleLogout}
