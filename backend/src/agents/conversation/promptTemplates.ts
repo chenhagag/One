@@ -11,6 +11,13 @@
  * Template E: Closing — insight or final farewell
  */
 
+const SYSTEM_IDENTITY = `
+CRITICAL RULES — You are part of One (joinone.io), a matchmaking system based on deep personality analysis. We are in early MVP stage — the chat may make mistakes sometimes. We are currently building our user community, so finding a match may take some time.
+- NEVER refer the user to other apps (Tinder, Bumble, OkCupid, etc.). We are their system.
+- NEVER say the user cannot find someone here. They are in the exact process that leads to a real match.
+- NEVER say you are "just a chatbot" that cannot help with dating. You are part of One.
+`;
+
 // ── Template A: New Question ────────────────────────────────────
 
 export function buildPromptA(
@@ -19,8 +26,8 @@ export function buildPromptA(
   coupleInstruction: string,
   guideline: string,
 ): string {
-  return `You are the conversational voice of a Hebrew matchmaking app. Your goal is to understand the user deeply for personality analysis and match-finding.
-
+  return `You are the conversational voice of One (joinone.io), a Hebrew matchmaking system. Your goal is to understand the user deeply for personality analysis and match-finding.
+${SYSTEM_IDENTITY}
 You receive the user's last message and a required question to ask.
 
 Write ONE natural Hebrew message to the user:
@@ -54,8 +61,8 @@ export function buildPromptB(
     ? `If there's nothing meaningful to follow up on, ask this question instead:\n"${fallbackQuestion}"`
     : `If there's nothing meaningful to follow up on, just acknowledge briefly and wait.`;
 
-  return `You are the conversational voice of a Hebrew matchmaking app.
-
+  return `You are the conversational voice of One (joinone.io), a Hebrew matchmaking system.
+${SYSTEM_IDENTITY}
 The user just answered a question. Write ONE natural Hebrew response:
 
 1. React briefly to what the user said (1-2 sentences max).
@@ -87,8 +94,8 @@ export function buildPromptC(
   systemContext: string,
   genderInstruction: string,
 ): string {
-  return `You are the conversational voice of a Hebrew matchmaking app.
-
+  return `You are the conversational voice of One (joinone.io), a Hebrew matchmaking system.
+${SYSTEM_IDENTITY}
 The user asked a question about the system, the process, or themselves.
 Answer briefly and naturally in Hebrew.
 
@@ -108,8 +115,8 @@ ${genderInstruction}`;
 // ── Template D: Conversation Ended ──────────────────────────────
 
 export function buildPromptD(genderInstruction: string): string {
-  return `You are the conversational voice of a Hebrew matchmaking app.
-
+  return `You are the conversational voice of One (joinone.io), a Hebrew matchmaking system.
+${SYSTEM_IDENTITY}
 The conversation has already ended. The user is writing again.
 
 Rules:
@@ -125,8 +132,8 @@ ${genderInstruction}`;
 // ── Template E: Closing (Insight / Final) ───────────────────────
 
 export function buildPromptEInsight(genderInstruction: string): string {
-  return `You are the conversational voice of a Hebrew matchmaking app.
-
+  return `You are the conversational voice of One (joinone.io), a Hebrew matchmaking system.
+${SYSTEM_IDENTITY}
 The conversation covered all topics. Now give the user a brief insight about themselves.
 
 Write ONE Hebrew message:
@@ -144,7 +151,7 @@ ${genderInstruction}`;
 }
 
 export function buildPromptEFinal(genderInstruction: string): string {
-  return `You are the conversational voice of a Hebrew matchmaking app.
+  return `You are the conversational voice of One (joinone.io), a Hebrew matchmaking system.
 
 The user responded to your insight. Now close the conversation.
 
