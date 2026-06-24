@@ -506,6 +506,7 @@ app.patch("/users/:id", async (req, res) => {
     desired_age_min, desired_age_max, age_flexibility,
     desired_height_min, desired_height_max, height_flexibility,
     desired_location_range,
+    marital_status, has_children, religion, smoker,
   } = req.body;
   // Build pg UPDATE with dynamic $N placeholders
   const assignments: string[] = [];
@@ -534,6 +535,10 @@ app.patch("/users/:id", async (req, res) => {
   if (desired_height_max !== undefined)     push("desired_height_max", desired_height_max);
   if (height_flexibility !== undefined)     push("height_flexibility", height_flexibility);
   if (desired_location_range !== undefined) push("desired_location_range", desired_location_range);
+  if (marital_status !== undefined)        push("marital_status", marital_status);
+  if (has_children !== undefined)          push("has_children", has_children);
+  if (religion !== undefined)              push("religion", religion);
+  if (smoker !== undefined)                push("smoker", smoker);
 
   if (assignments.length === 0) return res.status(400).json({ error: "No fields to update" });
 
