@@ -314,6 +314,25 @@ function PartnerCell({ userId, value }: { userId: number; value: string }) {
 
 export default function AdminView({ onBack, onStartChat, onViewDashboard, onViewNewChat }: { onBack: () => void; onStartChat?: (user: { id: number; first_name: string; email: string }) => void; onViewDashboard?: (user: { id: number; first_name: string; email: string }) => void; onViewNewChat?: (user: { id: number; first_name: string; email: string }) => void }) {
   const [tab, setTab] = useState<Tab>("overview");
+  const [newBugCount, setNewBugCount] = useState(0);
+
+  // Check for new bug reports on mount
+  useEffect(() => {
+    fetch("/api/admin/bug-reports").then(r => r.json()).then((reports: any[]) => {
+      if (!Array.isArray(reports)) return;
+      const lastSeen = localStorage.getItem("admin_bugs_last_seen") || "1970-01-01";
+      const newCount = reports.filter(r => r.created_at && r.created_at > lastSeen).length;
+      setNewBugCount(newCount);
+    }).catch(() => {});
+  }, []);
+
+  function handleTabClick(key: Tab) {
+    if (key === "bugs") {
+      localStorage.setItem("admin_bugs_last_seen", new Date().toISOString());
+      setNewBugCount(0);
+    }
+    setTab(key);
+  }
 
   return (
     <div>
@@ -339,9 +358,12 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
           <button
             key={key}
             style={tab === key ? s.tabActive : s.tab}
-            onClick={() => setTab(key)}
+            onClick={() => handleTabClick(key)}
           >
             {label}
+            {key === "bugs" && newBugCount > 0 && (
+              <span style={{ marginRight: 4, marginLeft: 4, background: "#dc2626", color: "#fff", borderRadius: 20, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>{newBugCount}</span>
+            )}
           </button>
         ))}
       </div>
@@ -1963,6 +1985,9 @@ ${footer}`)
               ? <span>{advantages.score || "Analyzed — no specific advantages found"}</span>
               : <span style={{ color: "#999" }}>Not analyzed</span>}
           </div>
+
+          {/* User Photos — View & Download */}
+          <UserPhotosGallery userId={userId} />
 
           {/* External Traits — Manual Visual Scores */}
           <SectionHeading title="External Traits — Manual" />
@@ -3743,6 +3768,78 @@ function BugReportsTab() {
             </div>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── User Photos Gallery (for UserDetail) ────────────────────────
+
+function UserPhotosGallery({ userId }: { userId: number }) {
+  const [photos, setPhotos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
+  const [viewPhoto, setViewPhoto] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/users/${userId}/photos`).then(r => r.json())
+      .then(data => setPhotos(Array.isArray(data) ? data : []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [userId]);
+
+  async function downloadAll() {
+    setDownloading(true);
+    try {
+      for (const p of photos) {
+        const url = `/uploads/${p.filename}`;
+        const resp = await fetch(url);
+        const blob = await resp.blob();
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = p.original_name || p.filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }
+    } finally { setDownloading(false); }
+  }
+
+  if (loading) return <p style={{ fontSize: 12, color: "#888" }}>טוען תמונות...</p>;
+  if (photos.length === 0) return (
+    <div style={{ marginBottom: 16 }}>
+      <SectionHeading title="תמונות משתמש (0)" />
+      <p style={{ fontSize: 12, color: "#94a3b8" }}>אין תמונות</p>
+    </div>
+  );
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+        <SectionHeading title={`תמונות משתמש (${photos.length})`} />
+        <button onClick={() => setExpanded(!expanded)} style={{ fontSize: 11, color: "#6366f1", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
+          {expanded ? "הסתר" : "הצג"}
+        </button>
+        <button onClick={downloadAll} disabled={downloading} style={{ fontSize: 11, color: "#0ea5e9", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
+          {downloading ? "מוריד..." : "הורד הכל"}
+        </button>
+      </div>
+      {expanded && (
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+          {photos.map((p: any) => (
+            <div key={p.id} style={{ cursor: "pointer" }} onClick={() => setViewPhoto(`/uploads/${p.filename}`)}>
+              <img src={`/uploads/${p.filename}`} alt={p.original_name}
+                style={{ width: 100, height: 100, objectFit: "cover", borderRadius: 8, border: "1px solid #e5e7eb" }} />
+            </div>
+          ))}
+        </div>
+      )}
+      {/* Full-size lightbox */}
+      {viewPhoto && (
+        <div onClick={() => setViewPhoto(null)}
+          style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.85)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+          <img src={viewPhoto} style={{ maxWidth: "90vw", maxHeight: "90vh", borderRadius: 12 }} />
         </div>
       )}
     </div>
