@@ -434,7 +434,7 @@ function passesLocationFilter(
   getRegion: (city: string | null) => string | null,
   getNearbyRegions: (region: string) => Set<string>,
 ): boolean {
-  const pref = from.desired_location_range;
+  const pref = from.desired_location_range || "bit_further";
   if (pref === "whole_country") return true;
 
   const fromRegion = getRegion(from.city);

@@ -11,6 +11,16 @@ interface PipelineUser {
   gender: string | null;
   age: number | null;
   city: string | null;
+  looking_for_gender: string | null;
+  height: number | null;
+  desired_age_min: number | null;
+  desired_age_max: number | null;
+  age_flexibility: string | null;
+  desired_height_min: number | null;
+  desired_height_max: number | null;
+  height_flexibility: string | null;
+  desired_location_range: string | null;
+  cognitive_score: number | null;
   created_at: string;
   test_user_type: string | null;
   is_matchable: boolean;
@@ -509,6 +519,18 @@ function PipelineUserCard({
           </>
         )}
       </div>
+
+      {/* Matching filter details — ready_pool & pool */}
+      {(stage === "ready_pool" || stage === "pool" || stage === "completed_all") && (
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 8, fontSize: 11, color: "#64748b" }}>
+          <span>מחפש/ת: <b style={{ color: u.looking_for_gender ? "#0f172a" : "#dc2626" }}>{u.looking_for_gender === "woman" ? "נשים" : u.looking_for_gender === "man" ? "גברים" : u.looking_for_gender === "both" ? "גם וגם" : u.looking_for_gender === "doesnt_matter" ? "לא משנה" : "חסר"}</b></span>
+          <span>גובה: <b style={{ color: u.height ? "#0f172a" : "#dc2626" }}>{u.height ? `${u.height} ס״מ` : "חסר"}</b></span>
+          <span>טווח גילאים: <b style={{ color: (u.desired_age_min != null) ? "#0f172a" : "#dc2626" }}>{u.desired_age_min != null ? `${u.desired_age_min}–${u.desired_age_max}` : "חסר"}</b>{u.age_flexibility ? ` (${u.age_flexibility === "not_flexible" ? "לא גמיש" : u.age_flexibility === "slightly_flexible" ? "קצת גמיש" : "גמיש"})` : ""}</span>
+          <span>טווח גובה: <b style={{ color: (u.desired_height_min != null) ? "#0f172a" : "#dc2626" }}>{u.desired_height_min != null ? `${u.desired_height_min}–${u.desired_height_max}` : "חסר"}</b>{u.height_flexibility ? ` (${u.height_flexibility === "not_flexible" ? "לא גמיש" : u.height_flexibility === "slightly_flexible" ? "קצת גמיש" : "גמיש"})` : ""}</span>
+          <span>מיקום: <b style={{ color: u.desired_location_range ? "#0f172a" : "#dc2626" }}>{u.desired_location_range === "my_city" ? "לא יוצא מהעיר" : u.desired_location_range === "my_area" ? "באזור שלי" : u.desired_location_range === "bit_further" ? "מוכן לנסוע קצת" : u.desired_location_range === "whole_country" ? "כל הארץ" : u.desired_location_range || "חסר"}</b></span>
+          <span>קוגניטיבי: <b style={{ color: u.cognitive_score != null ? "#0f172a" : "#94a3b8" }}>{u.cognitive_score != null ? u.cognitive_score : "—"}</b></span>
+        </div>
+      )}
 
       {/* Email/message status */}
       <div style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>

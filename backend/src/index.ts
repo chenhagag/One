@@ -2343,6 +2343,10 @@ app.get("/admin/user-management", async (_req, res) => {
     const users = await pgQueryAll<any>(`
       SELECT
         u.id, u.first_name, u.email, u.gender, u.age, u.city,
+        u.looking_for_gender, u.height,
+        u.desired_age_min, u.desired_age_max, u.age_flexibility,
+        u.desired_height_min, u.desired_height_max, u.height_flexibility,
+        u.desired_location_range, u.cognitive_score,
         u.created_at, u.updated_at, u.test_user_type, u.is_matchable, u.in_matching_pool,
         u.analysis_run_count, u.analysis_completed,
         u.couple_insights, u.personal_insights_short, u.personal_insights_full,
