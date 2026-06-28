@@ -1411,23 +1411,40 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
         {/* Left column: Registration + Preferences + Chat */}
         <div style={{ minWidth: 280, maxWidth: 360 }}>
 
-          {/* Registration Data */}
-          <SectionHeading title="Registration Data" />
+          {/* Personal Details */}
+          <SectionHeading title="פרטים אישיים" />
           <dl style={dlStyle}>
-            <DlRow label="Email" value={user.email} />
-            <DlRow label="Height" value={user.height ? `${user.height} cm` : "-"} />
-            <DlRow label="Looking for" value={user.looking_for_gender || "-"} />
-            <DlRow label="Style" value={Array.isArray(user.self_style) ? user.self_style.join(", ") : user.self_style || "-"} />
+            <DlRow label="שם" value={user.first_name || "-"} />
+            <DlRow label="מין" value={user.gender === "woman" ? "אישה" : user.gender === "man" ? "גבר" : user.gender || "-"} />
+            <DlRow label="גיל" value={user.age ? String(user.age) : "-"} />
+            <DlRow label="מיקום" value={user.city || "-"} />
+            <DlRow label="מצב משפחתי" value={user.marital_status === "single" ? "רווק/ה" : user.marital_status === "divorced" ? "גרוש/ה" : user.marital_status === "widowed" ? "אלמן/ה" : user.marital_status || "-"} />
+            <DlRow label="ילדים" value={user.has_children ? "יש" : "אין"} />
+            <DlRow label="דת" value={user.religion || "-"} />
+            <DlRow label="עישון" value={user.smoker ? "מעשן/ת" : "לא מעשן/ת"} />
+            <DlRow label="גובה" value={user.height ? `${user.height} ס"מ` : "-"} />
+            <DlRow label="מחפש/ת" value={user.looking_for_gender === "woman" ? "אישה" : user.looking_for_gender === "man" ? "גבר" : user.looking_for_gender || "-"} />
           </dl>
 
           {/* Preferences */}
-          <SectionHeading title="Preferences" />
+          <SectionHeading title="העדפות" />
           <dl style={dlStyle}>
-            <DlRow label="Age range" value={`${user.desired_age_min ?? "?"} – ${user.desired_age_max ?? "?"}`} />
-            <DlRow label="Age flexibility" value={user.age_flexibility} />
-            <DlRow label="Height range" value={`${user.desired_height_min ?? "?"} – ${user.desired_height_max ?? "?"} cm`} />
-            <DlRow label="Height flexibility" value={user.height_flexibility} />
-            <DlRow label="Location range" value={user.desired_location_range} />
+            <DlRow label="טווח גילאים" value={`${user.desired_age_min ?? "?"} – ${user.desired_age_max ?? "?"}`} />
+            <DlRow label="טווח מיקומים" value={
+              user.desired_location_range === "my_area" ? "האזור שלי" :
+              user.desired_location_range === "bit_further" ? "קצת יותר רחוק" :
+              user.desired_location_range === "anywhere" ? "בכל הארץ" :
+              user.desired_location_range || "-"
+            } />
+          </dl>
+
+          {/* Settings */}
+          <SectionHeading title="הגדרות" />
+          <dl style={dlStyle}>
+            <DlRow label="אימייל" value={user.email} />
+            <DlRow label="מיילים" value={user.email_updates !== false ? "✓ מקבל/ת" : "✗ לא מקבל/ת"} />
+            <DlRow label="וואטסאפ" value={user.whatsapp_updates ? `✓ ${user.whatsapp_phone || ""}` : "✗ לא"} />
+            <DlRow label="ניתוח חיצוני" value={user.photo_ai_consent ? "✓ מסכים/ה" : "✗ לא מסכים/ה"} />
           </dl>
 
           {/* Chat / AI Analysis */}

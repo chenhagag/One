@@ -2395,10 +2395,9 @@ app.get("/admin/user-management", async (_req, res) => {
       GROUP BY user_id
     `);
 
-    // Last email sent per user
+    // All emails sent per user
     const emailStats = await pgQueryAll<any>(`
-      SELECT DISTINCT ON (user_id)
-        user_id, subject AS last_email_subject, sent_at AS last_email_sent
+      SELECT user_id, subject, sent_at
       FROM email_log
       ORDER BY user_id, sent_at DESC
     `);
@@ -2423,8 +2422,13 @@ app.get("/admin/user-management", async (_req, res) => {
     const activityMap: Record<number, any> = {};
     for (const row of activityStats) activityMap[row.user_id] = row;
 
-    const emailMap: Record<number, any> = {};
-    for (const row of emailStats) emailMap[row.user_id] = row;
+    const emailMap: Record<number, { last_email_subject: string; last_email_sent: string; emails: { subject: string; sent_at: string }[] }> = {};
+    for (const row of emailStats) {
+      if (!emailMap[row.user_id]) {
+        emailMap[row.user_id] = { last_email_subject: row.subject, last_email_sent: row.sent_at, emails: [] };
+      }
+      emailMap[row.user_id].emails.push({ subject: row.subject, sent_at: row.sent_at });
+    }
 
     const result = users.map((u: any) => {
       const chat = chatMap[u.id] || {};
@@ -2482,6 +2486,7 @@ app.get("/admin/user-management", async (_req, res) => {
         // Email
         last_email_subject: email.last_email_subject || null,
         last_email_sent: email.last_email_sent || null,
+        emails: email.emails || [],
         email_updates: u.email_updates !== false,
         // Activity — based on user actions only (messages + page views), not admin-triggered updated_at
         last_activity: activity.last_message_at && login.last_visit

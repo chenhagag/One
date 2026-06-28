@@ -35,6 +35,7 @@ interface PipelineUser {
   // Email
   last_email_subject: string | null;
   last_email_sent: string | null;
+  emails: { subject: string; sent_at: string }[];
   email_updates: boolean;
   // Activity
   last_activity: string | null;
@@ -82,11 +83,11 @@ function getCompletionSub(u: PipelineUser): string {
 const STAGE_CONFIG: { key: Stage; title: string; color: string; bg: string }[] = [
   { key: "new", title: "משתמשים חדשים", color: "#7c3aed", bg: "#f5f3ff" },
   { key: "couples", title: "זוגות לטיפול", color: "#ec4899", bg: "#fdf2f8" },
-  { key: "couples_done", title: "זוגות — לא דורשים טיפול", color: "#f9a8d4", bg: "#fdf2f8" },
-  { key: "in_process", title: "בתהליך (לא דורשים טיפול)", color: "#d97706", bg: "#fffbeb" },
   { key: "completed", title: "השלימו את התהליך", color: "#0ea5e9", bg: "#f0f9ff" },
   { key: "ready_pool", title: "מוכנים למאגר", color: "#16a34a", bg: "#f0fdf4" },
   { key: "pool", title: "במאגר", color: "#059669", bg: "#ecfdf5" },
+  { key: "in_process", title: "בתהליך (לא דורשים טיפול)", color: "#d97706", bg: "#fffbeb" },
+  { key: "couples_done", title: "זוגות — לא דורשים טיפול", color: "#f9a8d4", bg: "#fdf2f8" },
 ];
 
 // ── Email Templates ──────────────────────────────────────────────
@@ -456,6 +457,22 @@ function PipelineUserCard({
         )}
       </div>
 
+      {/* Email/message status */}
+      <div style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>
+        {!u.email_updates ? (
+          <span style={{ color: "#7c3aed" }}>📵 לא מקבל/ת מיילים — הודעות מערכת</span>
+        ) : u.emails && u.emails.length > 0 ? (
+          u.emails.map((e, i) => (
+            <span key={i} style={{ marginLeft: i > 0 ? 12 : 0 }}>
+              📧 {e.subject} <span style={{ color: "#94a3b8" }}>({fmtDateTime(e.sent_at)})</span>
+              {i < u.emails.length - 1 && " | "}
+            </span>
+          ))
+        ) : (
+          <span style={{ color: "#94a3b8" }}>לא נשלחו מיילים</span>
+        )}
+      </div>
+
       {/* Checklist for stage 3 */}
       {stage === "completed" && (
         <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
@@ -608,6 +625,13 @@ function PipelineUserCard({
 function fmtDate(d: string | null): string {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("he-IL", { day: "2-digit", month: "2-digit", year: "2-digit" });
+}
+
+function fmtDateTime(d: string | null): string {
+  if (!d) return "—";
+  const dt = new Date(d);
+  return dt.toLocaleDateString("he-IL", { day: "2-digit", month: "2-digit" }) + " " +
+    dt.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
 }
 
 function fmtTimeAgo(d: string | null): string {
