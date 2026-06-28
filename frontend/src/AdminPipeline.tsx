@@ -146,6 +146,22 @@ function wrapEmail(inner: string) {
   return `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#333;max-width:500px">${inner}</div>`;
 }
 
+// ── System Message Templates (for no-email users) ───────────────
+
+function buildWelcomeMessage(isFemale: boolean): string {
+  const g = (m: string, f: string) => isFemale ? f : m;
+  return `היי, ${g("ברוך הבא", "ברוכה הבאה")} ל-One! ברגע ש${g("תשלים", "תשלימי")} את השיחה, נתחיל לעבוד על הניתוח האישי ${g("שלך", "שלך")}. ככל שיותר אנשים יצטרפו, נוכל למצוא התאמות מדויקות יותר. ${g("שמחים שאתה כאן", "שמחים שאת כאן")} — צוות One`;
+}
+
+function buildPoolMessage(isFemale: boolean): string {
+  const g = (m: string, f: string) => isFemale ? f : m;
+  return `הניתוח האישי ${g("שלך", "שלך")} הושלם והוא זמין בתוך המערכת. ${g("נכנסת", "נכנסת")} למאגר ההתאמות שלנו — ככל שהמאגר יגדל, נוכל לאתר התאמות מדויקות יותר. מקווים למצוא ${g("לך", "לך")} את ה-One ${g("שלך", "שלך")} בקרוב! — צוות One`;
+}
+
+function buildCoupleMessage(isFemale: boolean): string {
+  return `תודה רבה על הסיוע באימון המערכת של One. התובנות האישיות זמינות בתוך המערכת — ${isFemale ? "מוזמנת" : "מוזמן"} להיכנס ולקרוא אותן. — צוות One`;
+}
+
 // ── Main Component ───────────────────────────────────────────────
 
 export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId: number) => void }) {
@@ -531,10 +547,15 @@ function PipelineUserCard({
       {/* Checklist for stage 4 */}
       {stage === "ready_pool" && (
         <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
-          <label style={{ fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-            <input type="checkbox" checked={!!u.admin_checklist?.external_analysis} onChange={e => onChecklistUpdate(u.id, "external_analysis", e.target.checked)} />
-            ניתוח חיצוני
-          </label>
+          <span style={{ fontSize: 12, fontWeight: 600, color: u.photo_count >= 1 ? "#16a34a" : "#dc2626" }}>
+            {u.photo_count >= 1 ? `📷 ${u.photo_count} תמונות` : "📷 ללא תמונה"}
+          </span>
+          {u.photo_count >= 1 && (
+            <label style={{ fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+              <input type="checkbox" checked={!!u.admin_checklist?.external_analysis} onChange={e => onChecklistUpdate(u.id, "external_analysis", e.target.checked)} />
+              ניתוח חיצוני
+            </label>
+          )}
         </div>
       )}
 
@@ -547,7 +568,7 @@ function PipelineUserCard({
             {u.email_updates ? (
               <button style={outlineBtnStyle("#0ea5e9")} onClick={() => { setShowEmail(true); loadTemplate(); }}>📧 שלח מייל</button>
             ) : (
-              <button style={outlineBtnStyle("#7c3aed")} onClick={() => setShowMessage(true)}>💬 כתוב הודעה</button>
+              <button style={outlineBtnStyle("#7c3aed")} onClick={() => { setMsgText(buildWelcomeMessage(isFemale)); setShowMessage(true); }}>💬 כתוב הודעה</button>
             )}
             <button style={btnStyle("#7c3aed")} onClick={() => onPipelineAction(u.id, "mark_contacted")}>✓ סומן כנשלח</button>
           </>
@@ -564,7 +585,7 @@ function PipelineUserCard({
             {u.email_updates ? (
               <button style={outlineBtnStyle("#0ea5e9")} onClick={() => { setShowEmail(true); loadTemplate(); }}>📧 שלח מייל</button>
             ) : (
-              <button style={outlineBtnStyle("#7c3aed")} onClick={() => setShowMessage(true)}>💬 כתוב הודעה</button>
+              <button style={outlineBtnStyle("#7c3aed")} onClick={() => { setMsgText(buildPoolMessage(isFemale)); setShowMessage(true); }}>💬 כתוב הודעה</button>
             )}
             <button style={outlineBtnStyle("#f59e0b")} onClick={handleReanalyze} disabled={reanalyzing}>
               {reanalyzing ? "מנתח..." : "🔄 הרץ ניתוח"}
@@ -583,7 +604,7 @@ function PipelineUserCard({
             {u.email_updates ? (
               <button style={outlineBtnStyle("#0ea5e9")} onClick={() => { setShowEmail(true); loadTemplate(); }}>📧 שלח מייל</button>
             ) : (
-              <button style={outlineBtnStyle("#7c3aed")} onClick={() => setShowMessage(true)}>💬 כתוב הודעה</button>
+              <button style={outlineBtnStyle("#7c3aed")} onClick={() => { setMsgText(buildPoolMessage(isFemale)); setShowMessage(true); }}>💬 כתוב הודעה</button>
             )}
           </>
         )}
@@ -594,7 +615,7 @@ function PipelineUserCard({
             {u.email_updates ? (
               <button style={outlineBtnStyle("#ec4899")} onClick={() => { setShowEmail(true); loadTemplate(); }}>📧 שלח מייל</button>
             ) : (
-              <button style={outlineBtnStyle("#7c3aed")} onClick={() => setShowMessage(true)}>💬 כתוב הודעה</button>
+              <button style={outlineBtnStyle("#7c3aed")} onClick={() => { setMsgText(buildCoupleMessage(isFemale)); setShowMessage(true); }}>💬 כתוב הודעה</button>
             )}
             <button
               style={u.partner_in_system ? btnStyle("#16a34a") : outlineBtnStyle("#64748b")}
