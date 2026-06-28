@@ -15,6 +15,7 @@ interface NewChatProps {
   onNavigate?: (view: string) => void;
   onUserUpdate?: (u: User) => void;
   onLogout?: () => void;
+  adminViewing?: boolean;
 }
 
 const IconImg = ({ src, size = 18 }: { src: string; size?: number }) => (
@@ -151,7 +152,7 @@ function HowItWorks() {
   );
 }
 
-export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogout }: NewChatProps) {
+export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogout, adminViewing }: NewChatProps) {
   const [channelMessages, setChannelMessages] = useState<Record<string, Message[]>>({
     new_chat: [],
     new_chat_cognitive: [],
@@ -240,7 +241,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
   useEffect(() => { loadRecommendations(); }, [user.id]);
   useEffect(() => { if (screen === "home") loadRecommendations(); }, [screen]);
-  useEffect(() => { trackPage(screen === "chat" ? "chat" : screen === "home" ? "home" : screen, user?.id); }, [screen]);
+  useEffect(() => { if (!adminViewing) trackPage(screen === "chat" ? "chat" : screen === "home" ? "home" : screen, user?.id); }, [screen]);
 
   // Load couple insights + personal insights status
   useEffect(() => {
@@ -577,7 +578,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
         {screen === "insights" && (
           <div className="nc-screen-fade" key="insights" style={{ flex: 1, overflowY: "auto" }}>
-            <Insights user={user} onBack={() => { setScreen("home"); setInsightInitialView("main"); }} onOpenChat={(msg, ch) => sendMessage(msg, ch)} initialView={insightInitialView} resetKey={insightResetKey} />
+            <Insights user={user} onBack={() => { setScreen("home"); setInsightInitialView("main"); }} onOpenChat={(msg, ch) => sendMessage(msg, ch)} initialView={insightInitialView} resetKey={insightResetKey} adminViewing={adminViewing} />
           </div>
         )}
 

@@ -7,6 +7,7 @@ interface InsightsProps {
   onOpenChat?: (initialMessage: string, channel: string) => void;
   initialView?: "main" | "mbti" | "values" | "bigfive" | "enneagram" | "attachment";
   resetKey?: number;
+  adminViewing?: boolean;
 }
 
 interface DetailedProfile {
@@ -118,7 +119,7 @@ function renderScoreBar(score: number) {
   );
 }
 
-export default function Insights({ user, onBack, onOpenChat, initialView, resetKey }: InsightsProps) {
+export default function Insights({ user, onBack, onOpenChat, initialView, resetKey, adminViewing }: InsightsProps) {
   const [profile, setProfile] = useState<DetailedProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [gender, setGender] = useState<string | null>(null);
@@ -132,7 +133,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
 
   // Track insight sub-views
   useEffect(() => {
-    if (detailView !== "main") trackPage(`insights_${detailView}`, user?.id);
+    if (detailView !== "main" && !adminViewing) trackPage(`insights_${detailView}`, user?.id);
   }, [detailView]);
 
   useEffect(() => {

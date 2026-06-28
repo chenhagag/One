@@ -501,6 +501,7 @@ export default function App() {
           onNavigate={(v) => setView(v as View)}
           onUserUpdate={(u) => setUser(u)}
           onLogout={handleLogout}
+          adminViewing={adminViewingUser}
         />
       )}
 
