@@ -2007,7 +2007,7 @@ ${footer}`)
           </div>
 
           {/* User Photos — View & Download */}
-          <UserPhotosGallery userId={userId} />
+          <UserPhotosGallery userId={userId} userName={user.first_name || "user"} photoAiConsent={!!user.photo_ai_consent} />
 
           {/* External Traits — Manual Visual Scores */}
           <SectionHeading title="External Traits — Manual" />
@@ -3796,7 +3796,7 @@ function BugReportsTab() {
 
 // ── User Photos Gallery (for UserDetail) ────────────────────────
 
-function UserPhotosGallery({ userId }: { userId: number }) {
+function UserPhotosGallery({ userId, userName, photoAiConsent }: { userId: number; userName: string; photoAiConsent: boolean }) {
   const [photos, setPhotos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
@@ -3813,13 +3813,15 @@ function UserPhotosGallery({ userId }: { userId: number }) {
   async function downloadAll() {
     setDownloading(true);
     try {
-      for (const p of photos) {
+      for (let i = 0; i < photos.length; i++) {
+        const p = photos[i];
         const url = `/uploads/${p.filename}`;
         const resp = await fetch(url);
         const blob = await resp.blob();
+        const ext = p.filename.includes(".") ? "." + p.filename.split(".").pop() : ".jpg";
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = p.original_name || p.filename;
+        a.download = `${userName}-picture${i + 1}${ext}`;
         a.click();
         URL.revokeObjectURL(a.href);
       }
@@ -3830,7 +3832,11 @@ function UserPhotosGallery({ userId }: { userId: number }) {
   if (photos.length === 0) return (
     <div style={{ marginBottom: 16 }}>
       <SectionHeading title="תמונות משתמש (0)" />
-      <p style={{ fontSize: 12, color: "#94a3b8" }}>אין תמונות</p>
+      <p style={{ fontSize: 12, color: "#94a3b8" }}>אין תמונות
+        <span style={{ marginRight: 8, fontSize: 11, fontWeight: 600, color: photoAiConsent ? "#16a34a" : "#dc2626" }}>
+          ({photoAiConsent ? "אישר/ה ניתוח AI" : "לא אישר/ה ניתוח AI"})
+        </span>
+      </p>
     </div>
   );
 
@@ -3838,6 +3844,9 @@ function UserPhotosGallery({ userId }: { userId: number }) {
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
         <SectionHeading title={`תמונות משתמש (${photos.length})`} />
+        <span style={{ fontSize: 11, fontWeight: 600, color: photoAiConsent ? "#16a34a" : "#dc2626" }}>
+          {photoAiConsent ? "✓ אישר/ה ניתוח AI" : "✗ לא אישר/ה ניתוח AI"}
+        </span>
         <button onClick={() => setExpanded(!expanded)} style={{ fontSize: 11, color: "#6366f1", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
           {expanded ? "הסתר" : "הצג"}
         </button>
