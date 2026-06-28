@@ -127,6 +127,20 @@ function buildPoolEmail(name: string, isFemale: boolean): { subject: string; htm
   };
 }
 
+function buildReminderEmail(name: string, isFemale: boolean): { subject: string; html: string } {
+  const g = (m: string, f: string) => isFemale ? f : m;
+  return {
+    subject: `${g("השלמת", "השלימי")} את התהליך ב-One`,
+    html: wrapEmail(`
+<p>היי,</p>
+<p>שמנו לב שהתחלת את תהליך ההיכרות עם One אבל עדיין לא ${g("השלמת", "השלמת")} את כל השלבים.</p>
+<p>ככל שנכיר אותך לעומק — דרך שיחת החשיבה ומבחן הטעם — כך נוכל לדייק את הניתוח ולמצוא ${g("לך", "לך")} התאמה טובה יותר.</p>
+<p>זה לוקח רק כמה דקות, ואפשר להמשיך מאיפה ש${g("הפסקת", "הפסקת")}.</p>
+${emailBtn("להמשך התהליך")}
+<p>מחכים ${g("לך", "לך")},<br>צוות One</p>`),
+  };
+}
+
 function buildCoupleEmail(name: string, isFemale: boolean): { subject: string; html: string } {
   const g = (m: string, f: string) => isFemale ? f : m;
   return {
@@ -348,7 +362,7 @@ function PipelineUserCard({
       const t = buildPoolEmail(name, isFemale);
       setEmailSubject(t.subject); setEmailHtml(t.html);
     } else if (stage === "completed_partial") {
-      const t = buildWelcomeEmail(name, isFemale);
+      const t = buildReminderEmail(name, isFemale);
       setEmailSubject(t.subject); setEmailHtml(t.html);
     } else {
       const t = buildWelcomeEmail(name, isFemale);
