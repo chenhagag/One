@@ -130,7 +130,7 @@ function buildPoolEmail(name: string, isFemale: boolean): { subject: string; htm
 function buildReminderEmail(name: string, isFemale: boolean): { subject: string; html: string } {
   const g = (m: string, f: string) => isFemale ? f : m;
   return {
-    subject: `${g("השלמת", "השלימי")} את התהליך ב-One`,
+    subject: "תזכורת ממערכת One",
     html: wrapEmail(`
 <p>היי,</p>
 <p>שמנו לב שהתחלת את תהליך ההיכרות עם One אבל עדיין לא ${g("השלמת", "השלמת")} את כל השלבים.</p>
