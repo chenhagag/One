@@ -57,6 +57,7 @@ interface PipelineUser {
   partner_in_system: boolean;
   couple_handled_at: string | null;
   admin_notes: string;
+  admin_location_override: string | null;
   partner_name: string | null;
   photo_count: number;
   has_profile_details: boolean;
@@ -527,7 +528,24 @@ function PipelineUserCard({
           <span>גובה: <b style={{ color: u.height ? "#0f172a" : "#dc2626" }}>{u.height ? `${u.height} ס״מ` : "חסר"}</b></span>
           <span>טווח גילאים: <b style={{ color: (u.desired_age_min != null) ? "#0f172a" : "#dc2626" }}>{u.desired_age_min != null ? `${u.desired_age_min}–${u.desired_age_max}` : "חסר"}</b>{u.age_flexibility ? ` (${u.age_flexibility === "not_flexible" ? "לא גמיש" : u.age_flexibility === "slightly_flexible" ? "קצת גמיש" : "גמיש"})` : ""}</span>
           <span>טווח גובה: <b style={{ color: (u.desired_height_min != null) ? "#0f172a" : "#dc2626" }}>{u.desired_height_min != null ? `${u.desired_height_min}–${u.desired_height_max}` : "חסר"}</b>{u.height_flexibility ? ` (${u.height_flexibility === "not_flexible" ? "לא גמיש" : u.height_flexibility === "slightly_flexible" ? "קצת גמיש" : "גמיש"})` : ""}</span>
-          <span>מיקום: <b style={{ color: u.desired_location_range ? "#0f172a" : "#dc2626" }}>{u.desired_location_range === "my_city" ? "לא יוצא מהעיר" : u.desired_location_range === "my_area" ? "באזור שלי" : u.desired_location_range === "bit_further" ? "מוכן לנסוע קצת" : u.desired_location_range === "whole_country" ? "כל הארץ" : u.desired_location_range || "חסר"}</b></span>
+          <span>מיקום: <b style={{ color: u.desired_location_range ? "#0f172a" : "#dc2626" }}>{u.desired_location_range === "my_city" ? "לא יוצא מהעיר" : u.desired_location_range === "my_area" ? "באזור שלי" : u.desired_location_range === "bit_further" ? "מוכן לנסוע קצת" : u.desired_location_range === "whole_country" ? "כל הארץ" : u.desired_location_range || "חסר"}</b>
+            {u.desired_location_range && u.desired_location_range !== "whole_country" && (
+              <select
+                value={u.admin_location_override || ""}
+                onChange={async (e) => {
+                  const val = e.target.value || null;
+                  await fetch(`/api/admin/users/${u.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", "x-admin-key": "admin-secret-key-2026" }, body: JSON.stringify({ admin_location_override: val }) });
+                  onReload();
+                }}
+                style={{ marginRight: 4, fontSize: 10, padding: "1px 4px", border: "1px solid #cbd5e1", borderRadius: 4, background: u.admin_location_override ? "#fef3c7" : "#fff" }}
+              >
+                <option value="">ללא הרחבה</option>
+                {u.desired_location_range === "my_city" && <option value="my_area">→ באזור</option>}
+                {(u.desired_location_range === "my_city" || u.desired_location_range === "my_area") && <option value="bit_further">→ קצת נסיעה</option>}
+                <option value="whole_country">→ כל הארץ</option>
+              </select>
+            )}
+          </span>
           <span>קוגניטיבי: <b style={{ color: u.cognitive_score != null ? "#0f172a" : "#94a3b8" }}>{u.cognitive_score != null ? u.cognitive_score : "—"}</b></span>
         </div>
       )}

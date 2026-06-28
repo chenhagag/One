@@ -669,6 +669,22 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       ) THEN
         ALTER TABLE users ADD COLUMN admin_force_completed BOOLEAN DEFAULT FALSE;
       END IF;
+
+      -- Admin location override: expand location filter without changing user's preference
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'admin_location_override'
+      ) THEN
+        ALTER TABLE users ADD COLUMN admin_location_override TEXT;
+      END IF;
+
+      -- Location expanded flag on candidate_matches
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'candidate_matches' AND column_name = 'location_expanded'
+      ) THEN
+        ALTER TABLE candidate_matches ADD COLUMN location_expanded BOOLEAN DEFAULT FALSE;
+      END IF;
     END $$;
   `);
 

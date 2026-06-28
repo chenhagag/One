@@ -1,6 +1,294 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-06-15 (Capacitor Native App Setup)
+## Latest Session: 2026-06-28 (External Analysis, Pipeline Filters, Location Override)
+
+### Deployment
+- All changes pushed to main (production)
+
+### What We Did
+
+#### 1. External Visual Analysis — All 15 Ready Pool Users
+- Viewed photos for all 15 users with photos in ready_pool via production API
+- Scored 11 look traits per user: appeal, warmth, femininity/masculinity, glamour, naturalness, fitness, style, skin_tone, hair_color, eye_color, hair_type
+- Used English values for categorical traits (hair_color, eye_color, hair_type) — Hebrew caused encoding issues (showed as `???`)
+- Marked `external_analysis: true` in admin checklist for each user
+- Entered all 15 users into matching pool (`enter_pool` pipeline action)
+- Reference scores from staging practice run used for consistency calibration
+
+#### 2. Matching Filter Fields in Pipeline Dashboard
+- Pipeline API (`GET /admin/user-management`) now returns: `looking_for_gender`, `height`, `desired_age_min/max`, `age_flexibility`, `desired_height_min/max`, `height_flexibility`, `desired_location_range`, `cognitive_score`
+- AdminPipeline card shows these fields for ready_pool/pool/completed_all stages
+- Missing fields highlighted in red for quick identification
+- Found all users had data except `desired_location_range` (see below)
+
+#### 3. Location Override for Matching
+- **Problem**: Users like רון (באר שבע, `my_city`) get zero matches because no compatible users in same city
+- **Solution**: Admin can expand a user's location range without changing their preference
+- New DB column: `admin_location_override TEXT` on users (null/my_area/bit_further/whole_country)
+- New DB column: `location_expanded BOOLEAN` on candidate_matches — flags matches found via override
+- matchStage1: tries original location filter first, falls back to admin override; marks pair as `location_expanded`
+- AdminPipeline: dropdown next to location field to set override (highlighted yellow when active)
+- AdminView match table: 📍 icon next to score when match is outside original location range
+- Default `desired_location_range` when null: `bit_further` (was pass-all before)
+
+#### 4. First Algorithm Run on Production
+- Ran matching algorithm on 14 pool users (3 men, 11 women)
+- Got 3 candidate matches for אור (#181)
+- רון (#183) got zero — diagnosed: `desired_location_range: my_city` + באר שבע = no compatible women in city → location override feature built to address this
+
+### Technical Notes
+- `desired_location_range` (not `location_preference`) is the correct DB column name for location filter
+- All 14 pool users are "User Experience Tester" type
+- הינדי (#145) is a Couple Tester — was excluded from pool entry despite having a photo
+
+---
+
+## Previous Session: 2026-06-28 (Admin Pipeline Improvements, Deleted Users, Bug Fixes)
+
+### Deployment
+- All changes pushed to main (production) and staging
+
+### What We Did
+
+#### 1. Pipeline Email & Message Fixes
+- **Completed users email**: Fixed to use "מייל כניסה למאגר" template instead of welcome email
+- **System message templates**: No-email users now get pre-filled messages (editable before saving):
+  - New users: short welcome message
+  - Completed/ready for pool: analysis done + pool entry
+  - Couples: thank you + insights available
+  - All gender-adaptive Hebrew
+
+#### 2. Couples Stage Split
+- Renamed "זוגות חדשים" → "זוגות לטיפול"
+- Added "זוגות — לא דורשים טיפול" stage for handled couples
+- Auto-return to active when couple has new activity (message/profile change) after being marked done
+- New DB column: `couple_handled_at TIMESTAMPTZ`
+
+#### 3. Pipeline Stage Reorder
+- Moved "בתהליך (לא דורשים טיפול)" and "זוגות — לא דורשים טיפול" below "במאגר"
+- Active stages on top, passive stages at bottom
+
+#### 4. Deleted Users Tracking
+- New `deleted_users` table: stores name, email, gender, age, city, type, dates, who deleted, chat count, pool/insights status
+- Self-delete sends `?self=true` to distinguish from admin delete
+- New admin tab "משתמשים שנמחקו" with full table view
+
+#### 5. Email Status per User
+- Each pipeline card shows all emails sent (subject + date/time)
+- Shows "📵 לא מקבל/ת מיילים — הודעות מערכת" for no-email users
+- Backend now returns full email history (not just latest)
+
+#### 6. Admin User Detail — Hebrew Profile Fields
+- Replaced English Registration/Preferences sections with Hebrew:
+  - פרטים אישיים: שם, מין, גיל, מיקום, מצב משפחתי, ילדים, דת, עישון, גובה, מחפש/ת
+  - העדפות: טווח גילאים, טווח מיקומים
+  - הגדרות: אימייל, סטטוס מיילים, וואטסאפ + מספר, הסכמה לניתוח חיצוני
+
+#### 7. Admin Photos Gallery Fixes
+- Fixed photos not showing (API returns `{photos: [...]}`, not array)
+- Download names: `userName-picture1.jpg` instead of random hash
+- AI consent indicator next to photos title (✓/✗)
+
+#### 8. Red Highlight Fix ("פעילות חדשה")
+- Was comparing against `last_email_sent` (false positives for users without emails)
+- Now uses `admin_processing_done_at` / `couple_handled_at` timestamps
+- New DB column: `admin_processing_done_at TIMESTAMPTZ`
+
+#### 9. Admin Page View Tracking Fix
+- Admin preview of user screen was still registering as user page view
+- Added `adminViewing` prop through App → NewChat → Insights
+- All `trackPage` calls now guarded
+
+#### 10. Admin Notes
+- `admin_notes` text field per user (admin-only, users can't see)
+- Inline edit with save/cancel on every pipeline card
+- New DB column: `admin_notes TEXT`
+
+#### 11. Manual Move to Completed
+- "↑ העבר להשלימו" button on "בתהליך" users
+- Sets `admin_force_completed` flag (bypasses chat completion check)
+- New DB column: `admin_force_completed BOOLEAN`
+
+#### 12. Ready for Pool — Photo Status
+- Shows "📷 N תמונות" (green) or "📷 ללא תמונה" (red)
+- External analysis checkbox only shown for users with photos
+
+### New DB Columns
+- `couple_handled_at` TIMESTAMPTZ
+- `admin_processing_done_at` TIMESTAMPTZ
+- `admin_notes` TEXT
+- `admin_force_completed` BOOLEAN
+- New table: `deleted_users`
+
+#### 13. Completed Stage Split
+- Split "השלימו את התהליך" into two stages:
+  - **"השלימו את כל התהליך"** (`completed_all`): general + cognitive + taste all closed → full treatment (analysis, insights, pool email, mark_done)
+  - **"כמעט השלימו (חסרים ערוצים)"** (`completed_partial`): only general chat closed → analysis + insights, NO pool email, reminder button instead
+- Each completed card shows channel status: ✓/✗ כללי, ✓/✗ קוגניטיבי, ✓/✗ טעם
+
+#### 14. User Management Agent — First Pipeline Run (Production)
+- Built and tested agent pipeline run on production
+- Agent reads all users from API, classifies by stage, takes actions
+- Performed on production:
+  - **יאנה #163**: verified insights quality (good), sent pool entry email, mark_done + checklist
+  - **Netanela #153**: mark_done (per admin note — almost completed, move to pool path)
+  - **חן #150**: wrote full personality insights (read all 110 messages), mark_done + checklist
+- Insights written by Claude directly (not GPT API) — deep analysis, no conversation quoting
+- Created `Docs/User Management Agent.md` — full agent specification
+
+#### 15. Reminder Email Template
+- New `buildReminderEmail` for completed_partial users — subject "תזכורת ממערכת One"
+- Encourages completing remaining channels (cognitive/taste)
+- Distinct from welcome and pool emails so admin can track which was sent
+
+#### 16. External Analysis (Visual) — Agent Capability (In Progress)
+- Agent can view user photos and score look traits (appeal, warmth, femininity, glamour, naturalness, fitness, style, skin tone, hair/eye details)
+- Tested on 9 example users with consistent scoring
+- Started production run on 15 ready_pool users with photos — viewed 7/15 before hitting context image limit
+- **No scores were saved** — viewing only, scores to be entered in next session
+- Remaining: ליה #169, טל #168, מורן #167, סתיו #165, הילה #161, לינוי #155, אביב #154, חן #150
+
+### Next Session TODO
+- Complete external analysis for all 15 ready_pool users (view photos + enter scores)
+- Enter pool for users with completed external analysis
+- Send pool entry emails
+
+### New Files
+- `Docs/User Management Agent.md` — agent spec with pipeline run, daily tasks, scheduling, advanced features
+
+### Known Limitations
+- Users marked as `admin_processing_done` before this session won't have `admin_processing_done_at` set (no red highlight until re-marked)
+- Same for `couple_handled_at` on previously handled couples
+- 4 users (תומר #173, סיון #166, אלמוג #164, פלג #158) stuck in "completed_partial" despite admin notes to move them back — requires manual intervention or `admin_force_not_completed` flag (not yet built)
+- Staging has no RESEND_API_KEY — cannot test email sending there
+
+---
+
+## Previous Session: 2026-06-23–24 (Admin Pipeline Dashboard, Prompt Safety, Bug Fixes)
+
+### Deployment
+- All changes pushed to main (production) and staging
+
+### What We Did
+
+#### 1. Admin Pipeline Dashboard (replaces user_mgmt tab)
+- New component `AdminPipeline.tsx` with 6 pipeline stages:
+  1. **חדשים** — new users, send welcome email or message, mark as contacted
+  2. **זוגות חדשים** — couple testers, couple-specific email, partner-in-system toggle
+  3. **בתהליך** — contacted users still in chat, monitoring only
+  4. **השלימו** — completed chat, sub-categorized (photo+details/photo/details/chat only), reanalyze + AI insights generation + checklist (analysis/insights/email) + mark done
+  5. **מוכנים למאגר** — admin done, external analysis checklist, enter pool button, red highlight on new activity
+  6. **במאגר** — in matching pool, red highlight on new activity
+- Summary stats bar with counts per stage
+- Click user name → opens UserDetail in Users tab
+- New DB columns: `admin_contacted`, `admin_processing_done`, `admin_checklist` (JSONB), `partner_in_system`
+- New backend routes: `POST /admin/users/:id/pipeline-action`, `POST /admin/users/:id/update-checklist`
+
+#### 2. AI Insights Generation
+- `POST /admin/users/:id/generate-insights` — builds prompt from ALL full conversations + trait scores
+- Sends to GPT-4o, returns `summary_short` (2-3 sentences for insights header) + `summary_full` (6-10 paragraphs, detailed analysis)
+- Saves to `personal_insights_short` and `personal_insights_full` in users table
+- Prompt instructs: Hebrew, second person, professional-warm tone, covers personality, communication style, relationship needs, ideal match type
+
+#### 3. Auto System Messages
+- Couple testers with ≥1 chat message: auto-display thank you message + partner status + chat completion reminder
+- Users with `email_updates=false` (and no WhatsApp): auto-display message about checking the app for updates
+- Manual `admin_message` always takes priority over auto messages
+- WhatsApp-approved users skip the no-email message
+
+#### 4. Email Templates in Pipeline
+- 3 templates: welcome (ברוכ/ה הבאה), pool entry (ניתוח הושלם), couples (תודה על השתתפות)
+- All gender-adaptive Hebrew
+- For no-email users: message composer (sets admin_message) instead of email button
+
+#### 5. Critical Prompt Safety Fixes (triggered by user incident)
+- **Problem**: Taste test chat told a user the profiles are "not real people" and referred him to Tinder/Bumble
+- **Fix**: All prompts (taste-test, cognitive, general chat templates A/B/C/D/E, context-system-info, context-profile) now include:
+  - System identity: One (joinone.io), MVP status, social media (Facebook + Instagram)
+  - **Strict prohibitions**: never refer to other apps, never say user can't find someone here, never say profiles are fake/fictional, never say "I'm just a chatbot"
+  - Taste test prompt fully rewritten: explains profiles as diagnostic tool, not "fake people"
+- Added `SYSTEM_IDENTITY` constant in `promptTemplates.ts` shared across all templates
+
+#### 6. Bug Fixes
+- **Profile save**: PATCH `/users/:id` was missing `marital_status`, `has_children`, `religion`, `smoker` — users could edit but changes weren't saved
+- **Admin page view tracking**: admin "צפייה במסך המשתמש" was registering as user page view — added `adminViewingUser` flag to prevent tracking
+- **last_activity calculation**: was using `updated_at` which changes on admin actions — now uses only user messages + page views
+- **WhatsApp status in admin**: shows "✓ אישר/ה וואטסאפ" next to "לא אישר/ה מיילים" when relevant
+
+#### 7. Admin UI Improvements
+- **Feedback badge**: red badge on "משוב ודיווחים" tab showing count of new reports since last visit (localStorage-based)
+- **Photo gallery in UserDetail**: expandable thumbnail gallery near external traits, lightbox view, download all button
+- **MVP disclaimer**: updated to "הצ׳אט עדיין נמצא בשיפור, ולכן ייתכנו ניסוחים פחות מדויקים או טעויות נקודתיות"
+
+### Known Limitations
+- Staging has no photos (separate Railway Volume from production)
+- WhatsApp sending not implemented (fields exist, no API integration yet)
+- Email sending requires RESEND_API_KEY (may not be set in staging)
+
+---
+
+## Previous Session: 2026-06-15–20 (Email, Analytics, OTP Login, UI Refresh)
+
+### Deployment
+- All changes pushed to main (production) and staging
+- RESEND_API_KEY added to Railway variables (both environments)
+- seedAdditionalTraits.ts run on production DB (Enneagram + Attachment + Gender Conformity)
+
+### What We Did
+
+#### 1. Email Sending via Resend
+- Installed `resend` package, initialized from `RESEND_API_KEY` env var
+- `POST /admin/users/:id/send-email` — send HTML email to specific user
+- `POST /admin/send-email` — send to any address (free-form)
+- Admin user detail: "Send Email" button with HTML editor + preview
+- Admin "Send Email" tab: standalone composer with to/subject/HTML/preview + sent log
+- Domain `joinone.io` verified in Resend
+
+#### 2. Page View Analytics
+- `page_views` table: user_id, page, viewed_at
+- `POST /track-page` endpoint (fire-and-forget from frontend)
+- Frontend tracks view changes (App.tsx) + screen changes (NewChat.tsx) + insight sub-views (Insights.tsx)
+- Admin screens excluded from tracking
+- Admin user detail: "Page Views" collapsible section with summary + recent visits
+- Admin "Analytics" tab: pages table (views + unique users) + daily activity (30 days)
+- Click any page row to expand and see who visited + when
+- Registration date (created_at) shown as badge in user detail header
+
+#### 3. OTP Email Login (code-based, no redirect)
+- `otp_codes` table: email, code, expires_at, used
+- `POST /auth/send-otp` — generates 6-digit code, sends styled email via Resend
+- `POST /auth/verify-otp` — verifies code, finds/creates user, returns session
+- AuthScreen: OTP replaces magic link for in-app browsers (Instagram/Facebook)
+- 6 separate digit inputs with auto-advance, paste support, auto-submit on 6th digit
+- "שליחה מחדש" and "שינוי אימייל" buttons
+- Context-aware auth screen:
+  - **In-app browser**: OTP email primary button, Google OAuth secondary (small gray)
+  - **Regular browser**: Google OAuth primary, magic link secondary (unchanged)
+
+#### 4. UI Refresh
+- Landing page: full background image (background.png) instead of cover+gradient
+- Tagline changed to "Meet as you are"
+- Sidebar: light purple (#f4f2f8) instead of cream
+- Buttons/cards/bubbles: white instead of cream (#FCF8F5)
+- Active items: light gray (#f5f5f7) instead of soft purple (#f5f0fb)
+- Darker text on landing page for readability
+
+#### 5. Capacitor Native App (continued from previous session)
+- Upgraded @capacitor/cli to v8, switched Node to 22.14.0
+- `cap init` + `cap add android` — Android platform ready
+- platform.ts, OAuth via system browser, deep link listener
+- NOT YET TESTED on device — next steps in previous session's notes
+
+#### 6. Production DB: New Trait Definitions
+- Ran `seedAdditionalTraits.ts` on production — added 13 traits:
+  - 9 Enneagram types
+  - 3 Attachment styles (secure, anxious, avoidant)
+  - 1 Gender conformity
+- Users need re-analysis to populate new trait scores
+
+---
+
+## Previous Session: 2026-06-15 (Capacitor Native App Setup)
 
 ### What We Did
 

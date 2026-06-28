@@ -999,7 +999,7 @@ app.patch("/admin/users/:id", async (req, res) => {
     "desired_height_min", "desired_height_max", "height_flexibility",
     "desired_location_range", "profile_complete", "consent_accepted", "photo_ai_consent",
     "email_updates", "whatsapp_updates", "whatsapp_phone", "in_matching_pool",
-    "marital_status", "has_children", "religion", "smoker", "admin_message", "admin_notes",
+    "marital_status", "has_children", "religion", "smoker", "admin_message", "admin_notes", "admin_location_override",
   ];
   const updates: string[] = [];
   const values: any[] = [];
@@ -2360,7 +2360,7 @@ app.get("/admin/user-management", async (_req, res) => {
     let pipelineMap: Record<number, any> = {};
     try {
       const pipelineRows = await pgQueryAll<any>(
-        `SELECT id, admin_contacted, admin_processing_done, admin_processing_done_at, admin_checklist, partner_in_system, couple_handled_at, admin_notes, admin_force_completed FROM users`
+        `SELECT id, admin_contacted, admin_processing_done, admin_processing_done_at, admin_checklist, partner_in_system, couple_handled_at, admin_notes, admin_force_completed, admin_location_override FROM users`
       );
       for (const r of pipelineRows) pipelineMap[r.id] = r;
     } catch { /* columns not yet migrated — use defaults */ }
