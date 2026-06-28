@@ -174,6 +174,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [feedbackCategory, setFeedbackCategory] = useState<string>("");
   const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null });
   const [systemQuestion, setSystemQuestion] = useState<{ id: number; question_text: string } | null>(null);
+  const [answeredQuestion, setAnsweredQuestion] = useState<{ question_text: string; answer: string } | null>(null);
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
   const [matchingProgress, setMatchingProgress] = useState<{ total_pool_profiles: number; scanned_profiles: number; status_text: string } | null>(null);
   const [insightCard, setInsightCard] = useState<{ mbti: { type: string | null; description: string | null }; allValues: { name: string; he: string; score: number; description: string }[]; allBigFive: { name: string; he: string; score: number; description: string }[] } | null>(null);
@@ -781,22 +782,37 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               )}
 
               {/* System question — interactive question from admin */}
-              {screen === "home" && systemQuestion && (
+              {screen === "home" && (systemQuestion || answeredQuestion) && (
                 <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
                   <div style={{ background: "linear-gradient(135deg, #ede9fe 0%, #e0f2fe 100%)", borderRadius: 14, padding: "20px 20px 16px", boxShadow: "0 2px 12px rgba(124,58,237,0.12)", border: "1px solid #c4b5fd" }}>
                     <p style={{ fontSize: 14, color: "#1e1b4b", lineHeight: 1.7, margin: "0 0 16px", fontWeight: 500, textAlign: "right" }}>
-                      {systemQuestion.question_text}
+                      {systemQuestion ? systemQuestion.question_text : answeredQuestion!.question_text}
                     </p>
-                    <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-                      {["כן אין בעיה", "אפשרי", "לא"].map(opt => (
-                        <button key={opt} onClick={async () => {
-                          await fetch("/api/system-question/answer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question_id: systemQuestion.id, answer: opt }) });
-                          setSystemQuestion(null);
-                        }} style={{ padding: "8px 20px", borderRadius: 20, border: "1px solid #c4b5fd", background: "#fff", color: "#5b21b6", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
-                          {opt}
-                        </button>
-                      ))}
-                    </div>
+                    {systemQuestion ? (
+                      <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+                        {["כן אין בעיה", "אפשרי", "לא"].map(opt => (
+                          <button key={opt} onClick={async () => {
+                            const q = systemQuestion;
+                            await fetch("/api/system-question/answer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question_id: q.id, answer: opt }) });
+                            setSystemQuestion(null);
+                            setAnsweredQuestion({ question_text: q.question_text, answer: opt });
+                          }} style={{ padding: "8px 20px", borderRadius: 20, border: "1px solid #c4b5fd", background: "#fff", color: "#5b21b6", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: 12 }}>
+                          {["כן אין בעיה", "אפשרי", "לא"].map(opt => (
+                            <span key={opt} style={{ padding: "8px 20px", borderRadius: 20, border: "1px solid #c4b5fd", background: opt === answeredQuestion!.answer ? "#7c3aed" : "#f1f5f9", color: opt === answeredQuestion!.answer ? "#fff" : "#94a3b8", fontWeight: 600, fontSize: 13 }}>
+                              {opt}
+                            </span>
+                          ))}
+                        </div>
+                        <p style={{ fontSize: 13, color: "#5b21b6", fontWeight: 500, margin: 0 }}>תודה, תשובתך התקבלה ונקח אותה בחשבון 💜</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
