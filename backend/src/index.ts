@@ -2534,6 +2534,53 @@ app.get("/admin/user-management", async (_req, res) => {
 // ════════════════════════════════════════════════════════════════
 
 // POST /admin/users/:id/pipeline-action — Pipeline stage transitions
+// ════════════════════════════════════════════════════════════════
+// SYSTEM QUESTIONS — Admin sends questions to users, users answer
+// ════════════════════════════════════════════════════════════════
+
+// POST /admin/users/:id/system-question — Send a question to a user
+app.post("/admin/users/:id/system-question", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const { question_text } = req.body;
+  if (!question_text) return res.status(400).json({ error: "question_text required" });
+  const row = await pgQueryOne<any>(
+    `INSERT INTO system_questions (user_id, question_text) VALUES ($1, $2) RETURNING *`,
+    [userId, question_text]
+  );
+  return res.json(row);
+});
+
+// GET /admin/system-questions/pending — All answered but not yet seen by admin
+app.get("/admin/system-questions/pending", async (_req, res) => {
+  const rows = await pgQueryAll<any>(`
+    SELECT sq.*, u.first_name
+    FROM system_questions sq
+    JOIN users u ON u.id = sq.user_id
+    WHERE sq.answer IS NOT NULL AND sq.admin_seen = FALSE
+    ORDER BY sq.answered_at DESC
+  `);
+  return res.json(rows);
+});
+
+// POST /admin/system-questions/:id/mark-seen — Admin marks "ראיתי"
+app.post("/admin/system-questions/:id/mark-seen", async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  await pgQueryOne("UPDATE system_questions SET admin_seen = TRUE, admin_seen_at = NOW() WHERE id = $1", [id]);
+  return res.json({ ok: true });
+});
+
+// POST /system-question/answer — User answers a question
+app.post("/system-question/answer", async (req, res) => {
+  const { question_id, answer } = req.body;
+  const validAnswers = ["כן אין בעיה", "אפשרי", "לא"];
+  if (!validAnswers.includes(answer)) return res.status(400).json({ error: "invalid answer" });
+  await pgQueryOne(
+    "UPDATE system_questions SET answer = $1, answered_at = NOW() WHERE id = $2",
+    [answer, question_id]
+  );
+  return res.json({ ok: true });
+});
+
 app.post("/admin/users/:id/pipeline-action", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   if (!userId) return res.status(400).json({ error: "invalid id" });
@@ -2883,6 +2930,12 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
       }
     }
 
+    // Active system question (latest unanswered)
+    const activeQuestion = await pgQueryOne<{ id: number; question_text: string }>(
+      "SELECT id, question_text FROM system_questions WHERE user_id = $1 AND answer IS NULL ORDER BY created_at DESC LIMIT 1",
+      [userId]
+    ) || null;
+
     return res.json({
       has_cognitive: cogClosed,
       cognitive_count: cognitiveCount,
@@ -2897,6 +2950,7 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
       analysis_run_count: analysisRunCount,
       gender: userGender,
       admin_message: displayMessage,
+      system_question: activeQuestion,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

@@ -688,6 +688,21 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
     END $$;
   `);
 
+  // System questions table — admin sends questions to users, users answer with fixed options
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS system_questions (
+      id              SERIAL PRIMARY KEY,
+      user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      question_text   TEXT NOT NULL,
+      answer          TEXT,
+      answered_at     TIMESTAMPTZ,
+      admin_seen      BOOLEAN DEFAULT FALSE,
+      admin_seen_at   TIMESTAMPTZ,
+      created_at      TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_system_questions_user ON system_questions(user_id);
+  `);
+
   // Backfill admin_contacted from email_log (users who already received emails)
   try {
     await pool.query(`

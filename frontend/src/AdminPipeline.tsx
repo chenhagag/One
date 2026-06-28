@@ -199,7 +199,9 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
     new: false, couples: false, couples_done: true, in_process: true, completed_all: false, completed_partial: false, ready_pool: false, pool: true,
   });
 
-  useEffect(() => { loadData(); }, []);
+  const [answeredQuestions, setAnsweredQuestions] = useState<any[]>([]);
+
+  useEffect(() => { loadData(); loadAnsweredQuestions(); }, []);
 
   function loadData() {
     setLoading(true);
@@ -207,6 +209,17 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
       .then(r => r.json())
       .then(data => setUsers(Array.isArray(data) ? data : []))
       .finally(() => setLoading(false));
+  }
+
+  function loadAnsweredQuestions() {
+    fetch("/api/admin/system-questions/pending")
+      .then(r => r.json())
+      .then(data => setAnsweredQuestions(Array.isArray(data) ? data : []));
+  }
+
+  async function markQuestionSeen(qId: number) {
+    await fetch(`/api/admin/system-questions/${qId}/mark-seen`, { method: "POST", headers: { "Content-Type": "application/json" } });
+    loadAnsweredQuestions();
   }
 
   async function pipelineAction(userId: number, action: string) {
@@ -247,6 +260,22 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
           </div>
         ))}
       </div>
+
+      {/* Answered system questions */}
+      {answeredQuestions.length > 0 && (
+        <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 12, padding: 16, marginBottom: 20 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "#92400e", marginBottom: 12 }}>📩 תשובות לשאלות מערכת ({answeredQuestions.length})</div>
+          {answeredQuestions.map((q: any) => (
+            <div key={q.id} style={{ display: "flex", gap: 12, alignItems: "center", padding: "8px 0", borderBottom: "1px solid #fde68a", flexWrap: "wrap" }}>
+              <span style={{ fontWeight: 600, color: "#1e1b4b", cursor: "pointer", textDecoration: "underline" }} onClick={() => onSelectUser?.(q.user_id)}>{q.first_name}</span>
+              <span style={{ fontSize: 12, color: "#64748b" }}>"{q.question_text}"</span>
+              <span style={{ fontWeight: 700, color: q.answer === "לא" ? "#dc2626" : q.answer === "אפשרי" ? "#d97706" : "#16a34a", fontSize: 14 }}>{q.answer}</span>
+              <span style={{ fontSize: 11, color: "#94a3b8" }}>{new Date(q.answered_at).toLocaleString("he-IL")}</span>
+              <button onClick={() => markQuestionSeen(q.id)} style={{ padding: "4px 12px", borderRadius: 8, border: "1px solid #d97706", background: "#fff", color: "#92400e", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>ראיתי</button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Stages */}
       {STAGE_CONFIG.map(stageConf => (
@@ -343,6 +372,8 @@ function PipelineUserCard({
   const [emailError, setEmailError] = useState("");
   const [reanalyzing, setReanalyzing] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [showQuestion, setShowQuestion] = useState(false);
+  const [questionText, setQuestionText] = useState("");
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesText, setNotesText] = useState(u.admin_notes || "");
   const [savingNotes, setSavingNotes] = useState(false);
@@ -715,6 +746,28 @@ function PipelineUserCard({
           </>
         )}
       </div>
+
+      {/* Send question button — pool and ready_pool */}
+      {(stage === "pool" || stage === "ready_pool") && (
+        <div style={{ marginTop: 6 }}>
+          {!showQuestion ? (
+            <button style={{ fontSize: 11, color: "#7c3aed", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }} onClick={() => setShowQuestion(true)}>❓ שלח שאלה למשתמש</button>
+          ) : (
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <input
+                type="text" placeholder="טקסט השאלה..." value={questionText} onChange={e => setQuestionText(e.target.value)}
+                style={{ flex: 1, minWidth: 200, padding: "6px 10px", fontSize: 12, border: "1px solid #c4b5fd", borderRadius: 6, direction: "rtl" }}
+              />
+              <button style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: "#7c3aed", color: "#fff", fontSize: 12, cursor: "pointer", fontWeight: 600 }} onClick={async () => {
+                if (!questionText.trim()) return;
+                await fetch(`/api/admin/users/${u.id}/system-question`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question_text: questionText }) });
+                setQuestionText(""); setShowQuestion(false);
+              }}>שלח</button>
+              <button style={{ fontSize: 11, color: "#94a3b8", background: "none", border: "none", cursor: "pointer" }} onClick={() => setShowQuestion(false)}>✕</button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Email Composer (inline) */}
       {showEmail && (

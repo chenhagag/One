@@ -173,6 +173,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [bugSent, setBugSent] = useState(false);
   const [feedbackCategory, setFeedbackCategory] = useState<string>("");
   const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null });
+  const [systemQuestion, setSystemQuestion] = useState<{ id: number; question_text: string } | null>(null);
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
   const [matchingProgress, setMatchingProgress] = useState<{ total_pool_profiles: number; scanned_profiles: number; status_text: string } | null>(null);
   const [insightCard, setInsightCard] = useState<{ mbti: { type: string | null; description: string | null }; allValues: { name: string; he: string; score: number; description: string }[]; allBigFive: { name: string; he: string; score: number; description: string }[] } | null>(null);
@@ -216,6 +217,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             gender: data.gender || null,
             admin_message: data.admin_message || null,
           });
+          setSystemQuestion(data.system_question || null);
           if (data.chat_closed) setClosedChannels(prev => ({ ...prev, "new_chat": true }));
           if (data.cognitive_closed) setClosedChannels(prev => ({ ...prev, "new_chat_cognitive": true }));
           if (data.taste_closed) setClosedChannels(prev => ({ ...prev, "new_chat_taste": true }));
@@ -367,7 +369,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           if (data.closing_stage >= 3) {
             setClosedChannels(prev => ({ ...prev, [effectiveChannel]: true }));
             fetch(`/api/new-chat/status/${user.id}`).then(r => r.json()).then(d => {
-              if (d.has_cognitive !== undefined) setRecommendations({ has_cognitive: d.has_cognitive, has_taste_info: d.has_taste_info, chat_count: d.chat_count || 0, summary_fields: d.summary_fields || 0, cognitive_count: d.cognitive_count || 0, photo_count: d.photo_count || 0, has_profile_details: d.has_profile_details || false, analysis_run_count: d.analysis_run_count || 0, gender: d.gender || null, admin_message: d.admin_message || null });
+              if (d.has_cognitive !== undefined) { setRecommendations({ has_cognitive: d.has_cognitive, has_taste_info: d.has_taste_info, chat_count: d.chat_count || 0, summary_fields: d.summary_fields || 0, cognitive_count: d.cognitive_count || 0, photo_count: d.photo_count || 0, has_profile_details: d.has_profile_details || false, analysis_run_count: d.analysis_run_count || 0, gender: d.gender || null, admin_message: d.admin_message || null }); setSystemQuestion(d.system_question || null); }
             }).catch(() => {});
           }
         } else if (data.error) {
@@ -776,6 +778,27 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     );
                   })()}
                 </>
+              )}
+
+              {/* System question — interactive question from admin */}
+              {screen === "home" && systemQuestion && (
+                <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
+                  <div style={{ background: "linear-gradient(135deg, #ede9fe 0%, #e0f2fe 100%)", borderRadius: 14, padding: "20px 20px 16px", boxShadow: "0 2px 12px rgba(124,58,237,0.12)", border: "1px solid #c4b5fd" }}>
+                    <p style={{ fontSize: 14, color: "#1e1b4b", lineHeight: 1.7, margin: "0 0 16px", fontWeight: 500, textAlign: "right" }}>
+                      {systemQuestion.question_text}
+                    </p>
+                    <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+                      {["כן אין בעיה", "אפשרי", "לא"].map(opt => (
+                        <button key={opt} onClick={async () => {
+                          await fetch("/api/system-question/answer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question_id: systemQuestion.id, answer: opt }) });
+                          setSystemQuestion(null);
+                        }} style={{ padding: "8px 20px", borderRadius: 20, border: "1px solid #c4b5fd", background: "#fff", color: "#5b21b6", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               )}
 
               {/* Admin message — shown above all recommendations */}
