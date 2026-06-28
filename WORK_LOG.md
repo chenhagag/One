@@ -36,10 +36,23 @@
 - Got 3 candidate matches for אור (#181)
 - רון (#183) got zero — diagnosed: `desired_location_range: my_city` + באר שבע = no compatible women in city → location override feature built to address this
 
+#### 5. Chat Prompt Improvements (context-system-info.txt)
+- **User input anywhere**: Chat now knows users can write any preference/request anywhere in conversation and the system analyzes it all — not just in specific fields
+- **Taste test channel**: Described accurately as style-focused (not just external appearance), with option to write external taste preferences there too
+- **Photo approval process**: Chat explains that AI analysis narrows options, but before final match both sides see and approve each other's photos. No match without mutual approval.
+- **Fallback for unanswered questions**: When chat doesn't know an answer, user repeats a question, or argues — chat can say it's still developing and refer to "עזרו לנו להשתפר" feedback screen where human team responds
+- **Privacy note**: Chat explains conversations are AI-only, but feedback screen goes to human team
+- **Pool entry requirements**: Fixed prompt to include conversation completion as a requirement (was missing — only mentioned profile details and photos)
+
+#### 6. Bug Fix: Pipeline Filter Fields Not Showing
+- Fields were fetched from DB in the query but not included in the response mapping object — all showed as "חסר"
+- Fixed by adding all filter fields to the response builder
+
 ### Technical Notes
 - `desired_location_range` (not `location_preference`) is the correct DB column name for location filter
 - All 14 pool users are "User Experience Tester" type
 - הינדי (#145) is a Couple Tester — was excluded from pool entry despite having a photo
+- Prompt files loaded at startup via `fs.readFileSync` — changes require server restart (auto on deploy)
 
 ---
 
