@@ -46,6 +46,7 @@ interface PipelineUser {
   admin_checklist: Record<string, boolean>;
   partner_in_system: boolean;
   couple_handled_at: string | null;
+  admin_notes: string;
   partner_name: string | null;
   photo_count: number;
   has_profile_details: boolean;
@@ -298,6 +299,9 @@ function PipelineUserCard({
   const [emailError, setEmailError] = useState("");
   const [reanalyzing, setReanalyzing] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notesText, setNotesText] = useState(u.admin_notes || "");
+  const [savingNotes, setSavingNotes] = useState(false);
 
   const isFemale = u.gender === "woman";
 
@@ -476,6 +480,36 @@ function PipelineUserCard({
         )}
       </div>
 
+      {/* Admin notes */}
+      <div style={{ marginBottom: 8 }}>
+        {editingNotes ? (
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+            <textarea value={notesText} onChange={e => setNotesText(e.target.value)}
+              style={{ flex: 1, fontSize: 12, padding: "6px 10px", border: "1px solid #d1d5db", borderRadius: 6, resize: "vertical", minHeight: 40, direction: "rtl", boxSizing: "border-box" }}
+              placeholder="הערות..." />
+            <button disabled={savingNotes} onClick={async () => {
+              setSavingNotes(true);
+              await fetch(`/api/admin/users/${u.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin_notes: notesText }) });
+              setSavingNotes(false); setEditingNotes(false); onReload();
+            }} style={{ fontSize: 11, padding: "4px 12px", background: "#7c3aed", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>
+              {savingNotes ? "..." : "שמור"}
+            </button>
+            <button onClick={() => { setEditingNotes(false); setNotesText(u.admin_notes || ""); }}
+              style={{ fontSize: 11, padding: "4px 8px", background: "none", border: "1px solid #d1d5db", borderRadius: 6, cursor: "pointer", color: "#64748b" }}>ביטול</button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {u.admin_notes ? (
+              <span style={{ fontSize: 12, color: "#475569", fontStyle: "italic" }}>📝 {u.admin_notes}</span>
+            ) : null}
+            <button onClick={() => setEditingNotes(true)}
+              style={{ fontSize: 11, color: "#7c3aed", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
+              {u.admin_notes ? "ערוך הערה" : "📝 הוסף הערה"}
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Checklist for stage 3 */}
       {stage === "completed" && (
         <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
@@ -517,6 +551,11 @@ function PipelineUserCard({
             )}
             <button style={btnStyle("#7c3aed")} onClick={() => onPipelineAction(u.id, "mark_contacted")}>✓ סומן כנשלח</button>
           </>
+        )}
+
+        {/* In process — manual move to completed */}
+        {stage === "in_process" && (
+          <button style={btnStyle("#0ea5e9")} onClick={() => onPipelineAction(u.id, "mark_completed")}>↑ העבר ל"השלימו"</button>
         )}
 
         {/* Stage 3: Completed — email, reanalyze, generate insights, mark done */}

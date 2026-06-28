@@ -999,7 +999,7 @@ app.patch("/admin/users/:id", async (req, res) => {
     "desired_height_min", "desired_height_max", "height_flexibility",
     "desired_location_range", "profile_complete", "consent_accepted", "photo_ai_consent",
     "email_updates", "whatsapp_updates", "whatsapp_phone", "in_matching_pool",
-    "marital_status", "has_children", "religion", "smoker", "admin_message",
+    "marital_status", "has_children", "religion", "smoker", "admin_message", "admin_notes",
   ];
   const updates: string[] = [];
   const values: any[] = [];
@@ -2356,7 +2356,7 @@ app.get("/admin/user-management", async (_req, res) => {
     let pipelineMap: Record<number, any> = {};
     try {
       const pipelineRows = await pgQueryAll<any>(
-        `SELECT id, admin_contacted, admin_processing_done, admin_processing_done_at, admin_checklist, partner_in_system, couple_handled_at FROM users`
+        `SELECT id, admin_contacted, admin_processing_done, admin_processing_done_at, admin_checklist, partner_in_system, couple_handled_at, admin_notes, admin_force_completed FROM users`
       );
       for (const r of pipelineRows) pipelineMap[r.id] = r;
     } catch { /* columns not yet migrated — use defaults */ }
@@ -2445,7 +2445,7 @@ app.get("/admin/user-management", async (_req, res) => {
       const tasteCount = chat["new_chat_taste"] || 0;
 
       const closingStage = conv.closing_stage ?? 0;
-      const chatClosed = closingStage >= 1 || (conv.current_topic_index !== undefined && conv.current_topic_index >= 14);
+      const chatClosed = closingStage >= 1 || (conv.current_topic_index !== undefined && conv.current_topic_index >= 14) || pipe.admin_force_completed;
       const cogClosed = !!(conv.cognitive_closing_stage && conv.cognitive_closing_stage >= 3) || cogCount >= 7;
       const tasteClosed = !!(conv.taste_closing_stage && conv.taste_closing_stage >= 3) || tasteCount >= 10;
 
@@ -2499,6 +2499,7 @@ app.get("/admin/user-management", async (_req, res) => {
         admin_checklist: pipe.admin_checklist ?? {},
         partner_in_system: pipe.partner_in_system ?? false,
         couple_handled_at: pipe.couple_handled_at || null,
+        admin_notes: pipe.admin_notes || "",
         partner_name: u.partner_name || null,
         photo_count: u.photo_count || 0,
         has_profile_details: !!(u.age && u.city && (u.photo_count || 0) >= 1),
@@ -2532,6 +2533,9 @@ app.post("/admin/users/:id/pipeline-action", async (req, res) => {
         break;
       case "enter_pool":
         await pgQueryAll("UPDATE users SET in_matching_pool = TRUE, updated_at = NOW() WHERE id = $1", [userId]);
+        break;
+      case "mark_completed":
+        await pgQueryAll("UPDATE users SET admin_force_completed = TRUE, updated_at = NOW() WHERE id = $1", [userId]);
         break;
       case "toggle_partner":
         await pgQueryAll("UPDATE users SET partner_in_system = NOT COALESCE(partner_in_system, FALSE), updated_at = NOW() WHERE id = $1", [userId]);
