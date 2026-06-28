@@ -42,6 +42,7 @@ interface PipelineUser {
   // Pipeline
   admin_contacted: boolean;
   admin_processing_done: boolean;
+  admin_processing_done_at: string | null;
   admin_checklist: Record<string, boolean>;
   partner_in_system: boolean;
   couple_handled_at: string | null;
@@ -300,12 +301,14 @@ function PipelineUserCard({
 
   const isFemale = u.gender === "woman";
 
-  // Red highlight for stages 4 & 5 and couples_done: activity after reaching this stage
-  const isRedHighlight = ((stage === "ready_pool" || stage === "pool") &&
-    u.last_activity && u.admin_processing_done &&
-    u.last_activity > (u.last_email_sent || u.created_at)) ||
-    (stage === "couples_done" && u.last_activity && u.admin_contacted &&
-    u.last_activity > (u.last_email_sent || u.created_at));
+  // Red highlight: activity after admin marked this user as done
+  const isRedHighlight =
+    ((stage === "ready_pool" || stage === "pool") &&
+      u.admin_processing_done_at && u.last_activity &&
+      u.last_activity > u.admin_processing_done_at) ||
+    (stage === "couples_done" &&
+      u.couple_handled_at && u.last_activity &&
+      u.last_activity > u.couple_handled_at);
 
   function loadTemplate() {
     const name = u.first_name || "";

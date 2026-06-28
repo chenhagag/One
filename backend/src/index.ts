@@ -2356,7 +2356,7 @@ app.get("/admin/user-management", async (_req, res) => {
     let pipelineMap: Record<number, any> = {};
     try {
       const pipelineRows = await pgQueryAll<any>(
-        `SELECT id, admin_contacted, admin_processing_done, admin_checklist, partner_in_system, couple_handled_at FROM users`
+        `SELECT id, admin_contacted, admin_processing_done, admin_processing_done_at, admin_checklist, partner_in_system, couple_handled_at FROM users`
       );
       for (const r of pipelineRows) pipelineMap[r.id] = r;
     } catch { /* columns not yet migrated — use defaults */ }
@@ -2495,6 +2495,7 @@ app.get("/admin/user-management", async (_req, res) => {
         // Pipeline fields
         admin_contacted: pipe.admin_contacted ?? false,
         admin_processing_done: pipe.admin_processing_done ?? false,
+        admin_processing_done_at: pipe.admin_processing_done_at || null,
         admin_checklist: pipe.admin_checklist ?? {},
         partner_in_system: pipe.partner_in_system ?? false,
         couple_handled_at: pipe.couple_handled_at || null,
@@ -2527,7 +2528,7 @@ app.post("/admin/users/:id/pipeline-action", async (req, res) => {
         await pgQueryAll("UPDATE users SET admin_contacted = TRUE, couple_handled_at = NOW(), updated_at = NOW() WHERE id = $1", [userId]);
         break;
       case "mark_done":
-        await pgQueryAll("UPDATE users SET admin_processing_done = TRUE, updated_at = NOW() WHERE id = $1", [userId]);
+        await pgQueryAll("UPDATE users SET admin_processing_done = TRUE, admin_processing_done_at = NOW(), updated_at = NOW() WHERE id = $1", [userId]);
         break;
       case "enter_pool":
         await pgQueryAll("UPDATE users SET in_matching_pool = TRUE, updated_at = NOW() WHERE id = $1", [userId]);

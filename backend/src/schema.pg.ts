@@ -651,6 +651,12 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       ) THEN
         ALTER TABLE users ADD COLUMN couple_handled_at TIMESTAMPTZ;
       END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'admin_processing_done_at'
+      ) THEN
+        ALTER TABLE users ADD COLUMN admin_processing_done_at TIMESTAMPTZ;
+      END IF;
     END $$;
   `);
 
