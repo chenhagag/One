@@ -52,7 +52,7 @@ interface PipelineUser {
   has_profile_details: boolean;
 }
 
-type Stage = "new" | "in_process" | "completed" | "ready_pool" | "pool" | "couples" | "couples_done";
+type Stage = "new" | "in_process" | "completed_partial" | "completed_all" | "ready_pool" | "pool" | "couples" | "couples_done";
 
 function getStage(u: PipelineUser): Stage {
   if (u.test_user_type === "Couple Tester" && !u.in_matching_pool) {
@@ -67,8 +67,10 @@ function getStage(u: PipelineUser): Stage {
   }
   if (u.in_matching_pool) return "pool";
   if (u.admin_processing_done) return "ready_pool";
-  if (u.chat_closed && !u.admin_contacted) return "completed"; // completed but never contacted
-  if (u.chat_closed && u.admin_contacted) return "completed";
+  if (u.chat_closed) {
+    const allDone = u.chat_closed && u.cog_closed && u.taste_closed;
+    return allDone ? "completed_all" : "completed_partial";
+  }
   if (u.admin_contacted && !u.chat_closed) return "in_process";
   return "new";
 }
@@ -85,7 +87,8 @@ function getCompletionSub(u: PipelineUser): string {
 const STAGE_CONFIG: { key: Stage; title: string; color: string; bg: string }[] = [
   { key: "new", title: "משתמשים חדשים", color: "#7c3aed", bg: "#f5f3ff" },
   { key: "couples", title: "זוגות לטיפול", color: "#ec4899", bg: "#fdf2f8" },
-  { key: "completed", title: "השלימו את התהליך", color: "#0ea5e9", bg: "#f0f9ff" },
+  { key: "completed_all", title: "השלימו את כל התהליך", color: "#0ea5e9", bg: "#f0f9ff" },
+  { key: "completed_partial", title: "כמעט השלימו (חסרים ערוצים)", color: "#38bdf8", bg: "#f0f9ff" },
   { key: "ready_pool", title: "מוכנים למאגר", color: "#16a34a", bg: "#f0fdf4" },
   { key: "pool", title: "במאגר", color: "#059669", bg: "#ecfdf5" },
   { key: "in_process", title: "בתהליך (לא דורשים טיפול)", color: "#d97706", bg: "#fffbeb" },
@@ -168,7 +171,7 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
   const [users, setUsers] = useState<PipelineUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState<Record<Stage, boolean>>({
-    new: false, couples: false, couples_done: true, in_process: true, completed: false, ready_pool: false, pool: true,
+    new: false, couples: false, couples_done: true, in_process: true, completed_all: false, completed_partial: false, ready_pool: false, pool: true,
   });
 
   useEffect(() => { loadData(); }, []);
@@ -200,7 +203,7 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
   }
 
   // Group users by stage
-  const grouped: Record<Stage, PipelineUser[]> = { new: [], couples: [], couples_done: [], in_process: [], completed: [], ready_pool: [], pool: [] };
+  const grouped: Record<Stage, PipelineUser[]> = { new: [], couples: [], couples_done: [], in_process: [], completed_all: [], completed_partial: [], ready_pool: [], pool: [] };
   for (const u of users) {
     const stage = getStage(u);
     grouped[stage].push(u);
@@ -341,8 +344,11 @@ function PipelineUserCard({
     } else if (stage === "couples") {
       const t = buildCoupleEmail(name, isFemale);
       setEmailSubject(t.subject); setEmailHtml(t.html);
-    } else if (stage === "completed") {
+    } else if (stage === "completed_all") {
       const t = buildPoolEmail(name, isFemale);
+      setEmailSubject(t.subject); setEmailHtml(t.html);
+    } else if (stage === "completed_partial") {
+      const t = buildWelcomeEmail(name, isFemale);
       setEmailSubject(t.subject); setEmailHtml(t.html);
     } else {
       const t = buildWelcomeEmail(name, isFemale);
@@ -452,7 +458,7 @@ function PipelineUserCard({
 
       {/* Info row */}
       <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 10 }}>
-        {(stage === "in_process" || stage === "completed" || stage === "ready_pool" || stage === "pool" || stage === "couples_done") && (
+        {(stage === "in_process" || stage === "completed_all" || stage === "completed_partial" || stage === "ready_pool" || stage === "pool" || stage === "couples_done") && (
           <>
             <div><span style={labelStyle}>כניסה אחרונה</span><br/><span style={valStyle}>{fmtTimeAgo(u.last_visit)}</span></div>
             <div><span style={labelStyle}>עדכון אחרון</span><br/><span style={valStyle}>{fmtTimeAgo(u.last_activity)}</span></div>
@@ -461,8 +467,18 @@ function PipelineUserCard({
         {stage === "new" && (
           <div><span style={labelStyle}>הצטרפות</span><br/><span style={valStyle}>{fmtDate(u.created_at)}</span></div>
         )}
-        {stage === "completed" && (
-          <div><span style={labelStyle}>סטטוס</span><br/><span style={{ fontSize: 12, color: "#0ea5e9", fontWeight: 600 }}>{getCompletionSub(u)}</span></div>
+        {(stage === "completed_all" || stage === "completed_partial") && (
+          <>
+            <div><span style={labelStyle}>סטטוס</span><br/><span style={{ fontSize: 12, color: "#0ea5e9", fontWeight: 600 }}>{getCompletionSub(u)}</span></div>
+            <div>
+              <span style={labelStyle}>ערוצים</span><br/>
+              <span style={{ fontSize: 11 }}>
+                <span style={{ color: u.chat_closed ? "#16a34a" : "#dc2626" }}>{u.chat_closed ? "✓" : "✗"} כללי</span>{" "}
+                <span style={{ color: u.cog_closed ? "#16a34a" : "#dc2626" }}>{u.cog_closed ? "✓" : "✗"} קוגניטיבי</span>{" "}
+                <span style={{ color: u.taste_closed ? "#16a34a" : "#dc2626" }}>{u.taste_closed ? "✓" : "✗"} טעם</span>
+              </span>
+            </div>
+          </>
         )}
         {(stage === "couples" || stage === "couples_done") && u.partner_name && (
           <div><span style={labelStyle}>בן/בת זוג</span><br/><span style={valStyle}>{u.partner_name}</span></div>
@@ -527,7 +543,7 @@ function PipelineUserCard({
       </div>
 
       {/* Checklist for stage 3 */}
-      {stage === "completed" && (
+      {(stage === "completed_all" || stage === "completed_partial") && (
         <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
           <label style={{ fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
             <input type="checkbox" checked={!!u.admin_checklist?.analysis_run} onChange={e => onChecklistUpdate(u.id, "analysis_run", e.target.checked)} />
@@ -579,13 +595,13 @@ function PipelineUserCard({
           <button style={btnStyle("#0ea5e9")} onClick={() => onPipelineAction(u.id, "mark_completed")}>↑ העבר ל"השלימו"</button>
         )}
 
-        {/* Stage 3: Completed — email, reanalyze, generate insights, mark done */}
-        {stage === "completed" && (
+        {/* Completed all — full treatment: email, reanalyze, insights, mark done */}
+        {stage === "completed_all" && (
           <>
             {u.email_updates ? (
-              <button style={outlineBtnStyle("#0ea5e9")} onClick={() => { setShowEmail(true); loadTemplate(); }}>📧 שלח מייל</button>
+              <button style={outlineBtnStyle("#0ea5e9")} onClick={() => { setShowEmail(true); loadTemplate(); }}>📧 שלח מייל כניסה למאגר</button>
             ) : (
-              <button style={outlineBtnStyle("#7c3aed")} onClick={() => { setMsgText(buildPoolMessage(isFemale)); setShowMessage(true); }}>💬 כתוב הודעה</button>
+              <button style={outlineBtnStyle("#7c3aed")} onClick={() => { setMsgText(buildPoolMessage(isFemale)); setShowMessage(true); }}>💬 הודעת כניסה למאגר</button>
             )}
             <button style={outlineBtnStyle("#f59e0b")} onClick={handleReanalyze} disabled={reanalyzing}>
               {reanalyzing ? "מנתח..." : "🔄 הרץ ניתוח"}
@@ -593,6 +609,24 @@ function PipelineUserCard({
             <button style={outlineBtnStyle("#8b5cf6")} onClick={handleGenerateInsights} disabled={generating}>
               {generating ? "מפיק..." : "✨ הפק תובנות"}
             </button>
+            <button style={btnStyle("#16a34a")} onClick={() => onPipelineAction(u.id, "mark_done")}>✓ סיימתי טיפול</button>
+          </>
+        )}
+
+        {/* Completed partial — reanalyze + insights, but no pool email */}
+        {stage === "completed_partial" && (
+          <>
+            <button style={outlineBtnStyle("#f59e0b")} onClick={handleReanalyze} disabled={reanalyzing}>
+              {reanalyzing ? "מנתח..." : "🔄 הרץ ניתוח"}
+            </button>
+            <button style={outlineBtnStyle("#8b5cf6")} onClick={handleGenerateInsights} disabled={generating}>
+              {generating ? "מפיק..." : "✨ הפק תובנות"}
+            </button>
+            {u.email_updates ? (
+              <button style={outlineBtnStyle("#0ea5e9")} onClick={() => { setShowEmail(true); loadTemplate(); }}>📧 שלח מייל תזכורת</button>
+            ) : (
+              <button style={outlineBtnStyle("#7c3aed")} onClick={() => { setMsgText(buildWelcomeMessage(isFemale)); setShowMessage(true); }}>💬 כתוב הודעה</button>
+            )}
             <button style={btnStyle("#16a34a")} onClick={() => onPipelineAction(u.id, "mark_done")}>✓ סיימתי טיפול</button>
           </>
         )}
