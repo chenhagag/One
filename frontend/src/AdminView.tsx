@@ -3805,7 +3805,7 @@ function UserPhotosGallery({ userId }: { userId: number }) {
 
   useEffect(() => {
     fetch(`/api/users/${userId}/photos`).then(r => r.json())
-      .then(data => setPhotos(Array.isArray(data) ? data : []))
+      .then(data => setPhotos(Array.isArray(data?.photos) ? data.photos : Array.isArray(data) ? data : []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [userId]);
