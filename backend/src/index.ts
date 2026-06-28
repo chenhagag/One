@@ -2435,7 +2435,7 @@ app.get("/admin/user-management", async (_req, res) => {
       const conv = convMap[u.id] || {};
       const summary = summaryMap[u.id] || {};
       const login = loginMap[u.id] || {};
-      const email = emailMap[u.id] || {};
+      const email = emailMap[u.id] || { last_email_subject: null, last_email_sent: null, emails: [] };
       const activity = activityMap[u.id] || {};
       const pipe = pipelineMap[u.id] || {};
 
