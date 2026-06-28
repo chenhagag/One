@@ -43,15 +43,25 @@ interface PipelineUser {
   admin_processing_done: boolean;
   admin_checklist: Record<string, boolean>;
   partner_in_system: boolean;
+  couple_handled_at: string | null;
   partner_name: string | null;
   photo_count: number;
   has_profile_details: boolean;
 }
 
-type Stage = "new" | "in_process" | "completed" | "ready_pool" | "pool" | "couples";
+type Stage = "new" | "in_process" | "completed" | "ready_pool" | "pool" | "couples" | "couples_done";
 
 function getStage(u: PipelineUser): Stage {
-  if (u.test_user_type === "Couple Tester" && !u.in_matching_pool) return "couples";
+  if (u.test_user_type === "Couple Tester" && !u.in_matching_pool) {
+    if (u.admin_contacted) {
+      // If there's new activity after being marked as done, move back to active couples
+      if (u.couple_handled_at && u.last_activity && u.last_activity > u.couple_handled_at) {
+        return "couples";
+      }
+      return "couples_done";
+    }
+    return "couples";
+  }
   if (u.in_matching_pool) return "pool";
   if (u.admin_processing_done) return "ready_pool";
   if (u.chat_closed && !u.admin_contacted) return "completed"; // completed but never contacted
@@ -71,7 +81,8 @@ function getCompletionSub(u: PipelineUser): string {
 
 const STAGE_CONFIG: { key: Stage; title: string; color: string; bg: string }[] = [
   { key: "new", title: "משתמשים חדשים", color: "#7c3aed", bg: "#f5f3ff" },
-  { key: "couples", title: "זוגות חדשים", color: "#ec4899", bg: "#fdf2f8" },
+  { key: "couples", title: "זוגות לטיפול", color: "#ec4899", bg: "#fdf2f8" },
+  { key: "couples_done", title: "זוגות — לא דורשים טיפול", color: "#f9a8d4", bg: "#fdf2f8" },
   { key: "in_process", title: "בתהליך (לא דורשים טיפול)", color: "#d97706", bg: "#fffbeb" },
   { key: "completed", title: "השלימו את התהליך", color: "#0ea5e9", bg: "#f0f9ff" },
   { key: "ready_pool", title: "מוכנים למאגר", color: "#16a34a", bg: "#f0fdf4" },
@@ -138,7 +149,7 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
   const [users, setUsers] = useState<PipelineUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState<Record<Stage, boolean>>({
-    new: false, couples: false, in_process: true, completed: false, ready_pool: false, pool: true,
+    new: false, couples: false, couples_done: true, in_process: true, completed: false, ready_pool: false, pool: true,
   });
 
   useEffect(() => { loadData(); }, []);
@@ -170,7 +181,7 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
   }
 
   // Group users by stage
-  const grouped: Record<Stage, PipelineUser[]> = { new: [], couples: [], in_process: [], completed: [], ready_pool: [], pool: [] };
+  const grouped: Record<Stage, PipelineUser[]> = { new: [], couples: [], couples_done: [], in_process: [], completed: [], ready_pool: [], pool: [] };
   for (const u of users) {
     const stage = getStage(u);
     grouped[stage].push(u);
@@ -288,11 +299,12 @@ function PipelineUserCard({
 
   const isFemale = u.gender === "woman";
 
-  // Red highlight for stages 4 & 5: activity after reaching this stage
-  const isRedHighlight = (stage === "ready_pool" || stage === "pool") &&
+  // Red highlight for stages 4 & 5 and couples_done: activity after reaching this stage
+  const isRedHighlight = ((stage === "ready_pool" || stage === "pool") &&
     u.last_activity && u.admin_processing_done &&
-    // Rough heuristic: if there's recent activity, highlight
-    u.last_activity > (u.last_email_sent || u.created_at);
+    u.last_activity > (u.last_email_sent || u.created_at)) ||
+    (stage === "couples_done" && u.last_activity && u.admin_contacted &&
+    u.last_activity > (u.last_email_sent || u.created_at));
 
   function loadTemplate() {
     const name = u.first_name || "";
@@ -305,8 +317,10 @@ function PipelineUserCard({
     } else if (stage === "couples") {
       const t = buildCoupleEmail(name, isFemale);
       setEmailSubject(t.subject); setEmailHtml(t.html);
+    } else if (stage === "completed") {
+      const t = buildPoolEmail(name, isFemale);
+      setEmailSubject(t.subject); setEmailHtml(t.html);
     } else {
-      // Completed - generic
       const t = buildWelcomeEmail(name, isFemale);
       setEmailSubject(t.subject); setEmailHtml(t.html);
     }
@@ -414,7 +428,7 @@ function PipelineUserCard({
 
       {/* Info row */}
       <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 10 }}>
-        {(stage === "in_process" || stage === "completed" || stage === "ready_pool" || stage === "pool") && (
+        {(stage === "in_process" || stage === "completed" || stage === "ready_pool" || stage === "pool" || stage === "couples_done") && (
           <>
             <div><span style={labelStyle}>כניסה אחרונה</span><br/><span style={valStyle}>{fmtTimeAgo(u.last_visit)}</span></div>
             <div><span style={labelStyle}>עדכון אחרון</span><br/><span style={valStyle}>{fmtTimeAgo(u.last_activity)}</span></div>
@@ -426,11 +440,11 @@ function PipelineUserCard({
         {stage === "completed" && (
           <div><span style={labelStyle}>סטטוס</span><br/><span style={{ fontSize: 12, color: "#0ea5e9", fontWeight: 600 }}>{getCompletionSub(u)}</span></div>
         )}
-        {stage === "couples" && u.partner_name && (
+        {(stage === "couples" || stage === "couples_done") && u.partner_name && (
           <div><span style={labelStyle}>בן/בת זוג</span><br/><span style={valStyle}>{u.partner_name}</span></div>
         )}
         {/* Chat status for relevant stages */}
-        {(stage === "new" || stage === "in_process" || stage === "couples") && (
+        {(stage === "new" || stage === "in_process" || stage === "couples" || stage === "couples_done") && (
           <>
             <div>
               <span style={labelStyle}>צ׳אט</span><br/>

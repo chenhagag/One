@@ -14,7 +14,7 @@ import AdminPipeline from "./AdminPipeline";
  * - Matches
  */
 
-type Tab = "overview" | "users" | "profiles" | "traits" | "look_traits" | "enums" | "config" | "matches" | "candidates" | "bugs" | "email" | "analytics" | "user_mgmt";
+type Tab = "overview" | "users" | "profiles" | "traits" | "look_traits" | "enums" | "config" | "matches" | "candidates" | "bugs" | "email" | "analytics" | "user_mgmt" | "deleted_users";
 
 const s: Record<string, React.CSSProperties> = {
   heading: { marginTop: 0, marginBottom: 8, fontSize: 22 },
@@ -354,6 +354,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
           ["analytics", "Analytics"],
           ["email", "Send Email"],
           ["user_mgmt", "ניהול משתמשים"],
+          ["deleted_users", "משתמשים שנמחקו"],
         ] as [Tab, string][]).map(([key, label]) => (
           <button
             key={key}
@@ -381,6 +382,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
       {tab === "analytics" && <AnalyticsTab />}
       {tab === "email" && <SendEmailTab />}
       {tab === "user_mgmt" && <AdminPipeline onSelectUser={(userId) => { setTab("users"); setTimeout(() => window.dispatchEvent(new CustomEvent("admin-select-user", { detail: userId })), 100); }} />}
+      {tab === "deleted_users" && <DeletedUsersTab />}
     </div>
   );
 }
@@ -4056,6 +4058,80 @@ function UserManagementTab() {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ── Deleted Users Tab ──────────────────────────────────────────────
+
+function DeletedUsersTab() {
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/admin/deleted-users")
+      .then((r) => r.json())
+      .then((data) => { setRows(Array.isArray(data) ? data : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading) return <p style={s.loading}>Loading...</p>;
+  if (rows.length === 0) return <p style={{ color: "#888" }}>אין משתמשים שנמחקו</p>;
+
+  const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("he-IL") : "—";
+  const fmtDateTime = (d: string | null) => d ? new Date(d).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+
+  return (
+    <div>
+      <h3 style={{ marginBottom: 8 }}>משתמשים שנמחקו ({rows.length})</h3>
+      <div style={s.scrollWrap}>
+        <table style={s.table}>
+          <thead>
+            <tr>
+              <th style={s.th}>ID מקורי</th>
+              <th style={s.th}>שם</th>
+              <th style={s.th}>מייל</th>
+              <th style={s.th}>מגדר</th>
+              <th style={s.th}>גיל</th>
+              <th style={s.th}>עיר</th>
+              <th style={s.th}>סוג</th>
+              <th style={s.th}>נרשם</th>
+              <th style={s.th}>נמחק</th>
+              <th style={s.th}>נמחק ע"י</th>
+              <th style={s.th}>הודעות</th>
+              <th style={s.th}>במאגר</th>
+              <th style={s.th}>תובנות</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r: any) => (
+              <tr key={r.id}>
+                <td style={s.td}>{r.original_user_id}</td>
+                <td style={s.td}>{r.first_name || "—"}</td>
+                <td style={s.td}>{r.email || "—"}</td>
+                <td style={s.td}>{r.gender || "—"}</td>
+                <td style={s.td}>{r.age ?? "—"}</td>
+                <td style={s.td}>{r.city || "—"}</td>
+                <td style={s.td}>{r.test_user_type || "—"}</td>
+                <td style={s.td}>{fmtDate(r.created_at)}</td>
+                <td style={s.td}>{fmtDateTime(r.deleted_at)}</td>
+                <td style={s.td}>
+                  <span style={{
+                    background: r.deleted_by === "user" ? "#fef3c7" : "#fee2e2",
+                    color: r.deleted_by === "user" ? "#92400e" : "#991b1b",
+                    borderRadius: 4, padding: "2px 6px", fontSize: 11, fontWeight: 600,
+                  }}>
+                    {r.deleted_by === "user" ? "משתמש" : "אדמין"}
+                  </span>
+                </td>
+                <td style={s.td}>{r.chat_count}</td>
+                <td style={s.td}>{r.was_in_pool ? "V" : "—"}</td>
+                <td style={s.td}>{r.had_insights ? "V" : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

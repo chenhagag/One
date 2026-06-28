@@ -1063,8 +1063,29 @@ app.delete("/admin/users/:id", async (req, res) => {
     return res.status(400).json({ error: "Invalid user_id" });
   }
 
-  const user = await pgQueryOne<any>("SELECT id, first_name, email FROM users WHERE id = $1", [userId]);
+  const user = await pgQueryOne<any>(
+    "SELECT id, first_name, email, gender, age, city, test_user_type, created_at, in_matching_pool, personal_insights_short, personal_insights_full, couple_insights FROM users WHERE id = $1",
+    [userId]
+  );
   if (!user) return res.status(404).json({ error: "User not found" });
+
+  // Save to deleted_users before hard delete
+  try {
+    const chatCount = await pgQueryOne<any>(
+      "SELECT COUNT(*)::int AS cnt FROM conversation_messages WHERE user_id = $1 AND role = 'user'", [userId]
+    );
+    await pgQueryAll(
+      `INSERT INTO deleted_users (original_user_id, first_name, email, gender, age, city, test_user_type, created_at, deleted_by, chat_count, was_in_pool, had_insights)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [userId, user.first_name, user.email, user.gender, user.age, user.city, user.test_user_type, user.created_at,
+       req.query.self === 'true' ? 'user' : 'admin',
+       chatCount?.cnt || 0,
+       user.in_matching_pool || false,
+       !!(user.personal_insights_short || user.personal_insights_full || user.couple_insights)]
+    );
+  } catch (err) {
+    console.error("[admin] Failed to save deleted_users record:", err);
+  }
 
   // Delete from pg (order matters due to FKs)
   const result = {
@@ -1096,6 +1117,16 @@ app.delete("/admin/users/:id", async (req, res) => {
 
   console.log(`[admin] Deleted user ${userId} (${user.first_name} <${user.email}>):`, result);
   return res.json({ deleted: true, user_id: userId, ...result });
+});
+
+// GET /admin/deleted-users — List of deleted users
+app.get("/admin/deleted-users", async (_req, res) => {
+  try {
+    const rows = await pgQueryAll<any>("SELECT * FROM deleted_users ORDER BY deleted_at DESC");
+    return res.json(rows);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // GET /admin/users — All users with registration data
@@ -2325,7 +2356,7 @@ app.get("/admin/user-management", async (_req, res) => {
     let pipelineMap: Record<number, any> = {};
     try {
       const pipelineRows = await pgQueryAll<any>(
-        `SELECT id, admin_contacted, admin_processing_done, admin_checklist, partner_in_system FROM users`
+        `SELECT id, admin_contacted, admin_processing_done, admin_checklist, partner_in_system, couple_handled_at FROM users`
       );
       for (const r of pipelineRows) pipelineMap[r.id] = r;
     } catch { /* columns not yet migrated — use defaults */ }
@@ -2461,6 +2492,7 @@ app.get("/admin/user-management", async (_req, res) => {
         admin_processing_done: pipe.admin_processing_done ?? false,
         admin_checklist: pipe.admin_checklist ?? {},
         partner_in_system: pipe.partner_in_system ?? false,
+        couple_handled_at: pipe.couple_handled_at || null,
         partner_name: u.partner_name || null,
         photo_count: u.photo_count || 0,
         has_profile_details: !!(u.age && u.city && (u.photo_count || 0) >= 1),
@@ -2487,7 +2519,7 @@ app.post("/admin/users/:id/pipeline-action", async (req, res) => {
   try {
     switch (action) {
       case "mark_contacted":
-        await pgQueryAll("UPDATE users SET admin_contacted = TRUE, updated_at = NOW() WHERE id = $1", [userId]);
+        await pgQueryAll("UPDATE users SET admin_contacted = TRUE, couple_handled_at = NOW(), updated_at = NOW() WHERE id = $1", [userId]);
         break;
       case "mark_done":
         await pgQueryAll("UPDATE users SET admin_processing_done = TRUE, updated_at = NOW() WHERE id = $1", [userId]);

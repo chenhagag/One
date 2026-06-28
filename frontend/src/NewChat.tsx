@@ -1138,7 +1138,7 @@ function SettingsView({ user, onLogout }: { user: User; onLogout?: () => void })
   async function handleDeleteAccount() {
     setDeleting(true);
     try {
-      const res = await fetch(`/api/admin/users/${user.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/users/${user.id}?self=true`, { method: "DELETE" });
       if (res.ok) {
         onLogout?.();
       } else {

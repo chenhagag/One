@@ -645,6 +645,12 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       ) THEN
         ALTER TABLE users ADD COLUMN partner_in_system BOOLEAN DEFAULT FALSE;
       END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'couple_handled_at'
+      ) THEN
+        ALTER TABLE users ADD COLUMN couple_handled_at TIMESTAMPTZ;
+      END IF;
     END $$;
   `);
 
@@ -742,5 +748,22 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       sent_at     TIMESTAMPTZ DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS idx_email_log_user ON email_log(user_id);
+
+    CREATE TABLE IF NOT EXISTS deleted_users (
+      id                SERIAL PRIMARY KEY,
+      original_user_id  INTEGER NOT NULL,
+      first_name        TEXT,
+      email             TEXT,
+      gender            TEXT,
+      age               INTEGER,
+      city              TEXT,
+      test_user_type    TEXT,
+      created_at        TIMESTAMPTZ,
+      deleted_at        TIMESTAMPTZ DEFAULT NOW(),
+      deleted_by        TEXT DEFAULT 'user',
+      chat_count        INTEGER DEFAULT 0,
+      was_in_pool       BOOLEAN DEFAULT FALSE,
+      had_insights      BOOLEAN DEFAULT FALSE
+    );
   `);
 }
