@@ -368,9 +368,9 @@ export default function AuthScreen({ onOtpSuccess }: AuthScreenProps) {
 
   // ── Email form screen ──
   if (showEmailForm) {
-    const emailAction = isInAppBrowser ? handleSendOtp : handleMagicLink;
-    const emailLoading = isInAppBrowser ? otpLoading : magicLinkLoading;
-    const emailButtonText = isInAppBrowser ? "שלחו לי קוד כניסה" : "שלחו לי לינק להתחברות";
+    const emailAction = handleSendOtp;
+    const emailLoading = otpLoading;
+    const emailButtonText = "שלחו לי קוד כניסה";
 
     return (
       <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6 pt-[env(safe-area-inset-top,0px)]">
