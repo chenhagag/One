@@ -814,5 +814,13 @@ export async function buildChatPrompt(
     }
   }
 
+  // Inject progress info so AI can answer "how much is left" naturally
+  if (convState.closing_stage === 0 && convState.current_topic_index > 0) {
+    const total = 14;
+    const done = convState.current_topic_index;
+    const pct = Math.round((done / total) * 100);
+    systemPrompt += `\n\n(Internal note — do NOT mention unprompted: conversation progress ${done}/${total} topics (~${pct}%). If the user asks how much is left or says they're tired — tell them approximately how much is left, explain the importance of completing the conversation for accurate analysis, and say they can always continue later.)`;
+  }
+
   return { systemPrompt, intent, phase, closingStage: convState.closing_stage };
 }
