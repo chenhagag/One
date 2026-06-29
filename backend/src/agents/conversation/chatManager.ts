@@ -797,16 +797,18 @@ export async function buildChatPrompt(
           const nextTopic = getCurrentTopic(convState);
           if (nextTopic) {
             questionToAsk = nextTopic.openingQuestion;
-            // Set turn for the new topic
             convState.turn_in_topic = 1;
             await saveConversationState(userId, convState);
             systemPrompt = buildPromptA(questionToAsk, genderInstruction, coupleInstruction, nextTopic.guideline);
             return { systemPrompt, intent, phase, closingStage: convState.closing_stage };
           }
         } else if (mentionedField && mentionedInstitution) {
-          questionToAsk = currentlyStudying ? "איך הלימודים עד כה? נהנה?" : "איך היו לך הלימודים? נהנית?";
+          questionToAsk = currentlyStudying ? "איך הלימודים עד כה?" : "איך היו לך הלימודים?";
         } else if (mentionedField) {
-          questionToAsk = currentlyStudying ? "איפה אתה לומד? ואיך הלימודים עבורך?" : "איפה למדת? ואיך היו לך הלימודים?";
+          const gF = gender === "woman";
+          questionToAsk = currentlyStudying
+            ? (gF ? "איפה את לומדת? ואיך הלימודים?" : "איפה אתה לומד? ואיך הלימודים?")
+            : "איפה למדת? ואיך היו לך הלימודים?";
         }
       }
 
