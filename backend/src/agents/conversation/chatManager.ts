@@ -759,8 +759,22 @@ export async function buildChatPrompt(
 
     } else if (convState.turn_in_topic === 0) {
       // Opening question for this topic — Prompt A
+      let questionToAsk = currentTopic.openingQuestion;
+
+      // Career_basics: adapt question if user already mentioned studies in their last message
+      if (currentTopic.id === "career_basics") {
+        const lastMsg = message.toLowerCase();
+        const mentionedInstitution = /אוניברסיט|מכלל|בצלאל|טכניון|שנקר|ויצמן|בן גוריון|תל אביב|עברית|הפתוחה|בפתוחה|סטודנט|תואר ב|תואר ראשון|תואר שני/.test(lastMsg);
+        const mentionedField = /למד|לומד|לומדת|למדתי|הנדס|משפטים|רפואה|מדעי|פסיכולוגי|כלכלה|מנהל עסקים|חינוך|אדריכלות|תקשורת|מחשב|ביולוגי|כימי|פיזיק|סוציולוגי|היסטורי|פילוסופ|ספרות/.test(lastMsg);
+        if (mentionedField && mentionedInstitution) {
+          questionToAsk = "איך היו לך הלימודים? נהנית?";
+        } else if (mentionedField) {
+          questionToAsk = "איפה למדת? ואיך היו לך הלימודים?";
+        }
+      }
+
       systemPrompt = buildPromptA(
-        currentTopic.openingQuestion,
+        questionToAsk,
         genderInstruction,
         coupleInstruction,
         currentTopic.guideline,
