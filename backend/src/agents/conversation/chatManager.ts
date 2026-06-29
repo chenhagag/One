@@ -152,6 +152,16 @@ export function detectPhase(messageCount: number): ConversationPhase {
   return "deep";
 }
 
+// ── Clarification question detection ─────────────────────────
+// Detects when user asks a short clarification instead of answering
+// e.g. "מה הכוונה?", "למה?", "מה זה אומר?", "איך?"
+function isClarificationQuestion(msg: string): boolean {
+  const trimmed = msg.trim();
+  if (trimmed.length > 60) return false; // too long to be a quick clarification
+  if (!trimmed.includes("?") && !trimmed.includes("׳")) return false;
+  return /^(מה |למה |איך |מה$|למה$|איך$|לא הבנתי|מה הכוונה|מה זה|במובן)/.test(trimmed);
+}
+
 // ── Conversation state management ────────────────────────────
 
 /** Load conversation state from DB */
@@ -757,15 +767,24 @@ export async function buildChatPrompt(
       await saveConversationState(userId, convState);
       systemPrompt = buildPromptEInsight(genderInstruction);
 
+    } else if (convState.turn_in_topic === 0 && isClarificationQuestion(message)) {
+      // User asked a clarification question instead of answering the previous topic's follow-up
+      // Don't advance — answer their question and ask to continue
+      const ctx = SYSTEM_CONTEXT;
+      systemPrompt = buildPromptC(ctx, genderInstruction);
+      // Roll back: stay on the same topic, turn_in_topic stays 0
+      // so next turn will ask the opening question of this topic
+
     } else if (convState.turn_in_topic === 0) {
       // Opening question for this topic — Prompt A
       let questionToAsk = currentTopic.openingQuestion;
 
-      // Career_basics: adapt question if user already mentioned studies in their last message
+      // Career_basics: adapt question if user already mentioned studies in recent messages
       if (currentTopic.id === "career_basics") {
-        const lastMsg = message.toLowerCase();
-        const mentionedInstitution = /אוניברסיט|מכלל|בצלאל|טכניון|שנקר|ויצמן|בן גוריון|תל אביב|עברית|הפתוחה|בפתוחה|סטודנט|תואר ב|תואר ראשון|תואר שני/.test(lastMsg);
-        const mentionedField = /למד|לומד|לומדת|למדתי|הנדס|משפטים|רפואה|מדעי|פסיכולוגי|כלכלה|מנהל עסקים|חינוך|אדריכלות|תקשורת|מחשב|ביולוגי|כימי|פיזיק|סוציולוגי|היסטורי|פילוסופ|ספרות/.test(lastMsg);
+        // Check last 2 user messages (current + previous) since studies are often mentioned one turn back
+        const recentUserMsgs = history.filter(h => h.role === "user").slice(-2).map(h => h.content).join(" ").toLowerCase() + " " + message.toLowerCase();
+        const mentionedInstitution = /אוניברסיט|מכלל|בצלאל|טכניון|שנקר|ויצמן|בן גוריון|תל אביב|עברית|הפתוחה|בפתוחה|סטודנט|תואר ב|תואר ראשון|תואר שני/.test(recentUserMsgs);
+        const mentionedField = /למד|לומד|לומדת|למדתי|הנדס|משפטים|רפואה|מדעי|פסיכולוגי|כלכלה|מנהל עסקים|חינוך|אדריכלות|תקשורת|מחשב|ביולוגי|כימי|פיזיק|סוציולוגי|היסטורי|פילוסופ|ספרות/.test(recentUserMsgs);
         if (mentionedField && mentionedInstitution) {
           questionToAsk = "איך היו לך הלימודים? נהנית?";
         } else if (mentionedField) {
