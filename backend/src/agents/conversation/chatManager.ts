@@ -781,11 +781,27 @@ export async function buildChatPrompt(
 
       // Career_basics: adapt question if user already mentioned studies in recent messages
       if (currentTopic.id === "career_basics") {
-        // Check last 2 user messages (current + previous) since studies are often mentioned one turn back
+        // Check last 2 user messages + last AI message for study-related content
         const recentUserMsgs = history.filter(h => h.role === "user").slice(-2).map(h => h.content).join(" ").toLowerCase() + " " + message.toLowerCase();
+        const lastAiMsg = (history.filter(h => h.role === "assistant").slice(-1)[0]?.content || "").toLowerCase();
         const mentionedInstitution = /אוניברסיט|מכלל|בצלאל|טכניון|שנקר|ויצמן|בן גוריון|תל אביב|עברית|הפתוחה|בפתוחה|סטודנט|תואר ב|תואר ראשון|תואר שני/.test(recentUserMsgs);
         const mentionedField = /למד|לומד|לומדת|למדתי|הנדס|משפטים|רפואה|מדעי|פסיכולוגי|כלכלה|מנהל עסקים|חינוך|אדריכלות|תקשורת|מחשב|ביולוגי|כימי|פיזיק|סוציולוגי|היסטורי|פילוסופ|ספרות/.test(recentUserMsgs);
-        if (mentionedField && mentionedInstitution) {
+        const aiAlreadyAskedAboutStudies = /לימודים|איך למדת|איך הלימודים|נהנית מהלימודים|מוצא את הלימודים/.test(lastAiMsg);
+
+        if (mentionedField && mentionedInstitution && aiAlreadyAskedAboutStudies) {
+          // AI already asked about studies as follow-up — skip career_basics entirely, go to career_deep
+          advanceToNextTopic(convState);
+          await saveConversationState(userId, convState);
+          const nextTopic = getCurrentTopic(convState);
+          if (nextTopic) {
+            questionToAsk = nextTopic.openingQuestion;
+            // Set turn for the new topic
+            convState.turn_in_topic = 1;
+            await saveConversationState(userId, convState);
+            systemPrompt = buildPromptA(questionToAsk, genderInstruction, coupleInstruction, nextTopic.guideline);
+            return { systemPrompt, intent, phase, closingStage: convState.closing_stage };
+          }
+        } else if (mentionedField && mentionedInstitution) {
           questionToAsk = "איך היו לך הלימודים? נהנית?";
         } else if (mentionedField) {
           questionToAsk = "איפה למדת? ואיך היו לך הלימודים?";
