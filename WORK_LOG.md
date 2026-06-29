@@ -1,6 +1,68 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-06-28 (External Analysis, Pipeline Filters, Location Override)
+## Latest Session: 2026-06-29 (Chat Fixes, System Questions, OTP, Agent Review)
+
+### Deployment
+- All changes pushed to main (production) and staging
+
+### What We Did
+
+#### 1. Chat Prompt Fixes (from agent conversation review)
+- **SYSTEM_IDENTITY**: slimmed down — kept core rules only, moved detailed info to context-system-info
+- **Template B**: added rule to answer user's direct questions before continuing
+- **Template D**: fixed "buttons on home screen" → clear guidance for insights, feedback, main screen
+- **context-system-info**: added notifications info (email/WhatsApp/app), post-completion flow, taste input anywhere, photo approval process, feedback screen fallback
+- **Pool entry requirement**: fixed prompt to include conversation completion (was missing)
+
+#### 2. Taste Test Fixes
+- Inject list of already-shown profile names → prevents duplicate profiles
+- After all profiles exhausted: explain pool is done, don't invent new ones
+- Strengthened follow-up request for short answers
+
+#### 3. Career Question Adaptive Logic
+- Detects if user already mentioned studies in recent messages
+- Adapts question: present tense for current students, past for graduates
+- Skips career_basics entirely if AI already asked about studies as follow-up
+- Gender-adapted phrasing ("איפה את לומדת" / "איפה אתה לומד")
+
+#### 4. Clarification Question Detection
+- New `isClarificationQuestion()` — detects short questions like "מה הכוונה?"
+- When detected: answers via Template C without advancing to next topic
+- Prevents skipping unanswered topics
+
+#### 5. Conversation Progress
+- Injects topic progress (e.g. 8/14) into prompt
+- AI can answer "how much is left" naturally when asked
+- Marked "do NOT mention unprompted"
+
+#### 6. System Questions Feature
+- New `system_questions` DB table
+- Admin sends question to user → appears as card on home screen
+- User answers with fixed options ("כן אין בעיה" / "אפשרי" / "לא")
+- After answering: shows confirmation with selected answer highlighted
+- Admin sees answered questions in pipeline dashboard with "ראיתי" button
+
+#### 7. OTP as Default Login
+- Changed email login from magic link to OTP code for all browsers
+- Magic links caused issues (expiry, cross-browser sessions)
+
+#### 8. Agent Tasks
+- Downloaded all user photos (51 photos, 17 users) → `user-photos/`
+- Downloaded all conversations (55 users) → `conversations/`
+- Chat review report for users 167-183 → `reports/chat-review-167-183.md`
+
+### Open Items (Not Yet Done)
+
+1. **Response time monitoring** — add latency tracking to token_usage table for OpenAI API calls
+2. **Chat review for users 120-166** — 22 users still need conversation review
+3. **Gender mixing in chat** — GPT sometimes uses wrong gender (5 users affected). Hard to enforce 100%
+4. **Shallow closing summaries** — Template E produces generic summaries. Delicate to change
+5. **Flattery responses** — GPT says "מדהים!", "מרתק!" too often. Cosmetic but universal
+6. **Location override for רון** — feature built but not yet used (admin needs to set override + rerun algorithm)
+
+---
+
+## Previous Session: 2026-06-28 (External Analysis, Pipeline Filters, Location Override)
 
 ### Deployment
 - All changes pushed to main (production)
