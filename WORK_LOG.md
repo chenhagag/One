@@ -53,12 +53,9 @@
 
 ### Open Items (Not Yet Done)
 
-1. **Response time monitoring** — add latency tracking to token_usage table for OpenAI API calls
-2. **Chat review for users 120-166** — 22 users still need conversation review
-3. **Gender mixing in chat** — GPT sometimes uses wrong gender (5 users affected). Hard to enforce 100%
-4. **Shallow closing summaries** — Template E produces generic summaries. Delicate to change
-5. **Flattery responses** — GPT says "מדהים!", "מרתק!" too often. Cosmetic but universal
-6. **Location override for רון** — feature built but not yet used (admin needs to set override + rerun algorithm)
+1. **Chat review for users 120-166** — 22 users still need conversation review (same format as reports/chat-review-167-183.md)
+   - Users to review: סיון (#166), סתיו שמחה (#165), אלמוג רובין (#164), יאנה (#163), הילה (#161), פלג סולרסקי (#158), יסמין כהן (#157), Ornat (#156), לינוי סימאי (#155), אביב וואל (#154), Netanela (#153), חן (#150), הינדי (#145), Ron (#143), אלישבע שטראוס (#137), דולב הלחמי (#136), עדן אלה (#133), Gal Ella (#130), איה (#120), איתי שגב (#117), ניצן בר אל (#115), גיא (#97)
+   - Conversations already downloaded to `conversations/` folder
 
 ---
 
