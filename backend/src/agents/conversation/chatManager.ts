@@ -605,9 +605,8 @@ export async function buildChatPrompt(
       return m ? m[1] : null;
     }).filter(Boolean));
 
-    let profilesShown = 0;
+    const shownNames = new Set<string>();
     if (Array.isArray(history)) {
-      const shownNames = new Set<string>();
       for (const h of history) {
         if (h.role === "assistant") {
           const matches = h.content.match(/אני (\S+?)[.,]/g);
@@ -619,8 +618,8 @@ export async function buildChatPrompt(
           }
         }
       }
-      profilesShown = shownNames.size;
     }
+    const profilesShown = shownNames.size;
     const totalProfiles = profileBank.length; // all profiles in the file
     const TASTE_MIN_PROFILES = 6; // after this many, taste is "done" for recommendations
     const allProfilesDone = profilesShown >= totalProfiles;
@@ -678,7 +677,8 @@ export async function buildChatPrompt(
     // Inject all selected profiles — AI picks the next one in order
     let profileBlock = "";
     if (tasteUserMsgCount >= profileStartMsg && !allProfilesDone) {
-      profileBlock = `\n\n## רשימת הפרופילים — חובה לקחת מכאן בלבד!\nהצג פרופיל אחד בכל תור, לפי הסדר. אל תמציא פרופילים. אל תשנה את התוכן. העתק מהרשימה בדיוק.\n\n${allProfilesText}`;
+      const shownList = shownNames.size > 0 ? `\n\n**פרופילים שכבר הוצגו (אסור להציג שוב!):** ${[...shownNames].join(", ")}` : "";
+      profileBlock = `\n\n## רשימת הפרופילים — חובה לקחת מכאן בלבד!\nהצג פרופיל אחד בכל תור, לפי הסדר. אל תמציא פרופילים. אל תשנה את התוכן. העתק מהרשימה בדיוק.${shownList}\n\n${allProfilesText}`;
     }
 
     // End of taste test — simple closing, frontend handles navigation
