@@ -788,6 +788,8 @@ export async function buildChatPrompt(
         const mentionedField = /למד|לומד|לומדת|למדתי|הנדס|משפטים|רפואה|מדעי|פסיכולוגי|כלכלה|מנהל עסקים|חינוך|אדריכלות|תקשורת|מחשב|ביולוגי|כימי|פיזיק|סוציולוגי|היסטורי|פילוסופ|ספרות/.test(recentUserMsgs);
         const aiAlreadyAskedAboutStudies = /לימודים|איך למדת|איך הלימודים|נהנית מהלימודים|מוצא את הלימודים/.test(lastAiMsg);
 
+        const currentlyStudying = /לומד|לומדת|סטודנט|סטודנטית|בשנה (ראשונה|שנייה|שלישית|רביעית)|מסיים|מסיימת/.test(recentUserMsgs);
+
         if (mentionedField && mentionedInstitution && aiAlreadyAskedAboutStudies) {
           // AI already asked about studies as follow-up — skip career_basics entirely, go to career_deep
           advanceToNextTopic(convState);
@@ -802,9 +804,9 @@ export async function buildChatPrompt(
             return { systemPrompt, intent, phase, closingStage: convState.closing_stage };
           }
         } else if (mentionedField && mentionedInstitution) {
-          questionToAsk = "איך היו לך הלימודים? נהנית?";
+          questionToAsk = currentlyStudying ? "איך הלימודים עד כה? נהנה?" : "איך היו לך הלימודים? נהנית?";
         } else if (mentionedField) {
-          questionToAsk = "איפה למדת? ואיך היו לך הלימודים?";
+          questionToAsk = currentlyStudying ? "איפה אתה לומד? ואיך הלימודים עבורך?" : "איפה למדת? ואיך היו לך הלימודים?";
         }
       }
 
