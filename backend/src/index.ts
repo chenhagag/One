@@ -2078,6 +2078,10 @@ app.get("/admin/candidate-matches", async (_req, res) => {
       u2.first_name as user2_name, u2.age as user2_age, u2.city as user2_city,
       u2.system_match_priority as user2_priority,
       m.status as match_status,
+      m.id as match_id,
+      m.user1_id as match_user1_id,
+      m.user2_id as match_user2_id,
+      m.user1_rating, m.user2_rating,
       m.pair_priority,
       m.final_match_priority
     FROM candidate_matches cm
@@ -2981,12 +2985,13 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
       analysis_run_count: number; gender: string | null; admin_message: string | null;
       test_user_type: string | null; email_updates: boolean | null;
       partner_in_system: boolean | null; whatsapp_updates: boolean | null;
+      partner_name: string | null;
     }>(
       `SELECT age, city, height, looking_for_gender,
               desired_age_min, desired_age_max, desired_height_min, desired_height_max,
               COALESCE(analysis_run_count, 0) as analysis_run_count, gender, admin_message,
               test_user_type, email_updates, COALESCE(partner_in_system, FALSE) as partner_in_system,
-              whatsapp_updates
+              whatsapp_updates, partner_name
        FROM users WHERE id = $1`, [userId]
     );
     const hasProfileDetails = !!(
@@ -3027,10 +3032,14 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
       if (isCouple && chatCount >= 1) {
         const isFemale = userGender === "woman";
         const partnerWord = isFemale ? "בן הזוג" : "בת הזוג";
-        let msg = "שלום, תודה רבה על הסיוע באימון המערכת של One ❤️. בעזרתם נוכל לדייק התאמות ולמצוא חיבורים טובים יותר למי שעוד לא מצא את האחד או האחת שלו.";
+        const partnerName = profileRow?.partner_name;
+        let msg = "שלום, תודה רבה על הסיוע באימון המערכת של One ❤️. בעזרתכם נוכל לדייק התאמות ולמצוא חיבורים טובים יותר למי שעוד לא מצא את האחד או האחת שלו.";
 
-        if (!profileRow?.partner_in_system) {
-          msg += `\n\nעל מנת שנוכל לתת לכם תובנות על הזוגיות שלכם — ${partnerWord} צריך/ה להיכנס למערכת גם כן. בינתיים אתם יכולים לבדוק את התובנות האישיות שלכם.`;
+        if (partnerName && profileRow?.partner_in_system) {
+          msg += `\n\n${partnerWord} שלך, ${partnerName}, נמצא/ת במערכת — בקרוב נוכל לתת לכם תובנות על הזוגיות שלכם.`;
+        } else if (!profileRow?.partner_in_system) {
+          msg += `\n\nעל מנת שנוכל לתת לכם תובנות על הזוגיות שלכם — ${partnerWord} ${isFemale ? "צריך" : "צריכה"} להיכנס למערכת גם כן. בינתיים ${isFemale ? "את יכולה" : "אתה יכול"} לבדוק את התובנות האישיות.`;
+          msg += `\n\nאם ${partnerWord} כבר במערכת — ${isFemale ? "סמני" : "סמן"} את זה במסך ״הפרטים שלי״.`;
         }
         if (!chatClosed) {
           msg += "\n\nכדי לדייק את התובנות מומלץ להמשיך בשיחה עם המערכת.";

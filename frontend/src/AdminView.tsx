@@ -377,7 +377,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
       {tab === "enums" && <EnumsTab />}
       {tab === "config" && <ConfigTab />}
       {tab === "matches" && <MatchesTab />}
-      {tab === "candidates" && <CandidateMatchesTab />}
+      {tab === "candidates" && <CandidateMatchesTab onViewDashboard={onViewDashboard} onStartChat={onStartChat} onViewNewChat={onViewNewChat} />}
       {tab === "bugs" && <BugReportsTab />}
       {tab === "analytics" && <AnalyticsTab />}
       {tab === "email" && <SendEmailTab />}
@@ -3214,7 +3214,7 @@ function MatchesTab() {
 
 // ── Candidate Matches Tab ───────────────────────────────────────
 
-function CandidateMatchesTab() {
+function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { onViewDashboard?: (user: { id: number; first_name: string; email: string }) => void; onStartChat?: (user: { id: number; first_name: string; email: string }) => void; onViewNewChat?: (user: { id: number; first_name: string; email: string }) => void }) {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState<string | null>(null);
@@ -3316,14 +3316,14 @@ function CandidateMatchesTab() {
     if (status === "pre_match") return { ...s.badge, background: "#d4edda", color: "#155724" };
     if (status === "in_match") return { ...s.badge, background: "#cce5ff", color: "#004085" };
     if (status === "frozen") return { ...s.badge, background: "#e2e3e5", color: "#383d41" };
-    if (status === "approved_by_both") return { ...s.badge, background: "#fff3cd", color: "#856404" };
+    if (status === "approved_by_both") return { ...s.badge, background: "#d4edda", color: "#155724" };
     if (status === "rejected_by_users" || status === "cancelled") return { ...s.badge, background: "#f8d7da", color: "#721c24" };
-    if (status === "rejected_acquaintance") return { ...s.badge, background: "#fef3c7", color: "#92400e" };
+    if (status === "rejected_acquaintance") return { ...s.badge, background: "#f8d7da", color: "#721c24" };
     return s.badge;
   };
 
   if (selectedUserId !== null) {
-    return <UserDetail userId={selectedUserId} onBack={() => setSelectedUserId(null)} />;
+    return <UserDetail userId={selectedUserId} onBack={() => setSelectedUserId(null)} onViewDashboard={onViewDashboard} onStartChat={onStartChat} onViewNewChat={onViewNewChat} />;
   }
 
   return (
@@ -3405,6 +3405,8 @@ function CandidateMatchesTab() {
                 <th style={s.th}>Score</th>
                 <th style={s.th}>Profile</th>
                 <th style={s.th}>Status</th>
+                <th style={s.th}>Ratings</th>
+                <th style={s.th}>Actions</th>
                 <th style={s.th}>Shared Priority</th>
                 <th style={s.th}>Match Priority</th>
                 <th style={s.th}>Internal</th>
@@ -3431,6 +3433,26 @@ function CandidateMatchesTab() {
                   <td style={s.td}>{cm.final_score != null ? <strong style={{ color: cm.final_score >= 70 ? "#28a745" : cm.final_score >= 50 ? "#856404" : "#dc3545" }}>{cm.final_score}</strong> : "-"}{cm.location_expanded && <span title="התאמה מחוץ לטווח מיקום מקורי" style={{ marginRight: 4, color: "#d97706" }}>📍</span>}</td>
                   <td style={s.td}>{cm.profile_score != null ? <strong style={{ color: cm.profile_score >= 70 ? "#28a745" : cm.profile_score >= 50 ? "#856404" : "#dc3545" }}>{cm.profile_score}</strong> : "-"}</td>
                   <td style={s.td}>{cm.match_status ? <span style={matchStatusColor(cm.match_status)}>{cm.match_status}</span> : <span style={s.badge}>{cm.status}</span>}</td>
+                  <td style={s.td}>
+                    {(cm.user1_rating || cm.user2_rating) ? (() => {
+                      const rl = (r: string | null) => r === "bullseye" ? "✅ בול" : r === "possible" ? "🟡 אפשרי" : r === "miss" ? "❌ לא" : r === "known_person" ? "👤 מכיר/ה" : "—";
+                      // Match user1/user2 may differ from candidate user/candidate - map by ID
+                      const isFlipped = cm.match_user1_id === cm.candidate_user_id;
+                      const r1 = isFlipped ? cm.user2_rating : cm.user1_rating;
+                      const r2 = isFlipped ? cm.user1_rating : cm.user2_rating;
+                      return <span style={{ fontSize: 11 }}>{cm.user1_name}: {rl(r1)} | {cm.user2_name}: {rl(r2)}</span>;
+                    })() : "—"}
+                  </td>
+                  <td style={s.td}>
+                    {cm.match_status === "approved_by_both" && (
+                      <button
+                        style={{ padding: "3px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#28a745", color: "#fff" }}
+                        onClick={() => alert("פיצ'ר בפיתוח — שליחת התאמה למשתמשים")}
+                      >
+                        שלח התאמה
+                      </button>
+                    )}
+                  </td>
                   <td style={s.td}>{cm.pair_priority != null ? cm.pair_priority : "-"}</td>
                   <td style={s.td}>{cm.final_match_priority != null ? <strong>{cm.final_match_priority}</strong> : "-"}</td>
                   <td style={s.td}>{cm.internal_score ?? "-"}</td>

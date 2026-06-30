@@ -25,6 +25,10 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
   const [religion, setReligion] = useState((user as any).religion || "");
   const [smoker, setSmoker] = useState((user as any).smoker || false);
 
+  // Couple partner
+  const [partnerName, setPartnerName] = useState((user as any).partner_name || "");
+  const isCouple = user.test_user_type === "Couple Tester";
+
   const [enums, setEnums] = useState<Record<string, EnumOption[]>>({});
   const [cities, setCities] = useState<{ city_name: string; region: string }[]>([]);
   const [loading, setLoading] = useState(false);
@@ -160,6 +164,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
           has_children: hasChildren,
           religion: religion || null,
           smoker,
+          partner_name: isCouple ? (partnerName.trim() || null) : undefined,
         }),
       });
       if (!res.ok) { const data = await res.json(); setError(data.error || "שגיאה בשמירה"); return; }
@@ -326,50 +331,61 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
           <p style={{ fontSize: 11, color: "#aaa", marginTop: -10, marginBottom: 8 }}>אם העיר שלך לא מופיעה — אפשר לבחור עיר קרובה</p>
         </div>
 
-        {/* ── Looking For ── */}
-        <div style={s.card}>
-          <h3 style={s.cardTitle}>מה אני מחפש/ת</h3>
-          <p style={{ fontSize: 11, color: "#aaa", lineHeight: 1.5, margin: "-8px 0 14px" }}>הנתונים לא יופיעו בשום מקום — הם משמשים אותנו לסינון ראשוני של ההתאמות עבורך.</p>
-
-          <label style={s.label}>מגדר מבוקש</label>
-          <select style={s.select} value={lookingForGender} onChange={(e) => setLookingForGender(e.target.value)}>
-            <option value="">בחר/י</option>
-            {lookingForOptions.map((o) => <option key={o.value} value={o.value}>{o.label_he}</option>)}
-          </select>
-
-          <label style={s.label}>טווח גילאים</label>
-          <div style={s.row}>
-            <div style={s.rowItem}>
-              <input style={s.input} type="number" min="18" max="99" placeholder="מ-" value={desiredAgeMin} onChange={(e) => setDesiredAgeMin(e.target.value)} />
-            </div>
-            <div style={s.rowItem}>
-              <input style={s.input} type="number" min="18" max="99" placeholder="עד-" value={desiredAgeMax} onChange={(e) => setDesiredAgeMax(e.target.value)} />
-            </div>
+        {/* ── Looking For / Couple Partner ── */}
+        {isCouple ? (
+          <div style={s.card}>
+            <h3 style={s.cardTitle}>{user.gender === "woman" ? "בן הזוג שלי" : "בת הזוג שלי"}</h3>
+            <p style={{ fontSize: 11, color: "#aaa", lineHeight: 1.5, margin: "-8px 0 14px" }}>
+              {user.gender === "woman" ? "שם בן הזוג כפי שרשום במערכת — כדי שנוכל לחבר ביניכם ולהציג תובנות זוגיות." : "שם בת הזוג כפי שרשום במערכת — כדי שנוכל לחבר ביניכם ולהציג תובנות זוגיות."}
+            </p>
+            <label style={s.label}>{user.gender === "woman" ? "שם בן הזוג" : "שם בת הזוג"}</label>
+            <input style={s.input} type="text" value={partnerName} onChange={(e) => setPartnerName(e.target.value)} placeholder={user.gender === "woman" ? "הכניסי את שמו כפי שנרשם" : "הכנס את שמה כפי שנרשמה"} />
           </div>
-          <label style={s.label}>גמישות בגיל</label>
-          <select style={s.select} value={ageFlex} onChange={(e) => setAgeFlex(e.target.value)}>
-            {flexOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+        ) : (
+          <div style={s.card}>
+            <h3 style={s.cardTitle}>מה אני מחפש/ת</h3>
+            <p style={{ fontSize: 11, color: "#aaa", lineHeight: 1.5, margin: "-8px 0 14px" }}>הנתונים לא יופיעו בשום מקום — הם משמשים אותנו לסינון ראשוני של ההתאמות עבורך.</p>
 
-          <label style={s.label}>טווח גובה (ס"מ)</label>
-          <div style={s.row}>
-            <div style={s.rowItem}>
-              <input style={s.input} type="number" min="120" max="220" placeholder="מ-" value={desiredHeightMin} onChange={(e) => setDesiredHeightMin(e.target.value)} />
+            <label style={s.label}>מגדר מבוקש</label>
+            <select style={s.select} value={lookingForGender} onChange={(e) => setLookingForGender(e.target.value)}>
+              <option value="">בחר/י</option>
+              {lookingForOptions.map((o) => <option key={o.value} value={o.value}>{o.label_he}</option>)}
+            </select>
+
+            <label style={s.label}>טווח גילאים</label>
+            <div style={s.row}>
+              <div style={s.rowItem}>
+                <input style={s.input} type="number" min="18" max="99" placeholder="מ-" value={desiredAgeMin} onChange={(e) => setDesiredAgeMin(e.target.value)} />
+              </div>
+              <div style={s.rowItem}>
+                <input style={s.input} type="number" min="18" max="99" placeholder="עד-" value={desiredAgeMax} onChange={(e) => setDesiredAgeMax(e.target.value)} />
+              </div>
             </div>
-            <div style={s.rowItem}>
-              <input style={s.input} type="number" min="120" max="220" placeholder="עד-" value={desiredHeightMax} onChange={(e) => setDesiredHeightMax(e.target.value)} />
+            <label style={s.label}>גמישות בגיל</label>
+            <select style={s.select} value={ageFlex} onChange={(e) => setAgeFlex(e.target.value)}>
+              {flexOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+
+            <label style={s.label}>טווח גובה (ס"מ)</label>
+            <div style={s.row}>
+              <div style={s.rowItem}>
+                <input style={s.input} type="number" min="120" max="220" placeholder="מ-" value={desiredHeightMin} onChange={(e) => setDesiredHeightMin(e.target.value)} />
+              </div>
+              <div style={s.rowItem}>
+                <input style={s.input} type="number" min="120" max="220" placeholder="עד-" value={desiredHeightMax} onChange={(e) => setDesiredHeightMax(e.target.value)} />
+              </div>
             </div>
+            <label style={s.label}>גמישות בגובה</label>
+            <select style={s.select} value={heightFlex} onChange={(e) => setHeightFlex(e.target.value)}>
+              {flexOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+
+            <label style={s.label}>טווח מיקום</label>
+            <select style={s.select} value={locationRange} onChange={(e) => setLocationRange(e.target.value)}>
+              {locationOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
           </div>
-          <label style={s.label}>גמישות בגובה</label>
-          <select style={s.select} value={heightFlex} onChange={(e) => setHeightFlex(e.target.value)}>
-            {flexOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-
-          <label style={s.label}>טווח מיקום</label>
-          <select style={s.select} value={locationRange} onChange={(e) => setLocationRange(e.target.value)}>
-            {locationOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        </div>
+        )}
 
         {/* ── Sensitive Details — compact ── */}
         <div style={s.card}>

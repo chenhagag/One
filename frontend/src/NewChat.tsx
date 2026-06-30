@@ -280,7 +280,7 @@ function PotentialMatchScreen({ userId, userGender, onBack }: { userId: number; 
           onClick={() => submitRating("bullseye")}
           style={{ flex: 1, padding: "14px 8px", borderRadius: 14, border: "1px solid #c4b5fd", background: "#fff", color: "#1a1a2e", fontWeight: 600, fontSize: 14, cursor: submitting ? "wait" : "pointer", transition: "all 0.15s" }}
         >
-          בול הטעם שלי 💜
+          בול הטעם שלי 🤍
         </button>
         <button
           disabled={submitting}
@@ -1014,9 +1014,11 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               {/* Admin message — shown above all recommendations */}
               {screen === "home" && recommendations.admin_message && (
                 <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
-                  <p style={{ fontSize: 14, color: "#1B1464", lineHeight: 1.6, margin: "8px 0", padding: "12px 16px", background: "#ede9fe", borderRadius: 10, borderRight: "4px solid #7c3aed", fontWeight: 500 }}>
-                    {recommendations.admin_message}
-                  </p>
+                  <div style={{ background: "#fff", borderRadius: 14, padding: "16px 20px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #e5e7eb" }}>
+                    <p style={{ fontSize: 14, color: "#1a1a2e", lineHeight: 1.7, margin: 0, fontWeight: 500, whiteSpace: "pre-wrap" }}>
+                      {recommendations.admin_message}
+                    </p>
+                  </div>
                 </div>
               )}
 

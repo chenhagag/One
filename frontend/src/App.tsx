@@ -51,6 +51,7 @@ export interface User {
   height_flexibility?: string;
   desired_location_range?: string;
   test_user_type?: string;
+  partner_name?: string;
   consent_accepted?: boolean;
   photo_ai_consent?: boolean;
 }
