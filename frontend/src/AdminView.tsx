@@ -604,6 +604,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   const [tokenUsage, setTokenUsage] = useState<any>(null);
   const [ratingInProgress, setRatingInProgress] = useState<number | null>(null);
   const [cancelInProgress, setCancelInProgress] = useState<number | null>(null);
+  const [sendingForRating, setSendingForRating] = useState<number | null>(null);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [transcript, setTranscript] = useState<any>(null);
@@ -679,6 +680,20 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
       alert("Network error");
     } finally {
       setCancelInProgress(null);
+    }
+  }
+
+  async function sendForRating(matchId: number) {
+    setSendingForRating(matchId);
+    try {
+      const r = await fetch(`/api/admin/matches/${matchId}/send-for-rating`, { method: "POST" });
+      const json = await r.json();
+      if (!r.ok) alert(json.error || "Send failed");
+      loadMatches();
+    } catch {
+      alert("Network error");
+    } finally {
+      setSendingForRating(null);
     }
   }
 
@@ -2382,9 +2397,10 @@ ${footer}`)
           <thead>
             <tr>
               <th style={s.th}>Other User</th>
-              <th style={s.th}>Match Status</th>
+              <th style={s.th}>Status</th>
               <th style={s.th}>Score</th>
-              <th style={s.th}>Rate</th>
+              <th style={s.th}>Ratings</th>
+              <th style={s.th}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -2394,10 +2410,11 @@ ${footer}`)
                 : m.status === "frozen" ? { ...s.badge, background: "#e2e3e5", color: "#383d41" }
                 : m.status === "cancelled" ? { ...s.badge, background: "#f8d7da", color: "#721c24" }
                 : m.status === "rejected_by_users" ? { ...s.badge, background: "#f8d7da", color: "#721c24" }
+                : m.status === "rejected_acquaintance" ? { ...s.badge, background: "#fef3c7", color: "#92400e" }
                 : m.status === "approved_by_both" ? { ...s.badge, background: "#d4edda", color: "#155724" }
                 : s.badge;
 
-              // Determine if this user should rate now
+              // Determine first/second rater
               const p1 = m.user1_pickiness ?? 0;
               const p2 = m.user2_pickiness ?? 0;
               const firstRaterId = p2 > p1 ? m.user2_id : m.user1_id;
@@ -2409,6 +2426,24 @@ ${footer}`)
 
               const isRating = ratingInProgress === m.id;
 
+              // Can send for user rating
+              const canSendForRating = (m.status === "waiting_first_rating" || m.status === "waiting_second_rating") && !m.sent_for_rating_at;
+              const alreadySent = !!m.sent_for_rating_at;
+
+              // Rating labels
+              const ratingLabel = (r: string | null) => {
+                if (!r) return "—";
+                if (r === "bullseye") return "✅ בול";
+                if (r === "possible") return "🟡 אפשרי";
+                if (r === "miss") return "❌ לא";
+                if (r === "known_person") return "👤 מכיר/ה";
+                return r;
+              };
+
+              // Who is user1/user2 relative to this userId
+              const thisUserRating = userId === m.user1_id ? m.user1_rating : m.user2_rating;
+              const otherUserRating = userId === m.user1_id ? m.user2_rating : m.user1_rating;
+
               return (
                 <tr key={m.id}>
                   <td style={s.td}>
@@ -2416,39 +2451,56 @@ ${footer}`)
                       {m.other_name}
                     </button>
                   </td>
-                  <td style={s.td}><span style={msStyle}>{m.status}</span></td>
+                  <td style={s.td}>
+                    <span style={msStyle}>{m.status}</span>
+                    {alreadySent && <span style={{ fontSize: 10, color: "#7c3aed", marginRight: 4 }}> 📩 נשלח</span>}
+                  </td>
                   <td style={s.td}>{m.match_score != null ? <strong>{m.match_score}</strong> : "-"}</td>
                   <td style={s.td}>
-                    {canRate ? (
-                      <span style={{ display: "inline-flex", gap: 4 }}>
-                        {(["bullseye", "possible", "miss"] as const).map((r) => (
-                          <button
-                            key={r}
-                            disabled={isRating}
-                            onClick={() => submitRating(m.id, r)}
-                            style={{
-                              padding: "3px 8px", fontSize: 11, border: "none", borderRadius: 4, cursor: isRating ? "wait" : "pointer", fontWeight: 600,
-                              background: r === "bullseye" ? "#28a745" : r === "possible" ? "#ffc107" : "#dc3545",
-                              color: r === "possible" ? "#333" : "#fff",
-                            }}
-                          >
-                            {r}
-                          </button>
-                        ))}
-                      </span>
-                    ) : (m.status === "pre_match" || m.status === "in_match") ? (
-                      <button
-                        disabled={cancelInProgress === m.id}
-                        onClick={() => cancelMatch(m.id)}
-                        style={{ padding: "3px 8px", fontSize: 11, border: "none", borderRadius: 4, cursor: cancelInProgress === m.id ? "wait" : "pointer", fontWeight: 600, background: "#dc3545", color: "#fff" }}
-                      >
-                        {cancelInProgress === m.id ? "..." : "Cancel Match"}
-                      </button>
-                    ) : (
-                      <span style={{ color: "#aaa", fontSize: 11 }}>
-                        {m.status === "waiting_first_rating" || m.status === "waiting_second_rating" ? "waiting for other side" : "—"}
-                      </span>
-                    )}
+                    <span style={{ fontSize: 11 }}>
+                      הוא/היא: {ratingLabel(thisUserRating)} | צד שני: {ratingLabel(otherUserRating)}
+                    </span>
+                    {m.rejection_reason && <span style={{ fontSize: 10, color: "#92400e", display: "block" }}>סיבה: {m.rejection_reason}</span>}
+                  </td>
+                  <td style={s.td}>
+                    <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
+                      {canSendForRating && (
+                        <button
+                          disabled={sendingForRating === m.id}
+                          onClick={() => sendForRating(m.id)}
+                          style={{ padding: "3px 8px", fontSize: 11, border: "none", borderRadius: 4, cursor: sendingForRating === m.id ? "wait" : "pointer", fontWeight: 600, background: "#7c3aed", color: "#fff" }}
+                        >
+                          {sendingForRating === m.id ? "..." : "שלח לדירוג"}
+                        </button>
+                      )}
+                      {canRate && (
+                        <>
+                          {(["bullseye", "possible", "miss"] as const).map((r) => (
+                            <button
+                              key={r}
+                              disabled={isRating}
+                              onClick={() => submitRating(m.id, r)}
+                              style={{
+                                padding: "3px 8px", fontSize: 11, border: "none", borderRadius: 4, cursor: isRating ? "wait" : "pointer", fontWeight: 600,
+                                background: r === "bullseye" ? "#28a745" : r === "possible" ? "#ffc107" : "#dc3545",
+                                color: r === "possible" ? "#333" : "#fff",
+                              }}
+                            >
+                              {r}
+                            </button>
+                          ))}
+                        </>
+                      )}
+                      {(m.status === "pre_match" || m.status === "in_match") && (
+                        <button
+                          disabled={cancelInProgress === m.id}
+                          onClick={() => cancelMatch(m.id)}
+                          style={{ padding: "3px 8px", fontSize: 11, border: "none", borderRadius: 4, cursor: cancelInProgress === m.id ? "wait" : "pointer", fontWeight: 600, background: "#dc3545", color: "#fff" }}
+                        >
+                          {cancelInProgress === m.id ? "..." : "Cancel"}
+                        </button>
+                      )}
+                    </span>
                   </td>
                 </tr>
               );
@@ -3262,6 +3314,7 @@ function CandidateMatchesTab() {
     if (status === "frozen") return { ...s.badge, background: "#e2e3e5", color: "#383d41" };
     if (status === "approved_by_both") return { ...s.badge, background: "#fff3cd", color: "#856404" };
     if (status === "rejected_by_users" || status === "cancelled") return { ...s.badge, background: "#f8d7da", color: "#721c24" };
+    if (status === "rejected_acquaintance") return { ...s.badge, background: "#fef3c7", color: "#92400e" };
     return s.badge;
   };
 

@@ -1943,7 +1943,7 @@ app.get("/admin/users/:id/matches", async (req, res) => {
   const uid = parseInt(req.params.id, 10);
   const rows = await pgQueryAll(`
     SELECT m.id, m.match_score, m.status, m.user1_id, m.user2_id,
-      m.user1_rating, m.user2_rating,
+      m.user1_rating, m.user2_rating, m.sent_for_rating_at, m.rejection_reason,
       u.id as other_id, u.first_name as other_name,
       u1.pickiness_score as user1_pickiness,
       u2.pickiness_score as user2_pickiness
@@ -1989,7 +1989,7 @@ app.get("/admin/users/:id/candidate-matches", async (req, res) => {
 //   waiting_second_rating + miss                → rejected_by_users
 //   waiting_second_rating + possible/bullseye   → approved_by_both
 
-const VALID_RATINGS = new Set(["miss", "possible", "bullseye"]);
+const VALID_RATINGS = new Set(["miss", "possible", "bullseye", "known_person"]);
 
 app.post("/matches/:id/rate", optionalAuth, async (req, res) => {
   const { rating } = req.body;
@@ -2006,7 +2006,7 @@ app.post("/matches/:id/rate", optionalAuth, async (req, res) => {
     return res.status(400).json({ error: "user_id and rating are required" });
   }
   if (!VALID_RATINGS.has(rating)) {
-    return res.status(400).json({ error: "rating must be miss, possible, or bullseye" });
+    return res.status(400).json({ error: "rating must be miss, possible, bullseye, or known_person" });
   }
 
   const match = await pgQueryOne<any>("SELECT * FROM matches WHERE id = $1", [parseInt(req.params.id, 10)]);
@@ -2018,6 +2018,17 @@ app.post("/matches/:id/rate", optionalAuth, async (req, res) => {
 
   if (match.status !== "waiting_first_rating" && match.status !== "waiting_second_rating") {
     return res.status(400).json({ error: `Cannot rate a match in status '${match.status}'` });
+  }
+
+  // known_person = special rejection (acquaintance/ex/family) — doesn't count in rating stats
+  if (rating === "known_person") {
+    const ratingCol = user_id === match.user1_id ? "user1_rating" : "user2_rating";
+    await pgQueryAll(
+      `UPDATE matches SET status = 'rejected_acquaintance', ${ratingCol} = 'known_person',
+       rejection_reason = 'known_person', updated_at = NOW() WHERE id = $1`,
+      [match.id]
+    );
+    return res.json({ match_id: match.id, new_status: "rejected_acquaintance", rated_by: user_id });
   }
 
   // Determine first and second rater based on pickiness_score.
@@ -2037,7 +2048,7 @@ app.post("/matches/:id/rate", optionalAuth, async (req, res) => {
 
     const newStatus = rating === "miss" ? "rejected_by_users" : "waiting_second_rating";
     await pgQueryAll(
-      `UPDATE matches SET status = $1, ${ratingCol} = $2, updated_at = NOW() WHERE id = $3`,
+      `UPDATE matches SET status = $1, ${ratingCol} = $2, sent_for_rating_at = NULL, updated_at = NOW() WHERE id = $3`,
       [newStatus, rating, match.id]
     );
 
@@ -2051,7 +2062,7 @@ app.post("/matches/:id/rate", optionalAuth, async (req, res) => {
 
   const newStatus = rating === "miss" ? "rejected_by_users" : "approved_by_both";
   await pgQueryAll(
-    `UPDATE matches SET status = $1, ${ratingCol} = $2, updated_at = NOW() WHERE id = $3`,
+    `UPDATE matches SET status = $1, ${ratingCol} = $2, sent_for_rating_at = NULL, updated_at = NOW() WHERE id = $3`,
     [newStatus, rating, match.id]
   );
 
@@ -2157,6 +2168,93 @@ app.post("/admin/matches/:id/cancel", async (req, res) => {
   });
 
   return res.json({ success: true, match_id: match.id, status: "cancelled", unfrozen });
+});
+
+// POST /admin/matches/:id/send-for-rating — Admin sends match for user rating
+app.post("/admin/matches/:id/send-for-rating", async (req, res) => {
+  const matchId = parseInt(req.params.id, 10);
+  const match = await pgQueryOne<any>("SELECT * FROM matches WHERE id = $1", [matchId]);
+  if (!match) return res.status(404).json({ error: "Match not found" });
+
+  if (match.status !== "waiting_first_rating" && match.status !== "waiting_second_rating") {
+    return res.status(400).json({ error: `Cannot send for rating in status '${match.status}'` });
+  }
+
+  await pgQueryAll(
+    "UPDATE matches SET sent_for_rating_at = NOW(), updated_at = NOW() WHERE id = $1",
+    [matchId]
+  );
+
+  return res.json({ success: true, match_id: matchId, status: match.status });
+});
+
+// GET /matches/pending-rating — Get pending match for user to rate (user-facing)
+app.get("/matches/pending-rating", optionalAuth, async (req, res) => {
+  let userId = req.query.user_id ? parseInt(req.query.user_id as string, 10) : null;
+
+  if (req.auth?.sub) {
+    const authUser = await pgQueryOne<any>("SELECT id FROM users WHERE supabase_uid = $1", [req.auth.sub]);
+    if (authUser) userId = authUser.id;
+  }
+
+  if (!userId) return res.status(400).json({ error: "user_id required" });
+
+  // Find a match that's been sent for rating and it's this user's turn
+  const matches = await pgQueryAll(`
+    SELECT m.*, u1.pickiness_score as u1_pick, u2.pickiness_score as u2_pick
+    FROM matches m
+    JOIN users u1 ON u1.id = m.user1_id
+    JOIN users u2 ON u2.id = m.user2_id
+    WHERE (m.user1_id = $1 OR m.user2_id = $1)
+      AND m.sent_for_rating_at IS NOT NULL
+      AND m.status IN ('waiting_first_rating', 'waiting_second_rating')
+    ORDER BY m.sent_for_rating_at ASC
+    LIMIT 1
+  `, [userId]);
+
+  if (matches.length === 0) return res.json({ pending: false });
+
+  const match = matches[0];
+  const p1 = match.u1_pick ?? 0;
+  const p2 = match.u2_pick ?? 0;
+  const firstRaterId = p2 > p1 ? match.user2_id : match.user1_id;
+  const secondRaterId = firstRaterId === match.user1_id ? match.user2_id : match.user1_id;
+
+  // Check if it's this user's turn
+  const isMyTurn =
+    (match.status === "waiting_first_rating" && userId === firstRaterId) ||
+    (match.status === "waiting_second_rating" && userId === secondRaterId);
+
+  if (!isMyTurn) return res.json({ pending: false });
+
+  // Get the OTHER user's info (the person being rated)
+  const partnerId = userId === match.user1_id ? match.user2_id : match.user1_id;
+  const partner = await pgQueryOne<any>(
+    "SELECT id, first_name, age, city, gender FROM users WHERE id = $1",
+    [partnerId]
+  );
+
+  // Get partner's photos
+  const photos = await pgQueryAll(
+    "SELECT id, filename FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC",
+    [partnerId]
+  );
+
+  // Get current user's gender for gender-adapted text
+  const currentUser = await pgQueryOne<any>("SELECT gender FROM users WHERE id = $1", [userId]);
+
+  return res.json({
+    pending: true,
+    match_id: match.id,
+    partner: {
+      first_name: partner.first_name,
+      age: partner.age,
+      city: partner.city,
+      gender: partner.gender,
+    },
+    photos: photos.map((p: any) => ({ id: p.id, url: `/uploads/${p.filename}` })),
+    user_gender: currentUser?.gender || null,
+  });
 });
 
 // GET /admin/users/:id/waiting — Get waiting days for a specific user
@@ -2936,6 +3034,29 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
       [userId]
     ) || null;
 
+    // Check for pending match rating
+    const pendingMatch = await pgQueryOne<{ id: number }>(
+      `SELECT m.id FROM matches m
+       JOIN users u1 ON u1.id = m.user1_id
+       JOIN users u2 ON u2.id = m.user2_id
+       WHERE (m.user1_id = $1 OR m.user2_id = $1)
+         AND m.sent_for_rating_at IS NOT NULL
+         AND m.status IN ('waiting_first_rating', 'waiting_second_rating')
+         AND (
+           (m.status = 'waiting_first_rating' AND (
+             (COALESCE(u2.pickiness_score, 0) > COALESCE(u1.pickiness_score, 0) AND m.user2_id = $1)
+             OR (COALESCE(u2.pickiness_score, 0) <= COALESCE(u1.pickiness_score, 0) AND m.user1_id = $1)
+           ))
+           OR
+           (m.status = 'waiting_second_rating' AND (
+             (COALESCE(u2.pickiness_score, 0) > COALESCE(u1.pickiness_score, 0) AND m.user1_id = $1)
+             OR (COALESCE(u2.pickiness_score, 0) <= COALESCE(u1.pickiness_score, 0) AND m.user2_id = $1)
+           ))
+         )
+       LIMIT 1`,
+      [userId]
+    );
+
     return res.json({
       has_cognitive: cogClosed,
       cognitive_count: cognitiveCount,
@@ -2951,6 +3072,7 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
       gender: userGender,
       admin_message: displayMessage,
       system_question: activeQuestion,
+      pending_rating: !!pendingMatch,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

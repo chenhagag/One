@@ -194,6 +194,8 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       pair_priority          DOUBLE PRECISION,
       match_priority         DOUBLE PRECISION,
       final_match_priority   DOUBLE PRECISION,
+      sent_for_rating_at     TIMESTAMPTZ,
+      rejection_reason       TEXT,
       created_at             TIMESTAMPTZ DEFAULT NOW(),
       updated_at             TIMESTAMPTZ DEFAULT NOW()
     );
@@ -797,6 +799,16 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       sent_at     TIMESTAMPTZ DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS idx_email_log_user ON email_log(user_id);
+
+    -- matches: sent_for_rating_at + rejection_reason
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'matches' AND column_name = 'sent_for_rating_at') THEN
+        ALTER TABLE matches ADD COLUMN sent_for_rating_at TIMESTAMPTZ;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'matches' AND column_name = 'rejection_reason') THEN
+        ALTER TABLE matches ADD COLUMN rejection_reason TEXT;
+      END IF;
+    END $$;
 
     CREATE TABLE IF NOT EXISTS deleted_users (
       id                SERIAL PRIMARY KEY,

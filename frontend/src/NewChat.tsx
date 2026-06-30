@@ -152,6 +152,169 @@ function HowItWorks() {
   );
 }
 
+// ── Potential Match Rating Screen ────────────────────────────────────
+function PotentialMatchScreen({ userId, userGender, onBack }: { userId: number; userGender: string | null; onBack: () => void }) {
+  const [loading, setLoading] = useState(true);
+  const [matchData, setMatchData] = useState<{
+    match_id: number;
+    partner: { first_name: string; age: number; city: string; gender: string };
+    photos: { id: number; url: string }[];
+  } | null>(null);
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/matches/pending-rating?user_id=${userId}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.pending) {
+          setMatchData({ match_id: d.match_id, partner: d.partner, photos: d.photos });
+          if (d.user_gender) {
+            // userGender may not be loaded yet in recommendations
+          }
+        }
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [userId]);
+
+  async function submitRating(rating: string) {
+    if (!matchData || submitting) return;
+    setSubmitting(true);
+    try {
+      const r = await fetch(`/api/matches/${matchData.match_id}/rate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId, rating }),
+      });
+      if (r.ok) {
+        setSubmitted(rating);
+        setTimeout(() => onBack(), 2000);
+      }
+    } catch { /* ignore */ }
+    setSubmitting(false);
+  }
+
+  const isFemale = userGender === "woman";
+  const partnerIsFemale = matchData?.partner?.gender === "woman";
+
+  if (loading) return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 300 }}><p style={{ color: "#888" }}>טוען...</p></div>;
+
+  if (!matchData) return (
+    <div style={{ textAlign: "center", padding: 40 }}>
+      <p style={{ color: "#888", fontSize: 14 }}>אין התאמות ממתינות לדירוג כרגע</p>
+      <button onClick={onBack} style={{ marginTop: 16, padding: "10px 28px", borderRadius: 24, border: "none", background: "#8b7ba8", color: "#fff", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
+        חזרה למסך הראשי
+      </button>
+    </div>
+  );
+
+  if (submitted) {
+    const msgs: Record<string, string> = {
+      bullseye: "תודה! העדפתך נשמרה 💜",
+      possible: "תודה! העדפתך נשמרה 💜",
+      miss: "תודה, נמשיך לחפש 💜",
+      known_person: "תודה, ההתאמה סומנה בהתאם 💜",
+    };
+    return (
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 300 }}>
+        <div style={{ textAlign: "center" }}>
+          <p style={{ fontSize: 18, fontWeight: 600, color: "#1a1a2e" }}>{msgs[submitted] || "תודה!"}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const photos = matchData.photos;
+  const partner = matchData.partner;
+
+  return (
+    <div style={{ maxWidth: 440, margin: "0 auto", padding: "24px 20px" }}>
+      {/* Photo gallery */}
+      <div style={{ position: "relative", borderRadius: 16, overflow: "hidden", background: "#f0f0f0", marginBottom: 16 }}>
+        {photos.length > 0 ? (
+          <>
+            <img
+              src={photos[photoIndex]?.url}
+              alt=""
+              style={{ width: "100%", aspectRatio: "3/4", objectFit: "cover", display: "block" }}
+            />
+            {photos.length > 1 && (
+              <>
+                {/* Dots */}
+                <div style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)", display: "flex", gap: 6 }}>
+                  {photos.map((_, i) => (
+                    <div key={i} onClick={() => setPhotoIndex(i)} style={{ width: 8, height: 8, borderRadius: "50%", background: i === photoIndex ? "#fff" : "rgba(255,255,255,0.5)", cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
+                  ))}
+                </div>
+                {/* Arrows */}
+                {photoIndex > 0 && (
+                  <button onClick={() => setPhotoIndex(i => i - 1)} style={{ position: "absolute", top: "50%", right: 8, transform: "translateY(-50%)", background: "rgba(255,255,255,0.7)", border: "none", borderRadius: "50%", width: 36, height: 36, fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>›</button>
+                )}
+                {photoIndex < photos.length - 1 && (
+                  <button onClick={() => setPhotoIndex(i => i + 1)} style={{ position: "absolute", top: "50%", left: 8, transform: "translateY(-50%)", background: "rgba(255,255,255,0.7)", border: "none", borderRadius: "50%", width: 36, height: 36, fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
+                )}
+              </>
+            )}
+          </>
+        ) : (
+          <div style={{ width: "100%", aspectRatio: "3/4", display: "flex", alignItems: "center", justifyContent: "center", color: "#aaa" }}>
+            אין תמונות זמינות
+          </div>
+        )}
+      </div>
+
+      {/* Name, age, city */}
+      <div style={{ textAlign: "center", marginBottom: 24 }}>
+        <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", margin: "0 0 4px" }}>{partner.first_name}</h2>
+        <p style={{ fontSize: 14, color: "#666", margin: 0 }}>
+          {partner.age && `${partner.age}`}{partner.age && partner.city && " · "}{partner.city && partner.city}
+        </p>
+      </div>
+
+      {/* Rating buttons */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+        <button
+          disabled={submitting}
+          onClick={() => submitRating("bullseye")}
+          style={{ padding: "14px 24px", borderRadius: 28, border: "none", background: "#7c3aed", color: "#fff", fontWeight: 700, fontSize: 15, cursor: submitting ? "wait" : "pointer", boxShadow: "0 2px 8px rgba(124,58,237,0.25)" }}
+        >
+          בול הטעם שלי
+        </button>
+        <button
+          disabled={submitting}
+          onClick={() => submitRating("possible")}
+          style={{ padding: "14px 24px", borderRadius: 28, border: "1px solid #c4b5fd", background: "#fff", color: "#5b21b6", fontWeight: 600, fontSize: 15, cursor: submitting ? "wait" : "pointer" }}
+        >
+          אפשרי
+        </button>
+        <button
+          disabled={submitting}
+          onClick={() => submitRating("miss")}
+          style={{ padding: "14px 24px", borderRadius: 28, border: "1px solid #e5e7eb", background: "#fff", color: "#888", fontWeight: 600, fontSize: 15, cursor: submitting ? "wait" : "pointer" }}
+        >
+          לא הטעם שלי
+        </button>
+      </div>
+
+      {/* Known person option */}
+      <div style={{ textAlign: "center" }}>
+        <button
+          disabled={submitting}
+          onClick={() => submitRating("known_person")}
+          style={{ background: "none", border: "none", color: "#aaa", fontSize: 12, cursor: submitting ? "wait" : "pointer", textDecoration: "underline", padding: 8 }}
+        >
+          {partnerIsFemale
+            ? (isFemale ? "מכירה אותה? אקסית/קרובת משפחה/חברה קרובה? לא רלוונטית מכל סיבה אחרת שלא קשורה בטעם? לחצי כאן" : "מכיר אותה? אקסית/קרובת משפחה/חברה קרובה? לא רלוונטית מכל סיבה אחרת שלא קשורה בטעם? לחץ כאן")
+            : (isFemale ? "מכירה אותו? אקס/קרוב משפחה/חבר קרוב? לא רלוונטי מכל סיבה אחרת שלא קשורה בטעם? לחצי כאן" : "מכיר אותו? אקס/קרוב משפחה/חבר קרוב? לא רלוונטי מכל סיבה אחרת שלא קשורה בטעם? לחץ כאן")
+          }
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogout, adminViewing }: NewChatProps) {
   const [channelMessages, setChannelMessages] = useState<Record<string, Message[]>>({
     new_chat: [],
@@ -166,13 +329,13 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [sending, setSending] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [channel, setChannel] = useState<string>("new_chat");
-  const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "insights" | "couple_insights" | "bug_report" | "settings" | "how_it_works">("home");
+  const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "insights" | "couple_insights" | "bug_report" | "settings" | "how_it_works" | "potential_matches">("home");
   const [coupleInsights, setCoupleInsights] = useState<string | null>(null);
   const [analysisCompleted, setAnalysisCompleted] = useState(false);
   const [bugText, setBugText] = useState("");
   const [bugSent, setBugSent] = useState(false);
   const [feedbackCategory, setFeedbackCategory] = useState<string>("");
-  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null });
+  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; pending_rating: boolean }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, pending_rating: false });
   const [systemQuestion, setSystemQuestion] = useState<{ id: number; question_text: string } | null>(null);
   const [answeredQuestion, setAnsweredQuestion] = useState<{ question_text: string; answer: string } | null>(null);
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
@@ -217,6 +380,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             analysis_run_count: data.analysis_run_count || 0,
             gender: data.gender || null,
             admin_message: data.admin_message || null,
+            pending_rating: !!data.pending_rating,
           });
           setSystemQuestion(data.system_question || null);
           if (data.chat_closed) setClosedChannels(prev => ({ ...prev, "new_chat": true }));
@@ -370,7 +534,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           if (data.closing_stage >= 3) {
             setClosedChannels(prev => ({ ...prev, [effectiveChannel]: true }));
             fetch(`/api/new-chat/status/${user.id}`).then(r => r.json()).then(d => {
-              if (d.has_cognitive !== undefined) { setRecommendations({ has_cognitive: d.has_cognitive, has_taste_info: d.has_taste_info, chat_count: d.chat_count || 0, summary_fields: d.summary_fields || 0, cognitive_count: d.cognitive_count || 0, photo_count: d.photo_count || 0, has_profile_details: d.has_profile_details || false, analysis_run_count: d.analysis_run_count || 0, gender: d.gender || null, admin_message: d.admin_message || null }); setSystemQuestion(d.system_question || null); }
+              if (d.has_cognitive !== undefined) { setRecommendations({ has_cognitive: d.has_cognitive, has_taste_info: d.has_taste_info, chat_count: d.chat_count || 0, summary_fields: d.summary_fields || 0, cognitive_count: d.cognitive_count || 0, photo_count: d.photo_count || 0, has_profile_details: d.has_profile_details || false, analysis_run_count: d.analysis_run_count || 0, gender: d.gender || null, admin_message: d.admin_message || null, pending_rating: !!d.pending_rating }); setSystemQuestion(d.system_question || null); }
             }).catch(() => {});
           }
         } else if (data.error) {
@@ -555,7 +719,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
              screen === "couple_insights" ? "כרטיס התאמה" :
              screen === "how_it_works" ? "איך המערכת עובדת?" :
              screen === "bug_report" ? "עזרו לנו להשתפר" :
-             screen === "settings" ? "הגדרות" : <img src="/nameLogoTrans.png" alt="One" style={{ height: 16, objectFit: "contain", display: "block" }} />}
+             screen === "settings" ? "הגדרות" :
+             screen === "potential_matches" ? "בדיקת התאמה" : <img src="/nameLogoTrans.png" alt="One" style={{ height: 16, objectFit: "contain", display: "block" }} />}
           </span>
           {/* Mobile user avatar + logout dropdown */}
           <div className="nc-menu-btn" style={{ position: "relative" }}>
@@ -692,6 +857,12 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
         {screen === "settings" && <SettingsView user={user} onLogout={onLogout} />}
 
+        {screen === "potential_matches" && (
+          <div className="nc-screen-fade" key="potential_matches" style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
+            <PotentialMatchScreen userId={user.id} userGender={recommendations.gender} onBack={() => { setScreen("home"); loadRecommendations(); }} />
+          </div>
+        )}
+
         {screen === ("taste_test" as any) && (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", direction: "rtl" }}>
             <div style={{ textAlign: "center", padding: 24 }}>
@@ -779,6 +950,27 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     );
                   })()}
                 </>
+              )}
+
+              {/* Pending match rating card */}
+              {screen === "home" && recommendations.pending_rating && (
+                <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
+                  <div style={{ background: "linear-gradient(135deg, #faf5ff 0%, #ede9fe 100%)", borderRadius: 14, padding: "24px 20px", boxShadow: "0 2px 12px rgba(124,58,237,0.15)", border: "1px solid #c4b5fd", textAlign: "center" }}>
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>💜</div>
+                    <p style={{ fontSize: 15, color: "#1e1b4b", lineHeight: 1.7, margin: "0 0 6px", fontWeight: 600 }}>
+                      יש לנו כיוון להתאמה אפשרית
+                    </p>
+                    <p style={{ fontSize: 13, color: "#555", margin: "0 0 16px", lineHeight: 1.5 }}>
+                      {recommendations.gender === "woman" ? "רצינו לבדוק אם זה תואם את הטעם שלך" : "רצינו לבדוק אם זה תואם את הטעם שלך"}
+                    </p>
+                    <button
+                      onClick={() => setScreen("potential_matches")}
+                      style={{ padding: "12px 32px", borderRadius: 24, border: "none", background: "#7c3aed", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", boxShadow: "0 2px 8px rgba(124,58,237,0.25)" }}
+                    >
+                      {recommendations.gender === "woman" ? "בואי נראה" : "בוא נראה"}
+                    </button>
+                  </div>
+                </div>
               )}
 
               {/* System question — interactive question from admin */}
