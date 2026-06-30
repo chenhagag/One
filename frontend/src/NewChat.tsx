@@ -265,13 +265,8 @@ function PotentialMatchScreen({ userId, userGender, onBack }: { userId: number; 
         )}
       </div>
 
-      {/* Name, age, city */}
-      <div style={{ textAlign: "center", marginBottom: 24 }}>
-        <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", margin: "0 0 4px" }}>{partner.first_name}</h2>
-        <p style={{ fontSize: 14, color: "#666", margin: 0 }}>
-          {partner.age && `${partner.age}`}{partner.age && partner.city && " · "}{partner.city && partner.city}
-        </p>
-      </div>
+      {/* Spacer below photo */}
+      <div style={{ height: 16 }} />
 
       {/* Rating buttons — horizontal row */}
       <div style={{ display: "flex", gap: 10, justifyContent: "center", marginBottom: 20 }}>
