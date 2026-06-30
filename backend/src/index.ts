@@ -1943,7 +1943,7 @@ app.get("/admin/users/:id/matches", async (req, res) => {
   const uid = parseInt(req.params.id, 10);
   const rows = await pgQueryAll(`
     SELECT m.id, m.match_score, m.status, m.user1_id, m.user2_id,
-      m.user1_rating, m.user2_rating, m.sent_for_rating_at, m.rejection_reason,
+      m.user1_rating, m.user2_rating, m.sent_for_rating_at, m.sent_for_rating_to, m.rejection_reason,
       u.id as other_id, u.first_name as other_name,
       u1.pickiness_score as user1_pickiness,
       u2.pickiness_score as user2_pickiness
@@ -2048,7 +2048,7 @@ app.post("/matches/:id/rate", optionalAuth, async (req, res) => {
 
     const newStatus = rating === "miss" ? "rejected_by_users" : "waiting_second_rating";
     await pgQueryAll(
-      `UPDATE matches SET status = $1, ${ratingCol} = $2, sent_for_rating_at = NULL, updated_at = NOW() WHERE id = $3`,
+      `UPDATE matches SET status = $1, ${ratingCol} = $2, sent_for_rating_at = NULL, sent_for_rating_to = NULL, updated_at = NOW() WHERE id = $3`,
       [newStatus, rating, match.id]
     );
 
@@ -2062,7 +2062,7 @@ app.post("/matches/:id/rate", optionalAuth, async (req, res) => {
 
   const newStatus = rating === "miss" ? "rejected_by_users" : "approved_by_both";
   await pgQueryAll(
-    `UPDATE matches SET status = $1, ${ratingCol} = $2, sent_for_rating_at = NULL, updated_at = NOW() WHERE id = $3`,
+    `UPDATE matches SET status = $1, ${ratingCol} = $2, sent_for_rating_at = NULL, sent_for_rating_to = NULL, updated_at = NOW() WHERE id = $3`,
     [newStatus, rating, match.id]
   );
 
@@ -2171,8 +2171,10 @@ app.post("/admin/matches/:id/cancel", async (req, res) => {
 });
 
 // POST /admin/matches/:id/send-for-rating — Admin sends match for user rating
+// Body: { user_id } — which user should see this rating (the user whose page admin is on)
 app.post("/admin/matches/:id/send-for-rating", async (req, res) => {
   const matchId = parseInt(req.params.id, 10);
+  const { user_id } = req.body;
   const match = await pgQueryOne<any>("SELECT * FROM matches WHERE id = $1", [matchId]);
   if (!match) return res.status(404).json({ error: "Match not found" });
 
@@ -2180,12 +2182,19 @@ app.post("/admin/matches/:id/send-for-rating", async (req, res) => {
     return res.status(400).json({ error: `Cannot send for rating in status '${match.status}'` });
   }
 
+  // Determine target user: explicit from body, or the userId from admin context
+  const targetUserId = user_id || match.user1_id;
+
+  if (targetUserId !== match.user1_id && targetUserId !== match.user2_id) {
+    return res.status(400).json({ error: "user_id must be part of the match" });
+  }
+
   await pgQueryAll(
-    "UPDATE matches SET sent_for_rating_at = NOW(), updated_at = NOW() WHERE id = $1",
-    [matchId]
+    "UPDATE matches SET sent_for_rating_at = NOW(), sent_for_rating_to = $2, updated_at = NOW() WHERE id = $1",
+    [matchId, targetUserId]
   );
 
-  return res.json({ success: true, match_id: matchId, status: match.status });
+  return res.json({ success: true, match_id: matchId, sent_to: targetUserId, status: match.status });
 });
 
 // GET /matches/pending-rating — Get pending match for user to rate (user-facing)
@@ -2199,13 +2208,11 @@ app.get("/matches/pending-rating", optionalAuth, async (req, res) => {
 
   if (!userId) return res.status(400).json({ error: "user_id required" });
 
-  // Find a match that's been sent for rating and it's this user's turn
+  // Find a match that's been sent for rating TO this user
   const matches = await pgQueryAll(`
-    SELECT m.*, u1.pickiness_score as u1_pick, u2.pickiness_score as u2_pick
+    SELECT m.*
     FROM matches m
-    JOIN users u1 ON u1.id = m.user1_id
-    JOIN users u2 ON u2.id = m.user2_id
-    WHERE (m.user1_id = $1 OR m.user2_id = $1)
+    WHERE m.sent_for_rating_to = $1
       AND m.sent_for_rating_at IS NOT NULL
       AND m.status IN ('waiting_first_rating', 'waiting_second_rating')
     ORDER BY m.sent_for_rating_at ASC
@@ -2215,17 +2222,6 @@ app.get("/matches/pending-rating", optionalAuth, async (req, res) => {
   if (matches.length === 0) return res.json({ pending: false });
 
   const match = matches[0];
-  const p1 = match.u1_pick ?? 0;
-  const p2 = match.u2_pick ?? 0;
-  const firstRaterId = p2 > p1 ? match.user2_id : match.user1_id;
-  const secondRaterId = firstRaterId === match.user1_id ? match.user2_id : match.user1_id;
-
-  // Check if it's this user's turn
-  const isMyTurn =
-    (match.status === "waiting_first_rating" && userId === firstRaterId) ||
-    (match.status === "waiting_second_rating" && userId === secondRaterId);
-
-  if (!isMyTurn) return res.json({ pending: false });
 
   // Get the OTHER user's info (the person being rated)
   const partnerId = userId === match.user1_id ? match.user2_id : match.user1_id;
@@ -3034,25 +3030,12 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
       [userId]
     ) || null;
 
-    // Check for pending match rating
+    // Check for pending match rating (sent specifically to this user by admin)
     const pendingMatch = await pgQueryOne<{ id: number }>(
-      `SELECT m.id FROM matches m
-       JOIN users u1 ON u1.id = m.user1_id
-       JOIN users u2 ON u2.id = m.user2_id
-       WHERE (m.user1_id = $1 OR m.user2_id = $1)
-         AND m.sent_for_rating_at IS NOT NULL
-         AND m.status IN ('waiting_first_rating', 'waiting_second_rating')
-         AND (
-           (m.status = 'waiting_first_rating' AND (
-             (COALESCE(u2.pickiness_score, 0) > COALESCE(u1.pickiness_score, 0) AND m.user2_id = $1)
-             OR (COALESCE(u2.pickiness_score, 0) <= COALESCE(u1.pickiness_score, 0) AND m.user1_id = $1)
-           ))
-           OR
-           (m.status = 'waiting_second_rating' AND (
-             (COALESCE(u2.pickiness_score, 0) > COALESCE(u1.pickiness_score, 0) AND m.user1_id = $1)
-             OR (COALESCE(u2.pickiness_score, 0) <= COALESCE(u1.pickiness_score, 0) AND m.user2_id = $1)
-           ))
-         )
+      `SELECT id FROM matches
+       WHERE sent_for_rating_to = $1
+         AND sent_for_rating_at IS NOT NULL
+         AND status IN ('waiting_first_rating', 'waiting_second_rating')
        LIMIT 1`,
       [userId]
     );

@@ -686,7 +686,11 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   async function sendForRating(matchId: number) {
     setSendingForRating(matchId);
     try {
-      const r = await fetch(`/api/admin/matches/${matchId}/send-for-rating`, { method: "POST" });
+      const r = await fetch(`/api/admin/matches/${matchId}/send-for-rating`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId }),
+      });
       const json = await r.json();
       if (!r.ok) alert(json.error || "Send failed");
       loadMatches();
