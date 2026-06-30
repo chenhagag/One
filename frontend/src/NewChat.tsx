@@ -273,42 +273,45 @@ function PotentialMatchScreen({ userId, userGender, onBack }: { userId: number; 
         </p>
       </div>
 
-      {/* Rating buttons */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+      {/* Rating buttons — horizontal row */}
+      <div style={{ display: "flex", gap: 10, justifyContent: "center", marginBottom: 20 }}>
         <button
           disabled={submitting}
           onClick={() => submitRating("bullseye")}
-          style={{ padding: "14px 24px", borderRadius: 28, border: "none", background: "#7c3aed", color: "#fff", fontWeight: 700, fontSize: 15, cursor: submitting ? "wait" : "pointer", boxShadow: "0 2px 8px rgba(124,58,237,0.25)" }}
+          style={{ flex: 1, padding: "14px 8px", borderRadius: 14, border: "1px solid #c4b5fd", background: "#fff", color: "#1a1a2e", fontWeight: 600, fontSize: 14, cursor: submitting ? "wait" : "pointer", transition: "all 0.15s" }}
         >
-          בול הטעם שלי
+          בול הטעם שלי 💜
         </button>
         <button
           disabled={submitting}
           onClick={() => submitRating("possible")}
-          style={{ padding: "14px 24px", borderRadius: 28, border: "1px solid #c4b5fd", background: "#fff", color: "#5b21b6", fontWeight: 600, fontSize: 15, cursor: submitting ? "wait" : "pointer" }}
+          style={{ flex: 1, padding: "14px 8px", borderRadius: 14, border: "1px solid #e5e7eb", background: "#fff", color: "#1a1a2e", fontWeight: 600, fontSize: 14, cursor: submitting ? "wait" : "pointer", transition: "all 0.15s" }}
         >
           אפשרי
         </button>
         <button
           disabled={submitting}
           onClick={() => submitRating("miss")}
-          style={{ padding: "14px 24px", borderRadius: 28, border: "1px solid #e5e7eb", background: "#fff", color: "#888", fontWeight: 600, fontSize: 15, cursor: submitting ? "wait" : "pointer" }}
+          style={{ flex: 1, padding: "14px 8px", borderRadius: 14, border: "1px solid #e5e7eb", background: "#fff", color: "#1a1a2e", fontWeight: 600, fontSize: 14, cursor: submitting ? "wait" : "pointer", transition: "all 0.15s" }}
         >
           לא הטעם שלי
         </button>
       </div>
 
-      {/* Known person option */}
-      <div style={{ textAlign: "center" }}>
+      {/* Known person option — more visible */}
+      <div style={{ textAlign: "center", background: "#f9fafb", borderRadius: 12, padding: "14px 16px", border: "1px solid #e5e7eb" }}>
         <button
           disabled={submitting}
           onClick={() => submitRating("known_person")}
-          style={{ background: "none", border: "none", color: "#aaa", fontSize: 12, cursor: submitting ? "wait" : "pointer", textDecoration: "underline", padding: 8 }}
+          style={{ background: "none", border: "none", color: "#666", fontSize: 13, cursor: submitting ? "wait" : "pointer", padding: 0, lineHeight: 1.6 }}
         >
           {partnerIsFemale
-            ? (isFemale ? "מכירה אותה? אקסית/קרובת משפחה/חברה קרובה? לא רלוונטית מכל סיבה אחרת שלא קשורה בטעם? לחצי כאן" : "מכיר אותה? אקסית/קרובת משפחה/חברה קרובה? לא רלוונטית מכל סיבה אחרת שלא קשורה בטעם? לחץ כאן")
-            : (isFemale ? "מכירה אותו? אקס/קרוב משפחה/חבר קרוב? לא רלוונטי מכל סיבה אחרת שלא קשורה בטעם? לחצי כאן" : "מכיר אותו? אקס/קרוב משפחה/חבר קרוב? לא רלוונטי מכל סיבה אחרת שלא קשורה בטעם? לחץ כאן")
+            ? (isFemale ? "מכירה אותה? אקסית / קרובת משפחה / חברה קרובה? לא רלוונטית מסיבה שלא קשורה בטעם? " : "מכיר אותה? אקסית / קרובת משפחה / חברה קרובה? לא רלוונטית מסיבה שלא קשורה בטעם? ")
+            : (isFemale ? "מכירה אותו? אקס / קרוב משפחה / חבר קרוב? לא רלוונטי מסיבה שלא קשורה בטעם? " : "מכיר אותו? אקס / קרוב משפחה / חבר קרוב? לא רלוונטי מסיבה שלא קשורה בטעם? ")
           }
+          <span style={{ color: "#7c3aed", fontWeight: 600, textDecoration: "underline" }}>
+            {isFemale ? "לחצי כאן" : "לחץ כאן"}
+          </span>
         </button>
       </div>
     </div>
@@ -955,17 +958,16 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               {/* Pending match rating card */}
               {screen === "home" && recommendations.pending_rating && (
                 <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
-                  <div style={{ background: "linear-gradient(135deg, #faf5ff 0%, #ede9fe 100%)", borderRadius: 14, padding: "24px 20px", boxShadow: "0 2px 12px rgba(124,58,237,0.15)", border: "1px solid #c4b5fd", textAlign: "center" }}>
-                    <div style={{ fontSize: 28, marginBottom: 8 }}>💜</div>
-                    <p style={{ fontSize: 15, color: "#1e1b4b", lineHeight: 1.7, margin: "0 0 6px", fontWeight: 600 }}>
+                  <div style={{ background: "#fff", borderRadius: 14, padding: "24px 20px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #e5e7eb", textAlign: "center" }}>
+                    <p style={{ fontSize: 15, color: "#1a1a2e", lineHeight: 1.7, margin: "0 0 6px", fontWeight: 600 }}>
                       יש לנו כיוון להתאמה אפשרית
                     </p>
-                    <p style={{ fontSize: 13, color: "#555", margin: "0 0 16px", lineHeight: 1.5 }}>
-                      {recommendations.gender === "woman" ? "רצינו לבדוק אם זה תואם את הטעם שלך" : "רצינו לבדוק אם זה תואם את הטעם שלך"}
+                    <p style={{ fontSize: 13, color: "#888", margin: "0 0 16px", lineHeight: 1.5 }}>
+                      רצינו לבדוק אם זה תואם את הטעם שלך
                     </p>
                     <button
                       onClick={() => setScreen("potential_matches")}
-                      style={{ padding: "12px 32px", borderRadius: 24, border: "none", background: "#7c3aed", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", boxShadow: "0 2px 8px rgba(124,58,237,0.25)" }}
+                      style={{ padding: "12px 32px", borderRadius: 24, border: "none", background: "#8b7ba8", color: "#fff", fontWeight: 600, fontSize: 14, cursor: "pointer" }}
                     >
                       {recommendations.gender === "woman" ? "בואי נראה" : "בוא נראה"}
                     </button>
