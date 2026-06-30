@@ -200,8 +200,10 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
   });
 
   const [answeredQuestions, setAnsweredQuestions] = useState<any[]>([]);
+  const [matchRatings, setMatchRatings] = useState<any[]>([]);
+  const [sendingRating, setSendingRating] = useState<number | null>(null);
 
-  useEffect(() => { loadData(); loadAnsweredQuestions(); }, []);
+  useEffect(() => { loadData(); loadAnsweredQuestions(); loadMatchRatings(); }, []);
 
   function loadData() {
     setLoading(true);
@@ -220,6 +222,26 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
   async function markQuestionSeen(qId: number) {
     await fetch(`/api/admin/system-questions/${qId}/mark-seen`, { method: "POST", headers: { "Content-Type": "application/json" } });
     loadAnsweredQuestions();
+  }
+
+  function loadMatchRatings() {
+    fetch("/api/admin/match-ratings/pending")
+      .then(r => r.json())
+      .then(data => setMatchRatings(Array.isArray(data) ? data : []));
+  }
+
+  async function sendMatchForRating(matchId: number, targetUserId: number) {
+    setSendingRating(matchId);
+    try {
+      const r = await fetch(`/api/admin/matches/${matchId}/send-for-rating`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: targetUserId }),
+      });
+      if (!r.ok) { const j = await r.json(); alert(j.error || "Failed"); }
+      loadMatchRatings();
+    } catch { alert("Network error"); }
+    setSendingRating(null);
   }
 
   async function pipelineAction(userId: number, action: string) {
@@ -260,6 +282,61 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
           </div>
         ))}
       </div>
+
+      {/* Match ratings */}
+      {matchRatings.length > 0 && (
+        <div style={{ background: "#f5f0fb", border: "1px solid #c4b5fd", borderRadius: 12, padding: 16, marginBottom: 20 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "#5b21b6", marginBottom: 12 }}>💜 דירוגי התאמה ({matchRatings.length})</div>
+          {matchRatings.map((m: any) => {
+            const ratingLabel = (r: string | null) => {
+              if (!r) return "—";
+              if (r === "bullseye") return "✅ בול";
+              if (r === "possible") return "🟡 אפשרי";
+              if (r === "miss") return "❌ לא";
+              if (r === "known_person") return "👤 מכיר/ה";
+              return r;
+            };
+            const statusLabel = m.status === "waiting_second_rating" ? "ממתין לצד השני"
+              : m.status === "approved_by_both" ? "שניהם אישרו"
+              : m.status === "rejected_by_users" ? "נדחה"
+              : m.status === "rejected_acquaintance" ? "מכיר/ה"
+              : m.status;
+            const statusColor = m.status === "approved_by_both" ? "#16a34a"
+              : m.status === "rejected_by_users" || m.status === "rejected_acquaintance" ? "#dc2626"
+              : "#d97706";
+
+            // For waiting_second_rating: find who hasn't rated yet
+            const needsSecondRating = m.status === "waiting_second_rating";
+            const secondRaterId = !m.user1_rating ? m.user1_id : !m.user2_rating ? m.user2_id : null;
+            const secondRaterName = secondRaterId === m.user1_id ? m.user1_name : m.user2_name;
+
+            return (
+              <div key={m.id} style={{ display: "flex", gap: 12, alignItems: "center", padding: "8px 0", borderBottom: "1px solid #e9e0f5", flexWrap: "wrap" }}>
+                <span style={{ fontWeight: 600, color: "#1e1b4b", cursor: "pointer", textDecoration: "underline" }} onClick={() => onSelectUser?.(m.user1_id)}>{m.user1_name}</span>
+                <span style={{ color: "#94a3b8", fontSize: 12 }}>↔</span>
+                <span style={{ fontWeight: 600, color: "#1e1b4b", cursor: "pointer", textDecoration: "underline" }} onClick={() => onSelectUser?.(m.user2_id)}>{m.user2_name}</span>
+                <span style={{ fontSize: 12, color: "#64748b" }}>
+                  {m.user1_name}: {ratingLabel(m.user1_rating)} | {m.user2_name}: {ratingLabel(m.user2_rating)}
+                </span>
+                <span style={{ fontWeight: 600, color: statusColor, fontSize: 13 }}>{statusLabel}</span>
+                {needsSecondRating && secondRaterId && !m.sent_for_rating_to && (
+                  <button
+                    disabled={sendingRating === m.id}
+                    onClick={() => sendMatchForRating(m.id, secondRaterId)}
+                    style={{ padding: "4px 12px", borderRadius: 8, border: "1px solid #7c3aed", background: "#fff", color: "#5b21b6", fontSize: 12, cursor: sendingRating === m.id ? "wait" : "pointer", fontWeight: 600 }}
+                  >
+                    {sendingRating === m.id ? "..." : `שלח לדירוג ל${secondRaterName}`}
+                  </button>
+                )}
+                {needsSecondRating && m.sent_for_rating_to && (
+                  <span style={{ fontSize: 11, color: "#7c3aed" }}>📩 נשלח ל{m.sent_for_rating_to === m.user1_id ? m.user1_name : m.user2_name}</span>
+                )}
+                <span style={{ fontSize: 11, color: "#94a3b8" }}>{new Date(m.updated_at).toLocaleString("he-IL")}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Answered system questions */}
       {answeredQuestions.length > 0 && (

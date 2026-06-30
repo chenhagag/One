@@ -2644,6 +2644,24 @@ app.post("/admin/users/:id/system-question", async (req, res) => {
   return res.json(row);
 });
 
+// GET /admin/match-ratings/pending — Matches with user ratings that admin hasn't seen/acted on
+app.get("/admin/match-ratings/pending", async (_req, res) => {
+  const rows = await pgQueryAll(`
+    SELECT m.id, m.user1_id, m.user2_id, m.status, m.match_score,
+      m.user1_rating, m.user2_rating, m.rejection_reason, m.updated_at,
+      m.sent_for_rating_to,
+      u1.first_name as user1_name, u2.first_name as user2_name
+    FROM matches m
+    JOIN users u1 ON u1.id = m.user1_id
+    JOIN users u2 ON u2.id = m.user2_id
+    WHERE (m.user1_rating IS NOT NULL OR m.user2_rating IS NOT NULL)
+      AND m.status IN ('waiting_second_rating', 'rejected_by_users', 'rejected_acquaintance', 'approved_by_both')
+    ORDER BY m.updated_at DESC
+    LIMIT 50
+  `);
+  return res.json(rows);
+});
+
 // GET /admin/system-questions/pending — All answered but not yet seen by admin
 app.get("/admin/system-questions/pending", async (_req, res) => {
   const rows = await pgQueryAll<any>(`

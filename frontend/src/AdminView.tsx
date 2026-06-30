@@ -838,7 +838,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
 
   // Navigate to another user's profile from match candidates
   if (viewingUserId !== null) {
-    return <UserDetail userId={viewingUserId} onBack={() => setViewingUserId(null)} />;
+    return <UserDetail userId={viewingUserId} onBack={() => setViewingUserId(null)} onStartChat={onStartChat} onViewDashboard={onViewDashboard} onViewNewChat={onViewNewChat} />;
   }
 
   if (loading) return <p style={s.loading}>Loading user details...</p>;
