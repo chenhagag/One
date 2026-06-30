@@ -1,6 +1,96 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-06-29 (Chat Fixes, System Questions, OTP, Agent Review)
+## Latest Session: 2026-06-30 (Match Attraction Rating Flow, Couple Partner, UI Fixes)
+
+### Deployment
+- All changes pushed to main (production) and staging
+
+### What We Did
+
+#### 1. Match Attraction Rating Flow (Full Feature)
+- **DB**: `sent_for_rating_at`, `sent_for_rating_to`, `rejection_reason` columns on matches table
+- **New status**: `rejected_acquaintance` — when user marks match as known person (ex/family/friend), doesn't count in rating stats
+- **Admin endpoint**: `POST /admin/matches/:id/send-for-rating` — admin sends specific user a match to rate (via `sent_for_rating_to`)
+- **User endpoint**: `GET /matches/pending-rating` — returns partner photos for the target user
+- **Rate endpoint updated**: supports `known_person` rating → `rejected_acquaintance` status; clears `sent_for_rating_at/to` after each rating so admin must explicitly send to second rater
+- **`/new-chat/status`**: returns `pending_rating` flag
+
+#### 2. User-Facing Rating Screen (PotentialMatchScreen)
+- New screen accessible from home screen card
+- Photo gallery with arrow navigation + dot indicators
+- Three rating buttons side by side: "בול הטעם שלי 🤍" / "אפשרי" / "לא הטעם שלי"
+- "מכיר/ה" option in visible card below (gender-adapted text)
+- Shows photo only — no name/age/city (decision to keep minimal)
+- Thank you message after rating, auto-return to home
+
+#### 3. Home Screen Match Card
+- "יש לנו כיוון להתאמה אפשרית" card when pending_rating exists
+- White card design matching overall style
+- Gender-adapted CTA button ("בוא/י נראה")
+
+#### 4. Admin Pipeline — Match Ratings Section
+- New purple section above system questions in pipeline dashboard
+- Shows all rated matches with per-user ratings (✅ בול / 🟡 אפשרי / ❌ לא / 👤 מכיר/ה)
+- Status display: "ממתין לצד השני" / "שניהם אישרו" / "נדחה" / "מכיר/ה"
+- "שלח לדירוג" button for second rater when first has rated
+- Sent indicator (📩) when already sent
+
+#### 5. Admin UserDetail — Match Actions
+- "שלח לדירוג" button next to each match in waiting status
+- Ratings display per side (הוא/היא vs צד שני)
+- `rejected_acquaintance` status color (yellow-orange in UserDetail, red in CandidateMatches)
+- Rejection reason shown when present
+
+#### 6. Candidate Matches Tab Improvements
+- `approved_by_both` shown in green (was yellow)
+- `rejected_by_users` / `rejected_acquaintance` shown in red
+- Ratings column: shows what each user rated (✅/🟡/❌/👤)
+- "שלח התאמה" button (placeholder) when both approved
+- Fixed: "צפייה במסך המשתמש" button now works when navigating from CandidateMatchesTab
+
+#### 7. Couple Tester Partner Flow
+- Auto-message for couples: "בעזרתכם" (was "בעזרתם"), gender-adapted partner instructions
+- When partner not in system: guide to mark partner in "הפרטים שלי" screen
+- When partner_name set + partner_in_system: personalized message with partner's name
+- **ProfileEdit for couples**: shows partner name input instead of "מה אני מחפש/ת" preferences section
+- `partner_name` field added to User interface
+
+#### 8. UI/Design Fixes
+- Admin message on home screen: white card with subtle border (was purple background with border-right)
+- "צפייה במסך המשתמש" button: fixed disappearing when navigating to user from matches or CandidateMatchesTab (props weren't passed through nested UserDetail)
+
+### Match Rating Flow
+```
+Admin → "שלח לדירוג" (sets sent_for_rating_to = target user)
+  ↓
+User home → sees card → clicks "בוא/י נראה" → PotentialMatchScreen
+  ↓
+Rates: bullseye/possible → waiting_second_rating (sent_for_rating cleared)
+       miss → rejected_by_users
+       known_person → rejected_acquaintance (not counted in stats)
+  ↓
+Admin → sees rating in pipeline → "שלח לדירוג" to second rater
+  ↓
+Second rater: bullseye/possible → approved_by_both
+              miss → rejected_by_users
+```
+
+### New DB Columns
+- `sent_for_rating_at` TIMESTAMPTZ on matches
+- `sent_for_rating_to` INTEGER REFERENCES users(id) on matches
+- `rejection_reason` TEXT on matches
+
+### New Match Status
+- `rejected_acquaintance` — user knows the match (ex/family/friend), not a taste rejection
+
+### Open Items (Not Yet Done)
+1. **Chat review for users 120-166** — 22 users still need conversation review
+2. **"שלח התאמה" button functionality** — currently placeholder, needs full match card/reveal flow
+3. **Score gap: category vs trait** — known display inconsistency in admin
+
+---
+
+## Previous Session: 2026-06-29 (Chat Fixes, System Questions, OTP, Agent Review)
 
 ### Deployment
 - All changes pushed to main (production) and staging
