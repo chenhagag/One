@@ -190,7 +190,6 @@ function PotentialMatchScreen({ userId, userGender, onBack }: { userId: number; 
       });
       if (r.ok) {
         setSubmitted(rating);
-        setTimeout(() => onBack(), 2000);
       }
     } catch { /* ignore */ }
     setSubmitting(false);
@@ -219,12 +218,18 @@ function PotentialMatchScreen({ userId, userGender, onBack }: { userId: number; 
             {isPositive ? "✓" : "·"}
           </div>
           <p style={{ fontSize: 17, fontWeight: 600, color: "#1a1a2e", margin: "0 0 12px", lineHeight: 1.5 }}>תודה, קיבלנו.</p>
-          <p style={{ fontSize: 14, color: "#6b7280", lineHeight: 1.7, margin: 0 }}>
+          <p style={{ fontSize: 14, color: "#6b7280", lineHeight: 1.7, margin: "0 0 28px" }}>
             {isPositive
               ? "ניקח את זה בחשבון כחלק מתהליך ההתאמה ונמשיך לבדוק את הכיוון הזה יחד עם שאר הנתונים."
               : "לא נמשיך עם ההתאמה הזו. המשוב שלך עוזר לנו לדייק את ההתאמות הבאות."
             }
           </p>
+          <button
+            onClick={onBack}
+            style={{ background: "none", border: "none", color: "#9ca3af", fontSize: 13, fontWeight: 500, cursor: "pointer", padding: 0 }}
+          >
+            חזרה למסך הראשי
+          </button>
         </div>
       </div>
     );
