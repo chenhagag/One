@@ -211,16 +211,20 @@ function PotentialMatchScreen({ userId, userGender, onBack }: { userId: number; 
   );
 
   if (submitted) {
-    const msgs: Record<string, string> = {
-      bullseye: "תודה! העדפתך נשמרה 💜",
-      possible: "תודה! העדפתך נשמרה 💜",
-      miss: "תודה, נמשיך לחפש 💜",
-      known_person: "תודה, ההתאמה סומנה בהתאם 💜",
-    };
+    const isPositive = submitted === "bullseye" || submitted === "possible";
     return (
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 300 }}>
-        <div style={{ textAlign: "center" }}>
-          <p style={{ fontSize: 18, fontWeight: 600, color: "#1a1a2e" }}>{msgs[submitted] || "תודה!"}</p>
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 400, padding: "40px 20px" }}>
+        <div style={{ textAlign: "center", maxWidth: 360 }}>
+          <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#f5f3ff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", fontSize: 24 }}>
+            {isPositive ? "✓" : "·"}
+          </div>
+          <p style={{ fontSize: 17, fontWeight: 600, color: "#1a1a2e", margin: "0 0 12px", lineHeight: 1.5 }}>תודה, קיבלנו.</p>
+          <p style={{ fontSize: 14, color: "#6b7280", lineHeight: 1.7, margin: 0 }}>
+            {isPositive
+              ? "ניקח את זה בחשבון כחלק מתהליך ההתאמה ונמשיך לבדוק את הכיוון הזה יחד עם שאר הנתונים."
+              : "לא נמשיך עם ההתאמה הזו. המשוב שלך עוזר לנו לדייק את ההתאמות הבאות."
+            }
+          </p>
         </div>
       </div>
     );
@@ -230,81 +234,88 @@ function PotentialMatchScreen({ userId, userGender, onBack }: { userId: number; 
   const partner = matchData.partner;
 
   return (
-    <div style={{ maxWidth: 440, margin: "0 auto", padding: "24px 20px" }}>
-      {/* Photo gallery */}
-      <div style={{ position: "relative", borderRadius: 16, overflow: "hidden", background: "#f0f0f0", marginBottom: 16 }}>
+    <div style={{ maxWidth: 440, margin: "0 auto", padding: "28px 20px" }}>
+      {/* Intro text */}
+      <div style={{ marginBottom: 24, textAlign: "right" }}>
+        <p style={{ fontSize: 15, color: "#1a1a2e", lineHeight: 1.7, margin: "0 0 8px", fontWeight: 600 }}>
+          יש לנו סיבה טובה לחשוב שיש כאן פוטנציאל, אבל התאמה לא יכולה להישאר רק "על הנייר".
+        </p>
+        <p style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.7, margin: 0 }}>
+          גם תחושת משיכה ראשונית חשובה, ולכן לפני שנמשיך לעומק — נשמח לדעת אם מבחינתך יש בסיס להמשיך לבדוק את זה.
+        </p>
+      </div>
+
+      {/* Photo gallery — softened frame */}
+      <div style={{ position: "relative", borderRadius: 20, overflow: "hidden", background: "#f5f3ff", marginBottom: 28, boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
         {photos.length > 0 ? (
           <>
             <img
               src={photos[photoIndex]?.url}
               alt=""
-              style={{ width: "100%", aspectRatio: "3/4", objectFit: "cover", display: "block" }}
+              style={{ width: "100%", aspectRatio: "4/5", objectFit: "cover", display: "block" }}
             />
             {photos.length > 1 && (
               <>
-                {/* Dots */}
-                <div style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)", display: "flex", gap: 6 }}>
+                {/* Photo indicator bar */}
+                <div style={{ position: "absolute", top: 12, left: 16, right: 16, display: "flex", gap: 4 }}>
                   {photos.map((_, i) => (
-                    <div key={i} onClick={() => setPhotoIndex(i)} style={{ width: 8, height: 8, borderRadius: "50%", background: i === photoIndex ? "#fff" : "rgba(255,255,255,0.5)", cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
+                    <div key={i} onClick={() => setPhotoIndex(i)} style={{ flex: 1, height: 3, borderRadius: 2, background: i === photoIndex ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.35)", cursor: "pointer", transition: "background 0.2s" }} />
                   ))}
                 </div>
-                {/* Arrows */}
+                {/* Tap zones for navigation */}
                 {photoIndex > 0 && (
-                  <button onClick={() => setPhotoIndex(i => i - 1)} style={{ position: "absolute", top: "50%", right: 8, transform: "translateY(-50%)", background: "rgba(255,255,255,0.7)", border: "none", borderRadius: "50%", width: 36, height: 36, fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>›</button>
+                  <div onClick={() => setPhotoIndex(i => i - 1)} style={{ position: "absolute", top: 0, right: 0, width: "40%", height: "100%", cursor: "pointer" }} />
                 )}
                 {photoIndex < photos.length - 1 && (
-                  <button onClick={() => setPhotoIndex(i => i + 1)} style={{ position: "absolute", top: "50%", left: 8, transform: "translateY(-50%)", background: "rgba(255,255,255,0.7)", border: "none", borderRadius: "50%", width: 36, height: 36, fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
+                  <div onClick={() => setPhotoIndex(i => i + 1)} style={{ position: "absolute", top: 0, left: 0, width: "40%", height: "100%", cursor: "pointer" }} />
                 )}
               </>
             )}
           </>
         ) : (
-          <div style={{ width: "100%", aspectRatio: "3/4", display: "flex", alignItems: "center", justifyContent: "center", color: "#aaa" }}>
+          <div style={{ width: "100%", aspectRatio: "4/5", display: "flex", alignItems: "center", justifyContent: "center", color: "#aaa", fontSize: 14 }}>
             אין תמונות זמינות
           </div>
         )}
       </div>
 
-      {/* Spacer below photo */}
-      <div style={{ height: 16 }} />
-
-      {/* Rating buttons — horizontal row */}
-      <div style={{ display: "flex", gap: 10, justifyContent: "center", marginBottom: 20 }}>
+      {/* Rating buttons — elegant vertical stack */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
         <button
           disabled={submitting}
           onClick={() => submitRating("bullseye")}
-          style={{ flex: 1, padding: "14px 8px", borderRadius: 14, border: "1px solid #c4b5fd", background: "#fff", color: "#1a1a2e", fontWeight: 600, fontSize: 14, cursor: submitting ? "wait" : "pointer", transition: "all 0.15s" }}
+          style={{ padding: "15px 16px", borderRadius: 12, border: "none", background: "#8b7ba8", color: "#fff", fontWeight: 600, fontSize: 14, cursor: submitting ? "wait" : "pointer", transition: "all 0.15s", textAlign: "center", letterSpacing: "0.01em" }}
         >
-          בול הטעם שלי 🤍
+          כן, מסקרן אותי להמשיך
         </button>
         <button
           disabled={submitting}
           onClick={() => submitRating("possible")}
-          style={{ flex: 1, padding: "14px 8px", borderRadius: 14, border: "1px solid #e5e7eb", background: "#fff", color: "#1a1a2e", fontWeight: 600, fontSize: 14, cursor: submitting ? "wait" : "pointer", transition: "all 0.15s" }}
+          style={{ padding: "15px 16px", borderRadius: 12, border: "1px solid #e5e7eb", background: "#fff", color: "#1a1a2e", fontWeight: 500, fontSize: 14, cursor: submitting ? "wait" : "pointer", transition: "all 0.15s", textAlign: "center" }}
         >
-          אפשרי
+          לא בול, אבל אפשרי אם יש חיבור טוב
         </button>
         <button
           disabled={submitting}
           onClick={() => submitRating("miss")}
-          style={{ flex: 1, padding: "14px 8px", borderRadius: 14, border: "1px solid #e5e7eb", background: "#fff", color: "#1a1a2e", fontWeight: 600, fontSize: 14, cursor: submitting ? "wait" : "pointer", transition: "all 0.15s" }}
+          style={{ padding: "15px 16px", borderRadius: 12, border: "1px solid #e5e7eb", background: "#fff", color: "#6b7280", fontWeight: 500, fontSize: 14, cursor: submitting ? "wait" : "pointer", transition: "all 0.15s", textAlign: "center" }}
         >
-          לא הטעם שלי
+          לא מרגיש לי מתאים
         </button>
       </div>
 
-      {/* Known person option — more visible */}
-      <div style={{ textAlign: "center", background: "#f9fafb", borderRadius: 12, padding: "14px 16px", border: "1px solid #e5e7eb" }}>
+      {/* Known person option — subtle link */}
+      <div style={{ textAlign: "center", padding: "12px 16px" }}>
         <button
           disabled={submitting}
           onClick={() => submitRating("known_person")}
-          style={{ background: "none", border: "none", color: "#666", fontSize: 13, cursor: submitting ? "wait" : "pointer", padding: 0, lineHeight: 1.6 }}
+          style={{ background: "none", border: "none", color: "#9ca3af", fontSize: 12.5, cursor: submitting ? "wait" : "pointer", padding: 0, lineHeight: 1.7 }}
         >
           {partnerIsFemale
-            ? (isFemale ? "מכירה אותה? אקסית / קרובת משפחה / חברה קרובה? לא רלוונטית מסיבה שלא קשורה בטעם? " : "מכיר אותה? אקסית / קרובת משפחה / חברה קרובה? לא רלוונטית מסיבה שלא קשורה בטעם? ")
-            : (isFemale ? "מכירה אותו? אקס / קרוב משפחה / חבר קרוב? לא רלוונטי מסיבה שלא קשורה בטעם? " : "מכיר אותו? אקס / קרוב משפחה / חבר קרוב? לא רלוונטי מסיבה שלא קשורה בטעם? ")
+            ? (isFemale ? "מכירה אותה או שיש סיבה אחרת שלא רלוונטי להמשיך? " : "מכיר אותה או שיש סיבה אחרת שלא רלוונטי להמשיך? ")
+            : (isFemale ? "מכירה אותו או שיש סיבה אחרת שלא רלוונטי להמשיך? " : "מכיר אותו או שיש סיבה אחרת שלא רלוונטי להמשיך? ")
           }
-          <span style={{ color: "#7c3aed", fontWeight: 600, textDecoration: "underline" }}>
+          <span style={{ color: "#8b7ba8", fontWeight: 600, textDecoration: "underline" }}>
             {isFemale ? "לחצי כאן" : "לחץ כאן"}
           </span>
         </button>
@@ -953,19 +964,21 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               {/* Pending match rating card */}
               {screen === "home" && recommendations.pending_rating && (
                 <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
-                  <div style={{ background: "#fff", borderRadius: 14, padding: "24px 20px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #e5e7eb", textAlign: "center" }}>
-                    <p style={{ fontSize: 15, color: "#1a1a2e", lineHeight: 1.7, margin: "0 0 6px", fontWeight: 600 }}>
-                      יש לנו כיוון להתאמה אפשרית
+                  <div style={{ background: "#fff", borderRadius: 14, padding: "24px 20px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #e5e7eb", textAlign: "right" }}>
+                    <p style={{ fontSize: 15, color: "#1a1a2e", lineHeight: 1.7, margin: "0 0 8px", fontWeight: 600 }}>
+                      מצאנו כיוון להתאמה שיכול להיות מעניין עבורך.
                     </p>
-                    <p style={{ fontSize: 13, color: "#888", margin: "0 0 16px", lineHeight: 1.5 }}>
-                      רצינו לבדוק אם זה תואם את הטעם שלך
+                    <p style={{ fontSize: 13, color: "#888", margin: "0 0 18px", lineHeight: 1.6 }}>
+                      לפני שנעמיק ונפתח את כרטיס ההתאמה, חשוב לנו לבדוק שגם מבחינת משיכה ראשונית יש בסיס להמשיך.
                     </p>
-                    <button
-                      onClick={() => setScreen("potential_matches")}
-                      style={{ padding: "12px 32px", borderRadius: 24, border: "none", background: "#8b7ba8", color: "#fff", fontWeight: 600, fontSize: 14, cursor: "pointer" }}
-                    >
-                      {recommendations.gender === "woman" ? "בואי נראה" : "בוא נראה"}
-                    </button>
+                    <div style={{ textAlign: "center" }}>
+                      <button
+                        onClick={() => setScreen("potential_matches")}
+                        style={{ padding: "12px 32px", borderRadius: 24, border: "none", background: "#8b7ba8", color: "#fff", fontWeight: 600, fontSize: 14, cursor: "pointer" }}
+                      >
+                        לבדיקת ההתאמה
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -973,8 +986,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               {/* System question — interactive question from admin */}
               {screen === "home" && (systemQuestion || answeredQuestion) && (
                 <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
-                  <div style={{ background: "linear-gradient(135deg, #ede9fe 0%, #e0f2fe 100%)", borderRadius: 14, padding: "20px 20px 16px", boxShadow: "0 2px 12px rgba(124,58,237,0.12)", border: "1px solid #c4b5fd" }}>
-                    <p style={{ fontSize: 14, color: "#1e1b4b", lineHeight: 1.7, margin: "0 0 16px", fontWeight: 500, textAlign: "right" }}>
+                  <div style={{ background: "#fff", borderRadius: 14, padding: "20px 20px 16px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #e5e7eb" }}>
+                    <p style={{ fontSize: 14, color: "#1a1a2e", lineHeight: 1.7, margin: "0 0 16px", fontWeight: 500, textAlign: "right" }}>
                       {systemQuestion ? systemQuestion.question_text : answeredQuestion!.question_text}
                     </p>
                     {systemQuestion ? (
@@ -985,7 +998,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                             await fetch("/api/system-question/answer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question_id: q.id, answer: opt }) });
                             setSystemQuestion(null);
                             setAnsweredQuestion({ question_text: q.question_text, answer: opt });
-                          }} style={{ padding: "8px 20px", borderRadius: 20, border: "1px solid #c4b5fd", background: "#fff", color: "#5b21b6", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+                          }} style={{ padding: "8px 20px", borderRadius: 20, border: "none", background: "#8b7ba8", color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
                             {opt}
                           </button>
                         ))}
@@ -994,12 +1007,12 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       <div style={{ textAlign: "center" }}>
                         <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: 12 }}>
                           {["כן אין בעיה", "אפשרי", "לא"].map(opt => (
-                            <span key={opt} style={{ padding: "8px 20px", borderRadius: 20, border: "1px solid #c4b5fd", background: opt === answeredQuestion!.answer ? "#7c3aed" : "#f1f5f9", color: opt === answeredQuestion!.answer ? "#fff" : "#94a3b8", fontWeight: 600, fontSize: 13 }}>
+                            <span key={opt} style={{ padding: "8px 20px", borderRadius: 20, border: "1px solid #e5e7eb", background: opt === answeredQuestion!.answer ? "#8b7ba8" : "#f5f5f7", color: opt === answeredQuestion!.answer ? "#fff" : "#94a3b8", fontWeight: 600, fontSize: 13 }}>
                               {opt}
                             </span>
                           ))}
                         </div>
-                        <p style={{ fontSize: 13, color: "#5b21b6", fontWeight: 500, margin: 0 }}>תודה, תשובתך התקבלה ונקח אותה בחשבון 💜</p>
+                        <p style={{ fontSize: 13, color: "#6b7280", fontWeight: 500, margin: 0 }}>תודה, תשובתך התקבלה ונקח אותה בחשבון</p>
                       </div>
                     )}
                   </div>
