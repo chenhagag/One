@@ -637,6 +637,8 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   const [emailPreview, setEmailPreview] = useState(false);
   const [adminMsg, setAdminMsg] = useState("");
   const [adminMsgSaving, setAdminMsgSaving] = useState(false);
+  const [systemQuestions, setSystemQuestions] = useState<any[]>([]);
+  const [showSystemQuestions, setShowSystemQuestions] = useState(false);
 
   // Sync admin_message from loaded data
   useEffect(() => { if (data?.user?.admin_message != null) setAdminMsg(data.user.admin_message); }, [data?.user?.admin_message]);
@@ -710,6 +712,13 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
       .then(setData)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
+  }
+
+  function loadSystemQuestions() {
+    fetch(`/api/admin/users/${userId}/system-questions`)
+      .then(r => r.json())
+      .then(data => setSystemQuestions(Array.isArray(data) ? data : []))
+      .catch(() => {});
   }
 
   async function handleSendEmail() {
@@ -834,6 +843,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
     fetch(`/api/admin/users/${userId}/analysis-run`).then(r => r.json()).then(setAnalysisRun).catch(() => {});
     fetch(`/api/admin/users/${userId}/analysis-status`).then(r => r.json()).then(setAnalysisStatus).catch(() => {});
     fetch(`/api/admin/users/${userId}/page-views`).then(r => r.json()).then(setPageViews).catch(() => {});
+    loadSystemQuestions();
   }, [userId]);
 
   // Navigate to another user's profile from match candidates
@@ -1788,6 +1798,42 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
             </div>
             {data?.user?.admin_message && (
               <div style={{ marginTop: 6, fontSize: 11, color: "#92400e" }}>⚡ הודעה פעילה — מוצגת כרגע במסך הבית של המשתמש/ת</div>
+            )}
+          </div>
+
+          {/* System Questions History */}
+          <div style={{ marginBottom: 16, padding: 12, border: "1px solid #e2e8f0", borderRadius: 8, background: "#f8fafc" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>❓ שאלות מערכת ({systemQuestions.length})</span>
+              {systemQuestions.length > 0 && (
+                <button onClick={() => setShowSystemQuestions(!showSystemQuestions)} style={{ fontSize: 11, color: "#6366f1", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
+                  {showSystemQuestions ? "הסתר" : "הצג"}
+                </button>
+              )}
+            </div>
+            {showSystemQuestions && systemQuestions.length > 0 && (
+              <div style={{ marginTop: 10 }}>
+                {systemQuestions.map((q: any) => (
+                  <div key={q.id} style={{ padding: "8px 0", borderBottom: "1px solid #f1f5f9", fontSize: 12, direction: "rtl" }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                      <span style={{ color: "#374151", fontWeight: 500 }}>"{q.question_text}"</span>
+                      {q.answer ? (
+                        <span style={{ fontWeight: 700, color: q.answer === "לא" ? "#dc2626" : q.answer === "אפשרי" ? "#d97706" : "#16a34a" }}>{q.answer}</span>
+                      ) : (
+                        <span style={{ color: "#94a3b8", fontStyle: "italic" }}>ממתין לתשובה</span>
+                      )}
+                      {q.admin_seen && <span style={{ color: "#94a3b8", fontSize: 10 }}>✓ נצפה</span>}
+                    </div>
+                    <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>
+                      נשלח: {new Date(q.created_at).toLocaleDateString("he-IL")}
+                      {q.answered_at && ` · נענה: ${new Date(q.answered_at).toLocaleDateString("he-IL")}`}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {systemQuestions.length === 0 && (
+              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>לא נשלחו שאלות למשתמש/ת זו</div>
             )}
           </div>
 

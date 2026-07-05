@@ -1733,11 +1733,6 @@ app.post("/admin/users/:id/reanalyze", aiLimiter, async (req, res) => {
   }
 
   try {
-    // Clear existing traits for a truly fresh analysis (pg — these tables live there now)
-    // Keep manually entered look traits
-    await pgQueryAll("DELETE FROM user_traits WHERE user_id = $1", [user_id]);
-    await pgQueryAll("DELETE FROM user_look_traits WHERE user_id = $1 AND source != 'manual'", [user_id]);
-
     const input = await buildAnalysisInput(db, transcript);
     console.log(`[reanalyze] User ${user_id}: transcript=${transcript.length} chars, running FRESH analysis...`);
     console.log(`[reanalyze] Transcript preview: ${transcript.slice(0, 300)}...`);
@@ -1747,6 +1742,11 @@ app.post("/admin/users/:id/reanalyze", aiLimiter, async (req, res) => {
     // Extract and save run data before stripping it
     const runData = (output as any)._run_data;
     delete (output as any)._run_data;
+
+    // Clear existing traits only after analysis is ready — keeps user data intact during analysis
+    // Keep manually entered look traits
+    await pgQueryAll("DELETE FROM user_traits WHERE user_id = $1", [user_id]);
+    await pgQueryAll("DELETE FROM user_look_traits WHERE user_id = $1 AND source != 'manual'", [user_id]);
 
     const saved = await saveAnalysisToDb(db, user_id, output);
 
@@ -2684,6 +2684,17 @@ app.post("/admin/system-questions/:id/mark-seen", async (req, res) => {
   const id = parseInt(req.params.id, 10);
   await pgQueryOne("UPDATE system_questions SET admin_seen = TRUE, admin_seen_at = NOW() WHERE id = $1", [id]);
   return res.json({ ok: true });
+});
+
+// GET /admin/users/:id/system-questions — All questions for a user (sent + answered)
+app.get("/admin/users/:id/system-questions", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  if (!userId) return res.status(400).json({ error: "invalid id" });
+  const rows = await pgQueryAll(
+    "SELECT id, question_text, answer, answered_at, admin_seen, created_at FROM system_questions WHERE user_id = $1 ORDER BY created_at DESC",
+    [userId]
+  );
+  return res.json(rows);
 });
 
 // POST /system-question/answer — User answers a question
