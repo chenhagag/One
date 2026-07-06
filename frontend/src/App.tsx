@@ -312,7 +312,7 @@ export default function App() {
   function handleRegisterSuccess(u: User) {
     saveSession(u);
     setUser(u);
-    setView("welcome"); // Show onboarding — only after fresh registration
+    setView(isNativeApp() ? "new_chat" : "welcome"); // Skip PWA install on native
   }
 
   // ── Logout ─────────────────────────────────────────────────────

@@ -1120,6 +1120,48 @@ app.delete("/admin/users/:id", async (req, res) => {
   return res.json({ deleted: true, user_id: userId, ...result });
 });
 
+// POST /api/users/:id/reset-data — Delete all user data but keep account
+app.post("/api/users/:id/reset-data", async (req, res) => {
+  const userId = parseInt(req.params.id);
+  if (isNaN(userId)) return res.status(400).json({ error: "Invalid user ID" });
+
+  const user = await pgQueryFirst<any>("SELECT id, email, first_name FROM users WHERE id = $1", [userId]);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  // Delete conversations, analysis, matches — keep account + profile details + photos
+  await pgQueryAll("DELETE FROM conversation_messages WHERE user_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM user_chat_summaries WHERE user_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM user_traits WHERE user_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM user_look_traits WHERE user_id = $1 AND source != 'manual'", [userId]);
+  await pgQueryAll("DELETE FROM analysis_runs WHERE user_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM profiles WHERE user_id = $1", [userId]);
+  await pgQueryAll(
+    `DELETE FROM match_scores WHERE match_id IN
+     (SELECT id FROM matches WHERE user1_id = $1 OR user2_id = $1)`,
+    [userId]
+  );
+  await pgQueryAll("DELETE FROM matches WHERE user1_id = $1 OR user2_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM candidate_matches WHERE user_id = $1 OR candidate_user_id = $1", [userId]);
+
+  // Reset analysis-related fields on user row
+  await pgQueryAll(
+    `UPDATE users SET is_matchable = FALSE, in_matching_pool = FALSE, auto_analyzed = FALSE,
+     analysis_run_count = 0, cognitive_score = NULL, personal_insights_short = NULL,
+     personal_insights_full = NULL, couple_insights = NULL
+     WHERE id = $1`,
+    [userId]
+  );
+
+  // Notify admin via bug_reports
+  await pgQueryAll(
+    `INSERT INTO bug_reports (user_id, report_text) VALUES ($1, $2)`,
+    [userId, `[system] המשתמש/ת ${user.first_name} (${user.email}) מחק/ה את כל הנתונים והתחיל/ה מחדש`]
+  );
+
+  console.log(`[reset-data] Reset data for user ${userId} (${user.first_name} <${user.email}>)`);
+  return res.json({ reset: true, user_id: userId });
+});
+
 // GET /admin/deleted-users — List of deleted users
 app.get("/admin/deleted-users", async (_req, res) => {
   try {

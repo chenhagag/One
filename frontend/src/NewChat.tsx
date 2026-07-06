@@ -1359,6 +1359,8 @@ function SettingsView({ user, onLogout }: { user: User; onLogout?: () => void })
   const [saved, setSaved] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [resetConfirm, setResetConfirm] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     fetch(`/api/users/${user.id}`).then(r => r.json()).then(data => {
@@ -1382,6 +1384,23 @@ function SettingsView({ user, onLogout }: { user: User; onLogout?: () => void })
       setTimeout(() => setSaved(false), 2000);
     } catch { /* ignore */ }
     finally { setSaving(false); }
+  }
+
+  async function handleResetData() {
+    setResetting(true);
+    try {
+      const res = await fetch(`/api/users/${user.id}/reset-data`, { method: "POST" });
+      if (res.ok) {
+        alert("הנתונים נמחקו בהצלחה. החשבון שלך נשמר.");
+        setResetConfirm(false);
+      } else {
+        alert("משהו השתבש, נסו שוב");
+      }
+    } catch {
+      alert("שגיאת רשת, נסו שוב");
+    } finally {
+      setResetting(false);
+    }
   }
 
   async function handleDeleteAccount() {
@@ -1475,6 +1494,54 @@ function SettingsView({ user, onLogout }: { user: User; onLogout?: () => void })
         </div>
 
         {saved && <p style={{ fontSize: 12, color: "#22c55e", textAlign: "center", margin: "0 0 16px" }}>נשמר בהצלחה</p>}
+
+        {/* Reset data */}
+        <div style={{ ...sectionStyle, background: "#fffbeb", marginTop: 32 }}>
+          <h3 style={{ ...titleStyle, color: "#92400e" }}>מחיקת נתונים</h3>
+          <p style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.6, margin: "0 0 12px" }}>
+            מחיקת כל השיחות, התובנות וההתאמות שלך. שימו לב — כל השיחה תימחק לצמיתות, כולל כל הנתונים שנאספו ממנה, ותצטרכו לעבור את השיחה המלאה מחדש כדי להיכנס שוב למאגר ההתאמות.
+          </p>
+          {!resetConfirm ? (
+            <button
+              onClick={() => setResetConfirm(true)}
+              style={{
+                padding: "8px 20px", borderRadius: 8, background: "#fff",
+                color: "#d97706", fontSize: 13, fontWeight: 600,
+                border: "1px solid #fde68a", cursor: "pointer",
+              }}
+            >
+              מחיקת הנתונים שלי
+            </button>
+          ) : (
+            <div>
+              <p style={{ fontSize: 14, fontWeight: 600, color: "#d97706", margin: "0 0 10px" }}>
+                בטוח/ה? כל השיחות, התובנות וההתאמות יימחקו לצמיתות. תצטרכו לעבור את כל התהליך מחדש.
+              </p>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={handleResetData}
+                  disabled={resetting}
+                  style={{
+                    padding: "8px 20px", borderRadius: 8, background: "#d97706",
+                    color: "#fff", fontSize: 13, fontWeight: 600, border: "none",
+                    cursor: "pointer", opacity: resetting ? 0.5 : 1,
+                  }}
+                >
+                  {resetting ? "מוחק..." : "כן, מחקו את הנתונים"}
+                </button>
+                <button
+                  onClick={() => setResetConfirm(false)}
+                  style={{
+                    padding: "8px 20px", borderRadius: 8, background: "#fff",
+                    color: "#374151", fontSize: 13, border: "1px solid #d1d5db", cursor: "pointer",
+                  }}
+                >
+                  ביטול
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Delete account */}
         <div style={{ ...sectionStyle, background: "#fef2f2", marginTop: 32 }}>
