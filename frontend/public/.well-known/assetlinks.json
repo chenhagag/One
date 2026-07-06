@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "io.joinone.app",
+      "sha256_cert_fingerprints": [
+        "AC:15:2B:91:DA:00:FE:7A:15:40:8C:01:54:4E:6F:10:98:71:F1:EF:9C:49:2C:3D:85:35:AA:9A:4A:74:B1:D0"
+      ]
+    }
+  }
+]
