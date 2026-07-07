@@ -1,0 +1,261 @@
+═══════════════════════════════════════════════════════════════════
+הנחיות לרון — One Project
+═══════════════════════════════════════════════════════════════════
+
+══ חלק 1: Capacitor iOS — מה צריך לעשות ══
+
+Branch לעבודה: capacitor-apple
+(הוא יוצא מ-main, push לבראנץ' הזה לא משפיע על פרודקשן או סטייג'ינג)
+
+--- מה כבר מוכן ---
+
+- Capacitor v8 מותקן (io.joinone.app)
+- Android עובד — פרויקט בנוי, נבדק על אמולטור
+- platform.ts — זיהוי native, API URLs, OAuth redirect
+- OAuth flow — פותח דפדפן מערכת, deep link חוזר לאפליקציה
+- PWA install screens מדולגים על native
+
+--- מה צריך לעשות עבור iOS ---
+
+1. הוספת פלטפורמת iOS:
+   cd frontend
+   npx cap add ios
+   npx cap sync ios
+   npx cap open ios   (פותח Xcode)
+
+2. בדיקה על Simulator (iPhone 15 לדוגמה):
+   - מסך login עולה
+   - כניסה עם Google OAuth עובדת (deep link חוזר לאפליקציה)
+   - כניסה עם OTP (מייל + קוד) עובדת
+   - צ'אט עובד — שליחת הודעה ומקבלים תשובה
+   - תמונות — העלאה ותצוגה
+   - RTL (עברית) — טקסט מיושר ימינה, נראה תקין
+
+3. App Icons — להחליף את ברירת המחדל:
+   - אייקונים נמצאים ב-frontend/public/ (icon-192.png, icon-512.png)
+   - צריך ליצור את כל הגדלים הנדרשים ולהכניס ל-ios/App/App/Assets.xcassets/AppIcon.appiconset/
+
+4. Info.plist — לוודא:
+   - Camera permission (להעלאת תמונות)
+   - NSAppTransportSecurity (HTTPS כבר מוגדר)
+
+5. Associated Domains — עבור deep links:
+   - להוסיף ב-Xcode: Signing & Capabilities → Associated Domains → applinks:joinone.io
+   - apple-app-site-association כבר צריך להיות על השרת (צריך ליצור — ראו הערה למטה)
+
+6. חתימה:
+   - צריך Apple Developer Account ($99/שנה)
+   - ליצור certificates + provisioning profiles
+
+--- apple-app-site-association (AASA) ---
+
+צריך ליצור קובץ בנתיב:
+frontend/public/.well-known/apple-app-site-association
+
+תוכן (בלי סיומת .json):
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "TEAM_ID.io.joinone.app",
+        "paths": ["/auth/callback*"]
+      }
+    ]
+  }
+}
+
+להחליף TEAM_ID ב-Team ID האמיתי מ-Apple Developer Account.
+
+--- אם אין Mac ---
+
+אפשרויות:
+1. MacInCloud (macincloud.com) — שכירת Mac בענן, ~$30/חודש. מגיע עם Xcode.
+2. GitHub Actions עם macOS runner — בנייה אוטומטית, בלי GUI:
+   - matrix: os: macos-latest
+   - מריצים: npm run build → npx cap sync ios → xcodebuild
+   - פחות נוח לדיבוג אבל עובד ל-build
+3. Codemagic (codemagic.io) — CI/CD מתמחה באפליקציות מובייל, חינמי ל-500 דקות/חודש.
+4. מישהו עם Mac — הגישה הכי פשוטה, clone + build + test
+
+שימו לב: אי אפשר לבנות IPA (קובץ ההתקנה של iOS) בלי Mac בכלל.
+Simulator רץ רק על Mac. אין דרך לעקוף את זה.
+
+--- קבצים רלוונטיים ---
+
+frontend/capacitor.config.ts     — הגדרות Capacitor (appId, webDir, plugins)
+frontend/src/lib/platform.ts     — isNativeApp(), getApiBaseUrl(), getOAuthRedirectUrl()
+frontend/src/App.tsx             — deep link listener (appUrlOpen), OAuth callback routing
+frontend/src/AuthScreen.tsx      — Google OAuth via Browser.open() on native
+frontend/android/                — פרויקט Android (לרפרנס)
+
+
+═══════════════════════════════════════════════════════════════════
+══ חלק 2: ארכיטקטורת הצ'אט — איך הכל בנוי ══
+═══════════════════════════════════════════════════════════════════
+
+--- סקירה כללית ---
+
+מערכת צ'אט AI בעברית עם מספר ערוצים עצמאיים. המשתמש מדבר עם AI
+שבונה לו פרופיל אישיות. הבקאנד בונה prompt מותאם לכל הודעה על בסיס
+מצב השיחה, כוונת המשתמש, וסוג הערוץ.
+
+--- Frontend (NewChat.tsx) ---
+
+State משתנים מרכזיים:
+- channelMessages: Record<string, Message[]> — כל ההודעות, לפי ערוץ
+- channel: string — הערוץ הפעיל (ברירת מחדל: "new_chat")
+- screen: "home" | "chat" | "profile_edit" | "insights" | ...
+- closedChannels: Record<string, boolean> — ערוצים שנסגרו (closing_stage >= 3)
+- recommendations: object — נתונים מ-API, מניעים את המסך הראשי
+- sending: boolean — מונע שליחה כפולה
+
+messages (derived):
+  const messages = channelMessages[channel] || [];
+  מה שמוצג הוא תמיד של הערוץ הנוכחי.
+
+sendMessage(text?, channelOverride?) — הפונקציה המרכזית:
+1. ולידציה + מניעת כפילות
+2. הוספה אופטימיסטית של הודעת המשתמש ל-channelMessages
+3. POST ל-/api/new-chat/message עם { user_id, message, channel, history: last20 }
+4. retry עד 2 פעמים (3 שניות בין ניסיונות, timeout 60 שניות)
+5. בהצלחה: הוספת תשובת AI לאותו ערוץ
+6. אם closing_stage >= 3: סימון הערוץ כסגור + רענון recommendations
+
+החלפת ערוצים:
+  setChannel(ch) — או דרך sendMessage עם channelOverride.
+  לחיצה על bubble של ערוץ חדש: אם יש הודעות — מחליף, אם אין — שולח trigger.
+
+טעינת היסטוריה (mount):
+  GET /api/admin/users/:id/full-transcript → מיפוי לפי guide:
+  - new_chat, new_chat_cognitive, new_chat_taste, qa_* → כל אחד לערוץ שלו
+  - psychologist → ממופה ל-new_chat (legacy)
+  - interviewer → ממופה ל-new_chat_cognitive (legacy)
+
+Sidebar:
+  - תמיד נראה בדסקטופ, slide-in במובייל
+  - פריטים: מסך בית, חזרה לשיחה, פרופיל, תובנות, טעם, משוב, הגדרות
+
+המלצות (מסך בית) — סדר עדיפויות:
+  1. שיחה לא התחילה → הצע להתחיל
+  2. שיחה לא הושלמה → הצע להמשיך
+  3. קוגניטיבי לא נעשה → הצע
+  4. טעם לא נעשה → הצע
+  5. הכל נעשה → הודעת תודה
+
+--- Backend — chatManager.ts ---
+
+פונקציה מרכזית: buildChatPrompt(userId, message, gender, lookingForGender, ...)
+מחזירה: { systemPrompt, intent, phase, closingStage }
+
+בכל קריאה נטענים במקביל:
+- getUserSummary(userId) — סיכום מובנה מהשיחה
+- getChannelCounts(userId) — כמה הודעות בקוגניטיבי/טעם
+- getConversationState(userId) — מצב מכונת המצבים
+
+ניתוב לפי ערוץ:
+
+1. new_chat_cognitive:
+   - פרומפט קוגניטיבי מקובץ
+   - סף סגירה: 7 הודעות משתמש
+
+2. qa_* (qa_about_me, qa_system, qa_general, qa_insights):
+   - שיחות Q&A, לעולם לא נסגרות
+   - qa_about_me מקבל הקשר עשיר (ציוני תכונות, סיכום, תובנות)
+
+3. new_chat_taste:
+   - בנק פרופילים נבחר לפי gender + lookingForGender (4 קבצים)
+   - כל 13 הפרופילים מוזרקים לפרומפט
+   - שלבים: שאלות טעם → deal-breakers → הצגת פרופילים → סיכום
+
+4. new_chat (ברירת מחדל — השיחה הראשית):
+   - זיהוי כוונה: detectIntent(message) → "profile" | "system" | "general"
+   - ניתוב:
+     * system/profile → Template C (ענה + "אפשר להמשיך?")
+     * closing_stage >= 3 → Template D (תשובה קצרה, בלי שאלות)
+     * closing_stage = 2 → Template E Final (פרידה)
+     * closing_stage = 1 → Template E Insight (תובנה + שאלת אימות)
+     * אין עוד נושאים → מתחיל סגירה (closing_stage = 1)
+     * turn_in_topic = 0 → Template A (שאלת פתיחה חובה)
+     * turn_in_topic = 1 → Template B (שאלת המשך), מתקדם לנושא הבא
+
+--- 14 Micro-Topics (microTopics.ts) ---
+
+כל נושא כולל: id, שאלת פתיחה (חובה), שאלות המשך, הנחיה.
+שני תורות לכל נושא: פתיחה + המשך.
+
+ # | id                    | על מה
+---|----------------------|------------------------------------------
+ 0 | general              | יום טיפוסי, מה עושה
+ 1 | career_basics        | לימודים, תחום
+ 2 | career_deep          | שביעות רצון, שאיפות
+ 3 | relationship_past    | מערכת יחסים אחרונה
+ 4 | relationship_patterns| סגנון קונפליקט, התקשרות
+ 5 | personality_general  | איך אנשים קרובים מתארים
+ 6 | personality_conflict | איך מתמודד/ת עם קונפליקט
+ 7 | family               | דינמיקה משפחתית
+ 8 | fun_lifestyle        | פנאי, חיי חברה
+ 9 | values_beliefs       | קווים אדומים פוליטיים/חברתיים
+10 | values_openness       | מסורת מול חופש
+11 | culture              | נושא שיכול/ה לדבר עליו שעות
+12 | culture_interests    | "שבט" שהוא/היא חלק ממנו
+13 | social               | חברויות, קרבה
+
+כשנגמרים כל 14 → מתחילה סגירה.
+
+--- ConversationState (שמור ב-DB כ-JSONB) ---
+
+{
+  current_topic_index: number,  // 0-13 (אינדקס בתוך MICRO_TOPICS)
+  turn_in_topic: number,        // 0 = שאלת פתיחה, 1 = המשך
+  closing_stage: number,        // 0=רגיל, 1=תובנה, 2=פרידה, 3=סגור
+  off_topic_turns: number       // תורות רצופים של שאלות מערכת/מטא
+}
+
+--- 6 Prompt Templates (promptTemplates.ts) ---
+
+כולם כוללים SYSTEM_IDENTITY (חוקי מותג: התאמה אחת בלבד, לא להזכיר מתחרים).
+
+Template | מתי                          | מה עושה
+---------|------------------------------|------------------------------------------
+A        | turn_in_topic = 0            | חייב לשאול את שאלת הפתיחה. שאלה אחת בלבד.
+B        | turn_in_topic = 1            | שאלת המשך רק אם התשובה הייתה מעורפלת.
+C        | intent = system/profile      | ענה בקצרה (2-3 משפטים), שאל "אפשר להמשיך?"
+D        | closing_stage >= 3           | השיחה נגמרה. תשובה קצרה, בלי שאלות.
+E Insight| closing_stage = 1            | תובנה של 2-3 משפטים + "דייקתי?"
+E Final  | closing_stage = 2            | פרידה — טקסט קבוע.
+
+--- API Contract ---
+
+POST /api/new-chat/message
+  Request:  { user_id, message, channel, history: [...last20] }
+  Response: { reply, closing_stage }
+
+closing_stage בתשובה → הפרונט משתמש בו כדי לסמן ערוץ כסגור.
+
+--- קבצי פרומפט (נטענים בעלייה) ---
+
+backend/src/agents/conversation/prompts/
+  cognitive-chat.txt          — שאלות סימולציה קוגניטיביות
+  taste-test-chat.txt         — פרומפט מערכת לטעם
+  taste-profiles-female.txt   — 13 פרופילים נשיים
+  taste-profiles-male.txt     — 13 פרופילים גבריים
+  taste-profiles-female-ff.txt — פרופילים נשיים לנשים
+  taste-profiles-male-mm.txt  — פרופילים גבריים לגברים
+  context-profile.txt         — הקשר פרופיל (כשמשתמש שואל על עצמו)
+  context-system-info.txt     — הקשר מערכת (כשמשתמש שואל על המערכת)
+
+--- קבצים מרכזיים ---
+
+Frontend:
+  frontend/src/NewChat.tsx              — כל ה-UI וה-state של הצ'אט
+  frontend/src/App.tsx                  — ניתוב ראשי, auth, view state
+
+Backend:
+  backend/src/index.ts                  — כל ה-API routes (~2200 שורות)
+  backend/src/agents/conversation/chatManager.ts    — ניתוב פרומפטים ו-state
+  backend/src/agents/conversation/promptTemplates.ts — 6 תבניות פרומפט
+  backend/src/agents/conversation/microTopics.ts     — 14 נושאים + ConversationState
+  backend/src/agents/conversation/summarizer.ts      — סיכום מובנה מהשיחה
+  backend/src/agents/conversation/autoAnalysis.ts    — ניתוח אוטומטי (2 ריצות)
+  backend/src/agents/analysis/agent.ts               — סוכן ניתוח אישיות (60+ תכונות)
