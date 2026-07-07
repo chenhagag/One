@@ -1,152 +1,98 @@
-# Matchmaker MVP
+# One — AI-Powered Matchmaking
 
-A minimal full-stack app: user registers, answers one question, OpenAI generates a personality profile, results saved to SQLite.
+One is a matchmaking platform that uses AI conversations to build deep personality profiles, then matches users based on multi-dimensional compatibility scoring. Users chat naturally in Hebrew, the system analyzes 60+ personality traits, and runs a matching algorithm to find compatible partners.
 
----
-
-## Project structure
-
-```
-matchmaker/
-├── backend/
-│   ├── src/
-│   │   ├── index.ts      ← Express server + all routes
-│   │   ├── db.ts         ← SQLite setup + table creation
-│   │   └── openai.ts     ← OpenAI call + types
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── .env.example
-│
-└── frontend/
-    ├── src/
-    │   ├── main.tsx
-    │   ├── App.tsx        ← routing between views
-    │   ├── Register.tsx   ← step 1: name + email
-    │   ├── Chat.tsx       ← step 2: one question
-    │   ├── Result.tsx     ← show profile analysis
-    │   └── AdminView.tsx  ← list all users + profiles
-    ├── index.html
-    ├── vite.config.ts
-    └── package.json
-```
+**Live**: [joinone.io](https://joinone.io)
 
 ---
 
-## Setup (5 minutes)
+## Tech Stack
+
+- **Backend**: Node.js + Express + TypeScript
+- **Frontend**: React 18 + Vite
+- **Database**: PostgreSQL (Railway)
+- **Auth**: Supabase (Google OAuth + OTP)
+- **AI**: OpenAI GPT-4o (conversation + analysis), GPT-4o-mini (summarization)
+- **Mobile**: PWA + Capacitor (Android native)
+- **Deployment**: Railway (auto-deploy from GitHub)
+- **Email**: Resend (OTP, admin notifications)
+
+---
+
+## How It Works
+
+1. User signs up and chats with AI across three channels:
+   - **General conversation** — 14 micro-topics covering career, relationships, values, personality
+   - **Cognitive simulation** — thinking style assessment via scenario questions
+   - **Taste test** — reactions to curated profiles to understand attraction patterns
+
+2. After conversation, the system:
+   - Summarizes structured data from chat (every 8 messages)
+   - Runs personality analysis extracting 60+ traits
+   - Computes cognitive profile scores
+
+3. Admin reviews users, scores visual traits from photos, and enters users into matching pool
+
+4. Matching algorithm runs two stages:
+   - **Stage 1**: Filter by age, gender, location, cognitive compatibility
+   - **Stage 2**: Score using Gaussian similarity across all traits (70% internal + 30% external)
+
+---
+
+## Setup
 
 ### Prerequisites
-- Node.js 18+
-- An OpenAI API key (https://platform.openai.com/api-keys)
+- Node.js 22+
+- PostgreSQL database
+- OpenAI API key
+- Supabase project (for auth)
 
----
-
-### 1. Backend
-
+### Backend
 ```bash
 cd backend
-
-# Install dependencies
+cp .env.example .env   # Add OPENAI_API_KEY, DATABASE_URL, Supabase keys
 npm install
-
-# Set up environment
-cp .env.example .env
-# Edit .env and add your OPENAI_API_KEY
-
-# Run the server (auto-creates matchmaker.db on first run)
-npx ts-node src/index.ts
+npm run dev            # Runs on :3001 (or PORT env)
 ```
 
-Server starts at **http://localhost:3001**
-
-The SQLite database file (`matchmaker.db`) is created automatically in the `backend/` folder on first run. No manual DB setup needed.
-
----
-
-### 2. Frontend
-
-In a new terminal:
-
+### Frontend
 ```bash
 cd frontend
-
-# Install dependencies
 npm install
-
-# Start dev server
-npm run dev
+npm run dev            # Runs on :3000, proxies /api → :3001
 ```
 
-App opens at **http://localhost:3000**
-
-The Vite dev server proxies `/api/*` to the backend, so no CORS issues.
-
----
-
-## How it works
-
-### Flow
-1. User fills in name + email → `POST /api/users`
-2. User answers one question → `POST /api/analyze` → calls OpenAI → saves to DB
-3. Result shown on screen
-4. Admin view (`/admin` link in header) → `GET /api/users` → lists all users + profiles
-
-### API endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | /users | Create user (name, email) |
-| POST | /analyze | Analyze answer (user_id, answer) |
-| GET | /users | List all users with profiles |
-
-### Database schema (SQLite)
-
-```sql
-CREATE TABLE users (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  name       TEXT NOT NULL,
-  email      TEXT NOT NULL UNIQUE,
-  created_at TEXT DEFAULT (datetime('now'))
-);
-
-CREATE TABLE profiles (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id       INTEGER NOT NULL REFERENCES users(id),
-  raw_answer    TEXT NOT NULL,
-  analysis_json TEXT NOT NULL,
-  created_at    TEXT DEFAULT (datetime('now'))
-);
-```
-
-### OpenAI call
-
-`gpt-4o-mini` is used (fast + cheap). The prompt asks for strict JSON output:
-
-```
-{
-  "intelligence_score": 7,
-  "emotional_depth_score": 8,
-  "social_style": "balanced",
-  "relationship_goal": "serious"
-}
+### Production Build
+```bash
+cd frontend && npm run build   # Output in dist/, served by backend
 ```
 
 ---
 
-## Switching to PostgreSQL (optional)
+## Environments
 
-If you want Postgres instead of SQLite:
-
-1. `npm install pg @types/pg` and remove `better-sqlite3`
-2. Replace `db.ts` with a `pg.Pool` connection
-3. Change `RETURNING *` syntax (already compatible) and `datetime('now')` → `NOW()`
-4. Set `DATABASE_URL` in `.env`
-
-For MVP purposes SQLite is simpler and has zero infrastructure requirements.
+| Environment | Branch | Domain |
+|-------------|--------|--------|
+| Production | `main` | joinone.io |
+| Staging | `staging` | Railway auto-generated |
+| Local dev | — | localhost:3000 / :3001 |
 
 ---
 
-## Troubleshooting
+## Key Directories
 
-- **"Could not reach the server"** — make sure the backend is running on port 3001
-- **"Email already registered"** — use a different email or delete `matchmaker.db` to reset
-- **OpenAI errors** — check your API key in `.env` and that you have credits
+```
+backend/src/
+  index.ts                          — Express server + all API routes
+  matchStage1.ts / matchStage2.ts   — Matching algorithm
+  agents/conversation/              — Chat system (chatManager, prompts, summarizer)
+  agents/analysis/                  — Personality trait analysis
+  schema.pg.ts                      — PostgreSQL schema + migrations
+
+frontend/src/
+  App.tsx                           — Main router + auth
+  NewChat.tsx                       — Primary chat UI + sidebar + home screen
+  AdminView.tsx                     — Admin panel
+  AuthScreen.tsx                    — Login (Google OAuth + OTP)
+  lib/platform.ts                   — Native app detection (Capacitor)
+```
