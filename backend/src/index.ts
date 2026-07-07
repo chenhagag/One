@@ -1125,7 +1125,7 @@ app.post("/api/users/:id/reset-data", async (req, res) => {
   const userId = parseInt(req.params.id);
   if (isNaN(userId)) return res.status(400).json({ error: "Invalid user ID" });
 
-  const user = await pgQueryFirst<any>("SELECT id, email, first_name FROM users WHERE id = $1", [userId]);
+  const user = await pgQueryOne<any>("SELECT id, email, first_name FROM users WHERE id = $1", [userId]);
   if (!user) return res.status(404).json({ error: "User not found" });
 
   // Delete conversations, analysis, matches — keep account + profile details + photos
