@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { apiFetch } from "./lib/api";
+import { getApiBaseUrl } from "./lib/platform";
 import type { User } from "./App";
 
 /**
@@ -47,11 +48,11 @@ export default function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch("/api/cities").then(r => r.json()).then(setCities).catch(() => {});
+    fetch(`${getApiBaseUrl()}/api/cities").then(r => r.json()).then(setCities).catch(() => {});
   }, []);
 
   useEffect(() => {
-    fetch("/api/admin/enum-options")
+    fetch(`${getApiBaseUrl()}/api/admin/enum-options")
       .then((r) => r.json())
       .then((data: any[]) => {
         const grouped: Record<string, EnumOption[]> = {};

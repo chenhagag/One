@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { User } from "./App";
+import { getApiBaseUrl } from "./lib/platform";
 
 interface EnumOption { value: string; label_he: string; label_en: string; }
 
@@ -27,7 +28,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
 
   // Couple partner
   const [partnerName, setPartnerName] = useState((user as any).partner_name || "");
-  const isCouple = user.test_user_type === "Couple Tester";
+  const [isCouple, setIsCouple] = useState(user.test_user_type === "Couple Tester");
 
   const [enums, setEnums] = useState<Record<string, EnumOption[]>>({});
   const [cities, setCities] = useState<{ city_name: string; region: string }[]>([]);
@@ -67,16 +68,18 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
         if (u.has_children != null) setHasChildren(!!u.has_children);
         if (u.religion) setReligion(u.religion);
         if (u.smoker != null) setSmoker(!!u.smoker);
+        if (u.partner_name) setPartnerName(u.partner_name);
+        if (u.test_user_type) setIsCouple(u.test_user_type === "Couple Tester");
       })
       .catch(() => {});
   }, [user.id]);
 
   useEffect(() => {
-    fetch("/api/cities").then(r => r.json()).then(setCities).catch(() => {});
+    fetch(`${getApiBaseUrl()}/api/cities").then(r => r.json()).then(setCities).catch(() => {});
   }, []);
 
   useEffect(() => {
-    fetch("/api/admin/enum-options")
+    fetch(`${getApiBaseUrl()}/api/admin/enum-options")
       .then((r) => r.json())
       .then((data: any[]) => {
         const grouped: Record<string, EnumOption[]> = {};
