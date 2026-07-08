@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Signing in...</title></head>
+<body>
+<script>
+  // Extract code from URL and redirect to custom scheme
+  const params = new URLSearchParams(window.location.search);
+  const hash = window.location.hash;
+  const code = params.get('code');
+
+  if (code) {
+    // Redirect to custom scheme — triggers Android intent filter
+    window.location.href = 'io.joinone.app://auth/callback?code=' + encodeURIComponent(code);
+  } else if (hash && hash.includes('access_token')) {
+    window.location.href = 'io.joinone.app://auth/callback' + hash;
+  } else {
+    document.body.textContent = 'Authentication error. Please try again.';
+  }
+</script>
+<p style="text-align:center;margin-top:40px;color:#888">Signing you in...</p>
+</body>
+</html>

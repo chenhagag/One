@@ -190,7 +190,12 @@ export default function App() {
     }
 
     // Check for OAuth callback (Supabase puts tokens in URL hash or code in search params)
-    if (window.location.pathname === "/auth/callback" || window.location.hash.includes("access_token") || window.location.search.includes("code=")) {
+    const hasCode = window.location.search.includes("code=");
+    const hasToken = window.location.hash.includes("access_token");
+    const isCallback = window.location.pathname === "/auth/callback";
+    console.log("[initAuth] URL check:", { href: window.location.href, hasCode, hasToken, isCallback, pathname: window.location.pathname, search: window.location.search });
+    if (isCallback || hasToken || hasCode) {
+      console.log("[initAuth] → auth_callback");
       setView("auth_callback");
       setAutoLoginDone(true);
       return;
@@ -343,8 +348,6 @@ export default function App() {
       setView("profile_setup");
     } else if (!u.consent_accepted) {
       setView("consent");
-    } else if (shouldShowPWAInstall()) {
-      setView("pwa_install");
     } else {
       setView("new_chat");
     }
@@ -366,7 +369,7 @@ export default function App() {
   function handleConsentComplete(u: User) {
     saveSession(u);
     setUser(u);
-    setView(shouldShowPWAInstall() ? "pwa_install" : "new_chat");
+    setView("new_chat");
   }
 
   // ── Don't render until auto-login check completes ──────────────

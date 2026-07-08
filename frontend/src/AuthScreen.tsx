@@ -12,12 +12,15 @@ interface AuthScreenProps {
 export default function AuthScreen({ onOtpSuccess }: AuthScreenProps) {
   const [loading, setLoading] = useState<"google" | "apple" | null>(null);
   const [error, setError] = useState("");
+  // Detect native: Capacitor runs on https://localhost (not http)
+  const isNative = isNativeApp() || (window.location.hostname === "localhost" && window.location.protocol === "https:");
+  console.log("[AuthScreen] isNative:", isNative, "isNativeApp:", isNativeApp(), "hostname:", window.location.hostname, "protocol:", window.location.protocol, "href:", window.location.href);
   const [showLanding, setShowLanding] = useState(() => {
-    if (isNativeApp()) return false;
+    if (isNative) return false;
     return !sessionStorage.getItem("one_seen_landing");
   });
   const [showPWAInstall, setShowPWAInstall] = useState(() => {
-    if (isNativeApp()) return false;
+    if (isNative) return false;
     const seenLanding = sessionStorage.getItem("one_seen_landing");
     const seenPWA = sessionStorage.getItem("one_seen_pwa");
     const mob = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
@@ -257,7 +260,7 @@ export default function AuthScreen({ onOtpSuccess }: AuthScreenProps) {
             onClick={() => {
               sessionStorage.setItem("one_seen_landing", "1");
               setShowLanding(false);
-              if (isMobile && !isStandalone) setShowPWAInstall(true);
+              if (!isNative && isMobile && !isStandalone) setShowPWAInstall(true);
             }}
             style={{
               width: "100%", maxWidth: 320, padding: "14px 24px", fontSize: 16, fontWeight: 600,
