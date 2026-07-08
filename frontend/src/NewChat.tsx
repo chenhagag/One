@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import ProfileEdit from "./ProfileEdit";
 import Insights from "./Insights";
+import MatchCard from "./MatchCard";
 import { trackPage } from "./lib/trackPage";
 import { getApiBaseUrl } from "./lib/platform";
 import type { User } from "./App";
@@ -689,6 +690,14 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               {item.action === "profile_edit" && recommendations.has_profile_details && <span style={styles.completedBadge}>✓</span>}
             </button>
           ))}
+          {/* Match card — demo for now */}
+          <button
+            style={screen === "match_card" ? styles.sidebarItemActive : styles.sidebarItem}
+            onClick={() => { setScreen("match_card"); setMenuOpen(false); }}
+          >
+            <IconImg src="/icons/accurateMatch.png" />
+            <span>ההתאמה שלי</span>
+          </button>
           {/* Couple insights — only for couple testers with insights */}
           {coupleInsights && (
             <button
@@ -731,6 +740,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
              screen === "chat" ? (channel === "new_chat" ? "שיחת היכרות" : channel === "new_chat_cognitive" ? "סגנון חשיבה" : channel === "new_chat_taste" ? "בדיקת טעם" : channel === "qa_about_me" ? "מה למדת עליי" : channel === "qa_system" ? "איך המערכת עובדת" : channel === "qa_general" ? "שאלות ותשובות" : channel === "qa_insights" ? "דיון על התובנות" : "שיחה") :
              screen === "profile_edit" ? "הפרטים שלי" :
              screen === "insights" ? "תובנות על עצמי" :
+             screen === "match_card" ? "ההתאמה שלי" :
              screen === "couple_insights" ? "כרטיס התאמה" :
              screen === "how_it_works" ? "איך המערכת עובדת?" :
              screen === "bug_report" ? "עזרו לנו להשתפר" :
@@ -856,6 +866,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               </div>
             </div>
           </div>
+        )}
+
+        {screen === "match_card" && (
+          <MatchCard user={user} onBack={() => setScreen("home")} />
         )}
 
         {screen === "couple_insights" && coupleInsights && (
