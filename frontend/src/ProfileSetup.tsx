@@ -171,7 +171,7 @@ export default function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
       <form onSubmit={handleSubmit} dir="rtl">
         {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <img src="/roundLogo.png" alt="" style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", marginBottom: 12 }} />
+          <img src="/iconOnly.png" alt="" style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", marginBottom: 12 }} />
           <h2 style={{ marginTop: 0, marginBottom: 6, fontSize: 22, fontWeight: 700, color: "#1a1a2e" }}>נתוני פתיחה</h2>
           <p style={{ color: "#888", marginBottom: 0, marginTop: 0, fontSize: 14 }}>
             כמה פרטים טכניים, כדי שהמערכת תדע לכוון לאנשים הרלוונטיים עבורך.

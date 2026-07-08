@@ -640,7 +640,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
       {/* Sidebar */}
       <div className={`nc-sidebar${menuOpen ? " open" : ""}`} style={styles.sidebar}>
         <div style={styles.logo}>
-          <img src="/roundLogo.png" alt="" style={styles.logoIcon} />
+          <img src="/iconOnly.png" alt="" style={styles.logoIcon} />
           <span style={styles.logoText}>One</span>
         </div>
 
@@ -922,7 +922,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 const allChatsCompleted = closedChannels["new_chat"] && recommendations.has_cognitive && recommendations.has_taste_info;
                 return (
                   <div style={styles.welcomeBlock}>
-                    <img src="/roundLogo.png" alt="" style={styles.welcomeIcon} />
+                    <img src="/iconOnly.png" alt="" style={styles.welcomeIcon} />
                     <h2 style={styles.welcomeTitle}>ברוכים הבאים ל-One</h2>
                     <p style={styles.welcomeText}>
                       העוזר האישי שלך למציאת התאמה מדויקת ומשמעותית.
@@ -945,7 +945,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 <>
                   {messages.map((msg, i) => (
                     <div key={i} style={msg.role === "user" ? styles.userMsgRow : styles.assistantMsgRow}>
-                      {msg.role === "assistant" && <img src="/roundLogo.png" alt="" style={styles.assistantIcon} />}
+                      {msg.role === "assistant" && <img src="/iconOnly.png" alt="" style={styles.assistantIcon} />}
                       <div style={msg.role === "user" ? styles.userBubble : styles.assistantBubble}>
                         {msg.content}
                       </div>
@@ -954,7 +954,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
                   {sending && (
                     <div style={styles.assistantMsgRow}>
-                      <img src="/roundLogo.png" alt="" style={styles.assistantIcon} />
+                      <img src="/iconOnly.png" alt="" style={styles.assistantIcon} />
                       <div style={{ ...styles.assistantBubble, display: "flex", alignItems: "center", gap: 4, padding: "14px 20px" }}>
                         <span className="nc-typing-dot" style={{ ...styles.typingDot, animationDelay: "0s" }} />
                         <span className="nc-typing-dot" style={{ ...styles.typingDot, animationDelay: "0.2s" }} />
