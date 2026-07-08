@@ -75,11 +75,11 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
   }, [user.id]);
 
   useEffect(() => {
-    fetch(`${getApiBaseUrl()}/api/cities").then(r => r.json()).then(setCities).catch(() => {});
+    fetch(`${getApiBaseUrl()}/api/cities`).then(r => r.json()).then(setCities).catch(() => {});
   }, []);
 
   useEffect(() => {
-    fetch(`${getApiBaseUrl()}/api/admin/enum-options")
+    fetch(`${getApiBaseUrl()}/api/admin/enum-options`)
       .then((r) => r.json())
       .then((data: any[]) => {
         const grouped: Record<string, EnumOption[]> = {};

@@ -527,7 +527,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 60000);
 
-        const r = await fetch(`${getApiBaseUrl()}/api/new-chat/message", {
+        const r = await fetch(`${getApiBaseUrl()}/api/new-chat/message`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -839,7 +839,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   onClick={async () => {
                     if (!bugText.trim() || !feedbackCategory) return;
                     try {
-                      await fetch(`${getApiBaseUrl()}/api/report-bug", {
+                      await fetch(`${getApiBaseUrl()}/api/report-bug`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ user_id: user.id, report_text: `[${feedbackCategory}] ${bugText.trim()}` }),
@@ -1001,7 +1001,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                         {["כן אין בעיה", "אפשרי", "לא"].map(opt => (
                           <button key={opt} onClick={async () => {
                             const q = systemQuestion;
-                            await fetch(`${getApiBaseUrl()}/api/system-question/answer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question_id: q.id, answer: opt }) });
+                            await fetch(`${getApiBaseUrl()}/api/system-question/answer`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question_id: q.id, answer: opt }) });
                             setSystemQuestion(null);
                             setAnsweredQuestion({ question_text: q.question_text, answer: opt });
                           }} style={{ padding: "8px 20px", borderRadius: 20, border: "none", background: "#8b7ba8", color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
