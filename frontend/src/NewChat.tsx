@@ -690,8 +690,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               {item.action === "profile_edit" && recommendations.has_profile_details && <span style={styles.completedBadge}>✓</span>}
             </button>
           ))}
-          {/* Admin shortcut — staging only, chen only */}
-          {user.email === "chen.hagag@gmail.com" && !window.location.hostname.includes("joinone.io") && window.location.hostname !== "localhost" && (
+          {/* Admin shortcut — chen only, via admin hash, not on joinone.io */}
+          {user.email === "chen.hagag@gmail.com" && !window.location.hostname.includes("joinone.io") && (
             <button
               style={styles.sidebarItem}
               onClick={() => { onNavigate?.("admin"); setMenuOpen(false); }}
