@@ -700,14 +700,16 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               <span>תצוגת אדמין</span>
             </button>
           )}
-          {/* Match card — demo for now */}
-          <button
-            style={screen === "match_card" ? styles.sidebarItemActive : styles.sidebarItem}
-            onClick={() => { setScreen("match_card"); setMenuOpen(false); }}
-          >
-            <IconImg src="/icons/accurateMatch.png" />
-            <span>ההתאמה שלי</span>
-          </button>
+          {/* Match card — only for matched users (#130 Gal, #133 Eden) */}
+          {(user.id === 130 || user.id === 133) && (
+            <button
+              style={screen === "match_card" ? styles.sidebarItemActive : styles.sidebarItem}
+              onClick={() => { setScreen("match_card"); setMenuOpen(false); }}
+            >
+              <IconImg src="/icons/accurateMatch.png" />
+              <span>כרטיס התאמה</span>
+            </button>
+          )}
           {/* Couple insights — only for couple testers with insights */}
           {coupleInsights && (
             <button
@@ -715,7 +717,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               onClick={() => { setScreen("couple_insights"); setMenuOpen(false); }}
             >
               <IconImg src="/icons/Improve.png" />
-              <span>כרטיס התאמה</span>
+              <span>ניתוח זוגיות</span>
             </button>
           )}
         </div>
@@ -750,8 +752,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
              screen === "chat" ? (channel === "new_chat" ? "שיחת היכרות" : channel === "new_chat_cognitive" ? "סגנון חשיבה" : channel === "new_chat_taste" ? "בדיקת טעם" : channel === "qa_about_me" ? "מה למדת עליי" : channel === "qa_system" ? "איך המערכת עובדת" : channel === "qa_general" ? "שאלות ותשובות" : channel === "qa_insights" ? "דיון על התובנות" : "שיחה") :
              screen === "profile_edit" ? "הפרטים שלי" :
              screen === "insights" ? "תובנות על עצמי" :
-             screen === "match_card" ? "ההתאמה שלי" :
-             screen === "couple_insights" ? "כרטיס התאמה" :
+             screen === "match_card" ? "כרטיס התאמה" :
+             screen === "couple_insights" ? "ניתוח זוגיות" :
              screen === "how_it_works" ? "איך המערכת עובדת?" :
              screen === "bug_report" ? "עזרו לנו להשתפר" :
              screen === "settings" ? "הגדרות" :
@@ -885,7 +887,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         {screen === "couple_insights" && coupleInsights && (
           <div className="nc-screen-fade" key="couple_insights" style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
             <div className="nc-sub-screen" style={{ maxWidth: 600, margin: "0 auto", padding: "32px 24px" }}>
-              <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}><IconImg src="/icons/accurateMatch.png" size={24} /> כרטיס התאמה</h2>
+              <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}><IconImg src="/icons/accurateMatch.png" size={24} /> ניתוח זוגיות</h2>
               <p style={{ fontSize: 13, color: "#888", marginBottom: 20 }}>סיכום ותובנות על הזוגיות שלכם</p>
               <div style={{ fontSize: 15, lineHeight: 1.8, color: "#333", whiteSpace: "pre-wrap" }}>
                 {coupleInsights}
