@@ -3,20 +3,31 @@
 <head><meta charset="UTF-8"><title>Signing in...</title></head>
 <body>
 <script>
-  // Extract code from URL and redirect to custom scheme
-  const params = new URLSearchParams(window.location.search);
-  const hash = window.location.hash;
-  const code = params.get('code');
+  // Extract code from URL
+  var params = new URLSearchParams(window.location.search);
+  var code = params.get('code');
+  var hash = window.location.hash;
 
+  // Try multiple methods to get back to the app
+
+  // Method 1: Intent URL (works in Chrome on Android)
   if (code) {
-    // Redirect to custom scheme — triggers Android intent filter
-    window.location.href = 'io.joinone.app://auth/callback?code=' + encodeURIComponent(code);
+    var intentUrl = 'intent://auth/callback?code=' + encodeURIComponent(code) +
+      '#Intent;scheme=io.joinone.app;package=io.joinone.app;end';
+    window.location.href = intentUrl;
   } else if (hash && hash.includes('access_token')) {
-    window.location.href = 'io.joinone.app://auth/callback' + hash;
-  } else {
-    document.body.textContent = 'Authentication error. Please try again.';
+    var intentUrl = 'intent://auth/callback' + hash +
+      '#Intent;scheme=io.joinone.app;package=io.joinone.app;end';
+    window.location.href = intentUrl;
   }
+
+  // Method 2: Fallback - try custom scheme after short delay
+  setTimeout(function() {
+    if (code) {
+      window.location.href = 'io.joinone.app://auth/callback?code=' + encodeURIComponent(code);
+    }
+  }, 500);
 </script>
-<p style="text-align:center;margin-top:40px;color:#888">Signing you in...</p>
+<p style="text-align:center;margin-top:40px;color:#888;font-family:sans-serif">מתחבר...</p>
 </body>
 </html>
