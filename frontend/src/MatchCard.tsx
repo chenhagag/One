@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 interface MatchCardProps {
   user: { id: number; first_name: string; gender?: string };
   onBack: () => void;
@@ -7,24 +5,13 @@ interface MatchCardProps {
 
 // Demo match card — Gaya (#130) & Ofir (#133)
 const MATCH = {
-  person1: {
-    name: "גאיה",
-    photo: "/demo/gaya.png",
-    intro: `גאיה היא אישה עם עומק שקט. היא מלמדת עברית באולפן, מפקחת דידקטית, ובזמנה החופשי מייעצת לסטארטאפ בתחום ה-EdTech. יש לה תואר בפסיכולוגיה, סקרנות טבעית לאנשים ולמה שמניע אותם, ויכולת נדירה להקשיב ולקרוא בין השורות.
+  person1: { name: "גאיה", photo: "/demo/gaya.png" },
+  person2: { name: "אופיר", photo: "/demo/ofir.png" },
+  introSummary: `גאיה מלמדת עברית באולפן ומייעצת בתחום ה-EdTech. תואר בפסיכולוגיה, אוהבת שפות, שיחות עומק ומסעדות טובות.
 
-חבריה מתארים אותה כמכילה, סבלנית ואינטליגנטית רגשית. היא לא מהאנשים שתופסים את הזרקור — אבל מי שמכיר אותה לעומק יודע שמדובר באישה עם ראש חד, ערכים ברורים, ותפיסת עולם בוגרת.
+אופיר מפתח פלטפורמה חינוכית שמשלבת AI בהוראה. תואר בפסיכולוגיה ופילוסופיה, סקרן כרוני שלומד דברים חדשים מתוך עניין טהור.
 
-גאיה אוהבת מסעדות טובות, שיחות ארוכות, טיולים עירוניים ומשחקי קופסה. היא מאמינה שהחיים קצרים ושצריך להפיק מהם את המיטב — בלי להתפשר על כנות ועל מה שבאמת חשוב.`,
-  },
-  person2: {
-    name: "אופיר",
-    photo: "/demo/ofir.png",
-    intro: `אופיר הוא יזם שקט עם ראש פילוסופי. הוא מפתח פלטפורמה חינוכית שמשלבת הוראה אנושית עם AI — חזון שנובע מאמונה אמיתית שטכנולוגיה צריכה לשרת אנשים, לא להחליף אותם. הוא בעל תואר בפסיכולוגיה ופילוסופיה, ומתעניין בכמעט הכל — מתוך סקרנות טהורה, בלי צורך פרקטי.
-
-חבריו מתארים אותו כ"טעם נרכש" — בנאדם שלא תמיד מבינים מיד, אבל ככל שמכירים אותו יותר, מגלים עומק, הומור וישירות מרגיעה. הוא מעדיף מעגל חברתי קטן ועמוק על פני הרבה מכרים.
-
-אופיר אוהב מסעדות עם מנות מעניינות, שיחות שנמשכות עד מאוחר, וללמוד דברים חדשים בלי סיבה. יש לו קומפס מוסרי ברור ויכולת נדירה לדבר על דברים ברגיעה — גם כשהם מורכבים.`,
-  },
+שניהם חולקים עולם מקצועי דומה, ערכים ברורים ויכולת נדירה לשיחה שנוגעת באמת — בלי מאמץ ובלי פילטרים.`,
   connectionPoints: [
     {
       title: "שפה משותפת שלא צריך לתרגם",
@@ -32,7 +19,7 @@ const MATCH = {
     },
     {
       title: "ערכים שמסתנכרנים",
-      text: "שניכם חילונים עם עמדה ברורה, מאמינים בחופש בחירה ובפתיחות מחשבתית, ומתנגדים לדוגמות. שניכם גם מעדיפים חיים של איכות — מסעדות, תרבות, שיחות עמוקות — על פני הרדיפה אחרי \"עוד\". הערכים האלה הם הבסיס שעליו נבנית זוגיות יציבה לאורך זמן.",
+      text: "שניכם חילונים עם עמדה ברורה, מאמינים בחופש בחירה ובפתיחות מחשבתית, ומתנגדים לדוגמות. שניכם מעדיפים חיים של איכות — מסעדות, תרבות, שיחות עמוקות — על פני הרדיפה אחרי \"עוד\". הערכים האלה הם הבסיס שעליו נבנית זוגיות יציבה לאורך זמן.",
     },
     {
       title: "דינמיקה שמשלימה",
@@ -45,19 +32,17 @@ const MATCH = {
   ],
   dateIdea: "נסו מסעדה שאף אחד מכם לא הכיר — משהו עם מנות יצירתיות ואווירה שמזמינה שיחה. אתם שניכם אנשים שנפתחים בסביבה הנכונה, וארוחה טובה עם אוכל מעניין זה בדיוק הבסיס לשיחה ראשונה שתזרום בטבעיות.",
   caveat: "נקודה אחת שכדאי לשים לב אליה: לאופיר חשוב מרחב אישי ועצמאות, ולגאיה חשובים חיבור רגשי ונוכחות. זה לא סתירה — זה דווקא הזדמנות. כשמדברים על זה בגלוי ומוקדם, זה הופך מנקודת שאלה לנקודת חוזק.",
+  closing: "אנחנו מאמינים בהתאמה הזו כי מצאנו חיבור שהוא לא רק \"על הנייר\" — אלא דפוס עמוק של ערכים משותפים, סגנון תקשורת תואם, ודינמיקה שמאפשרת לשניכם לגדול יחד בלי לוותר על מי שאתם. זה לא קורה בכל יום.",
 };
 
 export default function MatchCard({ user, onBack }: MatchCardProps) {
-  const [expandedSection, setExpandedSection] = useState<number | null>(null);
-
   return (
     <div style={{ flex: 1, overflowY: "auto", direction: "rtl", background: "#f9fafb" }}>
       <div style={{ maxWidth: 520, margin: "0 auto", padding: "24px 20px" }}>
 
         {/* Header — photos with connection */}
-        <div style={{ textAlign: "center", marginBottom: 28, paddingTop: 8 }}>
+        <div style={{ textAlign: "center", marginBottom: 24, paddingTop: 8 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0, marginBottom: 16 }}>
-            {/* Person 1 photo */}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
               <div style={{
                 width: 88, height: 88, borderRadius: "50%", overflow: "hidden",
@@ -68,7 +53,6 @@ export default function MatchCard({ user, onBack }: MatchCardProps) {
               <span style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e" }}>{MATCH.person1.name}</span>
             </div>
 
-            {/* Connection symbol */}
             <div style={{
               width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center",
               margin: "0 -6px", marginBottom: 20, position: "relative", zIndex: 1,
@@ -85,7 +69,6 @@ export default function MatchCard({ user, onBack }: MatchCardProps) {
               </div>
             </div>
 
-            {/* Person 2 photo */}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
               <div style={{
                 width: 88, height: 88, borderRadius: "50%", overflow: "hidden",
@@ -96,41 +79,24 @@ export default function MatchCard({ user, onBack }: MatchCardProps) {
               <span style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e" }}>{MATCH.person2.name}</span>
             </div>
           </div>
-
-          <p style={{ fontSize: 13, color: "#888", margin: 0, lineHeight: 1.6 }}>
-            כרטיס התאמה אישי — הופק על ידי One
-          </p>
         </div>
 
-        {/* Person 1 intro */}
+        {/* Intro — combined */}
         <div style={{
           background: "#fff", borderRadius: 14, padding: "20px 22px",
           border: "1px solid #e5e7eb", marginBottom: 14,
           boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
         }}>
-          <h3 style={{ fontSize: 15, fontWeight: 600, color: "#6366f1", margin: "0 0 12px" }}>
-            {MATCH.person1.name}
+          <h3 style={{ fontSize: 16, fontWeight: 600, color: "#1a1a2e", margin: "0 0 6px" }}>
+            {MATCH.person1.name} ו{MATCH.person2.name}, הכירו אחד את השנייה
           </h3>
+          <p style={{ fontSize: 13, color: "#888", margin: "0 0 14px" }}>כרטיס התאמה אישי מ-One</p>
           <p style={{ fontSize: 13.5, color: "#444", lineHeight: 1.85, margin: 0, whiteSpace: "pre-wrap" }}>
-            {MATCH.person1.intro}
+            {MATCH.introSummary}
           </p>
         </div>
 
-        {/* Person 2 intro */}
-        <div style={{
-          background: "#fff", borderRadius: 14, padding: "20px 22px",
-          border: "1px solid #e5e7eb", marginBottom: 14,
-          boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
-        }}>
-          <h3 style={{ fontSize: 15, fontWeight: 600, color: "#6366f1", margin: "0 0 12px" }}>
-            {MATCH.person2.name}
-          </h3>
-          <p style={{ fontSize: 13.5, color: "#444", lineHeight: 1.85, margin: 0, whiteSpace: "pre-wrap" }}>
-            {MATCH.person2.intro}
-          </p>
-        </div>
-
-        {/* Connection points */}
+        {/* Connection points — all open */}
         <div style={{
           background: "#fff", borderRadius: 14, padding: "20px 22px",
           border: "1px solid #e5e7eb", marginBottom: 14,
@@ -139,33 +105,21 @@ export default function MatchCard({ user, onBack }: MatchCardProps) {
           <h3 style={{ fontSize: 15, fontWeight: 600, color: "#1a1a2e", margin: "0 0 14px" }}>
             מה מחבר ביניכם
           </h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {MATCH.connectionPoints.map((point, i) => (
-              <div
-                key={i}
-                style={{
-                  background: "#f8f7ff", borderRadius: 10, padding: "14px 16px",
-                  cursor: "pointer", transition: "all 0.2s",
-                }}
-                onClick={() => setExpandedSection(expandedSection === i ? null : i)}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{
-                      width: 22, height: 22, borderRadius: "50%",
-                      background: "#6366f1", color: "#fff",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 11, fontWeight: 700, flexShrink: 0,
-                    }}>{i + 1}</span>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: "#2a2a3e" }}>{point.title}</span>
-                  </div>
-                  <span style={{ fontSize: 11, color: "#bbb", transition: "transform 0.2s", transform: expandedSection === i ? "rotate(180deg)" : "rotate(0)" }}>▼</span>
+              <div key={i}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                  <span style={{
+                    width: 22, height: 22, borderRadius: "50%",
+                    background: "#6366f1", color: "#fff",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 11, fontWeight: 700, flexShrink: 0,
+                  }}>{i + 1}</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "#2a2a3e" }}>{point.title}</span>
                 </div>
-                {expandedSection === i && (
-                  <p style={{ fontSize: 13, color: "#555", lineHeight: 1.75, margin: "10px 0 0 32px" }}>
-                    {point.text}
-                  </p>
-                )}
+                <p style={{ fontSize: 13, color: "#555", lineHeight: 1.75, margin: "0 0 0 32px" }}>
+                  {point.text}
+                </p>
               </div>
             ))}
           </div>
@@ -199,8 +153,35 @@ export default function MatchCard({ user, onBack }: MatchCardProps) {
           </p>
         </div>
 
+        {/* Closing + good luck */}
+        <div style={{
+          background: "#f0eef8", borderRadius: 14, padding: "20px 22px",
+          border: "1px solid #e0ddf5", marginBottom: 14,
+          boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+        }}>
+          <p style={{ fontSize: 13.5, color: "#3a3660", lineHeight: 1.8, margin: "0 0 12px", whiteSpace: "pre-wrap" }}>
+            {MATCH.closing}
+          </p>
+          <p style={{ fontSize: 15, fontWeight: 600, color: "#6366f1", margin: 0, textAlign: "center" }}>
+            בהצלחה!
+          </p>
+        </div>
+
+        {/* Start conversation button */}
+        <button
+          style={{
+            width: "100%", padding: "14px 24px", fontSize: 16, fontWeight: 600,
+            background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+            color: "#fff", border: "none", borderRadius: 14,
+            cursor: "pointer", fontFamily: "inherit", marginBottom: 16,
+            boxShadow: "0 4px 14px rgba(99,102,241,0.35)",
+          }}
+        >
+          התחילו שיחה
+        </button>
+
         {/* Footer */}
-        <div style={{ textAlign: "center", padding: "8px 0 24px" }}>
+        <div style={{ textAlign: "center", padding: "4px 0 24px" }}>
           <p style={{ fontSize: 11, color: "#bbb", lineHeight: 1.6, margin: 0 }}>
             הכרטיס הופק על ידי One על בסיס ניתוח אישיות מעמיק.
             <br />המידע המוצג הוא כללי ואינו כולל פרטים רגישים.
