@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 interface MatchCardProps {
   user: { id: number; first_name: string; gender?: string };
   onBack: () => void;
@@ -36,6 +38,7 @@ const MATCH = {
 };
 
 export default function MatchCard({ user, onBack }: MatchCardProps) {
+  const [expandedSection, setExpandedSection] = useState<number | null>(null);
   return (
     <div style={{ flex: 1, overflowY: "auto", direction: "rtl", background: "#f9fafb" }}>
       <div style={{ maxWidth: 520, margin: "0 auto", padding: "24px 20px" }}>
@@ -105,21 +108,33 @@ export default function MatchCard({ user, onBack }: MatchCardProps) {
           <h3 style={{ fontSize: 15, fontWeight: 600, color: "#1a1a2e", margin: "0 0 14px" }}>
             מה מחבר ביניכם
           </h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {MATCH.connectionPoints.map((point, i) => (
-              <div key={i}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-                  <span style={{
-                    width: 22, height: 22, borderRadius: "50%",
-                    background: "#6366f1", color: "#fff",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 11, fontWeight: 700, flexShrink: 0,
-                  }}>{i + 1}</span>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: "#2a2a3e" }}>{point.title}</span>
+              <div
+                key={i}
+                style={{
+                  background: "#f8f7ff", borderRadius: 10, padding: "14px 16px",
+                  cursor: "pointer", transition: "all 0.2s",
+                }}
+                onClick={() => setExpandedSection(expandedSection === i ? null : i)}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{
+                      width: 22, height: 22, borderRadius: "50%",
+                      background: "#6366f1", color: "#fff",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 11, fontWeight: 700, flexShrink: 0,
+                    }}>{i + 1}</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "#2a2a3e" }}>{point.title}</span>
+                  </div>
+                  <span style={{ fontSize: 11, color: "#bbb", transition: "transform 0.2s", transform: expandedSection === i ? "rotate(180deg)" : "rotate(0)" }}>▼</span>
                 </div>
-                <p style={{ fontSize: 13, color: "#555", lineHeight: 1.75, margin: "0 0 0 32px" }}>
-                  {point.text}
-                </p>
+                {expandedSection === i && (
+                  <p style={{ fontSize: 13, color: "#555", lineHeight: 1.75, margin: "10px 0 0 32px" }}>
+                    {point.text}
+                  </p>
+                )}
               </div>
             ))}
           </div>
