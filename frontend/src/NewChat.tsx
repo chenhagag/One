@@ -690,6 +690,16 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               {item.action === "profile_edit" && recommendations.has_profile_details && <span style={styles.completedBadge}>✓</span>}
             </button>
           ))}
+          {/* Admin shortcut — staging only, chen only */}
+          {user.email === "chen.hagag@gmail.com" && !window.location.hostname.includes("joinone.io") && window.location.hostname !== "localhost" && (
+            <button
+              style={styles.sidebarItem}
+              onClick={() => { onNavigate?.("admin"); setMenuOpen(false); }}
+            >
+              <span style={{ fontSize: 18, width: 22, textAlign: "center" }}>⚙️</span>
+              <span>תצוגת אדמין</span>
+            </button>
+          )}
           {/* Match card — demo for now */}
           <button
             style={screen === "match_card" ? styles.sidebarItemActive : styles.sidebarItem}
