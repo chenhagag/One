@@ -528,20 +528,15 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
             </div>
           )}
 
-          {strongValues.length > 0 && (
+          {profile?.attachment?.dominant && (
             <div style={s.card}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0 }}>💎 ערכים מרכזיים</h3>
-                <button style={s.expandBtn} onClick={() => setDetailView("values")}>הרחבה →</button>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0 }}>🔗 סגנון התקשרות</h3>
+                <button style={s.expandBtn} onClick={() => setDetailView("attachment")}>הרחבה →</button>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
-                {strongValues.slice(0, 3).map(v => (
-                  <div key={v.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 14, fontWeight: 500, color: "#1a1a2e" }}>{v.he}</span>
-                    <span style={s.scoreBadge}>{v.score}</span>
-                  </div>
-                ))}
-                {strongValues.length > 3 && <p style={{ fontSize: 12, color: "#94a3b8", margin: 0 }}>ועוד {strongValues.length - 3} ערכים...</p>}
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: "#6366f1" }}>{profile.attachment.dominantHe}</div>
+                {profile.attachment.description && <p style={{ fontSize: 13, color: "#555", lineHeight: 1.5, margin: "6px 0 0" }}>{profile.attachment.description}</p>}
               </div>
             </div>
           )}
@@ -566,6 +561,24 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
             </div>
           )}
 
+          {strongValues.length > 0 && (
+            <div style={s.card}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0 }}>💎 ערכים מרכזיים</h3>
+                <button style={s.expandBtn} onClick={() => setDetailView("values")}>הרחבה →</button>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+                {strongValues.slice(0, 3).map(v => (
+                  <div key={v.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 14, fontWeight: 500, color: "#1a1a2e" }}>{v.he}</span>
+                    <span style={s.scoreBadge}>{v.score}</span>
+                  </div>
+                ))}
+                {strongValues.length > 3 && <p style={{ fontSize: 12, color: "#94a3b8", margin: 0 }}>ועוד {strongValues.length - 3} ערכים...</p>}
+              </div>
+            </div>
+          )}
+
           {profile?.enneagram?.primaryType && (
             <div style={s.card}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -576,19 +589,6 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
                 <div style={{ fontSize: 28, fontWeight: 800, color: "#6366f1" }}>{profile.enneagram.typeLabel}</div>
                 <div style={{ fontSize: 15, fontWeight: 500, color: "#555", marginTop: 4 }}>{profile.enneagram.primaryName}</div>
                 {profile.enneagram.description && <p style={{ fontSize: 13, color: "#777", lineHeight: 1.5, margin: "6px 0 0" }}>{profile.enneagram.description}</p>}
-              </div>
-            </div>
-          )}
-
-          {profile?.attachment?.dominant && (
-            <div style={s.card}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0 }}>🔗 סגנון התקשרות</h3>
-                <button style={s.expandBtn} onClick={() => setDetailView("attachment")}>הרחבה →</button>
-              </div>
-              <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 15, fontWeight: 600, color: "#6366f1" }}>{profile.attachment.dominantHe}</div>
-                {profile.attachment.description && <p style={{ fontSize: 13, color: "#555", lineHeight: 1.5, margin: "6px 0 0" }}>{profile.attachment.description}</p>}
               </div>
             </div>
           )}
