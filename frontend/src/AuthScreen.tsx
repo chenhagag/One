@@ -53,6 +53,14 @@ export default function AuthScreen({ onOtpSuccess }: AuthScreenProps) {
       if (oauthError) { setError(`Sign-in failed: ${oauthError.message}`); setLoading(null); return; }
       if (data?.url) {
         if (isNativeApp()) {
+          // Save PKCE code verifier before opening browser (Capacitor may lose it)
+          const keys = Object.keys(localStorage);
+          const verifierKey = keys.find(k => k.includes("code-verifier"));
+          if (verifierKey) {
+            localStorage.setItem("__cap_code_verifier_key", verifierKey);
+            localStorage.setItem("__cap_code_verifier_val", localStorage.getItem(verifierKey) || "");
+            console.log("[OAuth] Saved code verifier:", verifierKey);
+          }
           await Browser.open({ url: data.url });
           setLoading(null);
         } else {
@@ -215,7 +223,7 @@ export default function AuthScreen({ onOtpSuccess }: AuthScreenProps) {
           maxWidth: 480, width: "100%", direction: "rtl",
         }}>
           <img src="/nameLogoTrans.png" alt="One" style={{ height: 36, objectFit: "contain", marginBottom: 12 }} />
-          <p style={{ fontSize: 15, color: "#555", textAlign: "center", margin: "0 0 32px" }}>Meet as you are</p>
+          <p style={{ fontSize: 15, color: "#555", textAlign: "center", margin: "0 0 32px" }}>Meet, as you are.</p>
 
           <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", margin: "0 0 20px", textAlign: "center" }}>
             ברוכים הבאים ל-One
@@ -377,7 +385,7 @@ export default function AuthScreen({ onOtpSuccess }: AuthScreenProps) {
         <div className="mb-10 text-center">
           <img src="/nameLogoTrans.png" alt="One" style={{ height: 28, objectFit: "contain", margin: "0 auto 8px" }} />
           <div className="flex items-center justify-center gap-1.5">
-            <p className="text-base text-gray-400" style={{ margin: 0 }}>Meet as you are</p>
+            <p className="text-base text-gray-400" style={{ margin: 0 }}>Meet, as you are.</p>
           </div>
         </div>
 
@@ -446,7 +454,7 @@ export default function AuthScreen({ onOtpSuccess }: AuthScreenProps) {
         <div className="mb-2 flex items-center justify-center gap-2">
           <img src="/nameLogoTrans.png" alt="One" style={{ height: 32, objectFit: "contain" }} />
         </div>
-        <p className="text-base text-gray-400">Meet as you are</p>
+        <p className="text-base text-gray-400">Meet, as you are.</p>
       </div>
 
       {isInAppBrowser ? (

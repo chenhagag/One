@@ -14,6 +14,12 @@ const config: CapacitorConfig = {
       androidSplashResourceName: 'splash',
       showSpinner: false,
     },
+    StatusBar: {
+      overlaysWebView: false,
+    },
+    CapacitorHttp: {
+      enabled: false,
+    },
   },
 };
 

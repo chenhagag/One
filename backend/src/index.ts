@@ -173,7 +173,7 @@ app.post("/auth/magic-link", async (req, res) => {
 // ════════════════════════════════════════════════════════════════
 
 app.post("/auth/exchange-code", async (req, res) => {
-  const { code } = req.body;
+  const { code, codeVerifier } = req.body;
   if (!code) return res.status(400).json({ error: "code is required" });
 
   const supabaseUrl = process.env.SUPABASE_URL;
@@ -184,7 +184,7 @@ app.post("/auth/exchange-code", async (req, res) => {
   }
 
   try {
-    // Exchange the PKCE code for a session via Supabase's token endpoint
+    // Try PKCE exchange first (works when verifier is available)
     const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=pkce`, {
       method: "POST",
       headers: {
@@ -194,23 +194,43 @@ app.post("/auth/exchange-code", async (req, res) => {
       },
       body: JSON.stringify({
         auth_code: code,
-        code_verifier: req.body.codeVerifier || "",
+        code_verifier: codeVerifier || "",
       }),
     });
 
     const data = await response.json().catch(() => ({}));
 
-    if (!response.ok) {
-      console.error("[exchange-code] Supabase error:", response.status, data);
-      return res.status(response.status).json({
-        error: data.error_description || data.msg || data.error || "Code exchange failed",
+    if (response.ok && data.access_token) {
+      return res.json({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
       });
     }
 
-    // Return the session tokens to the frontend
-    return res.json({
-      access_token: data.access_token,
-      refresh_token: data.refresh_token,
+    // PKCE failed (no verifier) — try authorization_code grant
+    console.log("[exchange-code] PKCE failed, trying authorization_code grant...");
+    const response2 = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=authorization_code`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+      },
+      body: JSON.stringify({ auth_code: code }),
+    });
+
+    const data2 = await response2.json().catch(() => ({}));
+
+    if (response2.ok && data2.access_token) {
+      return res.json({
+        access_token: data2.access_token,
+        refresh_token: data2.refresh_token,
+      });
+    }
+
+    console.error("[exchange-code] Both exchanges failed:", data, data2);
+    return res.status(400).json({
+      error: data2.error_description || data2.msg || data.error_description || "Code exchange failed",
     });
   } catch (err: any) {
     console.error("[exchange-code] Error:", err.message);
@@ -508,6 +528,7 @@ app.patch("/users/:id", async (req, res) => {
     desired_height_min, desired_height_max, height_flexibility,
     desired_location_range,
     marital_status, has_children, religion, smoker,
+    partner_name,
   } = req.body;
   // Build pg UPDATE with dynamic $N placeholders
   const assignments: string[] = [];
@@ -540,6 +561,7 @@ app.patch("/users/:id", async (req, res) => {
   if (has_children !== undefined)          push("has_children", has_children);
   if (religion !== undefined)              push("religion", religion);
   if (smoker !== undefined)                push("smoker", smoker);
+  if (partner_name !== undefined)          push("partner_name", partner_name);
 
   if (assignments.length === 0) return res.status(400).json({ error: "No fields to update" });
 

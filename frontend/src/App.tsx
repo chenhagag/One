@@ -12,7 +12,7 @@ import ProfileSetup from "./ProfileSetup";
 import ConsentScreen from "./ConsentScreen";
 import { supabase } from "./lib/supabase";
 import { saveSupabaseTokens, clearSupabaseTokens } from "./lib/api";
-import { isNativeApp, getApiBaseUrl } from "./lib/platform";
+import { isNativeApp, getApiBaseUrl, getPlatform } from "./lib/platform";
 import { trackPage } from "./lib/trackPage";
 import { App as CapApp } from "@capacitor/app";
 
@@ -189,7 +189,7 @@ export default function App() {
       return;
     }
 
-    // Check for OAuth callback (Supabase puts tokens in URL hash)
+    // Check for OAuth callback (Supabase puts tokens in URL hash or code in search params)
     if (window.location.pathname === "/auth/callback" || window.location.hash.includes("access_token") || window.location.search.includes("code=")) {
       setView("auth_callback");
       setAutoLoginDone(true);
@@ -285,16 +285,21 @@ export default function App() {
   }, []);
 
   // ── Deep link listener for native OAuth callback ──
+  // Store OAuth code from deep link (avoids page reload which loses PKCE verifier)
+  const [deepLinkCode, setDeepLinkCode] = useState<string | null>(null);
+
   useEffect(() => {
     if (!isNativeApp()) return;
     const listener = CapApp.addListener("appUrlOpen", ({ url }) => {
-      // Handle OAuth callback deep link
+      console.log("[deep link]", url);
       if (url.includes("/auth/callback")) {
         const urlObj = new URL(url);
-        // Pass the full URL to auth callback handler
-        window.location.hash = urlObj.hash || "";
-        window.location.search = urlObj.search || "";
-        setView("auth_callback");
+        const code = urlObj.searchParams.get("code");
+        if (code) {
+          // Store code in state and switch to auth_callback WITHOUT reloading
+          setDeepLinkCode(code);
+          setView("auth_callback");
+        }
       }
     });
     return () => { listener.then(l => l.remove()); };
@@ -302,9 +307,11 @@ export default function App() {
 
   // Check if should show PWA install (mobile + not standalone)
   function shouldShowPWAInstall(): boolean {
+    console.log("[PWA check] isNativeApp:", isNativeApp(), "platform:", getPlatform());
     if (isNativeApp()) return false;
     const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
     const isStandalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
+    console.log("[PWA check] isMobile:", isMobile, "isStandalone:", isStandalone);
     return isMobile && !isStandalone;
   }
 
@@ -399,7 +406,7 @@ export default function App() {
 
       {/* OAuth callback — handles redirect from Google/Apple */}
       {view === "auth_callback" && (
-        <AuthCallback onSuccess={handleAuthSuccess} onError={handleAuthError} />
+        <AuthCallback onSuccess={handleAuthSuccess} onError={handleAuthError} deepLinkCode={deepLinkCode} />
       )}
 
       {/* Profile setup — after first OAuth sign-in */}

@@ -7,9 +7,10 @@ import type { User } from "./App";
 interface AuthCallbackProps {
   onSuccess: (user: User, profileComplete: boolean) => void;
   onError: (message: string) => void;
+  deepLinkCode?: string | null;
 }
 
-export default function AuthCallback({ onSuccess, onError }: AuthCallbackProps) {
+export default function AuthCallback({ onSuccess, onError, deepLinkCode }: AuthCallbackProps) {
   const [status, setStatus] = useState("Signing you in...");
   const [errorMsg, setErrorMsg] = useState("");
   const [expired, setExpired] = useState(false);
@@ -96,8 +97,18 @@ export default function AuthCallback({ onSuccess, onError }: AuthCallbackProps) 
     }
 
     async function handleCallback() {
-      const code = url.searchParams.get("code");
+      const code = deepLinkCode || url.searchParams.get("code");
       const hashAccessToken = hashParams.get("access_token");
+
+      // Restore PKCE code verifier if saved by native OAuth flow
+      const savedKey = localStorage.getItem("__cap_code_verifier_key");
+      const savedVal = localStorage.getItem("__cap_code_verifier_val");
+      if (savedKey && savedVal && !localStorage.getItem(savedKey)) {
+        localStorage.setItem(savedKey, savedVal);
+        console.log("[auth] Restored code verifier:", savedKey);
+      }
+      localStorage.removeItem("__cap_code_verifier_key");
+      localStorage.removeItem("__cap_code_verifier_val");
       const hashRefreshToken = hashParams.get("refresh_token");
 
       // Strategy 1: Hash fragment token (implicit flow)
@@ -106,14 +117,21 @@ export default function AuthCallback({ onSuccess, onError }: AuthCallbackProps) 
         return;
       }
 
-      // Strategy 2: Server-side code exchange (works on Safari — bypasses ITP)
+      // Strategy 2: Server-side code exchange (works on Safari + Capacitor native)
       if (code) {
         setStatus("Verifying your identity...");
+        // Try to find saved code verifier
+        const verifierVal = savedVal || (() => {
+          const keys = Object.keys(localStorage);
+          const vk = keys.find(k => k.includes("code-verifier"));
+          return vk ? localStorage.getItem(vk) || "" : "";
+        })();
+        console.log("[auth] Exchanging code, has verifier:", !!verifierVal);
         try {
           const res = await fetch(`${getApiBaseUrl()}/auth/exchange-code`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ code }),
+            body: JSON.stringify({ code, codeVerifier: verifierVal }),
           });
           const data = await res.json();
           if (res.ok && data.access_token) {
