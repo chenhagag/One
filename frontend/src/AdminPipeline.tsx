@@ -196,7 +196,7 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
   const [users, setUsers] = useState<PipelineUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState<Record<Stage, boolean>>({
-    new: false, couples: false, couples_done: true, in_process: true, completed_all: false, completed_partial: false, ready_pool: false, pool: true,
+    new: true, couples: true, couples_done: true, in_process: true, completed_all: true, completed_partial: true, ready_pool: true, pool: true,
   });
 
   const [answeredQuestions, setAnsweredQuestions] = useState<any[]>([]);
