@@ -29,7 +29,7 @@ export function getApiBaseUrl(): string {
  */
 export function getOAuthRedirectUrl(): string {
   if (isNativeApp()) {
-    return 'https://joinone.io/auth/callback-native.html';
+    return 'https://joinone.io/auth/callback';
   }
   return `${window.location.origin}/auth/callback`;
 }
