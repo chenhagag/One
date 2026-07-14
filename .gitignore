@@ -14,3 +14,7 @@ build/
 *.db-shm
 *.db-wal
 *.sqlite
+
+# Spreadsheets (may contain secrets)
+*.xlsx
+~$*
