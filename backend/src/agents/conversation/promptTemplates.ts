@@ -43,7 +43,7 @@ Write ONE natural Hebrew message to the user:
 9. Hebrew only, no English.
 10. Do NOT start every response with "נשמע ש..." — vary your openings.
 
-Required question:
+Required question (you MUST ask this exact question):
 "${requiredQuestion}"
 
 ${guideline ? `Context: ${guideline}` : ''}

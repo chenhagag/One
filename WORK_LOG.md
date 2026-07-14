@@ -1,6 +1,182 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-06-30 (Match Attraction Rating Flow, Couple Partner, UI Fixes)
+## Latest Session: 2026-07-14 (Chat Review — New Users + Prompt Fixes)
+
+### What We Did
+
+#### 1. Chat Review — צאלה (#188), מיקי (#189), ליאור (#190)
+- Reviewed conversations for 3 new users (post-review #120-166)
+- ליאור (#190) still mid-conversation, only general + 2 cognitive messages
+
+#### 2. Issues Found
+- **מיקי: AI skipped opening question** — Prompt A sent "איך נראה יום רגיל שלך?" but AI invented a different question about what he looks for in a partner. Caused by short "כן" message giving AI nothing to react to, so it improvised.
+- **צאלה: AI skipped deal-breaker questions in taste test** — phaseInstruction told AI to ask about smoking/lifestyle, but AI jumped straight to presenting profiles instead.
+- **מיקי: AI self-closed taste test after 8/13 profiles** — AI said "עברנו על כל הפרופילים הזמינים" without receiving a closing instruction from the system. No summary was given.
+- **מיקי: gender confusion** — "מה את/ה מגדיר/ה" for a male user (should be masculine only)
+- **צאלה: redundant religion questions** — asked about religion connection after she already explained her religious background in detail
+
+#### 3. Prompt Fixes (text-only, no logic changes)
+- **Prompt A** (`promptTemplates.ts`): Emphasized "you MUST ask this exact question" in the required question label
+- **Taste deal-breakers** (`chatManager.ts`): Strengthened "אל תציג פרופילים עדיין" → "**חובה:** אל תציג פרופילים בשום מקרה בשלב הזה" on both deal-breaker phases
+- **Taste self-closing** (`chatManager.ts`): Added "אל תחליט בעצמך שהפרופילים נגמרו. כשהם ייגמרו, תקבל הוראה מפורשת לסכם ולסגור." in profile display phases
+
+### Open Items
+1. **Google OAuth on real device** — v2 AAB uploaded, needs testing
+2. **Chat scrolling bug on native** — needs investigation on real device
+3. **TEMP admin shortcut** — still active, keep for now
+4. **Chat review 120-166** — 22 users still need review
+5. **Score gap: category vs trait** — display inconsistency in admin
+6. **Miki (#189)** — needs better photos
+7. **Taste test: 1-10 scale** — מיקי gave 10 to almost everyone, scale may not differentiate enough (monitor)
+
+---
+
+## Previous Session: 2026-07-08–13 (Google Play Upload, OAuth Fix, Match Card, User Insights)
+
+### Deployment
+- Multiple pushes to production and staging
+- AAB v2 (1.0.1) uploaded to Google Play Console (internal testing)
+
+### What We Did
+
+#### 1. Google Play — First Upload
+- Built signed AAB with release keystore
+- Uploaded to Google Play Console as internal testing release
+- Created CSAE child safety policy page (`csae-policy.html`)
+- Created feature graphic (`play-store-feature.html` template with dark mode logo)
+- Tablet screenshots: resized phone screenshots to 7" (1200x1920) and 10" (1600x2560)
+- versionCode bumped to 2, versionName to 1.0.1 for second upload
+
+#### 2. OAuth Deep Link Fix (Ongoing)
+- First upload had Google OAuth loop: Chrome Custom Tab → joinone.io → Google Play instead of back to app
+- Root cause: `callback-native.html` intent URL redirect not working reliably
+- Fix: restored HTTPS deep link (`/auth/callback`) + custom scheme fallback in AndroidManifest
+- Updated assetlinks.json with release keystore SHA256 fingerprint
+- Redirect URL changed back to `https://joinone.io/auth/callback`
+- **Status: v2 AAB uploaded, awaiting testing on real device**
+
+#### 3. Release Keystore Issue
+- Original keystore had empty certificate chain (created with `-genkey` instead of `-genkeypair`)
+- Recreated keystore → Google Play rejected (different fingerprint)
+- Restored original keystore from `.bak` file — Google Play accepted
+- **Lesson: NEVER recreate keystore once first AAB is uploaded to Google Play**
+- Release keystore SHA1: `F6:63:A8:1D:0C:D9:95:34:0E:92:DD:B3:79:33:F9:51:9F:73:70:6E`
+- Release keystore SHA256: `CB:B8:1F:6D:A0:27:D9:7B:21:CB:D3:13:30:C8:3A:DF:4E:B7:72:4E:7D:46:00:54:31:BF:61:44:5D:7D:AC:6F`
+
+#### 4. Match Card — Demo Complete
+- Full match card for Gaya (#130) & Ofir (#133) with AI-generated photos
+- Combined intro presenting both people to each other
+- 4 connection points (accordion style)
+- Meeting suggestion + growth area + closing + CTA button
+- Soft/potential language, privacy note
+- Only visible to users #130 and #133
+- Renamed: old "כרטיס התאמה" (couple insights) → "ניתוח זוגיות"
+
+#### 5. User Insights — Miki (#189)
+- Wrote `summary_short` + `summary_full` from full conversation analysis
+- Scored 8 look traits from photo (appeal 45, warmth 55, masculinity 55, glamour 30, naturalness 75, fitness 45, style 35, skin_tone 55)
+- Note: only 1 photo, screenshot from WhatsApp — needs better photos
+- admin_checklist updated: insights + look_traits done
+
+#### 6. UI Updates (Production)
+- Replaced roundLogo with iconOnly (O symbol) across all screens
+- Insights card order: MBTI → Attachment → Big Five → Values → Enneagram
+- Admin pipeline: all stages collapsed by default
+- Admin sidebar shortcut: available on Railway URLs (not joinone.io), chen's email only
+- Data reset feature: users can delete conversations without deleting account
+
+### Open Items
+1. **Google OAuth on real device** — v2 AAB uploaded, needs testing
+2. **Chat scrolling bug on native** — needs investigation on real device
+3. **TEMP admin shortcut** — still active, keep for now
+4. **Chat review 120-166** — 22 users still need review
+5. **Score gap: category vs trait** — display inconsistency in admin
+6. **Miki (#189)** — needs better photos
+
+---
+
+## Previous Session: 2026-07-06–08 (Capacitor Android, Match Card, Google Play Prep)
+
+### Deployment
+- Multiple pushes to production and staging
+- Staging has additional features (match card demo, admin sidebar shortcut) not yet on prod
+
+### What We Did
+
+#### 1. Capacitor Android — First Build & Testing
+- Installed Node 22 (required by Capacitor CLI v8), Android Studio, Pixel 7 emulator
+- `npx cap sync android` + `npx cap open android` — app launches on emulator
+- **OTP login works** on real device, Google OAuth works on real device
+- **Google OAuth on emulator fails** — emulator kills app process during Browser.open (RAM issue)
+- Created `callback-native.html` — static page that redirects via Android intent URL after OAuth
+- Fixed: PWA install screen skipped on native (`isNativeApp()` check)
+- Fixed: relative API URLs (`fetch("/api/...")`) → absolute (`getApiBaseUrl() + "/api/..."`) for native
+- Fixed: `StatusBar.overlaysWebView: false` for safe area
+- Fixed: `CapacitorHttp.enabled: false` to prevent fetch interference
+- **Built debug APK** — tested successfully on real Android device
+
+#### 2. App Icons & Signing Key
+- Generated all Android icon sizes from `appLogo.png` using `@capacitor/assets`
+- Created release keystore: `release.keystore` (alias: `one-release`, password: `oneapp2026`)
+- Configured signing in `build.gradle` for release builds
+- Keystore backed up to Dropbox — **do not lose, cannot update app without it**
+
+#### 3. Google Play Preparation
+- Created `delete-account.html` — static page for Google Play compliance (account + data deletion)
+- Added `POST /api/users/:id/reset-data` endpoint — deletes conversations/analysis/matches, keeps account
+- Settings screen: "מחיקת נתונים" button with double confirmation
+- Admin notified via bug_reports when user resets data
+- Created `play-store-feature.html` — 1024x500 feature graphic template with dark mode logo
+- Privacy policy at `joinone.io/privacy.html` (already existed)
+- Updated README.md to reflect current project state
+
+#### 4. Match Card (Demo — for Screenshots & Future Template)
+- **New component: `MatchCard.tsx`** — demo match card for Gaya & Ofir
+- Visible only to users #130 and #133 in sidebar ("כרטיס התאמה")
+- AI-generated photos in `frontend/public/demo/`
+- **Match card structure** (template for future real match cards):
+  1. Header: both photos with subtle heart connection symbol + names
+  2. Combined intro: "הכירו אחד את השנייה" — brief bio of each person, then 2 lines summarizing the match
+  3. Connection points (4): titled sections explaining why the match works
+  4. "הצעה למפגש ראשון": suggestion for first meeting (not "date idea")
+  5. "מה יכול להיות מעניין לבדוק ביניכם": growth area / point to watch (not "warning")
+  6. Closing: why we believe in this match + privacy note about deeper layers
+  7. "התחילו שיחה" CTA button
+- **Writing style**: address both people directly (שניכם), soft/potential language (not absolute promises), professional but warm, no quotes or sensitive info
+- Renamed: old "כרטיס התאמה" (couple insights) → "ניתוח זוגיות"
+
+#### 5. Other Changes
+- Reordered insights cards: MBTI → Attachment → Big Five → Values → Enneagram
+- assetlinks.json uploaded for Android deep link verification
+- Removed `Conversation Examples/` from all branches
+- Deleted `postgres-migration` branch (no longer needed)
+- Created `capacitor-apple` branch + instructions file for Ron (iOS developer)
+- TEMP: admin sidebar shortcut on staging for chen only (for screenshots) — **MUST REMOVE**
+- Synced staging with main
+
+### Match Card Design Decisions (for future real match cards)
+- Card is sent to **both** people — presents each to the other
+- No match score shown to users
+- Tone: "potential" not "certainty" — "יש סיכוי טוב" not "אתם בטוח"
+- Connection points should be based on actual conversation analysis, not generic
+- Include practical meeting suggestion, not just "go on a date"
+- Include growth area framed as curiosity, not warning
+- Privacy note: "there are deeper layers we found but can't share — discover them together"
+
+### Open Items
+1. **TEMP admin shortcut on staging** — must remove after screenshots done
+2. **Google OAuth on emulator** — works on real device, emulator RAM issue
+3. **Chat scrolling bug on native** — needs investigation on real device
+4. **App icons** — generated but not tested in production build
+5. **AAB build for Google Play** — signing configured, ready to build
+6. **Google Play Console** — fill details, upload AAB, submit for review
+7. **Chat review 120-166** — 22 users still need review
+8. **"שלח התאמה" button** — placeholder, needs real match card/reveal flow (now have template)
+9. **Score gap: category vs trait** — display inconsistency in admin
+
+---
+
+## Previous Session: 2026-06-30 (Match Attraction Rating Flow, Couple Partner, UI Fixes)
 
 ### Deployment
 - All changes pushed to main (production) and staging
