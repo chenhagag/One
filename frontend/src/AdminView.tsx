@@ -3520,20 +3520,12 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                   </td>
                   <td style={s.td}>{cm.pair_priority != null ? cm.pair_priority : "-"}</td>
                   <td style={s.td}>{cm.final_match_priority != null ? <strong>{cm.final_match_priority}</strong> : "-"}</td>
-                  <td style={s.td}>{cm.internal_score ?? "-"}</td>
-                  <td style={s.td}>{cm.external_score ?? "-"}</td>
-                  <td style={s.td}>{cm.score_cognitive ?? "-"}</td>
-                  <td style={s.td}>{cm.score_emotional_social ?? "-"}</td>
-                  <td style={s.td}>{cm.score_emotionality ?? "-"}</td>
-                  <td style={s.td}>{cm.score_communication ?? "-"}</td>
-                  <td style={s.td}>{cm.score_vibe ?? "-"}</td>
-                  <td style={s.td}>{cm.score_popularity ?? "-"}</td>
-                  <td style={s.td}>{cm.score_big_five ?? "-"}</td>
-                  <td style={s.td}>{cm.score_schwartz ?? "-"}</td>
-                  <td style={s.td}>{cm.score_style ?? "-"}</td>
-                  <td style={s.td}>{cm.score_general ?? "-"}</td>
-                  <td style={s.td}>{cm.score_mbti ?? "-"}</td>
-                  <td style={s.td}>{cm.score_enneagram ?? "-"}</td>
+                  {[cm.internal_score, cm.external_score, cm.score_cognitive, cm.score_emotional_social,
+                    cm.score_emotionality, cm.score_communication, cm.score_vibe, cm.score_popularity,
+                    cm.score_big_five, cm.score_schwartz, cm.score_style, cm.score_general,
+                    cm.score_mbti, cm.score_enneagram].map((v: any, i: number) => (
+                    <td key={i} style={s.td}>{v != null ? <strong style={{ color: v >= 70 ? "#28a745" : v >= 50 ? "#856404" : "#dc3545" }}>{v}</strong> : "-"}</td>
+                  ))}
                 </tr>
               ))}
             </tbody>
