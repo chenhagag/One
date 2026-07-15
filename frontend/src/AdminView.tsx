@@ -3565,20 +3565,37 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                     })() : "—"}
                   </td>
                   <td style={s.td}>
-                    {(cm.match_status === "approved_by_both" || cm.match_status === "pre_match") && (
+                    {cm.match_status === "approved_by_both" && (
                       <button
-                        style={{ padding: "3px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#28a745", color: "#fff" }}
-                        onClick={() => {
-                          setCardEditor({ matchId: cm.match_id, user1Name: cm.user1_name, user2Name: cm.user2_name, matchStatus: cm.match_status });
-                          setCardData({ introSummary: "", connectionPoints: [{ title: "", text: "" }, { title: "", text: "" }, { title: "", text: "" }, { title: "", text: "" }], dateIdea: "", caveat: "", closing: "" });
-                          setCardStep("edit");
+                        style={{ padding: "3px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#6f42c1", color: "#fff" }}
+                        onClick={async () => {
+                          if (!confirm(`להעביר את ${cm.user1_name} ו-${cm.user2_name} לסטטוס ממתין לכרטיס?`)) return;
+                          await fetch(`/api/admin/matches/${cm.match_id}/prepare`, { method: "POST" });
+                          load();
                         }}
                       >
-                        בנה כרטיס התאמה
+                        שלח התאמה
                       </button>
                     )}
-                    {cm.match_status === "in_match" && (
-                      <span style={{ fontSize: 11, color: "#28a745", fontWeight: 600 }}>נשלח</span>
+                    {(cm.match_status === "pre_match" || cm.match_status === "in_match") && (
+                      <button
+                        style={{ padding: "3px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: cm.match_card_data ? "#0d6efd" : "#28a745", color: "#fff" }}
+                        onClick={() => {
+                          setCardEditor({ matchId: cm.match_id, user1Name: cm.user1_name, user2Name: cm.user2_name, matchStatus: cm.match_status });
+                          if (cm.match_card_data) {
+                            setCardData(cm.match_card_data);
+                            setCardStep("preview");
+                          } else {
+                            setCardData({ introSummary: "", connectionPoints: [{ title: "", text: "" }, { title: "", text: "" }, { title: "", text: "" }, { title: "", text: "" }], dateIdea: "", caveat: "", closing: "" });
+                            setCardStep("edit");
+                          }
+                        }}
+                      >
+                        {cm.match_card_data ? "צפה/ערוך כרטיס" : "בנה כרטיס"}
+                      </button>
+                    )}
+                    {cm.match_status === "in_match" && cm.match_card_sent_at && (
+                      <span style={{ fontSize: 11, color: "#28a745", fontWeight: 600, marginRight: 6 }}>&#10003; כרטיס נשלח</span>
                     )}
                   </td>
                   <td style={s.td}>{cm.pair_priority != null ? cm.pair_priority : "-"}</td>
@@ -3700,10 +3717,27 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                   </div>
                 </div>
 
-                <div style={{ display: "flex", gap: 10, justifyContent: "flex-start" }}>
+                <div style={{ display: "flex", gap: 10, justifyContent: "flex-start", flexWrap: "wrap" }}>
                   <button
                     disabled={cardSaving}
                     onClick={async () => {
+                      setCardSaving(true);
+                      try {
+                        await fetch(`/api/admin/matches/${cardEditor.matchId}/approve-card`, { method: "POST" });
+                        alert("הכרטיס נשמר ואושר בהצלחה");
+                        load();
+                        setCardEditor(null);
+                      } catch { alert("שגיאה בשמירה"); }
+                      finally { setCardSaving(false); }
+                    }}
+                    style={{ padding: "8px 20px", fontSize: 14, fontWeight: 600, background: "#0d6efd", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer" }}
+                  >
+                    {cardSaving ? "שומר..." : "שמור ואשר כרטיס"}
+                  </button>
+                  <button
+                    disabled={cardSaving}
+                    onClick={async () => {
+                      if (!confirm("לשלוח את כרטיס ההתאמה לשני המשתמשים? הכרטיס יופיע להם במסך הבית.")) return;
                       setCardSaving(true);
                       try {
                         await fetch(`/api/admin/matches/${cardEditor.matchId}/approve-card`, { method: "POST" });
@@ -3715,7 +3749,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                     }}
                     style={{ padding: "8px 20px", fontSize: 14, fontWeight: 600, background: "#28a745", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer" }}
                   >
-                    {cardSaving ? "שולח..." : "אשר ושלח התאמה"}
+                    {cardSaving ? "שולח..." : "שלח כרטיס למשתמשים"}
                   </button>
                   <button onClick={() => setCardStep("edit")} style={{ padding: "8px 20px", fontSize: 14, background: "#f3f4f6", color: "#666", border: "none", borderRadius: 8, cursor: "pointer" }}>
                     חזרה לעריכה

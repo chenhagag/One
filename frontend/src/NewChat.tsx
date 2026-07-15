@@ -357,6 +357,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [answeredQuestion, setAnsweredQuestion] = useState<{ question_text: string; answer: string } | null>(null);
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
   const [matchingProgress, setMatchingProgress] = useState<{ total_pool_profiles: number; scanned_profiles: number; status_text: string } | null>(null);
+  const [activeMatchCard, setActiveMatchCard] = useState<{ match_id: number; data: any; partner_name: string; my_name: string; partner_photo: string | null; my_photo: string | null } | null>(null);
   const [insightCard, setInsightCard] = useState<{ mbti: { type: string | null; description: string | null }; allValues: { name: string; he: string; score: number; description: string }[]; allBigFive: { name: string; he: string; score: number; description: string }[] } | null>(null);
   const [fineTuneAnswered, setFineTuneAnswered] = useState<boolean>(() => localStorage.getItem(`fine_tune_${user.id}`) === "true");
   const [insightRotation, setInsightRotation] = useState<number>(() => {
@@ -405,6 +406,12 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           if (data.chat_closed) setClosedChannels(prev => ({ ...prev, "new_chat": true }));
           if (data.cognitive_closed) setClosedChannels(prev => ({ ...prev, "new_chat_cognitive": true }));
           if (data.taste_closed) setClosedChannels(prev => ({ ...prev, "new_chat_taste": true }));
+
+          // Check for active match card
+          fetch(`/api/users/${user.id}/active-match-card`).then(r => r.json()).then(mc => {
+            if (mc.match_card) setActiveMatchCard(mc.match_card);
+            else setActiveMatchCard(null);
+          }).catch(() => {});
 
           // Load dashboard data when all channels are done
           const allDone = data.chat_closed && data.has_cognitive && data.has_taste_info;
@@ -708,8 +715,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             <button
               style={(screen === "match_card_consent" || screen === "match_card") ? styles.sidebarItemActive : styles.sidebarItem}
               onClick={() => {
-                if (recommendations.match_card_consent === "approved") {
-                  setScreen("match_card_consent");
+                if (activeMatchCard) {
+                  setScreen("match_card");
                 } else {
                   setScreen("match_card_consent");
                 }
@@ -717,9 +724,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               }}
             >
               <IconImg src="/icons/accurateMatch.png" />
-              <span>כרטיס התאמה</span>
-              {recommendations.match_card_consent !== "approved" && <span style={{ ...styles.completedBadge, background: "#f59e0b", color: "#fff" }}>!</span>}
-              {recommendations.match_card_consent === "approved" && <span style={styles.completedBadge}>&#10003;</span>}
+              <span>{activeMatchCard ? "ההתאמה שלי" : "כרטיס התאמה"}</span>
+              {activeMatchCard && <span style={{ ...styles.completedBadge, background: "#ec4899", color: "#fff" }}>&#10084;</span>}
+              {!activeMatchCard && recommendations.match_card_consent !== "approved" && <span style={{ ...styles.completedBadge, background: "#f59e0b", color: "#fff" }}>!</span>}
+              {!activeMatchCard && recommendations.match_card_consent === "approved" && <span style={styles.completedBadge}>&#10003;</span>}
             </button>
           )}
           {/* Couple insights — only for couple testers with insights */}
@@ -894,7 +902,20 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         )}
 
         {screen === "match_card" && (
-          <MatchCard user={user} onBack={() => setScreen("match_card_consent")} isDemo={true} />
+          activeMatchCard ? (
+            <MatchCard
+              user={user}
+              onBack={() => setScreen("home")}
+              matchData={{
+                person1: { name: activeMatchCard.my_name, photo: activeMatchCard.my_photo || "" },
+                person2: { name: activeMatchCard.partner_name, photo: activeMatchCard.partner_photo || "" },
+                ...activeMatchCard.data,
+              }}
+              isDemo={false}
+            />
+          ) : (
+            <MatchCard user={user} onBack={() => setScreen("match_card_consent")} isDemo={true} />
+          )
         )}
 
         {screen === "match_card_consent" && (
@@ -1073,6 +1094,38 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                         <p style={{ fontSize: 13, color: "#6b7280", fontWeight: 500, margin: 0 }}>תודה, תשובתך התקבלה ונקח אותה בחשבון</p>
                       </div>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* Celebratory match card banner */}
+              {screen === "home" && activeMatchCard && (
+                <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
+                  <div style={{
+                    background: "linear-gradient(135deg, #f0eef8 0%, #e8e4f0 100%)",
+                    borderRadius: 16, padding: "24px 22px", textAlign: "center",
+                    border: "1px solid #d4d0e8",
+                    boxShadow: "0 4px 16px rgba(99,102,241,0.12)",
+                  }}>
+                    <p style={{ fontSize: 32, margin: "0 0 8px" }}>&#127881;</p>
+                    <h3 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a2e", margin: "0 0 8px" }}>
+                      קיבלת התאמה!
+                    </h3>
+                    <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, margin: "0 0 16px" }}>
+                      מצאנו מישהו שאנחנו חושבים שכדאי שתכירו. כרטיס ההתאמה האישי שלכם מוכן.
+                    </p>
+                    <button
+                      onClick={() => setScreen("match_card")}
+                      style={{
+                        padding: "12px 28px", fontSize: 15, fontWeight: 600,
+                        background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+                        color: "#fff", border: "none", borderRadius: 12,
+                        cursor: "pointer", fontFamily: "inherit",
+                        boxShadow: "0 4px 14px rgba(99,102,241,0.35)",
+                      }}
+                    >
+                      צפייה בכרטיס ההתאמה
+                    </button>
                   </div>
                 </div>
               )}

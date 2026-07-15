@@ -2216,7 +2216,10 @@ app.get("/admin/candidate-matches", async (_req, res) => {
       m.user2_id as match_user2_id,
       m.user1_rating, m.user2_rating,
       m.pair_priority,
-      m.final_match_priority
+      m.final_match_priority,
+      m.match_card_data,
+      m.match_card_approved_by_admin,
+      m.match_card_sent_at
     FROM candidate_matches cm
     JOIN users u1 ON u1.id = cm.user_id
     JOIN users u2 ON u2.id = cm.candidate_user_id
@@ -2230,6 +2233,27 @@ app.get("/admin/candidate-matches", async (_req, res) => {
 // ════════════════════════════════════════════════════════════════
 // MATCH LIFECYCLE — Send / Cancel final matches
 // ════════════════════════════════════════════════════════════════
+
+// POST /admin/matches/:id/prepare — Move match to pre_match (waiting for card creation)
+app.post("/admin/matches/:id/prepare", async (req, res) => {
+  const matchId = parseInt(req.params.id, 10);
+  const match = await pgQueryOne<any>("SELECT * FROM matches WHERE id = $1", [matchId]);
+  if (!match) return res.status(404).json({ error: "Match not found" });
+
+  await withTransaction(async (client) => {
+    await client.query(
+      "UPDATE matches SET status = 'pre_match', updated_at = NOW() WHERE id = $1",
+      [match.id]
+    );
+    await client.query(
+      `UPDATE users SET user_status = 'pending_card', updated_at = NOW()
+       WHERE id IN ($1, $2)`,
+      [match.user1_id, match.user2_id]
+    );
+  });
+
+  return res.json({ success: true, match_id: match.id, status: "pre_match" });
+});
 
 // POST /admin/matches/:id/send — Mark a match as sent/revealed to both users
 // This is the ONLY action that stops the waiting counter.
