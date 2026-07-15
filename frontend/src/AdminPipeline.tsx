@@ -420,7 +420,34 @@ function PipelineStageSection({
       {!collapsed && (
         <div style={{ padding: "8px 0" }}>
           {users.length === 0 && <p style={{ padding: "8px 16px", color: "#94a3b8", fontSize: 13 }}>אין משתמשים בשלב זה</p>}
-          {users.map(u => (
+          {config.key === "pool" ? (() => {
+            const complete = users.filter(u => u.chat_closed && u.cog_closed && u.taste_closed && u.photo_count >= 1);
+            const incomplete = users.filter(u => !(u.chat_closed && u.cog_closed && u.taste_closed && u.photo_count >= 1));
+            const renderCards = (list: PipelineUser[]) => list.map(u => (
+              <PipelineUserCard key={u.id} user={u} stage={config.key} stageColor={config.color}
+                onPipelineAction={onPipelineAction} onChecklistUpdate={onChecklistUpdate} onReload={onReload} onSelectUser={onSelectUser} />
+            ));
+            return (
+              <>
+                {complete.length > 0 && (
+                  <>
+                    <div style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, color: "#16a34a", borderBottom: "1px solid #dcfce7", marginBottom: 4 }}>
+                      ✓ תהליך מלא ({complete.length})
+                    </div>
+                    {renderCards(complete)}
+                  </>
+                )}
+                {incomplete.length > 0 && (
+                  <>
+                    <div style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, color: "#d97706", borderBottom: "1px solid #fef3c7", marginTop: complete.length > 0 ? 12 : 0, marginBottom: 4 }}>
+                      ⚠ חלקי — חסרים ערוצים / תמונה ({incomplete.length})
+                    </div>
+                    {renderCards(incomplete)}
+                  </>
+                )}
+              </>
+            );
+          })() : users.map(u => (
             <PipelineUserCard
               key={u.id}
               user={u}
