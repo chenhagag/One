@@ -899,7 +899,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
         {screen === "match_card_consent" && (
           <MatchCardConsentScreen
-            user={user}
+            user={{ ...user, gender: user.gender || recommendations.gender || undefined }}
             onComplete={(u) => {
               onUserUpdate?.(u);
               setScreen("home");
