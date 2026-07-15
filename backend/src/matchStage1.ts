@@ -431,12 +431,49 @@ function passesGenderFilter(from: User, to: User): boolean {
 }
 
 // ── 2. Age ───────────────────────────────────────────────────────
+
+// Default age range when user hasn't specified preferences.
+// Extra years added per decade above 30 (e.g. age 40 → +3, age 50 → +6).
+function getDefaultAgeRange(from: User): { min: number; max: number } | null {
+  if (from.age == null) return null;
+  const age = from.age;
+  const isSameSex = from.gender === from.looking_for_gender;
+  const decadesOver30 = Math.max(0, Math.floor((age - 30) / 10));
+  const extraYears = decadesOver30 * 3;
+
+  if (isSameSex) {
+    // Same-sex: 7 years each direction + extra for older ages
+    const spread = 7 + extraYears;
+    return { min: age - spread, max: age + spread };
+  }
+
+  // Hetero defaults:
+  // Women: partner up to 2 yrs younger, up to 8 yrs older
+  // Men: partner up to 2 yrs older, up to 8 yrs younger
+  const smallGap = 2 + extraYears;
+  const bigGap = 8 + extraYears;
+  if (from.gender === "woman") {
+    return { min: age - smallGap, max: age + bigGap };
+  } else {
+    return { min: age - bigGap, max: age + smallGap };
+  }
+}
+
 function passesAgeFilter(from: User, to: User): boolean {
   if (to.age == null) return true;
-  if (from.desired_age_min == null && from.desired_age_max == null) return true;
-  const tol = AGE_TOL[from.age_flexibility] ?? 3;
-  const min = (from.desired_age_min ?? 0) - tol;
-  const max = (from.desired_age_max ?? 999) + tol;
+
+  let min: number, max: number;
+  if (from.desired_age_min == null && from.desired_age_max == null) {
+    // No preference set — use defaults
+    const defaults = getDefaultAgeRange(from);
+    if (!defaults) return true;
+    min = defaults.min;
+    max = defaults.max;
+  } else {
+    const tol = AGE_TOL[from.age_flexibility] ?? 3;
+    min = (from.desired_age_min ?? 0) - tol;
+    max = (from.desired_age_max ?? 999) + tol;
+  }
   return to.age >= min && to.age <= max;
 }
 
@@ -463,7 +500,18 @@ function passesLocationFilter(
 // ── 4. Height ────────────────────────────────────────────────────
 function passesHeightFilter(from: User, to: User): boolean {
   if (to.height == null) return true;
-  if (from.desired_height_min == null && from.desired_height_max == null) return true;
+
+  if (from.desired_height_min == null && from.desired_height_max == null) {
+    // No preference set — apply defaults based on gender combination
+    if (from.height == null) return true;
+    const isSameSex = from.gender === from.looking_for_gender;
+    if (isSameSex) return true; // Same-sex: no default height filter
+    // Hetero: men prefer shorter, women prefer taller
+    if (from.gender === "man") return to.height <= from.height;
+    if (from.gender === "woman") return to.height >= from.height;
+    return true;
+  }
+
   const tol = HEIGHT_TOL[from.height_flexibility] ?? 5;
   const min = (from.desired_height_min ?? 0) - tol;
   const max = (from.desired_height_max ?? 999) + tol;

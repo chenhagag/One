@@ -500,7 +500,7 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
   // Compute scores in memory
   type Update = {
     id: number; internal: number | null; external: number | null; final: number | null;
-    categories: CategoryScores; profile_score: number | null;
+    categories: CategoryScores; profile_score: number | null; internal_profile_score: number | null;
   };
   const updates: Update[] = [];
   let scored = 0;
@@ -519,7 +519,7 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
     const internalScore = calculateInternalScore(u1Traits, u2Traits, traitDefs);
 
     if (internalScore == null) {
-      updates.push({ id: row.id, internal: null, external: null, final: null, categories: emptyCategories, profile_score: null });
+      updates.push({ id: row.id, internal: null, external: null, final: null, categories: emptyCategories, profile_score: null, internal_profile_score: null });
       skipped++;
       continue;
     }
@@ -540,6 +540,7 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
     );
 
     const profileScore = calculateProfileScore(categories, externalScore);
+    const internalProfileScore = calculateProfileScore(categories, null);
 
     updates.push({
       id: row.id,
@@ -548,6 +549,7 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
       final: Math.round(finalScore * 100) / 100,
       categories,
       profile_score: profileScore,
+      internal_profile_score: internalProfileScore,
     });
     scored++;
   }
@@ -562,6 +564,7 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
              score_communication = $8, score_vibe = $9, score_popularity = $10,
              score_big_five = $11, score_schwartz = $12, score_style = $13,
              score_general = $14, score_mbti = $15, score_enneagram = $16, profile_score = $17,
+             internal_profile_score = $18,
              status = 'scored', last_evaluated_at = NOW(), updated_at = NOW()
          WHERE id = $4`,
         [u.internal, u.external, u.final, u.id,
@@ -570,7 +573,7 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
          u.categories.score_vibe, u.categories.score_popularity,
          u.categories.score_big_five, u.categories.score_schwartz,
          u.categories.score_style, u.categories.score_general, u.categories.score_mbti,
-         u.categories.score_enneagram, u.profile_score]
+         u.categories.score_enneagram, u.profile_score, u.internal_profile_score]
       );
     }
   });

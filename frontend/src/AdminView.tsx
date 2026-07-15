@@ -3266,6 +3266,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
   const [running, setRunning] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [sortBy, setSortBy] = useState<string>("profile_score");
 
   function load() {
     setLoading(true);
@@ -3375,6 +3376,12 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+        <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: "8px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6, fontWeight: 600 }}>
+          <option value="profile_score">מיון: Profile Score</option>
+          <option value="internal_profile_score">מיון: Internal Profile</option>
+          <option value="internal_score">מיון: Internal Score</option>
+          <option value="final_score">מיון: Final Score</option>
+        </select>
         <button
           onClick={runAlgorithm}
           disabled={running !== null}
@@ -3442,7 +3449,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
         <p style={s.none}>No candidate matches yet. Run the algorithm to generate them.</p>
       ) : (
         <div style={s.scrollWrap}>
-          <p style={s.sub}>{data.length} candidate pairs</p>
+          <p style={s.sub}>{data.length} candidate pairs (sorted by {sortBy})</p>
           <table style={s.table}>
             <thead>
               <tr>
@@ -3450,6 +3457,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                 <th style={s.th}>Candidate</th>
                 <th style={s.th}>Score</th>
                 <th style={s.th}>Profile</th>
+                <th style={s.th}>Int.Profile</th>
                 <th style={s.th}>Status</th>
                 <th style={s.th}>Ratings</th>
                 <th style={s.th}>Actions</th>
@@ -3472,7 +3480,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
               </tr>
             </thead>
             <tbody>
-              {data.map((cm: any) => (
+              {[...data].sort((a: any, b: any) => (b[sortBy] ?? -1) - (a[sortBy] ?? -1)).map((cm: any) => (
                 <tr key={cm.id}>
                   <td style={s.td}>
                     <button style={s.expandBtn} onClick={() => setSelectedUserId(cm.user_id)}>{cm.user1_name}</button> ({cm.user1_age}, {cm.user1_city})
@@ -3488,6 +3496,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                   </td>
                   <td style={s.td}>{cm.final_score != null ? <strong style={{ color: cm.final_score >= 70 ? "#28a745" : cm.final_score >= 50 ? "#856404" : "#dc3545" }}>{cm.final_score}</strong> : "-"}{cm.location_expanded && <span title="התאמה מחוץ לטווח מיקום מקורי" style={{ marginRight: 4, color: "#d97706" }}>📍</span>}</td>
                   <td style={s.td}>{cm.profile_score != null ? <strong style={{ color: cm.profile_score >= 70 ? "#28a745" : cm.profile_score >= 50 ? "#856404" : "#dc3545" }}>{cm.profile_score}</strong> : "-"}</td>
+                  <td style={s.td}>{cm.internal_profile_score != null ? <strong style={{ color: cm.internal_profile_score >= 70 ? "#28a745" : cm.internal_profile_score >= 50 ? "#856404" : "#dc3545" }}>{cm.internal_profile_score}</strong> : "-"}</td>
                   <td style={s.td}>{cm.match_status ? <span style={matchStatusColor(cm.match_status)}>{cm.match_status}</span> : <span style={s.badge}>{cm.status}</span>}</td>
                   <td style={s.td}>
                     {(cm.user1_rating || cm.user2_rating) ? (() => {
