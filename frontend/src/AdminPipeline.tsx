@@ -95,6 +95,20 @@ function getCompletionSub(u: PipelineUser): string {
   return "שיחות בלבד";
 }
 
+function getPoolSub(u: PipelineUser): { label: string; color: string } {
+  const allChannels = u.chat_closed && u.cog_closed && u.taste_closed;
+  const hasPhoto = u.photo_count >= 1;
+  if (allChannels && hasPhoto) return { label: "✓ תהליך מלא", color: "#16a34a" };
+  const issues: string[] = [];
+  if (!allChannels) issues.push("חסרים ערוצים");
+  if (!hasPhoto) issues.push("ללא תמונה");
+  return { label: "⚠ " + issues.join(" + "), color: "#d97706" };
+}
+
+function isUserIncomplete(u: { chat_closed?: boolean; cog_closed?: boolean; taste_closed?: boolean; photo_count?: number }): boolean {
+  return !(u.chat_closed && u.cog_closed && u.taste_closed) || (u.photo_count ?? 0) < 1;
+}
+
 const STAGE_CONFIG: { key: Stage; title: string; color: string; bg: string }[] = [
   { key: "new", title: "משתמשים חדשים", color: "#7c3aed", bg: "#f5f3ff" },
   { key: "couples", title: "זוגות לטיפול", color: "#ec4899", bg: "#fdf2f8" },
@@ -613,6 +627,24 @@ function PipelineUserCard({
             </div>
           </>
         )}
+        {stage === "pool" && (() => {
+          const sub = getPoolSub(u);
+          return (
+            <>
+              <div><span style={labelStyle}>סטטוס</span><br/><span style={{ fontSize: 12, color: sub.color, fontWeight: 600 }}>{sub.label}</span></div>
+              {!(u.chat_closed && u.cog_closed && u.taste_closed) && (
+                <div>
+                  <span style={labelStyle}>ערוצים</span><br/>
+                  <span style={{ fontSize: 11 }}>
+                    <span style={{ color: u.chat_closed ? "#16a34a" : "#dc2626" }}>{u.chat_closed ? "✓" : "✗"} כללי</span>{" "}
+                    <span style={{ color: u.cog_closed ? "#16a34a" : "#dc2626" }}>{u.cog_closed ? "✓" : "✗"} קוגניטיבי</span>{" "}
+                    <span style={{ color: u.taste_closed ? "#16a34a" : "#dc2626" }}>{u.taste_closed ? "✓" : "✗"} טעם</span>
+                  </span>
+                </div>
+              )}
+            </>
+          );
+        })()}
         {(stage === "couples" || stage === "couples_done") && u.partner_name && (
           <div><span style={labelStyle}>בן/בת זוג</span><br/><span style={valStyle}>{u.partner_name}</span></div>
         )}
@@ -775,7 +807,7 @@ function PipelineUserCard({
           </>
         )}
 
-        {/* Completed partial — reanalyze + insights, but no pool email */}
+        {/* Completed partial — reanalyze + insights + pool entry */}
         {stage === "completed_partial" && (
           <>
             <button style={outlineBtnStyle("#f59e0b")} onClick={handleReanalyze} disabled={reanalyzing}>
@@ -790,6 +822,7 @@ function PipelineUserCard({
               <button style={outlineBtnStyle("#7c3aed")} onClick={() => { setMsgText(buildWelcomeMessage(isFemale)); setShowMessage(true); }}>💬 כתוב הודעה</button>
             )}
             <button style={btnStyle("#16a34a")} onClick={() => onPipelineAction(u.id, "mark_done")}>✓ סיימתי טיפול</button>
+            <button style={btnStyle("#059669")} onClick={() => onPipelineAction(u.id, "enter_pool")}>🏊 כניסה למאגר</button>
           </>
         )}
 

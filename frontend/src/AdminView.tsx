@@ -3474,8 +3474,18 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
             <tbody>
               {data.map((cm: any) => (
                 <tr key={cm.id}>
-                  <td style={s.td}><button style={s.expandBtn} onClick={() => setSelectedUserId(cm.user_id)}>{cm.user1_name}</button> ({cm.user1_age}, {cm.user1_city})</td>
-                  <td style={s.td}><button style={s.expandBtn} onClick={() => setSelectedUserId(cm.candidate_user_id)}>{cm.user2_name}</button> ({cm.user2_age}, {cm.user2_city})</td>
+                  <td style={s.td}>
+                    <button style={s.expandBtn} onClick={() => setSelectedUserId(cm.user_id)}>{cm.user1_name}</button> ({cm.user1_age}, {cm.user1_city})
+                    {(cm.user1_cog_count < 5 || cm.user1_taste_count < 5 || cm.user1_photo_count < 1) && (
+                      <span title={[cm.user1_cog_count < 5 && "חסר קוגניטיבי", cm.user1_taste_count < 5 && "חסר טעם", cm.user1_photo_count < 1 && "ללא תמונה"].filter(Boolean).join(", ")} style={{ marginRight: 4, color: "#d97706", fontSize: 11, fontWeight: 700 }}>⚠</span>
+                    )}
+                  </td>
+                  <td style={s.td}>
+                    <button style={s.expandBtn} onClick={() => setSelectedUserId(cm.candidate_user_id)}>{cm.user2_name}</button> ({cm.user2_age}, {cm.user2_city})
+                    {(cm.user2_cog_count < 5 || cm.user2_taste_count < 5 || cm.user2_photo_count < 1) && (
+                      <span title={[cm.user2_cog_count < 5 && "חסר קוגניטיבי", cm.user2_taste_count < 5 && "חסר טעם", cm.user2_photo_count < 1 && "ללא תמונה"].filter(Boolean).join(", ")} style={{ marginRight: 4, color: "#d97706", fontSize: 11, fontWeight: 700 }}>⚠</span>
+                    )}
+                  </td>
                   <td style={s.td}>{cm.final_score != null ? <strong style={{ color: cm.final_score >= 70 ? "#28a745" : cm.final_score >= 50 ? "#856404" : "#dc3545" }}>{cm.final_score}</strong> : "-"}{cm.location_expanded && <span title="התאמה מחוץ לטווח מיקום מקורי" style={{ marginRight: 4, color: "#d97706" }}>📍</span>}</td>
                   <td style={s.td}>{cm.profile_score != null ? <strong style={{ color: cm.profile_score >= 70 ? "#28a745" : cm.profile_score >= 50 ? "#856404" : "#dc3545" }}>{cm.profile_score}</strong> : "-"}</td>
                   <td style={s.td}>{cm.match_status ? <span style={matchStatusColor(cm.match_status)}>{cm.match_status}</span> : <span style={s.badge}>{cm.status}</span>}</td>
