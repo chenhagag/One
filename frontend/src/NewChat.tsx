@@ -553,7 +553,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           if (data.closing_stage >= 3) {
             setClosedChannels(prev => ({ ...prev, [effectiveChannel]: true }));
             fetch(`/api/new-chat/status/${user.id}`).then(r => r.json()).then(d => {
-              if (d.has_cognitive !== undefined) { setRecommendations({ has_cognitive: d.has_cognitive, has_taste_info: d.has_taste_info, chat_count: d.chat_count || 0, summary_fields: d.summary_fields || 0, cognitive_count: d.cognitive_count || 0, photo_count: d.photo_count || 0, has_profile_details: d.has_profile_details || false, analysis_run_count: d.analysis_run_count || 0, gender: d.gender || null, admin_message: d.admin_message || null, pending_rating: !!d.pending_rating }); setSystemQuestion(d.system_question || null); }
+              if (d.has_cognitive !== undefined) { setRecommendations({ has_cognitive: d.has_cognitive, has_taste_info: d.has_taste_info, chat_count: d.chat_count || 0, summary_fields: d.summary_fields || 0, cognitive_count: d.cognitive_count || 0, photo_count: d.photo_count || 0, has_profile_details: d.has_profile_details || false, analysis_run_count: d.analysis_run_count || 0, gender: d.gender || null, admin_message: d.admin_message || null, pending_rating: !!d.pending_rating, in_matching_pool: !!d.in_matching_pool, match_card_consent: d.match_card_consent || null }); setSystemQuestion(d.system_question || null); }
             }).catch(() => {});
           }
         } else if (data.error) {
