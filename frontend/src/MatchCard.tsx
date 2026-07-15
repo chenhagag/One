@@ -1,12 +1,24 @@
 import { useState } from "react";
 
+export interface MatchCardData {
+  person1: { name: string; photo: string };
+  person2: { name: string; photo: string };
+  introSummary: string;
+  connectionPoints: Array<{ title: string; text: string }>;
+  dateIdea: string;
+  caveat: string;
+  closing: string;
+}
+
 interface MatchCardProps {
   user: { id: number; first_name: string; gender?: string };
   onBack: () => void;
+  matchData?: MatchCardData;
+  isDemo?: boolean;
 }
 
 // Demo match card — Gaya (#130) & Ofir (#133)
-const MATCH = {
+const DEMO_MATCH: MatchCardData = {
   person1: { name: "גאיה", photo: "/demo/gaya.png" },
   person2: { name: "אופיר", photo: "/demo/ofir.png" },
   introSummary: `גאיה מלמדת עברית באולפן ומייעצת בתחום ה-EdTech. תואר בפסיכולוגיה, אוהבת שפות, שיחות עומק ומסעדות טובות.
@@ -37,23 +49,55 @@ const MATCH = {
   closing: "אנחנו מאמינים בהתאמה הזו כי מצאנו חיבור שהוא לא רק \"על הנייר\" — אלא דפוס עמוק של ערכים משותפים, סגנון תקשורת תואם, ודינמיקה שמאפשרת לשניכם לגדול יחד בלי לוותר על מי שאתם. זה לא קורה בכל יום.\n\nמאחר ואנחנו שומרים על הפרטיות של שניכם, לא ניתן לחשוף כאן את כל מה שעומד מאחורי ההתאמה הזו — אבל יש עוד הרבה רבדים שגילינו, ואנחנו מקווים שתגלו אותם יחד.",
 };
 
-export default function MatchCard({ user, onBack }: MatchCardProps) {
+export default function MatchCard({ user, onBack, matchData, isDemo }: MatchCardProps) {
+  const data = matchData || DEMO_MATCH;
   const [expandedSection, setExpandedSection] = useState<number | null>(null);
+
   return (
     <div style={{ flex: 1, overflowY: "auto", direction: "rtl", background: "#f9fafb" }}>
       <div style={{ maxWidth: 520, margin: "0 auto", padding: "24px 20px" }}>
 
+        {/* Demo banner */}
+        {isDemo && (
+          <div style={{
+            background: "#f0eef8", borderRadius: 10, padding: "10px 16px",
+            marginBottom: 16, textAlign: "center", border: "1px solid #e0ddf5",
+          }}>
+            <p style={{ fontSize: 13, color: "#6366f1", margin: 0, fontWeight: 600 }}>
+              דוגמה לכרטיס התאמה
+            </p>
+            <p style={{ fontSize: 11, color: "#888", margin: "4px 0 0" }}>
+              השמות והפרטים בדויים לצורכי הדגמה
+            </p>
+          </div>
+        )}
+
+        {/* Celebration header for real matches */}
+        {!isDemo && matchData && (
+          <div style={{ textAlign: "center", marginBottom: 20 }}>
+            <p style={{ fontSize: 28, margin: "0 0 4px" }}>&#127881;</p>
+            <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", margin: "0 0 4px" }}>מזל טוב, קיבלת התאמה!</h2>
+            <p style={{ fontSize: 13, color: "#888", margin: 0 }}>כרטיס התאמה אישי מ-One</p>
+          </div>
+        )}
+
         {/* Header — photos with connection */}
-        <div style={{ textAlign: "center", marginBottom: 24, paddingTop: 8 }}>
+        <div style={{ textAlign: "center", marginBottom: 24, paddingTop: isDemo ? 0 : 8 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0, marginBottom: 16 }}>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
               <div style={{
                 width: 88, height: 88, borderRadius: "50%", overflow: "hidden",
                 border: "3px solid #e0ddf5", boxShadow: "0 4px 16px rgba(99,102,241,0.15)",
               }}>
-                <img src={MATCH.person1.photo} alt={MATCH.person1.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                {data.person1.photo ? (
+                  <img src={data.person1.photo} alt={data.person1.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <div style={{ width: "100%", height: "100%", background: "#e0ddf5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, color: "#6366f1", fontWeight: 700 }}>
+                    {data.person1.name.charAt(0)}
+                  </div>
+                )}
               </div>
-              <span style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e" }}>{MATCH.person1.name}</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e" }}>{data.person1.name}</span>
             </div>
 
             <div style={{
@@ -77,9 +121,15 @@ export default function MatchCard({ user, onBack }: MatchCardProps) {
                 width: 88, height: 88, borderRadius: "50%", overflow: "hidden",
                 border: "3px solid #e0ddf5", boxShadow: "0 4px 16px rgba(99,102,241,0.15)",
               }}>
-                <img src={MATCH.person2.photo} alt={MATCH.person2.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                {data.person2.photo ? (
+                  <img src={data.person2.photo} alt={data.person2.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <div style={{ width: "100%", height: "100%", background: "#e0ddf5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, color: "#6366f1", fontWeight: 700 }}>
+                    {data.person2.name.charAt(0)}
+                  </div>
+                )}
               </div>
-              <span style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e" }}>{MATCH.person2.name}</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e" }}>{data.person2.name}</span>
             </div>
           </div>
         </div>
@@ -91,15 +141,15 @@ export default function MatchCard({ user, onBack }: MatchCardProps) {
           boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
         }}>
           <h3 style={{ fontSize: 16, fontWeight: 600, color: "#1a1a2e", margin: "0 0 6px" }}>
-            {MATCH.person1.name} ו{MATCH.person2.name}, הכירו אחד את השנייה
+            {data.person1.name} ו{data.person2.name}, הכירו אחד את השנייה
           </h3>
           <p style={{ fontSize: 13, color: "#888", margin: "0 0 14px" }}>כרטיס התאמה אישי מ-One</p>
           <p style={{ fontSize: 13.5, color: "#444", lineHeight: 1.85, margin: 0, whiteSpace: "pre-wrap" }}>
-            {MATCH.introSummary}
+            {data.introSummary}
           </p>
         </div>
 
-        {/* Connection points — all open */}
+        {/* Connection points — expandable */}
         <div style={{
           background: "#fff", borderRadius: 14, padding: "20px 22px",
           border: "1px solid #e5e7eb", marginBottom: 14,
@@ -109,7 +159,7 @@ export default function MatchCard({ user, onBack }: MatchCardProps) {
             מה מחבר ביניכם
           </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {MATCH.connectionPoints.map((point, i) => (
+            {data.connectionPoints.map((point, i) => (
               <div
                 key={i}
                 style={{
@@ -128,7 +178,7 @@ export default function MatchCard({ user, onBack }: MatchCardProps) {
                     }}>{i + 1}</span>
                     <span style={{ fontSize: 14, fontWeight: 600, color: "#2a2a3e" }}>{point.title}</span>
                   </div>
-                  <span style={{ fontSize: 11, color: "#bbb", transition: "transform 0.2s", transform: expandedSection === i ? "rotate(180deg)" : "rotate(0)" }}>▼</span>
+                  <span style={{ fontSize: 11, color: "#bbb", transition: "transform 0.2s", transform: expandedSection === i ? "rotate(180deg)" : "rotate(0)" }}>&#9660;</span>
                 </div>
                 {expandedSection === i && (
                   <p style={{ fontSize: 13, color: "#555", lineHeight: 1.75, margin: "10px 0 0 32px" }}>
@@ -150,7 +200,7 @@ export default function MatchCard({ user, onBack }: MatchCardProps) {
             הצעה למפגש ראשון
           </h3>
           <p style={{ fontSize: 13, color: "#555", lineHeight: 1.75, margin: 0 }}>
-            {MATCH.dateIdea}
+            {data.dateIdea}
           </p>
         </div>
 
@@ -164,7 +214,7 @@ export default function MatchCard({ user, onBack }: MatchCardProps) {
             מה יכול להיות מעניין לבדוק ביניכם
           </h3>
           <p style={{ fontSize: 13, color: "#713f12", lineHeight: 1.75, margin: 0 }}>
-            {MATCH.caveat}
+            {data.caveat}
           </p>
         </div>
 
@@ -175,25 +225,43 @@ export default function MatchCard({ user, onBack }: MatchCardProps) {
           boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
         }}>
           <p style={{ fontSize: 13.5, color: "#3a3660", lineHeight: 1.8, margin: "0 0 12px", whiteSpace: "pre-wrap" }}>
-            {MATCH.closing}
+            {data.closing}
           </p>
           <p style={{ fontSize: 15, fontWeight: 600, color: "#6366f1", margin: 0, textAlign: "center" }}>
             בהצלחה!
           </p>
         </div>
 
-        {/* Start conversation button */}
-        <button
-          style={{
-            width: "100%", padding: "14px 24px", fontSize: 16, fontWeight: 600,
-            background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
-            color: "#fff", border: "none", borderRadius: 14,
-            cursor: "pointer", fontFamily: "inherit", marginBottom: 16,
-            boxShadow: "0 4px 14px rgba(99,102,241,0.35)",
-          }}
-        >
-          התחילו שיחה
-        </button>
+        {/* Start conversation button — disabled for now */}
+        {!isDemo && (
+          <button
+            disabled
+            style={{
+              width: "100%", padding: "14px 24px", fontSize: 16, fontWeight: 600,
+              background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+              color: "#fff", border: "none", borderRadius: 14,
+              cursor: "not-allowed", fontFamily: "inherit", marginBottom: 16,
+              boxShadow: "0 4px 14px rgba(99,102,241,0.35)",
+              opacity: 0.5,
+            }}
+          >
+            התחילו שיחה (בקרוב)
+          </button>
+        )}
+
+        {/* Back button for demo */}
+        {isDemo && (
+          <button
+            onClick={onBack}
+            style={{
+              width: "100%", padding: "12px 24px", fontSize: 15, fontWeight: 600,
+              background: "#fff", color: "#6366f1", border: "1px solid #e0ddf5",
+              borderRadius: 14, cursor: "pointer", fontFamily: "inherit", marginBottom: 16,
+            }}
+          >
+            חזרה
+          </button>
+        )}
 
         {/* Footer */}
         <div style={{ textAlign: "center", padding: "4px 0 24px" }}>

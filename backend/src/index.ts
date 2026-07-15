@@ -720,6 +720,67 @@ app.delete("/users/:id/photos/:photoId", async (req, res) => {
   return res.json({ deleted: true, photo_count: Number(countRow?.c ?? 0) });
 });
 
+// POST /users/:id/match-card-consent — Save match card consent decision
+app.post("/users/:id/match-card-consent", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const { consent, restrictions } = req.body;
+  if (!consent || !["approved", "declined"].includes(consent)) {
+    return res.status(400).json({ error: "consent must be 'approved' or 'declined'" });
+  }
+  await pgQueryAll(
+    `UPDATE users SET match_card_consent = $1, match_card_restrictions = $2, updated_at = NOW() WHERE id = $3`,
+    [consent, restrictions || null, userId]
+  );
+  const user = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [userId]);
+  return res.json({ success: true, user });
+});
+
+// GET /users/:id/active-match-card — Get user's active match card (sent by admin)
+app.get("/users/:id/active-match-card", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const match = await pgQueryOne<any>(
+    `SELECT m.id, m.match_card_data, m.user1_id, m.user2_id, m.match_card_sent_at,
+            u1.first_name AS user1_name, u2.first_name AS user2_name
+     FROM matches m
+     JOIN users u1 ON u1.id = m.user1_id
+     JOIN users u2 ON u2.id = m.user2_id
+     WHERE (m.user1_id = $1 OR m.user2_id = $1)
+       AND m.status = 'in_match'
+       AND m.match_card_sent_at IS NOT NULL
+       AND m.match_card_data IS NOT NULL
+     ORDER BY m.match_card_sent_at DESC
+     LIMIT 1`,
+    [userId]
+  );
+  if (!match) return res.json({ match_card: null });
+
+  const partnerId = match.user1_id === userId ? match.user2_id : match.user1_id;
+  const partnerName = match.user1_id === userId ? match.user2_name : match.user1_name;
+  const myName = match.user1_id === userId ? match.user1_name : match.user2_name;
+
+  // Get partner photos
+  const photos = await pgQueryAll<any>(
+    "SELECT id, filename FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1",
+    [partnerId]
+  );
+  const myPhotos = await pgQueryAll<any>(
+    "SELECT id, filename FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1",
+    [userId]
+  );
+
+  return res.json({
+    match_card: {
+      match_id: match.id,
+      data: match.match_card_data,
+      partner_name: partnerName,
+      my_name: myName,
+      partner_photo: photos.length > 0 ? `/uploads/${photos[0].filename}` : null,
+      my_photo: myPhotos.length > 0 ? `/uploads/${myPhotos[0].filename}` : null,
+      sent_at: match.match_card_sent_at,
+    },
+  });
+});
+
 function parseUserId(raw: any): number | null {
   const id = typeof raw === "string" ? parseInt(raw, 10) : Number(raw);
   return Number.isFinite(id) && id > 0 ? id : null;
@@ -1023,6 +1084,7 @@ app.patch("/admin/users/:id", async (req, res) => {
     "desired_location_range", "profile_complete", "consent_accepted", "photo_ai_consent",
     "email_updates", "whatsapp_updates", "whatsapp_phone", "in_matching_pool",
     "marital_status", "has_children", "religion", "smoker", "admin_message", "admin_notes", "admin_location_override",
+    "match_card_consent", "match_card_restrictions",
   ];
   const updates: string[] = [];
   const values: any[] = [];
@@ -2182,7 +2244,7 @@ app.post("/admin/matches/:id/send", async (req, res) => {
 
   await withTransaction(async (client) => {
     await client.query(
-      "UPDATE matches SET status = 'in_match', updated_at = NOW() WHERE id = $1",
+      `UPDATE matches SET status = 'in_match', match_card_sent_at = CASE WHEN match_card_data IS NOT NULL THEN NOW() ELSE match_card_sent_at END, updated_at = NOW() WHERE id = $1`,
       [match.id]
     );
     await client.query(
@@ -2270,6 +2332,95 @@ app.post("/admin/matches/:id/send-for-rating", async (req, res) => {
   );
 
   return res.json({ success: true, match_id: matchId, sent_to: targetUserId, status: match.status });
+});
+
+// POST /admin/matches/:id/save-card — Save manually-entered match card content
+app.post("/admin/matches/:id/save-card", async (req, res) => {
+  const matchId = parseInt(req.params.id, 10);
+  const { match_card_data } = req.body;
+  if (!match_card_data) return res.status(400).json({ error: "match_card_data required" });
+
+  const match = await pgQueryOne<any>("SELECT * FROM matches WHERE id = $1", [matchId]);
+  if (!match) return res.status(404).json({ error: "Match not found" });
+
+  await pgQueryAll(
+    "UPDATE matches SET match_card_data = $1, match_card_approved_by_admin = FALSE, updated_at = NOW() WHERE id = $2",
+    [JSON.stringify(match_card_data), matchId]
+  );
+  return res.json({ success: true, match_id: matchId });
+});
+
+// POST /admin/matches/:id/approve-card — Admin approves the match card for sending
+app.post("/admin/matches/:id/approve-card", async (req, res) => {
+  const matchId = parseInt(req.params.id, 10);
+  const match = await pgQueryOne<any>("SELECT * FROM matches WHERE id = $1", [matchId]);
+  if (!match) return res.status(404).json({ error: "Match not found" });
+  if (!match.match_card_data) return res.status(400).json({ error: "No card data to approve" });
+
+  await pgQueryAll(
+    "UPDATE matches SET match_card_approved_by_admin = TRUE, updated_at = NOW() WHERE id = $1",
+    [matchId]
+  );
+  return res.json({ success: true, match_id: matchId });
+});
+
+// POST /admin/send-pool-emails — Send match card consent email to all pool users
+app.post("/admin/send-pool-emails", async (req, res) => {
+  if (!resend) return res.status(500).json({ error: "Email service not configured" });
+
+  // Get pool users who haven't received this specific email yet
+  const poolUsers = await pgQueryAll<any>(
+    `SELECT u.id, u.email, u.first_name, u.gender
+     FROM users u
+     WHERE u.in_matching_pool = TRUE
+       AND u.email IS NOT NULL
+       AND u.id NOT IN (
+         SELECT DISTINCT user_id FROM email_log WHERE subject LIKE '%כרטיס התאמה%' AND user_id IS NOT NULL
+       )`
+  );
+
+  let sent = 0;
+  for (const u of poolUsers) {
+    const isFemale = u.gender === "woman";
+    const gn = (m: string, f: string) => isFemale ? f : m;
+    try {
+      await resend.emails.send({
+        from: "One <noreply@joinone.io>",
+        to: u.email,
+        subject: "One — עדכון חשוב לקראת ההתאמה שלך",
+        html: `
+          <div dir="rtl" style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; color: #1a1a2e;">
+            <h2 style="color: #6366f1;">היי ${u.first_name || ""} 👋</h2>
+            <p style="line-height: 1.8; font-size: 15px;">
+              תודה על הסבלנות! המאגר שלנו גדל מיום ליום, ואנחנו לא ${gn("מתפשר", "מתפשרת")} עד שנמצא ${gn("לך", "לך")} התאמה שהיא בול ${gn("בשבילך", "בשבילך")}.
+            </p>
+            <p style="line-height: 1.8; font-size: 15px;">
+              בינתיים, ${gn("הוסף", "הוסיפי")} עוד צעד קטן — ${gn("אשר", "אשרי")} את בניית <strong>כרטיס ההתאמה</strong> ${gn("שלך", "שלך")} במערכת.
+              כרטיס ההתאמה הוא סיכום אישי שנבנה על סמך השיחות שלנו, שיעזור ${gn("לך", "לך")} ולצד השני להבין למה אנחנו חושבים שזו התאמה טובה.
+            </p>
+            <p style="line-height: 1.8; font-size: 15px;">
+              הסבר מלא ואפשרות אישור מחכים ${gn("לך", "לך")} במערכת.
+            </p>
+            <div style="text-align: center; margin: 28px 0;">
+              <a href="https://joinone.io" style="display: inline-block; padding: 12px 28px; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: #fff; text-decoration: none; border-radius: 10px; font-weight: 600; font-size: 15px;">
+                ${gn("כנס", "כנסי")} למערכת
+              </a>
+            </div>
+            <p style="font-size: 12px; color: #999; text-align: center;">צוות One</p>
+          </div>
+        `,
+      });
+      await pgQueryAll(
+        "INSERT INTO email_log (user_id, subject, sent_at) VALUES ($1, $2, NOW())",
+        [u.id, "One — עדכון חשוב לקראת ההתאמה שלך — כרטיס התאמה"]
+      );
+      sent++;
+    } catch (e: any) {
+      console.error(`Failed to send pool email to user ${u.id}:`, e.message);
+    }
+  }
+
+  return res.json({ success: true, sent, total_pool: poolUsers.length });
 });
 
 // GET /matches/pending-rating — Get pending match for user to rate (user-facing)
@@ -2519,7 +2670,7 @@ app.get("/admin/user-management", async (_req, res) => {
         u.created_at, u.updated_at, u.test_user_type, u.is_matchable, u.in_matching_pool,
         u.analysis_run_count, u.analysis_completed,
         u.couple_insights, u.personal_insights_short, u.personal_insights_full,
-        u.user_status, u.email_updates, u.partner_name,
+        u.user_status, u.email_updates, u.partner_name, u.match_card_consent,
         (SELECT COUNT(*)::int FROM user_photos WHERE user_id = u.id) AS photo_count
       FROM users u
       ORDER BY u.created_at DESC
@@ -3068,12 +3219,13 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
       test_user_type: string | null; email_updates: boolean | null;
       partner_in_system: boolean | null; whatsapp_updates: boolean | null;
       partner_name: string | null;
+      in_matching_pool: boolean | null; match_card_consent: string | null;
     }>(
       `SELECT age, city, height, looking_for_gender,
               desired_age_min, desired_age_max, desired_height_min, desired_height_max,
               COALESCE(analysis_run_count, 0) as analysis_run_count, gender, admin_message,
               test_user_type, email_updates, COALESCE(partner_in_system, FALSE) as partner_in_system,
-              whatsapp_updates, partner_name
+              whatsapp_updates, partner_name, in_matching_pool, match_card_consent
        FROM users WHERE id = $1`, [userId]
     );
     const hasProfileDetails = !!(
@@ -3165,6 +3317,8 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
       admin_message: displayMessage,
       system_question: activeQuestion,
       pending_rating: !!pendingMatch,
+      in_matching_pool: profileRow?.in_matching_pool ?? false,
+      match_card_consent: profileRow?.match_card_consent ?? null,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

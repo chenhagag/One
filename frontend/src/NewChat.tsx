@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import ProfileEdit from "./ProfileEdit";
 import Insights from "./Insights";
 import MatchCard from "./MatchCard";
+import MatchCardConsentScreen from "./MatchCardConsentScreen";
 import { trackPage } from "./lib/trackPage";
 import { getApiBaseUrl } from "./lib/platform";
 import type { User } from "./App";
@@ -345,13 +346,13 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [sending, setSending] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [channel, setChannel] = useState<string>("new_chat");
-  const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "insights" | "couple_insights" | "bug_report" | "settings" | "how_it_works" | "potential_matches">("home");
+  const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "insights" | "couple_insights" | "bug_report" | "settings" | "how_it_works" | "potential_matches" | "match_card_consent" | "match_card">("home");
   const [coupleInsights, setCoupleInsights] = useState<string | null>(null);
   const [analysisCompleted, setAnalysisCompleted] = useState(false);
   const [bugText, setBugText] = useState("");
   const [bugSent, setBugSent] = useState(false);
   const [feedbackCategory, setFeedbackCategory] = useState<string>("");
-  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; pending_rating: boolean }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, pending_rating: false });
+  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, pending_rating: false, in_matching_pool: false, match_card_consent: null });
   const [systemQuestion, setSystemQuestion] = useState<{ id: number; question_text: string } | null>(null);
   const [answeredQuestion, setAnsweredQuestion] = useState<{ question_text: string; answer: string } | null>(null);
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
@@ -397,6 +398,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             gender: data.gender || null,
             admin_message: data.admin_message || null,
             pending_rating: !!data.pending_rating,
+            in_matching_pool: !!data.in_matching_pool,
+            match_card_consent: data.match_card_consent || null,
           });
           setSystemQuestion(data.system_question || null);
           if (data.chat_closed) setClosedChannels(prev => ({ ...prev, "new_chat": true }));
@@ -700,14 +703,23 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               <span>תצוגת אדמין</span>
             </button>
           )}
-          {/* Match card — only for matched users (#130 Gal, #133 Eden) */}
-          {(user.id === 130 || user.id === 133) && (
+          {/* Match card consent / view — for users who completed all stages */}
+          {closedChannels["new_chat"] && recommendations.has_cognitive && recommendations.has_taste_info && recommendations.has_profile_details && (
             <button
-              style={screen === "match_card" ? styles.sidebarItemActive : styles.sidebarItem}
-              onClick={() => { setScreen("match_card"); setMenuOpen(false); }}
+              style={(screen === "match_card_consent" || screen === "match_card") ? styles.sidebarItemActive : styles.sidebarItem}
+              onClick={() => {
+                if (recommendations.match_card_consent === "approved") {
+                  setScreen("match_card_consent");
+                } else {
+                  setScreen("match_card_consent");
+                }
+                setMenuOpen(false);
+              }}
             >
               <IconImg src="/icons/accurateMatch.png" />
               <span>כרטיס התאמה</span>
+              {recommendations.match_card_consent !== "approved" && <span style={{ ...styles.completedBadge, background: "#f59e0b", color: "#fff" }}>!</span>}
+              {recommendations.match_card_consent === "approved" && <span style={styles.completedBadge}>&#10003;</span>}
             </button>
           )}
           {/* Couple insights — only for couple testers with insights */}
@@ -753,6 +765,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
              screen === "profile_edit" ? "הפרטים שלי" :
              screen === "insights" ? "תובנות על עצמי" :
              screen === "match_card" ? "כרטיס התאמה" :
+             screen === "match_card_consent" ? "כרטיס התאמה" :
              screen === "couple_insights" ? "ניתוח זוגיות" :
              screen === "how_it_works" ? "איך המערכת עובדת?" :
              screen === "bug_report" ? "עזרו לנו להשתפר" :
@@ -881,7 +894,20 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         )}
 
         {screen === "match_card" && (
-          <MatchCard user={user} onBack={() => setScreen("home")} />
+          <MatchCard user={user} onBack={() => setScreen("match_card_consent")} isDemo={true} />
+        )}
+
+        {screen === "match_card_consent" && (
+          <MatchCardConsentScreen
+            user={user}
+            onComplete={(u) => {
+              onUserUpdate?.(u);
+              setScreen("home");
+              loadRecommendations();
+            }}
+            onShowExample={() => setScreen("match_card")}
+            alreadyApproved={recommendations.match_card_consent === "approved"}
+          />
         )}
 
         {screen === "couple_insights" && coupleInsights && (
@@ -1062,6 +1088,32 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 </div>
               )}
 
+              {/* Pool welcome message — for pool users who haven't approved match card */}
+              {screen === "home" && recommendations.in_matching_pool && recommendations.match_card_consent !== "approved" && (
+                <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
+                  <div style={{ background: "#f0eef8", borderRadius: 14, padding: "18px 20px", border: "1px solid #e0ddf5" }}>
+                    <p style={{ fontSize: 14, color: "#3a3660", lineHeight: 1.8, margin: "0 0 12px", fontWeight: 500 }}>
+                      ברוכים הבאים למאגר שלנו!
+                      <br />
+                      אנחנו נמצאים כרגע ב-MVP ובונים את קהילת המשתמשים שלנו — התהליך עשוי לקחת קצת זמן, אבל אנחנו לא מתפשרים עד שנמצא התאמה שהיא בול בשבילך.
+                    </p>
+                    <p style={{ fontSize: 14, color: "#3a3660", lineHeight: 1.8, margin: "0 0 12px" }}>
+                      כדי לקבל התאמה, יש לאשר את בניית <strong>כרטיס ההתאמה</strong> שלך.
+                    </p>
+                    <button
+                      onClick={() => setScreen("match_card_consent")}
+                      style={{
+                        width: "100%", padding: "10px 20px", fontSize: 14, fontWeight: 600,
+                        background: "#6366f1", color: "#fff", border: "none", borderRadius: 10,
+                        cursor: "pointer", fontFamily: "inherit",
+                      }}
+                    >
+                      להסבר ואישור כרטיס התאמה
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Status recommendation — one at a time, prioritized */}
               {screen === "home" && (() => {
               const { has_cognitive, has_taste_info, summary_fields, chat_count } = recommendations;
@@ -1131,7 +1183,17 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       <p style={{ ...styles.recommendationText, lineHeight: 1.7 }}>
                         🎉 כל השלבים הושלמו בהצלחה!
                         <br />
-                        כעת המערכת מבצעת ניתוח מעמיק של המאפיינים שלך ומתחילה בחיפוש. נשלח לך עדכון ברגע שתעלה התאמה רלוונטית ומדויקת.
+                        כעת המערכת מבצעת ניתוח מעמיק של המאפיינים {gn("שלך", "שלך")} ומתחילה בחיפוש. נשלח {gn("לך", "לך")} עדכון ברגע שתעלה התאמה רלוונטית ומדויקת.
+                        {recommendations.match_card_consent !== "approved" && (
+                          <>
+                            <br /><br />
+                            כדי שנוכל להציג את ההתאמה {gn("שלך", "שלך")} כשנמצא אותה, יש לאשר את בניית כרטיס ההתאמה {gn("שלך", "שלך")}.
+                            <br />
+                            <span style={{ cursor: "pointer", textDecoration: "underline", color: "#6366f1", fontWeight: 600 }} onClick={() => setScreen("match_card_consent")}>
+                              להסבר על כרטיס ההתאמה &#8592;
+                            </span>
+                          </>
+                        )}
                         <br /><br />
                         <span style={{ fontSize: 12, color: "#999" }}>
                           אנחנו נמצאים כרגע בגרסת הרצה ראשונית (MVP) ובונים את קהילת המשתמשים שלנו, כך שהתהליך עשוי לקחת קצת זמן. ב-One אנחנו מעדיפים איכות על פני מהירות, ולכן לא מתפשרים על התאמות בינוניות.

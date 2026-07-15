@@ -822,6 +822,29 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       END IF;
     END $$;
 
+    -- match card consent on users
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'match_card_consent') THEN
+        ALTER TABLE users ADD COLUMN match_card_consent TEXT DEFAULT NULL;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'match_card_restrictions') THEN
+        ALTER TABLE users ADD COLUMN match_card_restrictions TEXT DEFAULT NULL;
+      END IF;
+    END $$;
+
+    -- match card data on matches
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'matches' AND column_name = 'match_card_data') THEN
+        ALTER TABLE matches ADD COLUMN match_card_data JSONB DEFAULT NULL;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'matches' AND column_name = 'match_card_approved_by_admin') THEN
+        ALTER TABLE matches ADD COLUMN match_card_approved_by_admin BOOLEAN DEFAULT FALSE;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'matches' AND column_name = 'match_card_sent_at') THEN
+        ALTER TABLE matches ADD COLUMN match_card_sent_at TIMESTAMPTZ DEFAULT NULL;
+      END IF;
+    END $$;
+
     CREATE TABLE IF NOT EXISTS deleted_users (
       id                SERIAL PRIMARY KEY,
       original_user_id  INTEGER NOT NULL,
