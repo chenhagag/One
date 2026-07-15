@@ -1093,12 +1093,13 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
                   <div style={{ background: "#f0eef8", borderRadius: 14, padding: "18px 20px", border: "1px solid #e0ddf5" }}>
                     <p style={{ fontSize: 14, color: "#3a3660", lineHeight: 1.8, margin: "0 0 12px", fontWeight: 500 }}>
-                      ברוכים הבאים למאגר שלנו!
-                      <br />
-                      אנחנו נמצאים כרגע ב-MVP ובונים את קהילת המשתמשים שלנו — התהליך עשוי לקחת קצת זמן, אבל אנחנו לא מתפשרים עד שנמצא התאמה שהיא בול בשבילך.
+                      ברוכים הבאים למאגר של One
                     </p>
                     <p style={{ fontSize: 14, color: "#3a3660", lineHeight: 1.8, margin: "0 0 12px" }}>
-                      כדי לקבל התאמה, יש לאשר את בניית <strong>כרטיס ההתאמה</strong> שלך.
+                      אנחנו עדיין בשלב MVP ובונים את הקהילה שלנו צעד־צעד. ייתכן שייקח קצת זמן עד שנמצא התאמה מדויקת, אבל אנחנו מעדיפים לחכות להתאמה שיש לה באמת סיבה.
+                    </p>
+                    <p style={{ fontSize: 14, color: "#3a3660", lineHeight: 1.8, margin: "0 0 12px" }}>
+                      כדי להיכנס למאגר ולקבל בהמשך התאמה אישית ומוסברת, יש לאשר את בניית <strong>כרטיס ההתאמה</strong> שלך.
                     </p>
                     <button
                       onClick={() => setScreen("match_card_consent")}
