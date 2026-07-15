@@ -14,6 +14,8 @@ export default function MatchCardConsentScreen({ user, onComplete, onShowExample
   const [restrictions, setRestrictions] = useState("");
   const [showRestrictions, setShowRestrictions] = useState(false);
   const [showDeclineInfo, setShowDeclineInfo] = useState(false);
+  const [savedConsent, setSavedConsent] = useState<"approved" | "declined" | null>(null);
+  const [savedUser, setSavedUser] = useState<any>(null);
 
   const f = user.gender === "woman";
   const gn = (m: string, fem: string) => f ? fem : m;
@@ -29,12 +31,58 @@ export default function MatchCardConsentScreen({ user, onComplete, onShowExample
       });
       if (!res.ok) { setError("שגיאה בשמירה, נסו שוב"); return; }
       const data = await res.json();
-      onComplete(data.user);
+      setSavedConsent(consent);
+      setSavedUser(data.user);
     } catch {
       setError("שגיאת רשת, נסו שוב");
     } finally {
       setLoading(false);
     }
+  }
+
+  if (savedConsent) {
+    return (
+      <div style={{ flex: 1, overflowY: "auto", direction: "rtl", background: "#f9fafb" }}>
+        <div style={{ maxWidth: 520, margin: "0 auto", padding: "24px 20px" }}>
+          <div style={{ textAlign: "center", marginBottom: 24 }}>
+            <img src="/iconOnly.png" alt="" style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", marginBottom: 10 }} />
+            <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", margin: "0 0 8px" }}>כרטיס התאמה</h2>
+          </div>
+          <div style={cardStyle}>
+            <div style={{ textAlign: "center", padding: "12px 0" }}>
+              <div style={{ fontSize: 36, marginBottom: 8 }}>{savedConsent === "approved" ? "\u2713" : "\u2717"}</div>
+              <p style={{ fontSize: 16, fontWeight: 600, color: "#1a1a2e", margin: "0 0 10px" }}>
+                {savedConsent === "approved"
+                  ? `${gn("בקשתך", "בקשתך")} נקלטה — ${gn("אישרת", "אישרת")} בניית כרטיס התאמה`
+                  : `${gn("בקשתך", "בקשתך")} נקלטה — ${gn("בחרת", "בחרת")} שלא לאשר`
+                }
+              </p>
+              <p style={{ fontSize: 13.5, color: "#666", lineHeight: 1.7, margin: "0 0 6px" }}>
+                {savedConsent === "approved"
+                  ? `כשנמצא ${gn("לך", "לך")} התאמה, נבנה כרטיס אישי שיעזור לשני הצדדים להבין למה אנחנו חושבים שזו התאמה טובה.`
+                  : `לצד השני יוצגו רק שם, גיל, מיקום ותמונה — ללא הסבר על ההתאמה.`
+                }
+              </p>
+              <p style={{ fontSize: 12, color: "#999", lineHeight: 1.6, margin: 0 }}>
+                אם {gn("תרצה", "תרצי")} לשנות את ההחלטה בעתיד, תמיד אפשר לעדכן במסך ההגדרות.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => onComplete(savedUser)}
+            style={{
+              width: "100%", padding: "14px 24px", fontSize: 16, fontWeight: 600,
+              background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+              color: "#fff", border: "none", borderRadius: 14,
+              cursor: "pointer", fontFamily: "inherit", marginTop: 16,
+              boxShadow: "0 4px 14px rgba(99,102,241,0.35)",
+            }}
+          >
+            חזרה למסך הראשי
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (alreadyApproved) {

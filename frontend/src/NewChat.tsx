@@ -1441,6 +1441,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
 function SettingsView({ user, onLogout }: { user: User; onLogout?: () => void }) {
   const [photoAI, setPhotoAI] = useState(false);
+  const [matchCardConsent, setMatchCardConsent] = useState<string | null>(null);
   const [emailUpdates, setEmailUpdates] = useState(true);
   const [whatsappUpdates, setWhatsappUpdates] = useState(false);
   const [phone, setPhone] = useState("");
@@ -1455,6 +1456,7 @@ function SettingsView({ user, onLogout }: { user: User; onLogout?: () => void })
   useEffect(() => {
     fetch(`/api/users/${user.id}`).then(r => r.json()).then(data => {
       setPhotoAI(!!data.photo_ai_consent);
+      setMatchCardConsent(data.match_card_consent || null);
       setEmailUpdates(data.email_updates !== false);
       setWhatsappUpdates(!!data.whatsapp_updates);
       setPhone(data.whatsapp_phone || "");
@@ -1531,6 +1533,29 @@ function SettingsView({ user, onLogout }: { user: User; onLogout?: () => void })
             <span>אני מאשר/ת ל־One להשתמש ב־AI כדי לנתח את תמונות הפרופיל שלי, לצורך שיפור התאמות ותובנות.</span>
           </label>
           <p style={hintStyle}>ניתוח תמונות ב־AI הוא אופציונלי. ללא אישור, התמונות ישמשו להצגה בפרופיל בלבד.</p>
+        </div>
+
+        {/* Match card consent */}
+        <div style={sectionStyle}>
+          <h3 style={titleStyle}>כרטיס התאמה</h3>
+          <label style={labelStyle}>
+            <input type="checkbox" checked={matchCardConsent === "approved"} disabled={saving || loading}
+              onChange={(e) => {
+                const newVal = e.target.checked ? "approved" : "declined";
+                setMatchCardConsent(newVal);
+                saveSetting({ match_card_consent: newVal });
+              }}
+              style={checkboxStyle} />
+            <span>{`${user.gender === "woman" ? "אני מאשרת" : "אני מאשר/ת"}`} בניית כרטיס התאמה אישי על סמך השיחות שלי עם One</span>
+          </label>
+          <p style={hintStyle}>
+            {matchCardConsent === "approved"
+              ? "כרטיס ההתאמה ייבנה כשנמצא לך התאמה, ויציג לשני הצדדים מידע כללי על מה שמחבר ביניכם."
+              : matchCardConsent === "declined"
+              ? "ללא אישור, יוצגו לצד השני רק שם, גיל, מיקום ותמונה — ללא הסבר על ההתאמה."
+              : "לא הגדרת עדיין העדפה — כדי לקבל התאמה מוסברת, יש לאשר."
+            }
+          </p>
         </div>
 
         {/* Notifications */}
