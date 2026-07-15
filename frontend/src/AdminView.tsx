@@ -1754,6 +1754,38 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                 {showEmailComposer ? "Close Email" : "Send Email"}
               </button>
             )}
+            <button
+              style={{ padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#8b5cf6", color: "#fff", border: "none", borderRadius: 4 }}
+              onClick={async () => {
+                if (!confirm(`לשלוח מייל כרטיס התאמה ל-${data?.user?.first_name}?`)) return;
+                try {
+                  const u = data?.user;
+                  const isFemale = u?.gender === "woman";
+                  const gn = (m: string, f: string) => isFemale ? f : m;
+                  const r = await fetch(`/api/admin/users/${userId}/send-email`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      subject: "One — עדכון חשוב לקראת ההתאמה שלך",
+                      html: `<div dir="rtl" style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; color: #1a1a2e;">
+                        <h2 style="color: #6366f1;">היי ${u?.first_name || ""} 👋</h2>
+                        <p style="line-height: 1.8; font-size: 15px;">תודה על הסבלנות! המאגר שלנו גדל מיום ליום, ואנחנו לא ${gn("מתפשר", "מתפשרת")} עד שנמצא ${gn("לך", "לך")} התאמה שהיא בול ${gn("בשבילך", "בשבילך")}.</p>
+                        <p style="line-height: 1.8; font-size: 15px;">בינתיים, ${gn("הוסף", "הוסיפי")} עוד צעד קטן — ${gn("אשר", "אשרי")} את בניית <strong>כרטיס ההתאמה</strong> ${gn("שלך", "שלך")} במערכת. כרטיס ההתאמה הוא סיכום אישי שנבנה על סמך השיחות שלנו, שיעזור ${gn("לך", "לך")} ולצד השני להבין למה אנחנו חושבים שזו התאמה טובה.</p>
+                        <p style="line-height: 1.8; font-size: 15px;">הסבר מלא ואפשרות אישור מחכים ${gn("לך", "לך")} במערכת.</p>
+                        <div style="text-align: center; margin: 28px 0;">
+                          <a href="https://joinone.io" style="display: inline-block; padding: 12px 28px; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: #fff; text-decoration: none; border-radius: 10px; font-weight: 600; font-size: 15px;">${gn("כנס", "כנסי")} למערכת</a>
+                        </div>
+                        <p style="font-size: 12px; color: #999; text-align: center;">צוות One</p>
+                      </div>`,
+                    }),
+                  });
+                  if (r.ok) alert("המייל נשלח בהצלחה!");
+                  else alert("שגיאה בשליחה");
+                } catch { alert("שגיאת רשת"); }
+              }}
+            >
+              מייל כרטיס התאמה
+            </button>
             {traits.length === 0 && lookTraits.length === 0 && (
               <span style={{ fontSize: 12, color: "#856404", background: "#fff3cd", padding: "4px 10px", borderRadius: 4 }}>
                 No trait data — click Re-analyze to generate
