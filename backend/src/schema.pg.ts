@@ -822,6 +822,13 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       END IF;
     END $$;
 
+    -- age_expanded on candidate_matches
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'candidate_matches' AND column_name = 'age_expanded') THEN
+        ALTER TABLE candidate_matches ADD COLUMN age_expanded BOOLEAN DEFAULT FALSE;
+      END IF;
+    END $$;
+
     -- match card consent on users
     DO $$ BEGIN
       IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'match_card_consent') THEN

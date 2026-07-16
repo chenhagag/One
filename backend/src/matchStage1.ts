@@ -304,8 +304,8 @@ export async function runStage1(_db: Database.Database, options?: { skipMatchabl
 
   // 7. Compute filter results in-memory
   type Action =
-    | { kind: "insert"; aId: number; bId: number; aTs: string; bTs: string; locationExpanded: boolean }
-    | { kind: "update"; id: number; aTs: string; bTs: string; locationExpanded: boolean }
+    | { kind: "insert"; aId: number; bId: number; aTs: string; bTs: string; locationExpanded: boolean; ageExpanded: boolean }
+    | { kind: "update"; id: number; aTs: string; bTs: string; locationExpanded: boolean; ageExpanded: boolean }
     | { kind: "delete"; id: number };
   const actions: Action[] = [];
   let pairsCreated = 0;
@@ -325,12 +325,12 @@ export async function runStage1(_db: Database.Database, options?: { skipMatchabl
       }
 
       const result = options?.skipAllFilters
-        ? { passes: passesCognitiveFilter(a, b), locationExpanded: false }
+        ? { passes: passesCognitiveFilter(a, b), locationExpanded: false, ageExpanded: false }
         : passesAllFilters(a, b, getUserTrait, getUserLookTrait, getRegion, getNearbyRegions, !!options?.expandedFilters);
 
       if (result.passes) {
-        if (existing) actions.push({ kind: "update", id: existing.id, aTs, bTs, locationExpanded: result.locationExpanded });
-        else actions.push({ kind: "insert", aId: a.id, bId: b.id, aTs, bTs, locationExpanded: result.locationExpanded });
+        if (existing) actions.push({ kind: "update", id: existing.id, aTs, bTs, locationExpanded: result.locationExpanded, ageExpanded: result.ageExpanded });
+        else actions.push({ kind: "insert", aId: a.id, bId: b.id, aTs, bTs, locationExpanded: result.locationExpanded, ageExpanded: result.ageExpanded });
         pairsCreated++;
       } else if (existing) {
         actions.push({ kind: "delete", id: existing.id });
@@ -345,17 +345,17 @@ export async function runStage1(_db: Database.Database, options?: { skipMatchabl
         await client.query(
           `INSERT INTO candidate_matches
              (user_id, candidate_user_id, status, filtering_passed, last_evaluated_at,
-              user1_last_source_update, user2_last_source_update, location_expanded)
-           VALUES ($1, $2, 'pending_score', TRUE, NOW(), $3, $4, $5)`,
-          [act.aId, act.bId, act.aTs, act.bTs, act.locationExpanded]
+              user1_last_source_update, user2_last_source_update, location_expanded, age_expanded)
+           VALUES ($1, $2, 'pending_score', TRUE, NOW(), $3, $4, $5, $6)`,
+          [act.aId, act.bId, act.aTs, act.bTs, act.locationExpanded, act.ageExpanded]
         );
       } else if (act.kind === "update") {
         await client.query(
           `UPDATE candidate_matches
            SET status = 'pending_score', filtering_passed = TRUE, last_evaluated_at = NOW(),
-               user1_last_source_update = $1, user2_last_source_update = $2, location_expanded = $4, updated_at = NOW()
+               user1_last_source_update = $1, user2_last_source_update = $2, location_expanded = $4, age_expanded = $5, updated_at = NOW()
            WHERE id = $3`,
-          [act.aTs, act.bTs, act.id, act.locationExpanded]
+          [act.aTs, act.bTs, act.id, act.locationExpanded, act.ageExpanded]
         );
       } else {
         await client.query(
@@ -382,12 +382,19 @@ function passesAllFilters(
   getRegion: (city: string | null) => string | null,
   getNearbyRegions: (region: string) => Set<string>,
   expanded: boolean = false,
-): { passes: boolean; locationExpanded: boolean } {
-  if (!passesGenderFilter(a, b)) return { passes: false, locationExpanded: false };
-  if (!passesGenderFilter(b, a)) return { passes: false, locationExpanded: false };
+): { passes: boolean; locationExpanded: boolean; ageExpanded: boolean } {
+  if (!passesGenderFilter(a, b)) return { passes: false, locationExpanded: false, ageExpanded: false };
+  if (!passesGenderFilter(b, a)) return { passes: false, locationExpanded: false, ageExpanded: false };
 
-  if (!passesAgeFilter(a, b, expanded)) return { passes: false, locationExpanded: false };
-  if (!passesAgeFilter(b, a, expanded)) return { passes: false, locationExpanded: false };
+  let ageExpanded = false;
+  if (!passesAgeFilter(a, b, false)) {
+    if (!expanded || !passesAgeFilter(a, b, true)) return { passes: false, locationExpanded: false, ageExpanded: false };
+    ageExpanded = true;
+  }
+  if (!passesAgeFilter(b, a, false)) {
+    if (!expanded || !passesAgeFilter(b, a, true)) return { passes: false, locationExpanded: false, ageExpanded: false };
+    ageExpanded = true;
+  }
 
   // Check location with original preference first, then with admin override or expanded
   const aOriginalPasses = passesLocationFilter(a, b, getRegion, getNearbyRegions, false, expanded);
@@ -398,29 +405,29 @@ function passesAllFilters(
     // Try with admin override
     const aExpandedPasses = aOriginalPasses || passesLocationFilter(a, b, getRegion, getNearbyRegions, true, expanded);
     const bExpandedPasses = bOriginalPasses || passesLocationFilter(b, a, getRegion, getNearbyRegions, true, expanded);
-    if (!aExpandedPasses || !bExpandedPasses) return { passes: false, locationExpanded: false };
+    if (!aExpandedPasses || !bExpandedPasses) return { passes: false, locationExpanded: false, ageExpanded: false };
     locationExpanded = true;
   }
 
-  if (!passesHeightFilter(a, b)) return { passes: false, locationExpanded: false };
-  if (!passesHeightFilter(b, a)) return { passes: false, locationExpanded: false };
+  if (!passesHeightFilter(a, b)) return { passes: false, locationExpanded: false, ageExpanded: false };
+  if (!passesHeightFilter(b, a)) return { passes: false, locationExpanded: false, ageExpanded: false };
 
-  if (!passesApprovalFilter(a, b)) return { passes: false, locationExpanded: false };
+  if (!passesApprovalFilter(a, b)) return { passes: false, locationExpanded: false, ageExpanded: false };
 
   // Fixed filter: cognitive profile weighted avg ±20 (always applied, no effective_weight gate)
-  if (!passesCognitiveFilter(a, b)) return { passes: false, locationExpanded: false };
+  if (!passesCognitiveFilter(a, b)) return { passes: false, locationExpanded: false, ageExpanded: false };
 
-  if (!passesSexualIdentityFilter(a, b, getTrait)) return { passes: false, locationExpanded: false };
+  if (!passesSexualIdentityFilter(a, b, getTrait)) return { passes: false, locationExpanded: false, ageExpanded: false };
 
-  if (!passesPersonalTraitFilters(a, b, getTrait)) return { passes: false, locationExpanded: false };
+  if (!passesPersonalTraitFilters(a, b, getTrait)) return { passes: false, locationExpanded: false, ageExpanded: false };
 
-  if (!passesBodyTypeFilter(a, b, getLookTrait)) return { passes: false, locationExpanded: false };
-  if (!passesBodyTypeFilter(b, a, getLookTrait)) return { passes: false, locationExpanded: false };
+  if (!passesBodyTypeFilter(a, b, getLookTrait)) return { passes: false, locationExpanded: false, ageExpanded: false };
+  if (!passesBodyTypeFilter(b, a, getLookTrait)) return { passes: false, locationExpanded: false, ageExpanded: false };
 
-  if (!passesGenderExpressionFilter(a, b, getLookTrait)) return { passes: false, locationExpanded: false };
-  if (!passesGenderExpressionFilter(b, a, getLookTrait)) return { passes: false, locationExpanded: false };
+  if (!passesGenderExpressionFilter(a, b, getLookTrait)) return { passes: false, locationExpanded: false, ageExpanded: false };
+  if (!passesGenderExpressionFilter(b, a, getLookTrait)) return { passes: false, locationExpanded: false, ageExpanded: false };
 
-  return { passes: true, locationExpanded };
+  return { passes: true, locationExpanded, ageExpanded };
 }
 
 // ── 1. Gender ────────────────────────────────────────────────────
