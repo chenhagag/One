@@ -1,6 +1,72 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-07-14 (Chat Review — New Users + Prompt Fixes)
+## Latest Session: 2026-07-15/16 (Match Card System + Region Revamp)
+
+### What We Did
+
+#### 1. Match Card Consent & Delivery System
+Full flow for match cards — from consent to delivery:
+
+**User-facing:**
+- **MatchCardConsentScreen** — explains what a match card is, shows Gaya/Ofir demo example, approve/decline with optional restrictions, gender-adapted text
+- **Home screen messages** — "all stages done" CTA to approve card + pool welcome message for pool users
+- **Sidebar** — "כרטיס התאמה" item for users who completed all stages; becomes "ההתאמה שלי" with heart badge when match card is active
+- **Settings** — toggle to change match card consent at any time
+- **Celebration** — home screen banner "קיבלת התאמה!" with link to view card when active match exists
+- **MatchCard.tsx** refactored — data-driven (accepts matchData prop), demo banner for examples, celebration header for real matches
+
+**Admin:**
+- **Two-step flow**: "שלח התאמה" → pre_match status → card entered via API → "בדיקת כרטיס התאמה" → preview modal with edit option → "אישור ושליחה"
+- **Match card preview modal** — full card preview + inline editing + save + approve & send
+- **Pool emails** — batch "מייל כרטיס למאגר" button + individual per-user button
+- **Pool entry email** updated with match card consent paragraph
+- **match_card_consent status** shown in user detail view
+
+**DB:**
+- `users`: `match_card_consent`, `match_card_restrictions`
+- `matches`: `match_card_data` (JSONB), `match_card_approved_by_admin`, `match_card_sent_at`
+
+**Endpoints:**
+- `POST /users/:id/match-card-consent` — save consent
+- `GET /users/:id/active-match-card` — fetch active card for display
+- `POST /admin/matches/:id/prepare` — move to pre_match (pending card)
+- `POST /admin/matches/:id/save-card` — save card content (JSONB)
+- `POST /admin/matches/:id/approve-card` — admin approves
+- `POST /admin/send-pool-emails` — batch consent email
+
+#### 2. Region System Revamp
+Complete overhaul of location filtering:
+
+**9 regions** (was 6): גוש דן, שרון, עמקים-חוף, שפלה-מרכז, ירושלים, דרום-מערב, דרום-נגב, כרמל-חיפה, צפון
+
+**Multi-region cities** — cities can belong to multiple regions (e.g. הרצליה → גוש דן + שרון). Code updated to check all regions of a city for location filter.
+
+**Realistic adjacency** — e.g. גוש דן ↔ שרון/שפלה/ירושלים. חדרה/זכרון area gets its own "עמקים-חוף" region between שרון and כרמל.
+
+#### 3. Expanded Matching Algorithm
+- **"Run Expanded" button** in admin — relaxes age (+2 years) and location (bump one level)
+- `age_expanded` column on candidate_matches with 🔞 indicator in admin table
+- `location_expanded` 📍 indicator (existing)
+- Age tolerance restored in regular run (was accidentally removed)
+
+#### 4. Taste Test Prompt Fix
+- Clarified system identity: "אתה חלק ממערכת One, המשתמש כבר בתוך המערכת"
+- Added handling for user confusion about profiles vs single match
+- Removed misleading "הלינק למערכת: joinone.io" that made AI think it's separate from the app
+
+#### 5. Personal Insights Written
+- Nadav (#23) — full insights saved to staging DB
+- נטלי שבתאי (#16) — full insights saved to staging DB
+
+#### 6. Match Card Created
+- גיא (#97) & Gal Ella (#130) — test match card built and saved in staging
+
+### Next Steps
+- **In-app messaging** — "התחילו שיחה" button on match card should open a chat between matched users
+- **Taste test prompt** — monitor for profile confusion issues after fix
+- **Match card flow** — test full end-to-end on staging (send → user sees celebration + card)
+
+## Previous Session: 2026-07-14 (Chat Review — New Users + Prompt Fixes)
 
 ### What We Did
 
