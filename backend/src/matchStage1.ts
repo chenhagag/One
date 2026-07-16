@@ -470,19 +470,21 @@ function getDefaultAgeRange(from: User): { min: number; max: number } | null {
 function passesAgeFilter(from: User, to: User, expanded: boolean = false): boolean {
   if (to.age == null) return true;
 
-  const expandExtra = expanded ? 2 : 0;
   let min: number, max: number;
   if (from.desired_age_min == null && from.desired_age_max == null) {
-    // No preference set — use defaults
+    // No preference set — use defaults (already include flexibility by design)
     const defaults = getDefaultAgeRange(from);
     if (!defaults) return true;
-    min = defaults.min - expandExtra;
-    max = defaults.max + expandExtra;
+    min = defaults.min;
+    max = defaults.max;
   } else {
+    // Apply tolerance based on user's flexibility setting
     const tol = AGE_TOL[from.age_flexibility] ?? 3;
-    min = (from.desired_age_min ?? 0) - tol - expandExtra;
-    max = (from.desired_age_max ?? 999) + tol + expandExtra;
+    min = (from.desired_age_min ?? 0) - tol;
+    max = (from.desired_age_max ?? 999) + tol;
   }
+  // Expanded: add 2 more years each direction beyond tolerance
+  if (expanded) { min -= 2; max += 2; }
   return to.age >= min && to.age <= max;
 }
 
