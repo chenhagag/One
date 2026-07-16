@@ -3302,6 +3302,10 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
   const [result, setResult] = useState<any>(null);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [sortBy, setSortBy] = useState<string>("profile_score");
+  const [cardPreview, setCardPreview] = useState<{ matchId: number; user1Name: string; user2Name: string; data: any } | null>(null);
+  const [cardSending, setCardSending] = useState(false);
+  const [cardEditing, setCardEditing] = useState(false);
+  const [editData, setEditData] = useState<any>(null);
 
   function load() {
     setLoading(true);
@@ -3600,15 +3604,14 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                     )}
                     {cm.match_status === "pre_match" && cm.match_card_data && !cm.match_card_sent_at && (
                       <button
-                        style={{ padding: "3px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#28a745", color: "#fff" }}
-                        onClick={async () => {
-                          if (!confirm(`לשלוח את כרטיס ההתאמה של ${cm.user1_name} ו-${cm.user2_name}? הכרטיס יופיע להם במסך הבית.`)) return;
-                          await fetch(`/api/admin/matches/${cm.match_id}/approve-card`, { method: "POST" });
-                          await fetch(`/api/admin/matches/${cm.match_id}/send`, { method: "POST" });
-                          load();
+                        style={{ padding: "3px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#0d6efd", color: "#fff" }}
+                        onClick={() => {
+                          setCardPreview({ matchId: cm.match_id, user1Name: cm.user1_name, user2Name: cm.user2_name, data: cm.match_card_data });
+                          setEditData(null);
+                          setCardEditing(false);
                         }}
                       >
-                        שלח כרטיס למשתמשים
+                        בדיקת כרטיס התאמה
                       </button>
                     )}
                     {cm.match_status === "in_match" && cm.match_card_sent_at && (
@@ -3630,6 +3633,134 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
         </div>
       )}
 
+      {/* ── Card Preview/Edit Modal ── */}
+      {cardPreview && (() => {
+        const d = cardEditing && editData ? editData : cardPreview.data;
+        return (
+          <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+            <div style={{ background: "#fff", borderRadius: 16, maxWidth: 700, width: "100%", maxHeight: "90vh", overflow: "auto", padding: 28, direction: "rtl", position: "relative" }}>
+              <button onClick={() => setCardPreview(null)} style={{ position: "absolute", top: 12, left: 12, background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#999" }}>&times;</button>
+
+              <h3 style={{ margin: "0 0 4px", fontSize: 18, color: "#1a1a2e" }}>
+                כרטיס התאמה — {cardPreview.user1Name} &amp; {cardPreview.user2Name}
+              </h3>
+              <p style={{ fontSize: 12, color: "#888", margin: "0 0 20px" }}>Match ID: {cardPreview.matchId}</p>
+
+              {!cardEditing ? (
+                /* Preview mode */
+                <div>
+                  <div style={{ background: "#f9fafb", borderRadius: 12, padding: 16, marginBottom: 16, border: "1px solid #e5e7eb" }}>
+                    <div style={{ background: "#fff", borderRadius: 10, padding: 16, marginBottom: 10, border: "1px solid #eee" }}>
+                      <strong>סיכום פתיחה:</strong>
+                      <p style={{ fontSize: 13, color: "#555", lineHeight: 1.7, whiteSpace: "pre-wrap", margin: "6px 0 0" }}>{d.introSummary}</p>
+                    </div>
+
+                    {d.connectionPoints?.map((cp: any, i: number) => (
+                      <div key={i} style={{ background: "#f8f7ff", borderRadius: 10, padding: "10px 14px", marginBottom: 8 }}>
+                        <strong style={{ fontSize: 13, color: "#6366f1" }}>{i + 1}. {cp.title}</strong>
+                        <p style={{ fontSize: 12, color: "#555", lineHeight: 1.6, margin: "4px 0 0" }}>{cp.text}</p>
+                      </div>
+                    ))}
+
+                    <div style={{ background: "#fff", borderRadius: 10, padding: 16, marginBottom: 10, border: "1px solid #eee" }}>
+                      <strong>הצעה למפגש ראשון:</strong>
+                      <p style={{ fontSize: 13, color: "#555", lineHeight: 1.7, whiteSpace: "pre-wrap", margin: "6px 0 0" }}>{d.dateIdea}</p>
+                    </div>
+
+                    <div style={{ background: "#fefce8", borderRadius: 10, padding: 16, marginBottom: 10, border: "1px solid #fde68a" }}>
+                      <strong style={{ color: "#854d0e" }}>נקודת תורפה:</strong>
+                      <p style={{ fontSize: 13, color: "#713f12", lineHeight: 1.7, whiteSpace: "pre-wrap", margin: "6px 0 0" }}>{d.caveat}</p>
+                    </div>
+
+                    <div style={{ background: "#f0eef8", borderRadius: 10, padding: 16, border: "1px solid #e0ddf5" }}>
+                      <strong style={{ color: "#3a3660" }}>סיום:</strong>
+                      <p style={{ fontSize: 13, color: "#3a3660", lineHeight: 1.7, whiteSpace: "pre-wrap", margin: "6px 0 0" }}>{d.closing}</p>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 10, justifyContent: "flex-start" }}>
+                    <button
+                      disabled={cardSending}
+                      onClick={async () => {
+                        if (!confirm("לשלוח את כרטיס ההתאמה לשני המשתמשים? הכרטיס יופיע להם במסך הבית.")) return;
+                        setCardSending(true);
+                        try {
+                          await fetch(`/api/admin/matches/${cardPreview.matchId}/approve-card`, { method: "POST" });
+                          await fetch(`/api/admin/matches/${cardPreview.matchId}/send`, { method: "POST" });
+                          setCardPreview(null);
+                          load();
+                        } catch { alert("שגיאה בשליחה"); }
+                        finally { setCardSending(false); }
+                      }}
+                      style={{ padding: "8px 20px", fontSize: 14, fontWeight: 600, background: "#28a745", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer" }}
+                    >
+                      {cardSending ? "שולח..." : "אישור ושליחה למשתמשים"}
+                    </button>
+                    <button
+                      onClick={() => { setEditData(JSON.parse(JSON.stringify(cardPreview.data))); setCardEditing(true); }}
+                      style={{ padding: "8px 20px", fontSize: 14, fontWeight: 600, background: "#f3f4f6", color: "#333", border: "none", borderRadius: 8, cursor: "pointer" }}
+                    >
+                      עריכה
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Edit mode */
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div>
+                    <label style={{ fontSize: 13, fontWeight: 600, color: "#333", display: "block", marginBottom: 4 }}>סיכום פתיחה</label>
+                    <textarea value={editData.introSummary || ""} onChange={(e) => setEditData({ ...editData, introSummary: e.target.value })} style={{ width: "100%", minHeight: 100, padding: 10, fontSize: 13, borderRadius: 8, border: "1px solid #ddd", fontFamily: "inherit", direction: "rtl", resize: "vertical", boxSizing: "border-box" }} />
+                  </div>
+
+                  {editData.connectionPoints?.map((cp: any, i: number) => (
+                    <div key={i} style={{ padding: 12, background: "#f8f7ff", borderRadius: 8 }}>
+                      <input value={cp.title} onChange={(e) => { const pts = [...editData.connectionPoints]; pts[i] = { ...pts[i], title: e.target.value }; setEditData({ ...editData, connectionPoints: pts }); }} style={{ width: "100%", padding: 8, fontSize: 13, borderRadius: 6, border: "1px solid #ddd", fontFamily: "inherit", direction: "rtl", marginBottom: 6, boxSizing: "border-box" }} placeholder={`כותרת ${i + 1}`} />
+                      <textarea value={cp.text} onChange={(e) => { const pts = [...editData.connectionPoints]; pts[i] = { ...pts[i], text: e.target.value }; setEditData({ ...editData, connectionPoints: pts }); }} style={{ width: "100%", minHeight: 60, padding: 8, fontSize: 13, borderRadius: 6, border: "1px solid #ddd", fontFamily: "inherit", direction: "rtl", resize: "vertical", boxSizing: "border-box" }} />
+                    </div>
+                  ))}
+
+                  <div>
+                    <label style={{ fontSize: 13, fontWeight: 600, color: "#333", display: "block", marginBottom: 4 }}>הצעה למפגש ראשון</label>
+                    <textarea value={editData.dateIdea || ""} onChange={(e) => setEditData({ ...editData, dateIdea: e.target.value })} style={{ width: "100%", minHeight: 80, padding: 10, fontSize: 13, borderRadius: 8, border: "1px solid #ddd", fontFamily: "inherit", direction: "rtl", resize: "vertical", boxSizing: "border-box" }} />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 13, fontWeight: 600, color: "#333", display: "block", marginBottom: 4 }}>נקודת תורפה</label>
+                    <textarea value={editData.caveat || ""} onChange={(e) => setEditData({ ...editData, caveat: e.target.value })} style={{ width: "100%", minHeight: 80, padding: 10, fontSize: 13, borderRadius: 8, border: "1px solid #ddd", fontFamily: "inherit", direction: "rtl", resize: "vertical", boxSizing: "border-box" }} />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 13, fontWeight: 600, color: "#333", display: "block", marginBottom: 4 }}>סיום</label>
+                    <textarea value={editData.closing || ""} onChange={(e) => setEditData({ ...editData, closing: e.target.value })} style={{ width: "100%", minHeight: 80, padding: 10, fontSize: 13, borderRadius: 8, border: "1px solid #ddd", fontFamily: "inherit", direction: "rtl", resize: "vertical", boxSizing: "border-box" }} />
+                  </div>
+
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <button
+                      disabled={cardSending}
+                      onClick={async () => {
+                        setCardSending(true);
+                        try {
+                          await fetch(`/api/admin/matches/${cardPreview.matchId}/save-card`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ match_card_data: editData }) });
+                          setCardPreview({ ...cardPreview, data: editData });
+                          setCardEditing(false);
+                          load();
+                        } catch { alert("שגיאה בשמירה"); }
+                        finally { setCardSending(false); }
+                      }}
+                      style={{ padding: "8px 20px", fontSize: 14, fontWeight: 600, background: "#6366f1", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer" }}
+                    >
+                      {cardSending ? "שומר..." : "שמור שינויים"}
+                    </button>
+                    <button onClick={() => setCardEditing(false)} style={{ padding: "8px 20px", fontSize: 14, background: "#f3f4f6", color: "#666", border: "none", borderRadius: 8, cursor: "pointer" }}>
+                      ביטול
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
