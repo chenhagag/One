@@ -15,6 +15,7 @@ interface MatchCardProps {
   onBack: () => void;
   matchData?: MatchCardData;
   isDemo?: boolean;
+  onStartChat?: () => void;
 }
 
 // Demo match card — Gaya (#130) & Ofir (#133)
@@ -49,7 +50,7 @@ const DEMO_MATCH: MatchCardData = {
   closing: "אנחנו מאמינים בהתאמה הזו כי מצאנו חיבור שהוא לא רק \"על הנייר\" — אלא דפוס עמוק של ערכים משותפים, סגנון תקשורת תואם, ודינמיקה שמאפשרת לשניכם לגדול יחד בלי לוותר על מי שאתם. זה לא קורה בכל יום.\n\nמאחר ואנחנו שומרים על הפרטיות של שניכם, לא ניתן לחשוף כאן את כל מה שעומד מאחורי ההתאמה הזו — אבל יש עוד הרבה רבדים שגילינו, ואנחנו מקווים שתגלו אותם יחד.",
 };
 
-export default function MatchCard({ user, onBack, matchData, isDemo }: MatchCardProps) {
+export default function MatchCard({ user, onBack, matchData, isDemo, onStartChat }: MatchCardProps) {
   const data = matchData || DEMO_MATCH;
   const [expandedSection, setExpandedSection] = useState<number | null>(null);
 
@@ -232,20 +233,19 @@ export default function MatchCard({ user, onBack, matchData, isDemo }: MatchCard
           </p>
         </div>
 
-        {/* Start conversation button — disabled for now */}
+        {/* Start conversation button */}
         {!isDemo && (
           <button
-            disabled
+            onClick={onStartChat}
             style={{
               width: "100%", padding: "14px 24px", fontSize: 16, fontWeight: 600,
               background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
               color: "#fff", border: "none", borderRadius: 14,
-              cursor: "not-allowed", fontFamily: "inherit", marginBottom: 16,
+              cursor: "pointer", fontFamily: "inherit", marginBottom: 16,
               boxShadow: "0 4px 14px rgba(99,102,241,0.35)",
-              opacity: 0.5,
             }}
           >
-            התחילו שיחה (בקרוב)
+            התחילו לשוחח
           </button>
         )}
 

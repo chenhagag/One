@@ -781,6 +781,151 @@ app.get("/users/:id/active-match-card", async (req, res) => {
   });
 });
 
+// ================================================================
+// DIRECT MESSAGING — between matched users
+// ================================================================
+
+// Helper: find user's active match
+async function findActiveMatch(userId: number) {
+  return pgQueryOne<any>(
+    `SELECT m.id AS match_id, m.user1_id, m.user2_id
+     FROM matches m
+     WHERE (m.user1_id = $1 OR m.user2_id = $1)
+       AND m.status = 'in_match'
+       AND m.match_card_sent_at IS NOT NULL
+       AND m.match_card_data IS NOT NULL
+     ORDER BY m.match_card_sent_at DESC
+     LIMIT 1`,
+    [userId]
+  );
+}
+
+// GET /users/:id/direct-messages — Fetch messages for active match
+app.get("/users/:id/direct-messages", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const since = req.query.since as string | undefined;
+
+  const match = await findActiveMatch(userId);
+  if (!match) return res.json({ messages: [], partner_typing: false, match_id: null, unread_count: 0 });
+
+  const partnerId = match.user1_id === userId ? match.user2_id : match.user1_id;
+
+  // Get messages (optionally only new ones)
+  let messages;
+  if (since) {
+    messages = await pgQueryAll<any>(
+      `SELECT id, match_id, sender_id, content, read_at, created_at
+       FROM direct_messages WHERE match_id = $1 AND created_at > $2
+       ORDER BY created_at ASC`,
+      [match.match_id, since]
+    );
+  } else {
+    messages = await pgQueryAll<any>(
+      `SELECT id, match_id, sender_id, content, read_at, created_at
+       FROM direct_messages WHERE match_id = $1
+       ORDER BY created_at ASC LIMIT 200`,
+      [match.match_id]
+    );
+  }
+
+  // Check partner typing status (only if updated within last 6 seconds)
+  const typing = await pgQueryOne<any>(
+    `SELECT is_typing, updated_at FROM typing_status
+     WHERE match_id = $1 AND user_id = $2
+       AND is_typing = TRUE
+       AND updated_at > NOW() - INTERVAL '6 seconds'`,
+    [match.match_id, partnerId]
+  );
+
+  // Count unread messages from partner
+  const unreadRow = await pgQueryOne<any>(
+    `SELECT COUNT(*) AS cnt FROM direct_messages
+     WHERE match_id = $1 AND sender_id = $2 AND read_at IS NULL`,
+    [match.match_id, partnerId]
+  );
+
+  return res.json({
+    messages,
+    partner_typing: !!typing,
+    match_id: match.match_id,
+    unread_count: parseInt(unreadRow?.cnt || "0", 10),
+  });
+});
+
+// POST /users/:id/direct-messages — Send a message
+app.post("/users/:id/direct-messages", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const { content } = req.body;
+  if (!content || typeof content !== "string" || content.trim().length === 0) {
+    return res.status(400).json({ error: "content required" });
+  }
+  if (content.length > 2000) {
+    return res.status(400).json({ error: "Message too long (max 2000 chars)" });
+  }
+
+  const match = await findActiveMatch(userId);
+  if (!match) return res.status(404).json({ error: "No active match found" });
+
+  // Verify user is part of this match
+  if (match.user1_id !== userId && match.user2_id !== userId) {
+    return res.status(403).json({ error: "Not authorized" });
+  }
+
+  const msg = await pgQueryOne<any>(
+    `INSERT INTO direct_messages (match_id, sender_id, content)
+     VALUES ($1, $2, $3)
+     RETURNING id, match_id, sender_id, content, read_at, created_at`,
+    [match.match_id, userId, content.trim()]
+  );
+
+  // Clear own typing status
+  await pgQueryOne<any>(
+    `INSERT INTO typing_status (match_id, user_id, is_typing, updated_at)
+     VALUES ($1, $2, FALSE, NOW())
+     ON CONFLICT (match_id, user_id) DO UPDATE SET is_typing = FALSE, updated_at = NOW()`,
+    [match.match_id, userId]
+  );
+
+  return res.json(msg);
+});
+
+// POST /users/:id/typing-status — Update typing indicator
+app.post("/users/:id/typing-status", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const { is_typing } = req.body;
+
+  const match = await findActiveMatch(userId);
+  if (!match) return res.status(404).json({ error: "No active match" });
+
+  await pgQueryOne<any>(
+    `INSERT INTO typing_status (match_id, user_id, is_typing, updated_at)
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (match_id, user_id) DO UPDATE SET is_typing = $3, updated_at = NOW()`,
+    [match.match_id, userId, !!is_typing]
+  );
+
+  return res.json({ ok: true });
+});
+
+// POST /users/:id/mark-messages-read — Mark partner's messages as read
+app.post("/users/:id/mark-messages-read", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+
+  const match = await findActiveMatch(userId);
+  if (!match) return res.status(404).json({ error: "No active match" });
+
+  const partnerId = match.user1_id === userId ? match.user2_id : match.user1_id;
+
+  const result = await pgQueryOne<any>(
+    `UPDATE direct_messages SET read_at = NOW()
+     WHERE match_id = $1 AND sender_id = $2 AND read_at IS NULL
+     RETURNING COUNT(*) AS updated`,
+    [match.match_id, partnerId]
+  );
+
+  return res.json({ ok: true });
+});
+
 function parseUserId(raw: any): number | null {
   const id = typeof raw === "string" ? parseInt(raw, 10) : Number(raw);
   return Number.isFinite(id) && id > 0 ? id : null;

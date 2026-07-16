@@ -852,6 +852,28 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       END IF;
     END $$;
 
+    -- ================================================================
+    -- DIRECT MESSAGING (between matched users)
+    -- ================================================================
+
+    CREATE TABLE IF NOT EXISTS direct_messages (
+      id          SERIAL PRIMARY KEY,
+      match_id    INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+      sender_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      content     TEXT NOT NULL,
+      read_at     TIMESTAMPTZ,
+      created_at  TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_direct_messages_match ON direct_messages(match_id, created_at);
+
+    CREATE TABLE IF NOT EXISTS typing_status (
+      match_id    INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+      user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      is_typing   BOOLEAN DEFAULT FALSE,
+      updated_at  TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (match_id, user_id)
+    );
+
     CREATE TABLE IF NOT EXISTS deleted_users (
       id                SERIAL PRIMARY KEY,
       original_user_id  INTEGER NOT NULL,
