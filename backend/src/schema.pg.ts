@@ -874,6 +874,13 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       PRIMARY KEY (match_id, user_id)
     );
 
+    -- Match blocking
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'matches' AND column_name = 'blocked_by') THEN
+        ALTER TABLE matches ADD COLUMN blocked_by INTEGER REFERENCES users(id) DEFAULT NULL;
+      END IF;
+    END $$;
+
     CREATE TABLE IF NOT EXISTS deleted_users (
       id                SERIAL PRIMARY KEY,
       original_user_id  INTEGER NOT NULL,

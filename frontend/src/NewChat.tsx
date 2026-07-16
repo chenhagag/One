@@ -349,6 +349,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [channel, setChannel] = useState<string>("new_chat");
   const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "insights" | "couple_insights" | "bug_report" | "settings" | "how_it_works" | "potential_matches" | "match_card_consent" | "match_card" | "match_chat">("home");
   const [unreadMatchMessages, setUnreadMatchMessages] = useState(0);
+  const [matchChatStarted, setMatchChatStarted] = useState(false);
   const [coupleInsights, setCoupleInsights] = useState<string | null>(null);
   const [analysisCompleted, setAnalysisCompleted] = useState(false);
   const [bugText, setBugText] = useState("");
@@ -413,9 +414,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           fetch(`/api/users/${user.id}/active-match-card`).then(r => r.json()).then(mc => {
             if (mc.match_card) {
               setActiveMatchCard(mc.match_card);
-              // Check unread messages
+              // Check unread messages + whether chat started
               fetch(`/api/users/${user.id}/direct-messages`).then(r => r.json()).then(dm => {
                 setUnreadMatchMessages(dm.unread_count || 0);
+                setMatchChatStarted((dm.messages || []).length > 0);
               }).catch(() => {});
             } else {
               setActiveMatchCard(null);
@@ -445,6 +447,18 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   useEffect(() => { loadRecommendations(); }, [user.id]);
   useEffect(() => { if (screen === "home") loadRecommendations(); }, [screen]);
   useEffect(() => { if (!adminViewing) trackPage(screen === "chat" ? "chat" : screen === "home" ? "home" : screen, user?.id); }, [screen]);
+
+  // Poll unread match messages on home screen
+  useEffect(() => {
+    if (screen !== "home" || !activeMatchCard) return;
+    const iv = setInterval(() => {
+      fetch(`/api/users/${user.id}/direct-messages`).then(r => r.json()).then(dm => {
+        setUnreadMatchMessages(dm.unread_count || 0);
+        setMatchChatStarted((dm.messages || []).length > 0);
+      }).catch(() => {});
+    }, 15000);
+    return () => clearInterval(iv);
+  }, [screen, activeMatchCard, user.id]);
 
   // Load couple insights + personal insights status
   useEffect(() => {
@@ -720,27 +734,21 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               <span>תצוגת אדמין</span>
             </button>
           )}
-          {/* Match card consent / view — for users who completed all stages */}
-          {closedChannels["new_chat"] && recommendations.has_cognitive && recommendations.has_taste_info && recommendations.has_profile_details && (
+          {/* Match card — shown when user has an active match */}
+          {activeMatchCard && (
             <button
-              style={(screen === "match_card_consent" || screen === "match_card" || screen === "match_chat") ? styles.sidebarItemActive : styles.sidebarItem}
+              style={(screen === "match_card" || screen === "match_chat") ? styles.sidebarItemActive : styles.sidebarItem}
               onClick={() => {
-                if (activeMatchCard) {
-                  setScreen("match_card");
-                } else {
-                  setScreen("match_card_consent");
-                }
+                setScreen("match_card");
                 setMenuOpen(false);
               }}
             >
               <IconImg src="/icons/accurateMatch.png" />
-              <span>{activeMatchCard ? "ההתאמה שלי" : "כרטיס התאמה"}</span>
-              {activeMatchCard && unreadMatchMessages > 0 && (
+              <span>ההתאמה שלי</span>
+              {unreadMatchMessages > 0 && (
                 <span style={{ background: "#ef4444", color: "#fff", fontSize: 10, fontWeight: 700, width: 18, height: 18, borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center", marginRight: 4 }}>{unreadMatchMessages}</span>
               )}
-              {activeMatchCard && <span style={{ ...styles.completedBadge, background: "#ec4899", color: "#fff" }}>&#10084;</span>}
-              {!activeMatchCard && recommendations.match_card_consent !== "approved" && <span style={{ ...styles.completedBadge, background: "#f59e0b", color: "#fff" }}>!</span>}
-              {!activeMatchCard && recommendations.match_card_consent === "approved" && <span style={styles.completedBadge}>&#10003;</span>}
+              <span style={{ ...styles.completedBadge, background: "#ec4899", color: "#fff" }}>&#10084;</span>
             </button>
           )}
           {/* Couple insights — only for couple testers with insights */}
@@ -1133,12 +1141,13 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     border: "1px solid #d4d0e8",
                     boxShadow: "0 4px 16px rgba(99,102,241,0.12)",
                   }}>
-                    <p style={{ fontSize: 32, margin: "0 0 8px" }}>&#127881;</p>
+                    <p style={{ fontSize: 32, margin: "0 0 8px" }}>&#129346;</p>
                     <h3 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a2e", margin: "0 0 8px" }}>
-                      קיבלת התאמה!
+                      יש לך התאמה חדשה!
                     </h3>
                     <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, margin: "0 0 16px" }}>
-                      מצאנו מישהו שאנחנו חושבים שכדאי שתכירו. כרטיס ההתאמה האישי שלכם מוכן.
+                      מצאנו מישהו/י שנראה שיש ביניכם חיבור מעניין ושווה בדיקה.
+                      <br />כרטיס ההתאמה האישי שלכם מוכן, ואפשר לראות למה חשבנו שכדאי שתכירו.
                     </p>
                     <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
                       <button
@@ -1153,29 +1162,31 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       >
                         צפייה בכרטיס ההתאמה
                       </button>
-                      <button
-                        onClick={() => { setScreen("match_chat"); setUnreadMatchMessages(0); }}
-                        style={{
-                          padding: "12px 28px", fontSize: 15, fontWeight: 600,
-                          background: "#fff", color: "#6366f1",
-                          border: "1.5px solid #d4d0e8", borderRadius: 12,
-                          cursor: "pointer", fontFamily: "inherit",
-                          position: "relative",
-                        }}
-                      >
-                        פתיחת שיחה
-                        {unreadMatchMessages > 0 && (
-                          <span style={{
-                            position: "absolute", top: -6, left: -6,
-                            background: "#ef4444", color: "#fff",
-                            fontSize: 11, fontWeight: 700,
-                            width: 20, height: 20, borderRadius: "50%",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                          }}>
-                            {unreadMatchMessages}
-                          </span>
-                        )}
-                      </button>
+                      {matchChatStarted && (
+                        <button
+                          onClick={() => { setScreen("match_chat"); setUnreadMatchMessages(0); }}
+                          style={{
+                            padding: "12px 28px", fontSize: 15, fontWeight: 600,
+                            background: "#fff", color: "#6366f1",
+                            border: "1.5px solid #d4d0e8", borderRadius: 12,
+                            cursor: "pointer", fontFamily: "inherit",
+                            position: "relative",
+                          }}
+                        >
+                          חזרה לשיחה עם {activeMatchCard.partner_name}
+                          {unreadMatchMessages > 0 && (
+                            <span style={{
+                              position: "absolute", top: -6, left: -6,
+                              background: "#ef4444", color: "#fff",
+                              fontSize: 11, fontWeight: 700,
+                              width: 20, height: 20, borderRadius: "50%",
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                            }}>
+                              {unreadMatchMessages}
+                            </span>
+                          )}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

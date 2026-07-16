@@ -610,6 +610,8 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   const [transcript, setTranscript] = useState<any>(null);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [transcriptTab, setTranscriptTab] = useState<string>("all");
+  const [directMessages, setDirectMessages] = useState<any[]>([]);
+  const [directMsgsOpen, setDirectMsgsOpen] = useState(false);
   const [copied, setCopied] = useState<string | false>(false);
   const [analysisRun, setAnalysisRun] = useState<any>(null);
   const [showPrompt, setShowPrompt] = useState(false);
@@ -840,6 +842,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
     loadMatches();
     fetch(`/api/admin/users/${userId}/token-usage`).then(r => r.json()).then(setTokenUsage).catch(() => {});
     fetch(`/api/admin/users/${userId}/full-transcript`).then(r => r.json()).then(setTranscript).catch(() => {});
+    fetch(`/api/admin/users/${userId}/direct-messages`).then(r => r.json()).then(d => setDirectMessages(d.messages || [])).catch(() => {});
     fetch(`/api/admin/users/${userId}/analysis-run`).then(r => r.json()).then(setAnalysisRun).catch(() => {});
     fetch(`/api/admin/users/${userId}/analysis-status`).then(r => r.json()).then(setAnalysisStatus).catch(() => {});
     fetch(`/api/admin/users/${userId}/page-views`).then(r => r.json()).then(setPageViews).catch(() => {});
@@ -1352,6 +1355,11 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
          | כרטיס התאמה: <strong style={{ color: user.match_card_consent === "approved" ? "#28a745" : user.match_card_consent === "declined" ? "#dc3545" : "#888" }}>
           {user.match_card_consent === "approved" ? "אושר" : user.match_card_consent === "declined" ? "לא אושר" : "טרם נשאל"}
         </strong>
+        {user.match_card_restrictions && (
+          <span style={{ display: "inline-block", marginRight: 8, padding: "2px 8px", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 4, fontSize: 11, color: "#92400e", direction: "rtl" }}>
+            הגבלות: {user.match_card_restrictions}
+          </span>
+        )}
          | Type: <select
           style={{ fontSize: 11, padding: "2px 4px", borderRadius: 4, border: "1px solid #ccc", cursor: "pointer" }}
           value={user.test_user_type || ""}
@@ -2309,6 +2317,49 @@ ${footer}`)
         </>
         );
       })()}
+
+      {/* Direct Messages with Match */}
+      {directMessages.length > 0 && (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16 }}>
+            <SectionHeading title={`Match Chat (${directMessages.length} messages)`} />
+            <button
+              style={{ padding: "3px 10px", fontSize: 11, cursor: "pointer", background: directMsgsOpen ? "#eee" : "#f0f4ff", border: "1px solid #ddd", borderRadius: 4 }}
+              onClick={() => setDirectMsgsOpen(!directMsgsOpen)}
+            >
+              {directMsgsOpen ? "Hide" : "Show"}
+            </button>
+            <button
+              style={{ padding: "3px 10px", fontSize: 11, cursor: "pointer", background: copied === "dm" ? "#d4edda" : "#f0f4ff", border: "1px solid #ddd", borderRadius: 4 }}
+              onClick={() => {
+                const text = directMessages.map((m: any) => `${m.sender_name}: ${m.content}`).join("\n\n");
+                navigator.clipboard.writeText(text).then(() => { setCopied("dm"); setTimeout(() => setCopied(false), 2000); });
+              }}
+            >
+              {copied === "dm" ? "Copied!" : "Copy"}
+            </button>
+          </div>
+          {directMsgsOpen && (
+            <div style={{ background: "#fafafa", borderRadius: 8, padding: 16, marginBottom: 16, maxHeight: 500, overflowY: "auto", fontSize: 13, lineHeight: 1.7 }}>
+              {directMessages.map((m: any) => (
+                <div key={m.id} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid #eee" }}>
+                  <span style={{
+                    display: "inline-block", padding: "1px 8px", borderRadius: 3, fontSize: 10, fontWeight: 600, marginBottom: 4,
+                    background: m.sender_id === userId ? "#1a1a1a" : "#e0ddf5",
+                    color: m.sender_id === userId ? "#fff" : "#333",
+                  }}>
+                    {m.sender_name}
+                  </span>
+                  {m.partner_name && <span style={{ fontSize: 9, color: "#6366f1", marginLeft: 6 }}>→ {m.partner_name}</span>}
+                  <span style={{ fontSize: 10, color: "#aaa", marginLeft: 8 }}>{new Date(m.created_at).toLocaleString("he-IL")}</span>
+                  {m.read_at && <span style={{ fontSize: 9, color: "#22c55e", marginLeft: 6 }}>✓ נקרא</span>}
+                  <div style={{ whiteSpace: "pre-wrap", marginTop: 4 }}>{m.content}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
 
       {/* Personal Insights Editor — all users */}
       <PersonalInsightsEditor userId={userId} shortText={user.personal_insights_short || ""} fullText={user.personal_insights_full || ""} analysisCompleted={user.analysis_completed ?? false} onSave={loadUserData} />
@@ -3302,7 +3353,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
   const [result, setResult] = useState<any>(null);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [sortBy, setSortBy] = useState<string>("profile_score");
-  const [cardPreview, setCardPreview] = useState<{ matchId: number; user1Name: string; user2Name: string; data: any } | null>(null);
+  const [cardPreview, setCardPreview] = useState<{ matchId: number; user1Name: string; user2Name: string; data: any; user1Consent?: string; user1Restrictions?: string; user2Consent?: string; user2Restrictions?: string } | null>(null);
   const [cardSending, setCardSending] = useState(false);
   const [cardEditing, setCardEditing] = useState(false);
   const [editData, setEditData] = useState<any>(null);
@@ -3606,7 +3657,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                       <button
                         style={{ padding: "3px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#0d6efd", color: "#fff" }}
                         onClick={() => {
-                          setCardPreview({ matchId: cm.match_id, user1Name: cm.user1_name, user2Name: cm.user2_name, data: cm.match_card_data });
+                          setCardPreview({ matchId: cm.match_id, user1Name: cm.user1_name, user2Name: cm.user2_name, data: cm.match_card_data, user1Consent: cm.user1_card_consent, user1Restrictions: cm.user1_card_restrictions, user2Consent: cm.user2_card_consent, user2Restrictions: cm.user2_card_restrictions });
                           setEditData(null);
                           setCardEditing(false);
                         }}
@@ -3644,7 +3695,32 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
               <h3 style={{ margin: "0 0 4px", fontSize: 18, color: "#1a1a2e" }}>
                 כרטיס התאמה — {cardPreview.user1Name} &amp; {cardPreview.user2Name}
               </h3>
-              <p style={{ fontSize: 12, color: "#888", margin: "0 0 20px" }}>Match ID: {cardPreview.matchId}</p>
+              <p style={{ fontSize: 12, color: "#888", margin: "0 0 8px" }}>Match ID: {cardPreview.matchId}</p>
+
+              {/* Consent status for both users */}
+              <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+                {[
+                  { name: cardPreview.user1Name, consent: cardPreview.user1Consent, restrictions: cardPreview.user1Restrictions },
+                  { name: cardPreview.user2Name, consent: cardPreview.user2Consent, restrictions: cardPreview.user2Restrictions },
+                ].map((u, i) => (
+                  <div key={i} style={{
+                    flex: 1, minWidth: 200, padding: "10px 14px", borderRadius: 10,
+                    background: u.consent === "approved" ? "#f0fdf4" : u.consent === "declined" ? "#fef2f2" : "#fefce8",
+                    border: `1px solid ${u.consent === "approved" ? "#bbf7d0" : u.consent === "declined" ? "#fecaca" : "#fde68a"}`,
+                  }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#1a1a2e", marginBottom: 4 }}>
+                      {u.name}: <span style={{ color: u.consent === "approved" ? "#16a34a" : u.consent === "declined" ? "#dc2626" : "#d97706" }}>
+                        {u.consent === "approved" ? "אישר/ה כרטיס" : u.consent === "declined" ? "לא אישר/ה" : "טרם נשאל/ה"}
+                      </span>
+                    </div>
+                    {u.restrictions && (
+                      <div style={{ fontSize: 12, color: "#92400e", background: "#fef3c7", padding: "4px 8px", borderRadius: 6, marginTop: 4 }}>
+                        בקשות: {u.restrictions}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
 
               {!cardEditing ? (
                 /* Preview mode */

@@ -788,7 +788,7 @@ app.get("/users/:id/active-match-card", async (req, res) => {
 // Helper: find user's active match
 async function findActiveMatch(userId: number) {
   return pgQueryOne<any>(
-    `SELECT m.id AS match_id, m.user1_id, m.user2_id
+    `SELECT m.id AS match_id, m.user1_id, m.user2_id, m.blocked_by
      FROM matches m
      WHERE (m.user1_id = $1 OR m.user2_id = $1)
        AND m.status = 'in_match'
@@ -849,6 +849,7 @@ app.get("/users/:id/direct-messages", async (req, res) => {
     partner_typing: !!typing,
     match_id: match.match_id,
     unread_count: parseInt(unreadRow?.cnt || "0", 10),
+    blocked_by: match.blocked_by || null,
   });
 });
 
@@ -869,6 +870,11 @@ app.post("/users/:id/direct-messages", async (req, res) => {
   // Verify user is part of this match
   if (match.user1_id !== userId && match.user2_id !== userId) {
     return res.status(403).json({ error: "Not authorized" });
+  }
+
+  // Check if blocked
+  if (match.blocked_by) {
+    return res.status(403).json({ error: "blocked", blocked: true });
   }
 
   const msg = await pgQueryOne<any>(
@@ -926,10 +932,60 @@ app.post("/users/:id/mark-messages-read", async (req, res) => {
   return res.json({ ok: true });
 });
 
+// POST /users/:id/report-match — Report match partner (and optionally block)
+app.post("/users/:id/report-match", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const { report_text, block } = req.body;
+
+  const match = await findActiveMatch(userId);
+  if (!match) return res.status(404).json({ error: "No active match" });
+
+  const partnerId = match.user1_id === userId ? match.user2_id : match.user1_id;
+
+  // Save report to bug_reports with special flag
+  if (report_text && report_text.trim()) {
+    await pgQueryOne<any>(
+      `INSERT INTO bug_reports (user_id, report_text) VALUES ($1, $2)`,
+      [userId, `[match_report] דיווח על משתמש #${partnerId} (match #${match.match_id}): ${report_text.trim()}`]
+    );
+    console.log(`[match_report] User #${userId} reported user #${partnerId} in match #${match.match_id}`);
+  }
+
+  // Block if requested
+  if (block) {
+    await pgQueryOne<any>(
+      `UPDATE matches SET blocked_by = $1, updated_at = NOW() WHERE id = $2`,
+      [userId, match.match_id]
+    );
+    console.log(`[match_block] User #${userId} blocked user #${partnerId} in match #${match.match_id}`);
+  }
+
+  return res.json({ ok: true, blocked: !!block });
+});
+
 function parseUserId(raw: any): number | null {
   const id = typeof raw === "string" ? parseInt(raw, 10) : Number(raw);
   return Number.isFinite(id) && id > 0 ? id : null;
 }
+
+// GET /admin/users/:id/direct-messages — Admin view of user's match messaging history
+app.get("/admin/users/:id/direct-messages", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const messages = await pgQueryAll<any>(
+    `SELECT dm.id, dm.match_id, dm.sender_id, dm.content, dm.read_at, dm.created_at,
+            u.first_name AS sender_name,
+            CASE WHEN m.user1_id = $1 THEN u2.first_name ELSE u1.first_name END AS partner_name
+     FROM direct_messages dm
+     JOIN matches m ON m.id = dm.match_id
+     JOIN users u ON u.id = dm.sender_id
+     JOIN users u1 ON u1.id = m.user1_id
+     JOIN users u2 ON u2.id = m.user2_id
+     WHERE m.user1_id = $1 OR m.user2_id = $1
+     ORDER BY dm.created_at ASC`,
+    [userId]
+  );
+  return res.json({ messages });
+});
 
 // GET /admin/users/:id/full-transcript — Full conversation history (both roles)
 app.get("/admin/users/:id/full-transcript", async (req, res) => {
@@ -2376,7 +2432,11 @@ app.get("/admin/candidate-matches", async (_req, res) => {
       m.final_match_priority,
       m.match_card_data,
       m.match_card_approved_by_admin,
-      m.match_card_sent_at
+      m.match_card_sent_at,
+      u1.match_card_consent as user1_card_consent,
+      u1.match_card_restrictions as user1_card_restrictions,
+      u2.match_card_consent as user2_card_consent,
+      u2.match_card_restrictions as user2_card_restrictions
     FROM candidate_matches cm
     JOIN users u1 ON u1.id = cm.user_id
     JOIN users u2 ON u2.id = cm.candidate_user_id
@@ -2851,7 +2911,7 @@ app.get("/admin/user-management", async (_req, res) => {
         u.created_at, u.updated_at, u.test_user_type, u.is_matchable, u.in_matching_pool,
         u.analysis_run_count, u.analysis_completed,
         u.couple_insights, u.personal_insights_short, u.personal_insights_full,
-        u.user_status, u.email_updates, u.partner_name, u.match_card_consent,
+        u.user_status, u.email_updates, u.partner_name, u.match_card_consent, u.match_card_restrictions,
         (SELECT COUNT(*)::int FROM user_photos WHERE user_id = u.id) AS photo_count
       FROM users u
       ORDER BY u.created_at DESC

@@ -24,6 +24,13 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
   const [sending, setSending] = useState(false);
   const [partnerTyping, setPartnerTyping] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [blocked, setBlocked] = useState<number | null>(null); // user_id who blocked
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportText, setReportText] = useState("");
+  const [reportSending, setReportSending] = useState(false);
+  const [reportSent, setReportSent] = useState(false);
+  const [blockConfirmOpen, setBlockConfirmOpen] = useState(false);
+  const [blockAction, setBlockAction] = useState<"report_block" | "block_only">("report_block");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -43,6 +50,7 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
       .then((data) => {
         setMessages(data.messages || []);
         setPartnerTyping(data.partner_typing || false);
+        setBlocked(data.blocked_by || null);
         setLoaded(true);
         scrollToBottom(false);
         // Mark as read
@@ -77,6 +85,7 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
           scrollToBottom();
         }
         setPartnerTyping(data.partner_typing || false);
+        if (data.blocked_by) setBlocked(data.blocked_by);
       } catch {
         // ignore
       }
@@ -180,6 +189,53 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
 
   const getDateKey = (dateStr: string) => new Date(dateStr).toDateString();
 
+  const handleReport = async (withBlock: boolean) => {
+    if (withBlock) {
+      setBlockAction("report_block");
+      setBlockConfirmOpen(true);
+      return;
+    }
+    // Report only
+    setReportSending(true);
+    try {
+      await fetch(`/api/users/${user.id}/report-match`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ report_text: reportText, block: false }),
+      });
+      setReportSent(true);
+      setReportText("");
+      setTimeout(() => { setReportOpen(false); setReportSent(false); }, 2000);
+    } catch {}
+    setReportSending(false);
+  };
+
+  const handleBlockOnly = () => {
+    setBlockAction("block_only");
+    setBlockConfirmOpen(true);
+  };
+
+  const confirmBlock = async () => {
+    setReportSending(true);
+    try {
+      await fetch(`/api/users/${user.id}/report-match`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          report_text: blockAction === "report_block" ? reportText : "",
+          block: true,
+        }),
+      });
+      setBlocked(user.id);
+      setReportOpen(false);
+      setBlockConfirmOpen(false);
+      setReportText("");
+    } catch {}
+    setReportSending(false);
+  };
+
+  const isBlocked = !!blocked;
+
   return (
     <div style={styles.container}>
       {/* Header */}
@@ -199,8 +255,89 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
           </div>
           <span style={styles.headerName}>{partnerName}</span>
         </div>
-        <div style={{ width: 36 }} />
+        <button onClick={() => setReportOpen(!reportOpen)} style={styles.reportBtn} title="דיווח">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={reportOpen ? "#ef4444" : "#999"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+            <line x1="4" y1="22" x2="4" y2="15" />
+          </svg>
+        </button>
       </div>
+
+      {/* Report panel */}
+      {reportOpen && !reportSent && (
+        <div style={styles.reportPanel}>
+          <p style={styles.reportTitle}>דיווח על {partnerName}</p>
+          <p style={styles.reportDesc}>
+            אם נתקלת בהתנהגות לא ראויה, תוכן פוגעני או כל בעיה אחרת — ספרו לנו ואנחנו נטפל בזה.
+          </p>
+          <textarea
+            value={reportText}
+            onChange={(e) => setReportText(e.target.value)}
+            placeholder="תארו את הבעיה..."
+            rows={3}
+            style={styles.reportTextarea}
+          />
+          <div style={styles.reportActions}>
+            <button
+              onClick={() => handleReport(false)}
+              disabled={!reportText.trim() || reportSending}
+              style={{ ...styles.reportActionBtn, background: "#6366f1", color: "#fff", opacity: !reportText.trim() ? 0.4 : 1 }}
+            >
+              דיווח
+            </button>
+            <button
+              onClick={() => handleReport(true)}
+              disabled={!reportText.trim() || reportSending}
+              style={{ ...styles.reportActionBtn, background: "#ef4444", color: "#fff", opacity: !reportText.trim() ? 0.4 : 1 }}
+            >
+              דיווח וחסימה
+            </button>
+            <button
+              onClick={handleBlockOnly}
+              disabled={reportSending}
+              style={{ ...styles.reportActionBtn, background: "#fff", color: "#ef4444", border: "1.5px solid #fca5a5" }}
+            >
+              חסימה בלבד
+            </button>
+          </div>
+          <button onClick={() => setReportOpen(false)} style={styles.reportCancel}>ביטול</button>
+        </div>
+      )}
+      {reportOpen && reportSent && (
+        <div style={styles.reportPanel}>
+          <p style={{ fontSize: 15, fontWeight: 600, color: "#22c55e", textAlign: "center", margin: 0 }}>
+            הדיווח נשלח בהצלחה. תודה!
+          </p>
+        </div>
+      )}
+
+      {/* Block confirmation modal */}
+      {blockConfirmOpen && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalBox}>
+            <p style={styles.modalTitle}>חסימת {partnerName}</p>
+            <p style={styles.modalText}>
+              לאחר החסימה, {partnerName} לא יוכל/תוכל לשלוח לך הודעות וגם אתה לא תוכל/י לשלוח.
+              <br />פעולה זו אינה ניתנת לביטול עצמאי.
+            </p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <button
+                onClick={confirmBlock}
+                disabled={reportSending}
+                style={{ ...styles.reportActionBtn, background: "#ef4444", color: "#fff" }}
+              >
+                {reportSending ? "מבצע..." : "אישור חסימה"}
+              </button>
+              <button
+                onClick={() => setBlockConfirmOpen(false)}
+                style={{ ...styles.reportActionBtn, background: "#f5f5f5", color: "#333" }}
+              >
+                ביטול
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Messages area */}
       <div ref={containerRef} style={styles.messagesArea}>
@@ -283,6 +420,13 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
       </div>
 
       {/* Input area */}
+      {isBlocked ? (
+        <div style={styles.inputArea}>
+          <p style={{ fontSize: 13, color: "#999", textAlign: "center", margin: 0 }}>
+            השיחה נחסמה. לא ניתן לשלוח הודעות.
+          </p>
+        </div>
+      ) : (
       <div style={styles.inputArea}>
         <div style={styles.inputRow}>
           <textarea
@@ -313,6 +457,7 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
           </button>
         </div>
       </div>
+      )}
 
       {/* Typing animation CSS */}
       <style>{`
@@ -579,5 +724,108 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "center",
     flexShrink: 0,
     transition: "opacity 0.2s",
+  },
+
+  // Report / Block
+  reportBtn: {
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    padding: 6,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: "50%",
+  },
+  reportPanel: {
+    padding: "14px 20px",
+    background: "#fef2f2",
+    borderBottom: "1px solid #fecaca",
+    flexShrink: 0,
+    direction: "rtl" as const,
+  },
+  reportTitle: {
+    fontSize: 15,
+    fontWeight: 700,
+    color: "#991b1b",
+    margin: "0 0 6px",
+  },
+  reportDesc: {
+    fontSize: 13,
+    color: "#7f1d1d",
+    lineHeight: 1.6,
+    margin: "0 0 10px",
+  },
+  reportTextarea: {
+    width: "100%",
+    border: "1px solid #fecaca",
+    borderRadius: 8,
+    padding: "8px 12px",
+    fontSize: 13,
+    fontFamily: "inherit",
+    resize: "none" as const,
+    outline: "none",
+    direction: "rtl" as const,
+    marginBottom: 10,
+    boxSizing: "border-box" as const,
+  },
+  reportActions: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap" as const,
+    marginBottom: 8,
+  },
+  reportActionBtn: {
+    padding: "8px 16px",
+    fontSize: 13,
+    fontWeight: 600,
+    border: "none",
+    borderRadius: 8,
+    cursor: "pointer",
+    fontFamily: "inherit",
+  },
+  reportCancel: {
+    background: "none",
+    border: "none",
+    color: "#999",
+    fontSize: 12,
+    cursor: "pointer",
+    fontFamily: "inherit",
+    padding: 0,
+  },
+
+  // Block confirmation modal
+  modalOverlay: {
+    position: "fixed" as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: "rgba(0,0,0,0.5)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1000,
+  },
+  modalBox: {
+    background: "#fff",
+    borderRadius: 16,
+    padding: "28px 24px",
+    maxWidth: 360,
+    width: "90%",
+    textAlign: "center" as const,
+    direction: "rtl" as const,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: 700,
+    color: "#1a1a2e",
+    margin: "0 0 12px",
+  },
+  modalText: {
+    fontSize: 13,
+    color: "#555",
+    lineHeight: 1.7,
+    margin: "0 0 20px",
   },
 };
