@@ -748,7 +748,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               {unreadMatchMessages > 0 && (
                 <span style={{ background: "#ef4444", color: "#fff", fontSize: 10, fontWeight: 700, width: 18, height: 18, borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center", marginRight: 4 }}>{unreadMatchMessages}</span>
               )}
-              <span style={{ ...styles.completedBadge, background: "#ec4899", color: "#fff" }}>&#10084;</span>
+              <span style={{ fontSize: 14, color: "#aaa", marginRight: 4 }}>&#9825;</span>
             </button>
           )}
           {/* Couple insights — only for couple testers with insights */}
@@ -1141,7 +1141,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     border: "1px solid #d4d0e8",
                     boxShadow: "0 4px 16px rgba(99,102,241,0.12)",
                   }}>
-                    <p style={{ fontSize: 32, margin: "0 0 8px" }}>&#129346;</p>
+                    <p style={{ fontSize: 32, margin: "0 0 8px" }}>&#127881;</p>
                     <h3 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a2e", margin: "0 0 8px" }}>
                       יש לך התאמה חדשה!
                     </h3>

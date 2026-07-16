@@ -72,17 +72,19 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
         const res = await fetch(url);
         const data = await res.json();
 
+        // Always mark as read while chat is open
+        fetch(`/api/users/${user.id}/mark-messages-read`, { method: "POST" });
+
         if (data.messages && data.messages.length > 0) {
+          let hasNew = false;
           setMessages((prev) => {
             const existingIds = new Set(prev.map((m) => m.id));
             const newMsgs = data.messages.filter((m: Message) => !existingIds.has(m.id));
             if (newMsgs.length === 0) return prev;
-            const merged = [...prev, ...newMsgs];
-            // Mark as read
-            fetch(`/api/users/${user.id}/mark-messages-read`, { method: "POST" });
-            return merged;
+            hasNew = true;
+            return [...prev, ...newMsgs];
           });
-          scrollToBottom();
+          if (hasNew) scrollToBottom();
         }
         setPartnerTyping(data.partner_typing || false);
         if (data.blocked_by) setBlocked(data.blocked_by);
