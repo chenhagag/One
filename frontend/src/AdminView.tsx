@@ -3331,6 +3331,22 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
     }
   }
 
+  // Run Algorithm (Expanded) = relaxed age (+2 years) and location (bump one level).
+  async function runAlgorithmExpanded() {
+    setRunning("algorithm-expanded");
+    setResult(null);
+    try {
+      const r = await fetch("/api/admin/run-matching-expanded", { method: "POST" });
+      const json = await r.json();
+      setResult(json);
+      load();
+    } catch (e: any) {
+      setResult({ error: e.message });
+    } finally {
+      setRunning(null);
+    }
+  }
+
   // Run Algorithm (Force) = same as runAlgorithm but skips is_matchable filter.
   async function runAlgorithmForce() {
     setRunning("algorithm-force");
@@ -3423,6 +3439,13 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
           style={{ padding: "8px 16px", fontSize: 14, background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 6, cursor: running ? "wait" : "pointer", fontWeight: 600 }}
         >
           {running === "algorithm" ? "Running..." : "Run Algorithm"}
+        </button>
+        <button
+          onClick={runAlgorithmExpanded}
+          disabled={running !== null}
+          style={{ padding: "8px 16px", fontSize: 14, background: "#0d6efd", color: "#fff", border: "none", borderRadius: 6, cursor: running ? "wait" : "pointer", fontWeight: 600 }}
+        >
+          {running === "algorithm-expanded" ? "Running..." : "Run Expanded"}
         </button>
         <button
           onClick={runAlgorithmForce}

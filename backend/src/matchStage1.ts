@@ -167,7 +167,7 @@ function hasSpecialSexualIdentity(
 // MAIN ENTRY POINT (pg-only, async)
 // ══════════════════════════════════════════════════════════════════
 
-export async function runStage1(_db: Database.Database, options?: { skipMatchableFilter?: boolean; skipAllFilters?: boolean }): Promise<{ pairs: number; skipped: number; users: number }> {
+export async function runStage1(_db: Database.Database, options?: { skipMatchableFilter?: boolean; skipAllFilters?: boolean; expandedFilters?: boolean }): Promise<{ pairs: number; skipped: number; users: number }> {
 
   // 1. Load eligible users from pg
   const whereClause = options?.skipAllFilters
@@ -326,7 +326,7 @@ export async function runStage1(_db: Database.Database, options?: { skipMatchabl
 
       const result = options?.skipAllFilters
         ? { passes: passesCognitiveFilter(a, b), locationExpanded: false }
-        : passesAllFilters(a, b, getUserTrait, getUserLookTrait, getRegion, getNearbyRegions);
+        : passesAllFilters(a, b, getUserTrait, getUserLookTrait, getRegion, getNearbyRegions, !!options?.expandedFilters);
 
       if (result.passes) {
         if (existing) actions.push({ kind: "update", id: existing.id, aTs, bTs, locationExpanded: result.locationExpanded });
@@ -381,22 +381,23 @@ function passesAllFilters(
   getLookTrait: (uid: number, ltid: number) => LookTrait | null,
   getRegion: (city: string | null) => string | null,
   getNearbyRegions: (region: string) => Set<string>,
+  expanded: boolean = false,
 ): { passes: boolean; locationExpanded: boolean } {
   if (!passesGenderFilter(a, b)) return { passes: false, locationExpanded: false };
   if (!passesGenderFilter(b, a)) return { passes: false, locationExpanded: false };
 
-  if (!passesAgeFilter(a, b)) return { passes: false, locationExpanded: false };
-  if (!passesAgeFilter(b, a)) return { passes: false, locationExpanded: false };
+  if (!passesAgeFilter(a, b, expanded)) return { passes: false, locationExpanded: false };
+  if (!passesAgeFilter(b, a, expanded)) return { passes: false, locationExpanded: false };
 
-  // Check location with original preference first, then with admin override
-  const aOriginalPasses = passesLocationFilter(a, b, getRegion, getNearbyRegions, false);
-  const bOriginalPasses = passesLocationFilter(b, a, getRegion, getNearbyRegions, false);
+  // Check location with original preference first, then with admin override or expanded
+  const aOriginalPasses = passesLocationFilter(a, b, getRegion, getNearbyRegions, false, expanded);
+  const bOriginalPasses = passesLocationFilter(b, a, getRegion, getNearbyRegions, false, expanded);
   let locationExpanded = false;
 
   if (!aOriginalPasses || !bOriginalPasses) {
     // Try with admin override
-    const aExpandedPasses = aOriginalPasses || passesLocationFilter(a, b, getRegion, getNearbyRegions, true);
-    const bExpandedPasses = bOriginalPasses || passesLocationFilter(b, a, getRegion, getNearbyRegions, true);
+    const aExpandedPasses = aOriginalPasses || passesLocationFilter(a, b, getRegion, getNearbyRegions, true, expanded);
+    const bExpandedPasses = bOriginalPasses || passesLocationFilter(b, a, getRegion, getNearbyRegions, true, expanded);
     if (!aExpandedPasses || !bExpandedPasses) return { passes: false, locationExpanded: false };
     locationExpanded = true;
   }
@@ -459,32 +460,41 @@ function getDefaultAgeRange(from: User): { min: number; max: number } | null {
   }
 }
 
-function passesAgeFilter(from: User, to: User): boolean {
+function passesAgeFilter(from: User, to: User, expanded: boolean = false): boolean {
   if (to.age == null) return true;
 
+  const expandExtra = expanded ? 2 : 0;
   let min: number, max: number;
   if (from.desired_age_min == null && from.desired_age_max == null) {
     // No preference set — use defaults
     const defaults = getDefaultAgeRange(from);
     if (!defaults) return true;
-    min = defaults.min;
-    max = defaults.max;
+    min = defaults.min - expandExtra;
+    max = defaults.max + expandExtra;
   } else {
     const tol = AGE_TOL[from.age_flexibility] ?? 3;
-    min = (from.desired_age_min ?? 0) - tol;
-    max = (from.desired_age_max ?? 999) + tol;
+    min = (from.desired_age_min ?? 0) - tol - expandExtra;
+    max = (from.desired_age_max ?? 999) + tol + expandExtra;
   }
   return to.age >= min && to.age <= max;
 }
 
 // ── 3. Location ──────────────────────────────────────────────────
+const LOCATION_EXPAND: Record<string, string> = {
+  my_city: "my_area",
+  my_area: "bit_further",
+  bit_further: "whole_country",
+};
+
 function passesLocationFilter(
   from: User, to: User,
   getRegion: (city: string | null) => string | null,
   getNearbyRegions: (region: string) => Set<string>,
   useOverride: boolean = false,
+  expanded: boolean = false,
 ): boolean {
-  const pref = (useOverride && from.admin_location_override) || from.desired_location_range || "bit_further";
+  let pref = (useOverride && from.admin_location_override) || from.desired_location_range || "bit_further";
+  if (expanded && LOCATION_EXPAND[pref]) pref = LOCATION_EXPAND[pref];
   if (pref === "whole_country") return true;
 
   const fromRegion = getRegion(from.city);

@@ -1773,6 +1773,18 @@ app.post("/admin/run-matching", async (_req, res) => {
   }
 });
 
+// POST /admin/run-matching-expanded — Same as run-matching but with relaxed age (+2 years) and location (bump one level)
+app.post("/admin/run-matching-expanded", async (_req, res) => {
+  try {
+    const stage1 = await runStage1(db, { expandedFilters: true });
+    const stage2 = await runStage2(db);
+    return res.json({ stage1, stage2, note: "Ran with expanded filters — age +2 years, location bumped one level" });
+  } catch (err: any) {
+    console.error(err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /admin/run-matching-force — All users, no filters at all (matchable, age, gender, location, height...)
 app.post("/admin/run-matching-force", async (_req, res) => {
   try {
