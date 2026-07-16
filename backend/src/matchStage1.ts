@@ -263,7 +263,12 @@ export async function runStage1(_db: Database.Database, options?: { skipMatchabl
   const cityRows = await queryAll<{ city_name: string; region: string }>(
     `SELECT city_name, region FROM cities`
   );
-  const cityRegionMap = new Map(cityRows.map(c => [c.city_name, c.region]));
+  // A city can belong to multiple regions (e.g. הרצליה → גוש דן + שרון)
+  const cityRegionsMap = new Map<string, Set<string>>();
+  for (const c of cityRows) {
+    if (!cityRegionsMap.has(c.city_name)) cityRegionsMap.set(c.city_name, new Set());
+    cityRegionsMap.get(c.city_name)!.add(c.region);
+  }
   const adjRows = await queryAll<{ region: string; nearby_region: string }>(
     `SELECT region, nearby_region FROM region_adjacency`
   );
@@ -272,8 +277,8 @@ export async function runStage1(_db: Database.Database, options?: { skipMatchabl
     if (!nearbyMap.has(a.region)) nearbyMap.set(a.region, new Set<string>([a.region]));
     nearbyMap.get(a.region)!.add(a.nearby_region);
   }
-  const getRegion = (city: string | null): string | null =>
-    city ? (cityRegionMap.get(city) ?? null) : null;
+  const getRegions = (city: string | null): Set<string> | null =>
+    city ? (cityRegionsMap.get(city) ?? null) : null;
   const getNearbyRegions = (region: string): Set<string> =>
     nearbyMap.get(region) ?? new Set([region]);
 
@@ -326,7 +331,7 @@ export async function runStage1(_db: Database.Database, options?: { skipMatchabl
 
       const result = options?.skipAllFilters
         ? { passes: passesCognitiveFilter(a, b), locationExpanded: false, ageExpanded: false }
-        : passesAllFilters(a, b, getUserTrait, getUserLookTrait, getRegion, getNearbyRegions, !!options?.expandedFilters);
+        : passesAllFilters(a, b, getUserTrait, getUserLookTrait, getRegions, getNearbyRegions, !!options?.expandedFilters);
 
       if (result.passes) {
         if (existing) actions.push({ kind: "update", id: existing.id, aTs, bTs, locationExpanded: result.locationExpanded, ageExpanded: result.ageExpanded });
@@ -379,7 +384,7 @@ function passesAllFilters(
   b: User,
   getTrait: (uid: number, tid: number) => TraitScore | null,
   getLookTrait: (uid: number, ltid: number) => LookTrait | null,
-  getRegion: (city: string | null) => string | null,
+  getRegions: (city: string | null) => Set<string> | null,
   getNearbyRegions: (region: string) => Set<string>,
   expanded: boolean = false,
 ): { passes: boolean; locationExpanded: boolean; ageExpanded: boolean } {
@@ -397,14 +402,14 @@ function passesAllFilters(
   }
 
   // Check location with original preference first, then with admin override or expanded
-  const aOriginalPasses = passesLocationFilter(a, b, getRegion, getNearbyRegions, false, expanded);
-  const bOriginalPasses = passesLocationFilter(b, a, getRegion, getNearbyRegions, false, expanded);
+  const aOriginalPasses = passesLocationFilter(a, b, getRegions, getNearbyRegions, false, expanded);
+  const bOriginalPasses = passesLocationFilter(b, a, getRegions, getNearbyRegions, false, expanded);
   let locationExpanded = false;
 
   if (!aOriginalPasses || !bOriginalPasses) {
     // Try with admin override
-    const aExpandedPasses = aOriginalPasses || passesLocationFilter(a, b, getRegion, getNearbyRegions, true, expanded);
-    const bExpandedPasses = bOriginalPasses || passesLocationFilter(b, a, getRegion, getNearbyRegions, true, expanded);
+    const aExpandedPasses = aOriginalPasses || passesLocationFilter(a, b, getRegions, getNearbyRegions, true, expanded);
+    const bExpandedPasses = bOriginalPasses || passesLocationFilter(b, a, getRegions, getNearbyRegions, true, expanded);
     if (!aExpandedPasses || !bExpandedPasses) return { passes: false, locationExpanded: false, ageExpanded: false };
     locationExpanded = true;
   }
@@ -497,7 +502,7 @@ const LOCATION_EXPAND: Record<string, string> = {
 
 function passesLocationFilter(
   from: User, to: User,
-  getRegion: (city: string | null) => string | null,
+  getRegions: (city: string | null) => Set<string> | null,
   getNearbyRegions: (region: string) => Set<string>,
   useOverride: boolean = false,
   expanded: boolean = false,
@@ -506,13 +511,30 @@ function passesLocationFilter(
   if (expanded && LOCATION_EXPAND[pref]) pref = LOCATION_EXPAND[pref];
   if (pref === "whole_country") return true;
 
-  const fromRegion = getRegion(from.city);
-  const toRegion = getRegion(to.city);
-  if (!fromRegion || !toRegion) return true;
+  const fromRegions = getRegions(from.city);
+  const toRegions = getRegions(to.city);
+  if (!fromRegions || !toRegions) return true;
 
   if (pref === "my_city") return from.city === to.city;
-  if (pref === "my_area") return fromRegion === toRegion;
-  if (pref === "bit_further") return getNearbyRegions(fromRegion).has(toRegion);
+
+  if (pref === "my_area") {
+    // Pass if any of from's regions overlaps with any of to's regions
+    for (const fr of fromRegions) {
+      if (toRegions.has(fr)) return true;
+    }
+    return false;
+  }
+
+  if (pref === "bit_further") {
+    // Pass if any of to's regions is in the nearby set of any of from's regions
+    for (const fr of fromRegions) {
+      const nearby = getNearbyRegions(fr);
+      for (const tr of toRegions) {
+        if (nearby.has(tr)) return true;
+      }
+    }
+    return false;
+  }
   return true;
 }
 
