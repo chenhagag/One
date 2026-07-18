@@ -3852,6 +3852,9 @@ app.get("*", (_req, res) => {
   });
 });
 
+// Health check endpoint for Railway zero-downtime deploys
+app.get("/health", (_req, res) => res.status(200).json({ ok: true }));
+
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 
