@@ -3289,24 +3289,45 @@ app.post("/admin/users/:id/generate-insights", aiLimiter, async (req, res) => {
     const genderWord = isFemale ? "המשתמשת" : "המשתמש";
     const searchGender = user.looking_for_gender === "woman" ? "נשים" : user.looking_for_gender === "man" ? "גברים" : "בני זוג";
 
-    const systemPrompt = `אתה מומחה להתאמות זוגיות ופסיכולוגיה בינאישית. תפקידך לכתוב ניתוח אישי מפורט ומעמיק עבור ${genderWord}.
+    const youWord = isFemale ? "את" : "אתה";
+    const personWord = isFemale ? "מישהי" : "מישהו";
 
-הקלט שלך: השיחות המלאות של ${genderWord} עם המערכת + ציוני התכונות שלהם.
+    const systemPrompt = `אתה כותב תובנות אישיות עמוקות עבור משתמשים במערכת התאמות זוגיות.
 
-הפלט שלך צריך להיות ב-JSON עם שני שדות:
-1. "summary_short" — 2-3 משפטים תמציתיים שמסכמים מה ${genderWord} מחפש/ת ומה סוג ההתאמה הטוב עבורם. זה מופיע בראש דף התובנות.
-2. "summary_full" — ניתוח אישי מפורט ומעמיק (6-10 פסקאות) שכולל:
-   - תיאור האישיות, חוזקות ומאפיינים בולטים
-   - סגנון תקשורת ודינמיקה בינאישית
-   - מה חשוב ל${genderWord} בקשר זוגי
-   - דפוסים שעולים מהשיחה (ערכים, גבולות, צרכים)
-   - סגנון חשיבה וגישה לחיים
-   - המלצה לסוג ההתאמה האידיאלי — מה יתאים ומה פחות יתאים
-   - טעם זוגי (אם יש מידע ממבחן הטעם)
+## הגישה שלך — תובנות, לא סיכום
+אתה לא מסכם את השיחה. אתה מנתח אותה.
+- לעולם אל תצטט מה ${genderWord} אמר/ה בשיחה ("כשנשאלת X, ענית Y")
+- לעולם אל תחזור על עובדות יבשות (איפה עובד/ת, מה למד/ה, מה הערב המושלם)
+- במקום זה: זהה דפוסים, חבר נקודות, הסק מסקנות שהמשתמש/ת לא בהכרח רואה בעצמו/ה
+- כל פסקה צריכה לחשוף משהו חדש — לא לאשר מה שכבר ידוע
 
-כתוב בעברית, בגוף שני (${isFemale ? "את" : "אתה"}), בטון מקצועי-חם.
-אל תהיה ארוך מדי אבל כן מפורט ומעמיק. כל פסקה צריכה להוסיף ערך ותובנה אמיתית.
-החזר JSON בלבד, ללא markdown.`;
+## מה לא לכלול
+- אל תציין פרטים אינטימיים או מיניים גם אם שותפו בשיחה
+- אל תרשום רשימת עובדות (תחביבים, מקצוע, סטטוס משפחתי) — אלה ידועים למשתמש/ת
+- אל תכתוב "את בן אדם" — כתוב "את אדם" (המילה "אדם" היא זכר בעברית)
+- אל תהיה גנרי — "את מחפשת קשר עמוק ומשמעותי" לא אומר כלום. תגיד מה ספציפית
+
+## הטון
+- עברית, גוף שני (${youWord}), מותאם מגדרית
+- מקצועי-חם — כמו חברה תובנתית, לא כמו דוח קליני
+- כנה בלי להיות חד. מדויק בלי להיות שיפוטי
+- ${genderWord} צריך/ה להרגיש שבאמת רואים אותו/ה
+
+## מבנה הפלט — JSON עם שני שדות:
+
+"summary_short" — 2-3 משפטים. פותח בתובנה על מי ${genderWord}, ואז מה סוג ${personWord === "מישהי" ? "בת" : "בן"} הזוג שיתאים. לא גנרי — ספציפי ומדויק ל${genderWord} הזה/הזאת.
+
+"summary_full" — 6-10 פסקאות ניתוח עמוק שעובר בין הנושאים הבאים (לא חובה בסדר הזה, ולא חובה את כולם — תבחר מה רלוונטי):
+- מה מניע אותו/ה בחיים — לא מה עושה, אלא למה
+- דפוסים רגשיים — איך מתמודד/ת עם קונפליקט, מה קורה כשפוגעים, מה מפחיד
+- מה למד/ה ממערכות יחסים קודמות — לא מה קרה, אלא מה המסקנה
+- הקשר עם המשפחה ואיך הוא משפיע על מה שמחפש/ת בזוגיות
+- דפוסים בטעם הזוגי (ממבחן הטעם) — מה מושך, מה דוחה, ולמה
+- מה ${genderWord} צריך/ה בקשר — תובנה אמיתית, לא רשימת קניות
+- סגירה חזקה — מה סוג ${personWord === "מישהי" ? "בת" : "בן"} הזוג שיתאים ולמה
+
+כל פסקה צריכה לחשוף תובנה, לא לתאר עובדה.
+החזר JSON בלבד, ללא markdown, ללא בלוק קוד.`;
 
     const userPrompt = `פרטי ${genderWord}:
 שם: ${user.first_name || "לא ידוע"}
@@ -3325,8 +3346,8 @@ ${fullTranscript}`;
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      temperature: 0.7,
-      max_tokens: 3000,
+      temperature: 0.75,
+      max_tokens: 4000,
       response_format: { type: "json_object" },
     });
 
@@ -3342,10 +3363,13 @@ ${fullTranscript}`;
       return res.status(500).json({ error: "Failed to parse AI response", raw });
     }
 
-    // Save to DB
+    // Save to DB + auto-manage insights_pre_completion
+    const cogCount = allMessages.filter((m: any) => m.guide === "new_chat_cognitive").length;
+    const tasteCount = allMessages.filter((m: any) => m.guide === "new_chat_taste").length;
+    const preCompletion = cogCount < 5 || tasteCount < 5;
     await pgQueryAll(
-      "UPDATE users SET personal_insights_short = $1, personal_insights_full = $2, updated_at = NOW() WHERE id = $3",
-      [parsed.summary_short || null, parsed.summary_full || null, userId]
+      "UPDATE users SET personal_insights_short = $1, personal_insights_full = $2, insights_pre_completion = $3, updated_at = NOW() WHERE id = $4",
+      [parsed.summary_short || null, parsed.summary_full || null, preCompletion, userId]
     );
 
     return res.json({
