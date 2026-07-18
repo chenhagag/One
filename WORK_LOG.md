@@ -1,6 +1,59 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-07-15/16 (Match Card System + Region Revamp)
+## Latest Session: 2026-07-17/18 (Insights Batch + Pre-Completion Tracking + Generate-Insights Prompt Rewrite)
+
+### What We Did
+
+#### 1. Personal Insights — Batch Writing (27 users)
+Wrote deep personal insights (summary_short + summary_full) for 27 users across two days:
+- First batch (7): דנית, נוי, רוויטל, סיון, אריאל גבע, אבי, רוית
+- Second batch (14 fully completed): אורטל, ליאור, אליה, דלית, מיכל, נביעה פמלה, ברקת, אלה פוקס, אושרת, רונה דייויס, ענבר, לבנה אשכנזי, הדר, רוני
+- Partially completed (6): ימית, יערה, קרן, פז, מאיה, ליעד גונן + הילה
+
+**Writing guidelines established:**
+- Insights, not summaries — never quote/cite what user said in conversation
+- No dry facts (job, hobbies, ideal evening) — these are known to the user
+- Deep pattern analysis: emotional dynamics, relationship lessons, taste patterns
+- Second person (את/אתה), gender-matched, warm but honest tone
+- "את אדם" not "את בן אדם" (אדם is masculine in Hebrew)
+- No intimate/sexual content even if shared in conversation
+- Adapt language for looking_for_gender (woman/man/both/doesnt_matter)
+
+#### 2. Insights Pre-Completion Tracking
+New system to flag insights written before user completed all channels:
+- **DB**: `insights_pre_completion BOOLEAN DEFAULT FALSE` on users table
+- **Auto-set on PATCH**: When `personal_insights_full` is saved, backend checks cog/taste message counts — sets flag TRUE if incomplete, FALSE if complete
+- **Auto-set on generate-insights**: Same logic in the AI generation endpoint
+- **Admin UI**: Warning badge "⚠ הוזנו לפני סיום התהליך" shown next to insights button when flag is set
+- **15 existing users** retroactively marked
+
+#### 3. Generate-Insights Prompt Rewrite
+Complete rewrite of the `/admin/users/:id/generate-insights` system prompt:
+- **Before**: Generic instructions ("describe personality, strengths, communication style")
+- **After**: Detailed guidelines matching manual writing style — no quoting, no facts, pattern analysis only
+- Explicit prohibitions: no intimate content, no "את בן אדם", no generic statements
+- Tone: "like a perceptive friend, not a clinical report"
+- Structure guidance: each paragraph = new insight, not fact description
+- max_tokens: 3000 → 4000, temperature: 0.7 → 0.75
+
+#### 4. Settings: Match Card Info Link
+Added "מה זה כרטיס התאמה?" link in Settings screen next to match card consent checkbox, linking to the full explanation screen.
+
+#### 5. Health Endpoint for Zero-Downtime Deploys
+Added `GET /health` endpoint returning `{ ok: true }` for Railway healthcheck-based zero-downtime deployments. User needs to configure Health Check Path → `/health` in Railway Dashboard.
+
+#### 6. Match Card Written
+Wrote match card for חן (150) + שני (142), match ID 3089.
+
+### Technical Details
+- Schema: `insights_pre_completion` column added with ALTER TABLE migration
+- `PATCH /admin/users/:id`: `insights_pre_completion` added to allowed fields + auto-management logic
+- `PersonalInsightsEditor` component: new `insightsPreCompletion` prop with warning badge
+- `SettingsView` component: new `onShowMatchCardInfo` prop for navigation to consent screen
+
+---
+
+## Previous Session: 2026-07-15/16 (Match Card System + Region Revamp)
 
 ### What We Did
 
