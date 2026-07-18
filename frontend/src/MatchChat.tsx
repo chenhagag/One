@@ -36,6 +36,9 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTypingSentRef = useRef(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastServerTimestampRef = useRef<string | null>(null); // Only server-confirmed timestamps for polling
+  const typingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
 
   const scrollToBottom = useCallback((smooth = true) => {
     setTimeout(() => {
@@ -43,12 +46,39 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
     }, 50);
   }, []);
 
+  // iOS virtual keyboard handling — use visualViewport to resize chat properly
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const handleResize = () => {
+      setViewportHeight(vv.height);
+      // Scroll to bottom when keyboard opens (viewport shrinks)
+      scrollToBottom(false);
+    };
+
+    vv.addEventListener("resize", handleResize);
+    vv.addEventListener("scroll", handleResize);
+    // Set initial height
+    setViewportHeight(vv.height);
+
+    return () => {
+      vv.removeEventListener("resize", handleResize);
+      vv.removeEventListener("scroll", handleResize);
+    };
+  }, [scrollToBottom]);
+
   // Initial load
   useEffect(() => {
     fetch(`/api/users/${user.id}/direct-messages`)
       .then((r) => r.json())
       .then((data) => {
-        setMessages(data.messages || []);
+        const msgs = data.messages || [];
+        setMessages(msgs);
+        // Track last server-confirmed timestamp for reliable polling
+        if (msgs.length > 0) {
+          lastServerTimestampRef.current = msgs[msgs.length - 1].created_at;
+        }
         setPartnerTyping(data.partner_typing || false);
         setBlocked(data.blocked_by || null);
         setLoaded(true);
@@ -61,13 +91,13 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
       .catch(() => setLoaded(true));
   }, [user.id, scrollToBottom]);
 
-  // Polling for new messages
+  // Polling for new messages — uses server-confirmed timestamps only
   useEffect(() => {
     pollRef.current = setInterval(async () => {
       try {
-        const lastMsg = messages.length > 0 ? messages[messages.length - 1].created_at : undefined;
-        const url = lastMsg
-          ? `/api/users/${user.id}/direct-messages?since=${encodeURIComponent(lastMsg)}`
+        const since = lastServerTimestampRef.current;
+        const url = since
+          ? `/api/users/${user.id}/direct-messages?since=${encodeURIComponent(since)}`
           : `/api/users/${user.id}/direct-messages`;
         const res = await fetch(url);
         const data = await res.json();
@@ -76,13 +106,30 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
         fetch(`/api/users/${user.id}/mark-messages-read`, { method: "POST" });
 
         if (data.messages && data.messages.length > 0) {
+          // Update last server timestamp from the newest server message
+          const serverMsgs = data.messages as Message[];
+          if (serverMsgs.length > 0) {
+            lastServerTimestampRef.current = serverMsgs[serverMsgs.length - 1].created_at;
+          }
           let hasNew = false;
           setMessages((prev) => {
             const existingIds = new Set(prev.map((m) => m.id));
-            const newMsgs = data.messages.filter((m: Message) => !existingIds.has(m.id));
+            const newMsgs = serverMsgs.filter((m) => !existingIds.has(m.id));
             if (newMsgs.length === 0) return prev;
             hasNew = true;
-            return [...prev, ...newMsgs];
+            // Also replace any optimistic messages that now have server confirmation
+            const updatedPrev = prev.map((existing) => {
+              if (existing.id > 1700000000000) { // temp ID (Date.now())
+                const match = serverMsgs.find((s) => s.sender_id === existing.sender_id && s.content === existing.content);
+                if (match) return match;
+              }
+              return existing;
+            });
+            const updatedIds = new Set(updatedPrev.map((m) => m.id));
+            const trulyNew = serverMsgs.filter((m) => !updatedIds.has(m.id));
+            if (trulyNew.length === 0 && updatedPrev.every((m, i) => m.id === prev[i]?.id)) return prev;
+            hasNew = trulyNew.length > 0;
+            return [...updatedPrev, ...trulyNew];
           });
           if (hasNew) scrollToBottom();
         }
@@ -96,7 +143,7 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [user.id, messages, scrollToBottom]);
+  }, [user.id, scrollToBottom]);
 
   // Scroll on new messages
   useEffect(() => {
@@ -121,10 +168,23 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
     setInput(val);
     if (val.trim().length > 0) {
       sendTypingStatus(true);
+      // Clear existing stop-typing timeout
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = setTimeout(() => sendTypingStatus(false), 3000);
+      typingTimeoutRef.current = setTimeout(() => {
+        sendTypingStatus(false);
+        // Stop the keep-alive interval when user stops typing
+        if (typingIntervalRef.current) { clearInterval(typingIntervalRef.current); typingIntervalRef.current = null; }
+      }, 3000);
+      // Start keep-alive: re-send typing=true every 3s so server doesn't expire it (6s window)
+      if (!typingIntervalRef.current) {
+        typingIntervalRef.current = setInterval(() => {
+          lastTypingSentRef.current = false; // Force re-send
+          sendTypingStatus(true);
+        }, 3000);
+      }
     } else {
       sendTypingStatus(false);
+      if (typingIntervalRef.current) { clearInterval(typingIntervalRef.current); typingIntervalRef.current = null; }
     }
   };
 
@@ -135,6 +195,7 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
     setSending(true);
     setInput("");
     sendTypingStatus(false);
+    if (typingIntervalRef.current) { clearInterval(typingIntervalRef.current); typingIntervalRef.current = null; }
 
     // Optimistic add
     const tempMsg: Message = {
@@ -157,6 +218,7 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
       const saved = await res.json();
       if (saved.id) {
         setMessages((prev) => prev.map((m) => (m.id === tempMsg.id ? saved : m)));
+        lastServerTimestampRef.current = saved.created_at;
       }
     } catch {
       // keep optimistic message
@@ -239,7 +301,7 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
   const isBlocked = !!blocked;
 
   return (
-    <div style={styles.container}>
+    <div style={{ ...styles.container, ...(viewportHeight ? { height: viewportHeight } : {}) }}>
       {/* Header */}
       <div style={styles.header}>
         <button onClick={onBack} style={styles.backBtn}>
@@ -482,6 +544,8 @@ const styles: Record<string, React.CSSProperties> = {
     height: "100%",
     background: "#f9fafb",
     direction: "rtl",
+    overflow: "hidden",
+    position: "relative" as const,
   },
 
   // Header

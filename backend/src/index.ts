@@ -740,7 +740,8 @@ app.get("/users/:id/active-match-card", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const match = await pgQueryOne<any>(
     `SELECT m.id, m.match_card_data, m.user1_id, m.user2_id, m.match_card_sent_at,
-            u1.first_name AS user1_name, u2.first_name AS user2_name
+            u1.first_name AS user1_name, u2.first_name AS user2_name,
+            u1.age AS user1_age, u2.age AS user2_age
      FROM matches m
      JOIN users u1 ON u1.id = m.user1_id
      JOIN users u2 ON u2.id = m.user2_id
@@ -757,6 +758,7 @@ app.get("/users/:id/active-match-card", async (req, res) => {
   const partnerId = match.user1_id === userId ? match.user2_id : match.user1_id;
   const partnerName = match.user1_id === userId ? match.user2_name : match.user1_name;
   const myName = match.user1_id === userId ? match.user1_name : match.user2_name;
+  const partnerAge = match.user1_id === userId ? match.user2_age : match.user1_age;
 
   // Get partner photos
   const photos = await pgQueryAll<any>(
@@ -773,6 +775,7 @@ app.get("/users/:id/active-match-card", async (req, res) => {
       match_id: match.id,
       data: match.match_card_data,
       partner_name: partnerName,
+      partner_age: partnerAge,
       my_name: myName,
       partner_photo: photos.length > 0 ? `/uploads/${photos[0].filename}` : null,
       my_photo: myPhotos.length > 0 ? `/uploads/${myPhotos[0].filename}` : null,
@@ -3292,7 +3295,8 @@ app.post("/admin/users/:id/generate-insights", aiLimiter, async (req, res) => {
     const youWord = isFemale ? "את" : "אתה";
     const personWord = isFemale ? "מישהי" : "מישהו";
 
-    const systemPrompt = `אתה כותב תובנות אישיות עמוקות עבור משתמשים במערכת התאמות זוגיות.
+    const systemPrompt = `אתה כותב תובנות אישיות עמוקות. אתה פונה ישירות אל ${genderWord} — תמיד בגוף שני (${youWord}).
+לעולם אל תכתוב בגוף שלישי ("${user.first_name || "המשתמש/ת"} היא/הוא..."). תמיד "${youWord}...".
 
 ## הגישה שלך — תובנות, לא סיכום
 אתה לא מסכם את השיחה. אתה מנתח אותה.
@@ -3317,7 +3321,7 @@ app.post("/admin/users/:id/generate-insights", aiLimiter, async (req, res) => {
 
 "summary_short" — 2-3 משפטים. פותח בתובנה על מי ${genderWord}, ואז מה סוג ${personWord === "מישהי" ? "בת" : "בן"} הזוג שיתאים. לא גנרי — ספציפי ומדויק ל${genderWord} הזה/הזאת.
 
-"summary_full" — 6-10 פסקאות ניתוח עמוק שעובר בין הנושאים הבאים (לא חובה בסדר הזה, ולא חובה את כולם — תבחר מה רלוונטי):
+"summary_full" — 8-14 פסקאות ניתוח עמוק ומפורט. כל פסקה לפחות 3-4 משפטים. עובר בין הנושאים הבאים (לא חובה בסדר הזה, ולא חובה את כולם — תבחר מה רלוונטי):
 - מה מניע אותו/ה בחיים — לא מה עושה, אלא למה
 - דפוסים רגשיים — איך מתמודד/ת עם קונפליקט, מה קורה כשפוגעים, מה מפחיד
 - מה למד/ה ממערכות יחסים קודמות — לא מה קרה, אלא מה המסקנה
@@ -3327,6 +3331,7 @@ app.post("/admin/users/:id/generate-insights", aiLimiter, async (req, res) => {
 - סגירה חזקה — מה סוג ${personWord === "מישהי" ? "בת" : "בן"} הזוג שיתאים ולמה
 
 כל פסקה צריכה לחשוף תובנה, לא לתאר עובדה.
+חשוב: כתוב ניתוח מעמיק ומפורט — לא לחסוך במילים. הקורא רוצה להרגיש שבאמת צללת לעומק.
 החזר JSON בלבד, ללא markdown, ללא בלוק קוד.`;
 
     const userPrompt = `פרטי ${genderWord}:
@@ -3347,7 +3352,7 @@ ${fullTranscript}`;
         { role: "user", content: userPrompt },
       ],
       temperature: 0.75,
-      max_tokens: 4000,
+      max_tokens: 6000,
       response_format: { type: "json_object" },
     });
 

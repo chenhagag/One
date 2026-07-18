@@ -1,6 +1,43 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-07-17/18 (Insights Batch + Pre-Completion Tracking + Generate-Insights Prompt Rewrite)
+## Latest Session: 2026-07-19 (Direct Messaging — iOS Keyboard, Banner Redesign, Unread Fixes)
+
+### What We Did
+
+#### 1. iOS Keyboard Fix (MatchChat.tsx)
+- Used `visualViewport` API to handle iOS virtual keyboard properly
+- Container resizes to actual viewport height when keyboard opens (prevents chat from being pushed off-screen)
+- Auto-scrolls to bottom on keyboard open
+- Added `overflow: hidden` + `position: relative` to container
+
+#### 2. Home Banner Redesign — Two Modes (NewChat.tsx)
+- **Before card view**: Celebratory banner with 🎉 "יש לך התאמה חדשה!" + view card button (same as before)
+- **After card view**: Persistent compact card with partner photo, name + age, "ההתאמה שלי" subtitle, round chat button (with unread badge), round card button
+- Tracked via `localStorage` (`match_card_viewed_{userId}`)
+
+#### 3. "Waiting for First Message" Indicator (NewChat.tsx)
+- On persistent banner: if partner sent messages but user hasn't started chatting → "ממתינה לך הודעה מ{name}"
+- If chat started and new messages exist → "X הודעות חדשות"
+
+#### 4. Unread Badge Reliability Fix (NewChat.tsx)
+- When returning from match_chat to home: explicitly calls `mark-messages-read` then re-fetches `direct-messages` for fresh unread count
+- Prevents stale badge counts from showing
+
+#### 5. Partner Age in Match Card API (backend/index.ts)
+- Added `partner_age` to `GET /users/:id/active-match-card` response
+- Queries `u1.age` and `u2.age` from users table join
+
+### Technical Details
+- `MatchChat.tsx`: `visualViewport` resize/scroll listeners + `viewportHeight` state applied to container
+- `NewChat.tsx`: `matchCardViewed` state (localStorage-backed), new `useEffect` on screen change for mark-read + re-fetch, two-mode banner JSX
+- `backend/index.ts`: `active-match-card` query now joins `age` column, returns `partner_age`
+
+### Continuing from Previous Session (2026-07-18)
+Issues 1+2 (message delivery reliability + typing keep-alive) were already coded in MatchChat.tsx but not committed. This session completed issues 3-6 and commits all 6 together.
+
+---
+
+## Previous Session: 2026-07-17/18 (Insights Batch + Pre-Completion Tracking + Generate-Insights Prompt Rewrite)
 
 ### What We Did
 
