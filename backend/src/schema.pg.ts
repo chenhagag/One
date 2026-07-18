@@ -506,6 +506,12 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       ) THEN
         ALTER TABLE users ADD COLUMN analysis_completed BOOLEAN DEFAULT FALSE;
       END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'insights_pre_completion'
+      ) THEN
+        ALTER TABLE users ADD COLUMN insights_pre_completion BOOLEAN DEFAULT FALSE;
+      END IF;
 
       -- Supabase Auth: UUID linking to Supabase auth user
       IF NOT EXISTS (

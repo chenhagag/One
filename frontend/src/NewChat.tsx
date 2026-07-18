@@ -977,7 +977,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           </div>
         )}
 
-        {screen === "settings" && <SettingsView user={user} onLogout={onLogout} />}
+        {screen === "settings" && <SettingsView user={user} onLogout={onLogout} onShowMatchCardInfo={() => setScreen("match_card_consent")} />}
 
         {screen === "potential_matches" && (
           <div className="nc-screen-fade" key="potential_matches" style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
@@ -1554,7 +1554,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
 // ── Settings View component ────────────────────────────────────
 
-function SettingsView({ user, onLogout }: { user: User; onLogout?: () => void }) {
+function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onLogout?: () => void; onShowMatchCardInfo?: () => void }) {
   const [photoAI, setPhotoAI] = useState(false);
   const [matchCardConsent, setMatchCardConsent] = useState<string | null>(null);
   const [emailUpdates, setEmailUpdates] = useState(true);
@@ -1670,6 +1670,14 @@ function SettingsView({ user, onLogout }: { user: User; onLogout?: () => void })
               ? "ללא אישור, יוצגו לצד השני רק שם, גיל, מיקום ותמונה — ללא הסבר על ההתאמה."
               : "לא הגדרת עדיין העדפה — כדי לקבל התאמה מוסברת, יש לאשר."
             }
+            {onShowMatchCardInfo && (
+              <>
+                {" "}
+                <span style={{ cursor: "pointer", textDecoration: "underline", color: "#6366f1", fontWeight: 500 }} onClick={onShowMatchCardInfo}>
+                  מה זה כרטיס התאמה?
+                </span>
+              </>
+            )}
           </p>
         </div>
 

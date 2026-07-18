@@ -51,7 +51,7 @@ const s: Record<string, React.CSSProperties> = {
   scrollWrap: { overflowX: "auto" as const },
 };
 
-function PersonalInsightsEditor({ userId, shortText, fullText, analysisCompleted, onSave }: { userId: number; shortText: string; fullText: string; analysisCompleted: boolean; onSave: () => void }) {
+function PersonalInsightsEditor({ userId, shortText, fullText, analysisCompleted, insightsPreCompletion, onSave }: { userId: number; shortText: string; fullText: string; analysisCompleted: boolean; insightsPreCompletion?: boolean; onSave: () => void }) {
   const [open, setOpen] = useState(false);
   const [short, setShort] = useState(shortText);
   const [full, setFull] = useState(fullText);
@@ -97,6 +97,7 @@ function PersonalInsightsEditor({ userId, shortText, fullText, analysisCompleted
         <span style={{ fontSize: 11, color: completed ? "#16a34a" : "#dc2626", fontWeight: 600 }}>
           {completed ? "✓ ניתוח הושלם" : "ניתוח לא הושלם"}
         </span>
+        {insightsPreCompletion && <span style={{ fontSize: 11, color: "#d97706", fontWeight: 600 }} title="התובנות הוזנו לפני שהמשתמש/ת סיים/ה את כל הערוצים (קוגניטיבי/טעם)">⚠ הוזנו לפני סיום התהליך</span>}
       </div>
     );
   }
@@ -2362,7 +2363,7 @@ ${footer}`)
       )}
 
       {/* Personal Insights Editor — all users */}
-      <PersonalInsightsEditor userId={userId} shortText={user.personal_insights_short || ""} fullText={user.personal_insights_full || ""} analysisCompleted={user.analysis_completed ?? false} onSave={loadUserData} />
+      <PersonalInsightsEditor userId={userId} shortText={user.personal_insights_short || ""} fullText={user.personal_insights_full || ""} analysisCompleted={user.analysis_completed ?? false} insightsPreCompletion={!!user.insights_pre_completion} onSave={loadUserData} />
 
       {/* Couple Insights Editor */}
       {user.test_user_type === "Couple Tester" && <CoupleInsightsEditor userId={userId} value={user.couple_insights || ""} onSave={loadUserData} />}

@@ -1278,7 +1278,7 @@ app.patch("/admin/users/:id", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const allowed = [
     "partner_name", "test_user_type", "first_name", "couple_insights",
-    "personal_insights_short", "personal_insights_full", "analysis_completed",
+    "personal_insights_short", "personal_insights_full", "analysis_completed", "insights_pre_completion",
     "age", "gender", "looking_for_gender", "city", "height",
     "self_style", "desired_age_min", "desired_age_max", "age_flexibility",
     "desired_height_min", "desired_height_max", "height_flexibility",
@@ -1300,6 +1300,22 @@ app.patch("/admin/users/:id", async (req, res) => {
     }
   }
   if (updates.length === 0) return res.status(400).json({ error: "No valid fields" });
+
+  // Auto-manage insights_pre_completion when personal_insights_full is updated
+  if ("personal_insights_full" in req.body && req.body.personal_insights_full) {
+    const counts = await pgQueryOne<any>(`
+      SELECT
+        (SELECT COUNT(*) FROM conversation_messages WHERE user_id = $1 AND guide = 'new_chat_cognitive') as cog_count,
+        (SELECT COUNT(*) FROM conversation_messages WHERE user_id = $1 AND guide = 'new_chat_taste') as taste_count
+    `, [userId]);
+    const allDone = (counts?.cog_count ?? 0) >= 5 && (counts?.taste_count ?? 0) >= 5;
+    // If not all channels done → mark pre_completion; if all done → clear it
+    if (!("insights_pre_completion" in req.body)) {
+      updates.push(`insights_pre_completion = $${i++}`);
+      values.push(!allDone);
+    }
+  }
+
   values.push(userId);
   await pgQueryAll(`UPDATE users SET ${updates.join(", ")}, updated_at = NOW() WHERE id = $${i}`, values);
   const updated = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [userId]);
