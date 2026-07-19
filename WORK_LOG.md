@@ -1,6 +1,69 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-07-19 (API Security — Full Auth Enforcement)
+## Latest Session: 2026-07-19 (API Security + Error Logging + Gender Fixes)
+
+### What We Did
+
+#### 1. Full JWT Auth Enforcement (All API Endpoints)
+
+**Problem**: 107/111 API routes had NO authentication — anyone with a user ID could access any data.
+
+**Solution — Three middleware layers:**
+- `requireUserAuth` — 22 `/users/:id` routes: JWT + numeric ID ownership check (admin bypass included)
+- `requireAdmin` — 65 `/admin/*` routes via `app.use("/admin", requireAdmin)` + email whitelist
+- `requireAuth` — `/new-chat/message`, `/analyze`, `/matches`, `/report-bug` etc.
+
+**Frontend migration:**
+- All components (MatchChat, AdminView, AdminPipeline, NewChat, ProfileEdit, Insights, ConsentScreen, etc.) migrated from raw `fetch()` to `apiFetch()` which auto-attaches JWT
+- `lib/api.ts`: FormData detection for file uploads
+
+**New public routes** (pre-auth access):
+- `GET /enum-options` — for registration forms (was `/admin/enum-options`)
+- `GET /users/:id/conversation-history` — user loads own chat (was `/admin/full-transcript`)
+- `DELETE /users/:id/account` — self-delete (was `DELETE /admin/users/:id`)
+
+**Fixes during testing:**
+- Admin bypass in `requireUserAuth` — admin can view any user's screen
+- Admin bypass in `/new-chat/message` — admin can chat as other users
+- `PATCH /users/:id` — added missing fields (consent, settings, match_card)
+- Delete account — added missing FK tables (direct_messages, typing_status, match_scores)
+
+#### 2. Error Logging System
+
+**New table**: `error_logs` (source, user_id, route, method, status_code, message, stack, user_agent, extra)
+
+**Frontend (automatic):**
+- `apiFetch` auto-reports non-2xx responses (with response body in `extra.response`)
+- `window.onerror` + `unhandledrejection` capture JS errors
+- Dedup (same error not sent twice in 10s) + batching (flush every 2s)
+
+**Backend (automatic):**
+- `unhandledRejection` + `uncaughtException` logged to DB
+
+**Admin panel:**
+- New "שגיאות" tab — table with time, source, user, route, status, message
+- Filter by frontend/backend, refresh, clear old logs
+
+#### 3. UX Fixes
+
+- **Thank-you screen after feedback** — "תודה רבה על הדיווח! מאוד חשוב לנו לשמוע חוות דעת..." + button to return home
+- **Deal-breaker question** — neutralized gender (was masculine-only: "אדם שהוא גרוש")
+- **Admin view gender** — pass full user object (including gender) when viewing as user, fixing masculine greeting for female users
+
+### Files Changed
+- `backend/src/auth.ts` — `requireUserAuth`, `requireAdmin` + admin bypass
+- `backend/src/index.ts` — auth on all routes, new endpoints, logError helper, error logging routes
+- `backend/src/schema.pg.ts` — `error_logs` table
+- `backend/src/agents/conversation/chatManager.ts` — gender-neutral deal-breaker
+- `frontend/src/lib/api.ts` — apiFetch with auth + error reporting + response body capture
+- `frontend/src/App.tsx` — initErrorReporting + pass full user in admin view
+- `frontend/src/AdminView.tsx` — ErrorLogsTab + pass full user in onViewDashboard
+- `frontend/src/NewChat.tsx` — thank-you screen, use /users/:id routes instead of /admin
+- All other frontend components — migrated to apiFetch
+
+---
+
+## Previous Session: 2026-07-19 (API Security — Full Auth Enforcement)
 
 ### What We Did
 
