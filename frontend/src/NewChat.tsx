@@ -862,6 +862,29 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
               {/* Card wrapper */}
               <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", padding: "24px 20px" }}>
+                {bugSent ? (
+                  /* Thank you screen */
+                  <div style={{ textAlign: "center", padding: "32px 16px" }}>
+                    <div style={{ fontSize: 48, marginBottom: 16 }}>&#10003;</div>
+                    <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", marginTop: 0, marginBottom: 12 }}>תודה רבה על הדיווח!</h2>
+                    <p style={{ fontSize: 15, color: "#555", lineHeight: 1.6, marginBottom: 24 }}>
+                      מאוד חשוב לנו לשמוע חוות דעת ולקבל מידע על תקלות במערכת. המשוב שלך עוזר לנו להשתפר ולהפוך את החוויה לטובה יותר עבור כולם.
+                    </p>
+                    <button
+                      onClick={() => { setBugSent(false); setScreen("home"); }}
+                      style={{
+                        padding: "13px 32px", fontSize: 15, fontWeight: 600,
+                        background: "#6366f1", color: "#fff",
+                        border: "none", borderRadius: 12, cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      חזרה לדף הבית
+                    </button>
+                  </div>
+                ) : (
+                  /* Feedback form */
+                  <>
                 <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a2e", marginTop: 0, marginBottom: 6 }}>עזרו לנו להשתפר</h2>
                 <p style={{ fontSize: 13, color: "#888", marginBottom: 20, marginTop: 0 }}>נשמח לשמוע מכם</p>
 
@@ -908,19 +931,18 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   }
                   value={bugText}
                   onChange={e => setBugText(e.target.value)}
-                  disabled={bugSent}
                 />
 
                 {/* Submit */}
                 <button
                   style={{
                     marginTop: 14, width: "100%", padding: "13px 24px", fontSize: 15, fontWeight: 600,
-                    background: bugSent ? "#22c55e" : "#6366f1", color: "#fff",
-                    border: "none", borderRadius: 12, cursor: bugText.trim() && feedbackCategory && !bugSent ? "pointer" : "default",
-                    opacity: bugText.trim() && feedbackCategory && !bugSent ? 1 : 0.4,
+                    background: "#6366f1", color: "#fff",
+                    border: "none", borderRadius: 12, cursor: bugText.trim() && feedbackCategory ? "pointer" : "default",
+                    opacity: bugText.trim() && feedbackCategory ? 1 : 0.4,
                     fontFamily: "inherit",
                   }}
-                  disabled={!bugText.trim() || !feedbackCategory || bugSent}
+                  disabled={!bugText.trim() || !feedbackCategory}
                   onClick={async () => {
                     if (!bugText.trim() || !feedbackCategory) return;
                     try {
@@ -931,12 +953,13 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       setBugSent(true);
                       setBugText("");
                       setFeedbackCategory("");
-                      setTimeout(() => { setBugSent(false); setScreen("home"); }, 2000);
                     } catch {}
                   }}
                 >
-                  {bugSent ? "נשלח בהצלחה" : "שליחה"}
+                  שליחה
                 </button>
+                  </>
+                )}
               </div>
             </div>
           </div>
