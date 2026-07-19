@@ -90,11 +90,25 @@ export async function apiFetch(
 
   // Auto-report errors (non-2xx) — skip /log-error to avoid infinite loop
   if (!res.ok && !path.includes("/log-error")) {
-    reportError({
-      route: path,
-      method: options?.method || "GET",
-      status_code: res.status,
-      message: `API ${res.status}: ${path}`,
+    // Clone response to read body without consuming it for the caller
+    const cloned = res.clone();
+    cloned.text().then(body => {
+      let errorDetail = "";
+      try { errorDetail = JSON.parse(body)?.error || body.slice(0, 300); } catch { errorDetail = body.slice(0, 300); }
+      reportError({
+        route: path,
+        method: options?.method || "GET",
+        status_code: res.status,
+        message: `API ${res.status}: ${path}`,
+        extra: { response: errorDetail },
+      });
+    }).catch(() => {
+      reportError({
+        route: path,
+        method: options?.method || "GET",
+        status_code: res.status,
+        message: `API ${res.status}: ${path}`,
+      });
     });
   }
 
