@@ -904,4 +904,24 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       had_insights      BOOLEAN DEFAULT FALSE
     );
   `);
+
+  // Error logs — captures frontend + backend errors for monitoring
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS error_logs (
+      id              SERIAL PRIMARY KEY,
+      created_at      TIMESTAMPTZ DEFAULT NOW(),
+      source          TEXT NOT NULL DEFAULT 'frontend',
+      user_id         INTEGER,
+      route           TEXT,
+      method          TEXT,
+      status_code     INTEGER,
+      message         TEXT NOT NULL,
+      stack           TEXT,
+      user_agent      TEXT,
+      extra           JSONB
+    );
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_error_logs_created ON error_logs(created_at DESC);
+  `);
 }
