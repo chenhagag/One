@@ -1,4 +1,5 @@
 import express from "express";
+import helmet from "helmet";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 
@@ -63,8 +64,47 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.set("trust proxy", 1);
-app.use(cors());
-app.use(express.json());
+
+// ── Security headers ────────────────────────────────────────────
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],   // Needed for inline React scripts
+      styleSrc: ["'self'", "'unsafe-inline'"],    // Needed for inline styles
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      connectSrc: ["'self'", "https://auth.joinone.io", "https://*.supabase.co"],
+      fontSrc: ["'self'", "https:", "data:"],
+      frameSrc: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,  // Allow loading images from external sources
+}));
+
+// ── CORS — restrict to known origins ────────────────────────────
+const ALLOWED_ORIGINS = [
+  "https://joinone.io",
+  "https://www.joinone.io",
+  process.env.STAGING_URL,        // Railway staging URL (set in env)
+  "http://localhost:3000",         // local frontend dev
+  "http://localhost:5173",         // Vite default
+  "capacitor://localhost",         // Capacitor iOS
+  "http://localhost",              // Capacitor Android
+].filter(Boolean) as string[];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, same-origin, curl, service workers)
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, false);
+    }
+  },
+  credentials: true,
+}));
+
+app.use(express.json({ limit: "1mb" }));
 
 // ── Rate limiting ───────────────────────────────────────────────
 const generalLimiter = rateLimit({
@@ -85,6 +125,25 @@ const aiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "יותר מדי בקשות. נסו שוב בעוד דקה." },
+});
+
+// Auth rate limiter — prevents OTP brute force and email enumeration
+const authLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 10, // 10 attempts per IP per 10 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "יותר מדי ניסיונות. נסו שוב בעוד כמה דקות." },
+});
+
+// Per-email OTP send limiter (keyed by email in body)
+const otpSendLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // 5 OTP sends per email per hour
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req.body?.email || "").trim().toLowerCase() || req.ip,
+  message: { error: "נשלחו יותר מדי קודים. נסו שוב בעוד שעה." },
 });
 
 app.use(generalLimiter);
@@ -134,20 +193,21 @@ app.get("/enum-options", async (req, res) => {
   return res.json(options);
 });
 
-// POST /login — Simple email-based login (no password)
-app.post("/login", async (req, res) => {
+// POST /login — Legacy email-based login fallback
+// Returns only the minimum fields needed by the frontend (not SELECT *)
+app.post("/login", authLimiter, async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: "email is required" });
 
   try {
     const user = await pgQueryOne<any>(
-      "SELECT * FROM users WHERE email = $1",
+      "SELECT id, email, first_name, gender, profile_complete, consent_accepted, supabase_uid FROM users WHERE email = $1",
       [email.trim().toLowerCase()]
     );
     if (!user) return res.status(404).json({ error: "Email not found" });
     return res.json(user);
   } catch (err: any) {
-    console.error("[login]", err.message);
+    console.error("[login] error");
     return res.status(500).json({ error: "Login failed" });
   }
 });
@@ -156,7 +216,7 @@ app.post("/login", async (req, res) => {
 // MAGIC LINK — Server-side OTP to bypass Safari ITP
 // ════════════════════════════════════════════════════════════════
 
-app.post("/auth/magic-link", async (req, res) => {
+app.post("/auth/magic-link", authLimiter, async (req, res) => {
   const { email, redirectTo } = req.body;
   if (!email) return res.status(400).json({ error: "email is required" });
 
@@ -165,6 +225,19 @@ app.post("/auth/magic-link", async (req, res) => {
 
   if (!supabaseUrl || !serviceRoleKey) {
     return res.status(500).json({ error: "Supabase not configured on server" });
+  }
+
+  // Validate redirectTo against allowlist to prevent open redirects
+  const ALLOWED_REDIRECT_HOSTS = ["joinone.io", "www.joinone.io", "localhost"];
+  if (redirectTo) {
+    try {
+      const url = new URL(redirectTo);
+      if (!ALLOWED_REDIRECT_HOSTS.includes(url.hostname)) {
+        return res.status(400).json({ error: "Invalid redirect URL" });
+      }
+    } catch {
+      return res.status(400).json({ error: "Invalid redirect URL" });
+    }
   }
 
   try {
@@ -364,7 +437,7 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
 // ════════════════════════════════════════════════════════════════
 
 // POST /auth/send-otp — Send a 6-digit code to user's email
-app.post("/auth/send-otp", async (req, res) => {
+app.post("/auth/send-otp", authLimiter, otpSendLimiter, async (req, res) => {
   const { email } = req.body;
   if (!email?.trim()) return res.status(400).json({ error: "email is required" });
   if (!resend) return res.status(500).json({ error: "Email service not configured" });
@@ -407,7 +480,7 @@ app.post("/auth/send-otp", async (req, res) => {
       return res.status(500).json({ error: "Failed to send code" });
     }
 
-    console.log(`[otp] Code sent to ${normalizedEmail}`);
+    console.log(`[otp] Code sent successfully`);
     return res.json({ success: true });
   } catch (err: any) {
     console.error(`[otp] Error:`, err.message);
@@ -416,7 +489,7 @@ app.post("/auth/send-otp", async (req, res) => {
 });
 
 // POST /auth/verify-otp — Verify code and return user
-app.post("/auth/verify-otp", async (req, res) => {
+app.post("/auth/verify-otp", authLimiter, async (req, res) => {
   const { email, code } = req.body;
   if (!email?.trim() || !code?.trim()) {
     return res.status(400).json({ error: "email and code are required" });
@@ -544,9 +617,18 @@ app.patch("/users/:id/guide", requireUserAuth, async (req, res) => {
 // GET /users/:id — Get user profile (reads from pg)
 app.get("/users/:id", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
-  const user = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [userId]);
+  const user = await pgQueryOne<any>(
+    `SELECT id, email, first_name, age, gender, city, height, looking_for_gender,
+            desired_age_min, desired_age_max, age_flexibility,
+            desired_height_min, desired_height_max, height_flexibility,
+            desired_location_range, marital_status, has_children, religion, smoker,
+            partner_name, test_user_type, self_style, profile_complete, consent_accepted,
+            photo_ai_consent, email_updates, whatsapp_updates, whatsapp_phone,
+            match_card_consent, match_card_restrictions, supabase_uid, created_at
+     FROM users WHERE id = $1`,
+    [userId]
+  );
   if (!user) return res.status(404).json({ error: "User not found" });
-  // pg returns JSONB already-parsed, so no JSON.parse needed on self_style.
   return res.json(user);
 });
 
@@ -644,14 +726,22 @@ app.post("/users", async (req, res) => {
 // It does NOT update user_traits or user_look_traits.
 // ════════════════════════════════════════════════════════════════
 
-app.post("/analyze", aiLimiter, requireAuth, async (req, res) => {
+app.post("/analyze", aiLimiter, requireAuth, async (req: any, res) => {
   const { user_id, answer } = req.body;
 
   if (!user_id || !answer) {
     return res.status(400).json({ error: "user_id and answer are required" });
   }
 
-  const user = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [user_id]);
+  // Owner verification — derive identity from JWT, not body
+  if (req.auth?.sub) {
+    const authUser = await pgQueryOne<{ id: number }>("SELECT id FROM users WHERE supabase_uid = $1", [req.auth.sub]);
+    if (!authUser || authUser.id !== user_id) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+  }
+
+  const user = await pgQueryOne<any>("SELECT id, first_name, gender FROM users WHERE id = $1", [user_id]);
   if (!user) {
     return res.status(404).json({ error: "User not found" });
   }
@@ -665,8 +755,8 @@ app.post("/analyze", aiLimiter, requireAuth, async (req, res) => {
     );
     return res.status(201).json({ profile, analysis });
   } catch (err: any) {
-    console.error(err);
-    return res.status(500).json({ error: "Analysis failed: " + err.message });
+    console.error("[analyze] error:", err.message);
+    return res.status(500).json({ error: "Analysis failed" });
   }
 });
 
@@ -676,19 +766,26 @@ app.post("/analyze", aiLimiter, requireAuth, async (req, res) => {
 
 const uploadsDir = process.env.NODE_ENV === "production" ? "/app/data/uploads" : path.join(__dirname, "../../uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+const ALLOWED_IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"];
 const upload = multer({
   storage: multer.diskStorage({
     destination: uploadsDir,
     filename: (_req, file, cb) => {
       const unique = Date.now() + "-" + Math.round(Math.random() * 1e6);
-      const ext = path.extname(file.originalname) || ".jpg";
+      let ext = path.extname(file.originalname).toLowerCase() || ".jpg";
+      // Force safe extension — reject anything not in whitelist
+      if (!ALLOWED_IMAGE_EXTENSIONS.includes(ext)) ext = ".jpg";
       cb(null, `${unique}${ext}`);
     },
   }),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype.startsWith("image/")) cb(null, true);
-    else cb(new Error("Only image files allowed"));
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (file.mimetype.startsWith("image/") && (!ext || ALLOWED_IMAGE_EXTENSIONS.includes(ext))) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only image files allowed (jpg, png, webp, heic)"));
+    }
   },
 });
 
@@ -1181,6 +1278,12 @@ app.delete("/users/:id/account", requireUserAuth, async (req, res) => {
     console.error("[delete-account] Failed to save to deleted_users:", e);
   }
 
+  // Delete photo files from disk before removing DB records
+  const userPhotos = await pgQueryAll<{ filename: string }>("SELECT filename FROM user_photos WHERE user_id = $1", [userId]);
+  for (const photo of userPhotos) {
+    try { fs.unlinkSync(path.join(uploadsDir, photo.filename)); } catch {}
+  }
+
   // Hard delete (order matters due to FKs)
   await pgQueryAll("DELETE FROM profiles WHERE user_id = $1", [userId]);
   await pgQueryAll("DELETE FROM conversation_messages WHERE user_id = $1", [userId]);
@@ -1286,7 +1389,7 @@ app.get("/admin/users/:id/full-transcript", async (req, res) => {
 // POST /analyze-profile — Submit a conversation answer and run trait analysis
 // Stores the answer, builds cumulative transcript, runs analysis agent, saves traits.
 // Incremental: each call adds to the user's profile, null values don't overwrite existing data.
-app.post("/analyze-profile", aiLimiter, requireAuth, async (req, res) => {
+app.post("/analyze-profile", aiLimiter, requireAuth, async (req: any, res) => {
   const { user_id: rawUserId, answer } = req.body;
 
   if (!rawUserId || !answer) {
@@ -1296,10 +1399,18 @@ app.post("/analyze-profile", aiLimiter, requireAuth, async (req, res) => {
   // Ensure user_id is always an integer — req.body may pass string or number
   const user_id = typeof rawUserId === "string" ? parseInt(rawUserId, 10) : Number(rawUserId);
   if (!Number.isFinite(user_id) || user_id <= 0) {
-    return res.status(400).json({ error: `Invalid user_id: ${rawUserId} (type: ${typeof rawUserId})` });
+    return res.status(400).json({ error: "Invalid user_id" });
   }
 
-  const user = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [user_id]);
+  // Owner verification — derive identity from JWT
+  if (req.auth?.sub) {
+    const authUser = await pgQueryOne<{ id: number }>("SELECT id FROM users WHERE supabase_uid = $1", [req.auth.sub]);
+    if (!authUser || authUser.id !== user_id) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+  }
+
+  const user = await pgQueryOne<any>("SELECT id, first_name, gender FROM users WHERE id = $1", [user_id]);
   if (!user) {
     return res.status(404).json({ error: "User not found" });
   }
@@ -1630,6 +1741,12 @@ app.delete("/admin/users/:id", async (req, res) => {
     console.error("[admin] Failed to save deleted_users record:", err);
   }
 
+  // Delete photo files from disk before removing DB records
+  const userPhotos = await pgQueryAll<{ filename: string }>("SELECT filename FROM user_photos WHERE user_id = $1", [userId]);
+  for (const photo of userPhotos) {
+    try { fs.unlinkSync(path.join(uploadsDir, photo.filename)); } catch {}
+  }
+
   // Delete from pg (order matters due to FKs)
   const result = {
     profiles: 0, messages: 0, traits: 0, lookTraits: 0, analysisRuns: 0,
@@ -1658,7 +1775,7 @@ app.delete("/admin/users/:id", async (req, res) => {
   await pgQueryAll("DELETE FROM token_usage WHERE user_id = $1", [userId]);
   await pgQueryAll("DELETE FROM users WHERE id = $1", [userId]);
 
-  console.log(`[admin] Deleted user ${userId} (${user.first_name} <${user.email}>):`, result);
+  console.log(`[admin] Deleted user ${userId}`);
   return res.json({ deleted: true, user_id: userId, ...result });
 });
 
@@ -1700,7 +1817,7 @@ app.post("/api/users/:id/reset-data", requireAdmin, async (req, res) => {
     [userId, `[system] המשתמש/ת ${user.first_name} (${user.email}) מחק/ה את כל הנתונים והתחיל/ה מחדש`]
   );
 
-  console.log(`[reset-data] Reset data for user ${userId} (${user.first_name} <${user.email}>)`);
+  console.log(`[reset-data] Reset data for user ${userId}`);
   return res.json({ reset: true, user_id: userId });
 });
 
@@ -2331,7 +2448,7 @@ app.post("/admin/users/:id/reanalyze", aiLimiter, async (req, res) => {
   try {
     const input = await buildAnalysisInput(db, transcript);
     console.log(`[reanalyze] User ${user_id}: transcript=${transcript.length} chars, running FRESH analysis...`);
-    console.log(`[reanalyze] Transcript preview: ${transcript.slice(0, 300)}...`);
+    console.log(`[reanalyze] Transcript length: ${transcript.length} chars`);
 
     const output = await runAnalysisAgent(input, user_id, "reanalyze");
 
@@ -3017,11 +3134,11 @@ app.post("/admin/send-email", async (req, res) => {
     });
 
     if (error) {
-      console.error(`[email] Failed to send to ${to}:`, error);
+      console.error(`[email] Failed to send, subject: "${subject}"`, error);
       return res.status(500).json({ error: error.message || "Failed to send email" });
     }
 
-    console.log(`[email] Sent to ${to}, subject: "${subject}", resend_id: ${data?.id}`);
+    console.log(`[email] Sent successfully, subject: "${subject}", resend_id: ${data?.id}`);
     // Log to email_log if we can find the user by email
     const targetUser = await pgQueryOne<any>("SELECT id FROM users WHERE email = $1", [to.trim()]);
     if (targetUser) {
@@ -3029,7 +3146,7 @@ app.post("/admin/send-email", async (req, res) => {
     }
     return res.json({ success: true, resend_id: data?.id });
   } catch (err: any) {
-    console.error(`[email] Error sending to ${to}:`, err.message);
+    console.error(`[email] Error sending email:`, err.message);
     return res.status(500).json({ error: err.message || "Failed to send email" });
   }
 });
@@ -3061,7 +3178,7 @@ app.post("/admin/users/:id/send-email", async (req, res) => {
       return res.status(500).json({ error: error.message || "Failed to send email" });
     }
 
-    console.log(`[email] Sent to user ${userId} (${user.email}), subject: "${subject}", resend_id: ${data?.id}`);
+    console.log(`[email] Sent to user ${userId}, subject: "${subject}", resend_id: ${data?.id}`);
     await pgQueryOne("INSERT INTO email_log (user_id, subject) VALUES ($1, $2)", [userId, subject.trim()]);
     return res.json({ success: true, resend_id: data?.id });
   } catch (err: any) {
@@ -3417,11 +3534,21 @@ app.get("/admin/users/:id/system-questions", async (req, res) => {
   return res.json(rows);
 });
 
-// POST /system-question/answer — User answers a question
-app.post("/system-question/answer", requireAuth, async (req, res) => {
+// POST /system-question/answer — User answers a question (with ownership check)
+app.post("/system-question/answer", requireAuth, async (req: any, res) => {
   const { question_id, answer } = req.body;
   const validAnswers = ["כן אין בעיה", "אפשרי", "לא"];
   if (!validAnswers.includes(answer)) return res.status(400).json({ error: "invalid answer" });
+
+  // Verify the question belongs to the authenticated user
+  if (req.auth?.sub) {
+    const authUser = await pgQueryOne<{ id: number }>("SELECT id FROM users WHERE supabase_uid = $1", [req.auth.sub]);
+    const question = await pgQueryOne<{ user_id: number }>("SELECT user_id FROM system_questions WHERE id = $1", [question_id]);
+    if (!authUser || !question || question.user_id !== authUser.id) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+  }
+
   await pgQueryOne(
     "UPDATE system_questions SET answer = $1, answered_at = NOW() WHERE id = $2",
     [answer, question_id]
