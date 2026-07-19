@@ -159,8 +159,10 @@ export function requireUserAuth(req: Request, res: Response, next: NextFunction)
       req.userId = user.id;
 
       // If route has :id param, verify it matches the authenticated user
+      // Admins can access any user's data (for "view as user" feature)
+      const isAdmin = !!claims.email && ADMIN_EMAILS.includes(claims.email);
       const paramId = req.params.id || req.params.user_id;
-      if (paramId) {
+      if (paramId && !isAdmin) {
         const requestedId = parseInt(paramId, 10);
         if (!isNaN(requestedId) && requestedId !== user.id) {
           return res.status(403).json({ error: "Access denied" });
