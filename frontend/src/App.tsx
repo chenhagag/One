@@ -11,7 +11,7 @@ import AuthCallback from "./AuthCallback";
 import ProfileSetup from "./ProfileSetup";
 import ConsentScreen from "./ConsentScreen";
 import { supabase } from "./lib/supabase";
-import { saveSupabaseTokens, clearSupabaseTokens, initErrorReporting } from "./lib/api";
+import { saveSupabaseTokens, clearSupabaseTokens } from "./lib/api";
 import { isNativeApp, getApiBaseUrl, getPlatform } from "./lib/platform";
 import { trackPage } from "./lib/trackPage";
 import { App as CapApp } from "@capacitor/app";
@@ -173,9 +173,6 @@ export default function App() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [autoLoginDone, setAutoLoginDone] = useState(false);
   const [adminViewingUser, setAdminViewingUser] = useState(false);
-
-  // ── Initialize error reporting ────────────────
-  useEffect(() => { initErrorReporting(); }, []);
 
   // ── Track page views (user-facing screens only, not admin previewing) ────────────────
   useEffect(() => {
