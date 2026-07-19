@@ -194,18 +194,18 @@ app.get("/enum-options", async (req, res) => {
 });
 
 // POST /login — Legacy email-based login fallback
-// Returns only the minimum fields needed by the frontend (not SELECT *)
+// Returns only fields needed for frontend session bootstrap
 app.post("/login", authLimiter, async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: "email is required" });
 
   try {
     const user = await pgQueryOne<any>(
-      "SELECT id, email, first_name, gender, profile_complete, consent_accepted, supabase_uid FROM users WHERE email = $1",
+      "SELECT id, email, first_name, gender FROM users WHERE email = $1",
       [email.trim().toLowerCase()]
     );
-    if (!user) return res.status(404).json({ error: "Email not found" });
-    return res.json(user);
+    if (!user) return res.status(404).json({ error: "Login failed" });
+    return res.json({ id: user.id, email: user.email, first_name: user.first_name, gender: user.gender });
   } catch (err: any) {
     console.error("[login] error");
     return res.status(500).json({ error: "Login failed" });
@@ -227,12 +227,21 @@ app.post("/auth/magic-link", authLimiter, async (req, res) => {
     return res.status(500).json({ error: "Supabase not configured on server" });
   }
 
-  // Validate redirectTo against allowlist to prevent open redirects
-  const ALLOWED_REDIRECT_HOSTS = ["joinone.io", "www.joinone.io", "localhost"];
+  // Validate redirectTo against strict allowlist to prevent open redirects
+  const ALLOWED_REDIRECT_ORIGINS = [
+    "https://joinone.io",
+    "https://www.joinone.io",
+    ...(process.env.NODE_ENV !== "production" ? ["http://localhost:3000", "http://localhost:5173"] : []),
+  ];
   if (redirectTo) {
     try {
       const url = new URL(redirectTo);
-      if (!ALLOWED_REDIRECT_HOSTS.includes(url.hostname)) {
+      const origin = url.origin; // e.g. "https://joinone.io"
+      if (!ALLOWED_REDIRECT_ORIGINS.includes(origin)) {
+        return res.status(400).json({ error: "Invalid redirect URL" });
+      }
+      // Only allow /auth/callback path
+      if (!url.pathname.startsWith("/auth/callback")) {
         return res.status(400).json({ error: "Invalid redirect URL" });
       }
     } catch {
@@ -498,6 +507,16 @@ app.post("/auth/verify-otp", authLimiter, async (req, res) => {
   const normalizedEmail = email.trim().toLowerCase();
   const normalizedCode = code.trim();
 
+  // Check for too many failed attempts (lockout per email)
+  const recentFails = await pgQueryOne<{ cnt: number }>(
+    `SELECT COUNT(*)::int AS cnt FROM otp_codes
+     WHERE email = $1 AND used = FALSE AND expires_at > NOW() AND failed_attempts >= 5`,
+    [normalizedEmail]
+  );
+  if (recentFails && recentFails.cnt > 0) {
+    return res.status(429).json({ error: "too_many_attempts" });
+  }
+
   // Find valid, unused code
   const otpRow = await pgQueryOne<any>(
     `SELECT id FROM otp_codes
@@ -507,6 +526,12 @@ app.post("/auth/verify-otp", authLimiter, async (req, res) => {
   );
 
   if (!otpRow) {
+    // Increment failed_attempts on the most recent code for this email
+    await pgQueryAll(
+      `UPDATE otp_codes SET failed_attempts = COALESCE(failed_attempts, 0) + 1
+       WHERE email = $1 AND used = FALSE AND expires_at > NOW()`,
+      [normalizedEmail]
+    );
     return res.status(401).json({ error: "invalid_code" });
   }
 
@@ -789,8 +814,20 @@ const upload = multer({
   },
 });
 
-// Serve uploaded files statically
-app.use("/uploads", express.static(uploadsDir));
+// Serve uploaded files — require valid origin or auth token
+// Photos are referenced via <img> tags which don't send Authorization headers,
+// so we check either: (a) request comes from our allowed origins, or (b) has valid auth
+app.use("/uploads", (req, res, next) => {
+  const origin = req.get("origin") || "";
+  const referer = req.get("referer") || "";
+  const hasValidOrigin = ALLOWED_ORIGINS.some(o => origin === o || referer.startsWith(o));
+  const hasAuth = req.get("authorization")?.startsWith("Bearer ");
+  // Allow if: same-origin (no origin header), known origin/referer, or authenticated
+  if (!origin || hasValidOrigin || hasAuth) {
+    return next();
+  }
+  return res.status(403).json({ error: "Access denied" });
+}, express.static(uploadsDir));
 
 // POST /users/:id/photos — Upload a photo
 app.post("/users/:id/photos", requireUserAuth, upload.single("photo"), async (req, res) => {

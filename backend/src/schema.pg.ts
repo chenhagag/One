@@ -782,14 +782,19 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
   // ── OTP Codes (email login) ────────────────────────────────────
   await pool.query(`
     CREATE TABLE IF NOT EXISTS otp_codes (
-      id          SERIAL PRIMARY KEY,
-      email       VARCHAR(255) NOT NULL,
-      code        VARCHAR(6) NOT NULL,
-      expires_at  TIMESTAMPTZ NOT NULL,
-      used        BOOLEAN DEFAULT FALSE,
-      created_at  TIMESTAMPTZ DEFAULT NOW()
+      id               SERIAL PRIMARY KEY,
+      email            VARCHAR(255) NOT NULL,
+      code             VARCHAR(6) NOT NULL,
+      expires_at       TIMESTAMPTZ NOT NULL,
+      used             BOOLEAN DEFAULT FALSE,
+      failed_attempts  INTEGER DEFAULT 0,
+      created_at       TIMESTAMPTZ DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS idx_otp_email ON otp_codes(email, used);
+  `);
+  // Migration: add failed_attempts column if missing
+  await pool.query(`
+    ALTER TABLE otp_codes ADD COLUMN IF NOT EXISTS failed_attempts INTEGER DEFAULT 0;
   `);
 
   // ── Page Views (analytics) ────────────────────────────────────
