@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
+import { apiFetch } from "./lib/api";
 import AdminPipeline from "./AdminPipeline";
 
 /**
@@ -62,7 +63,7 @@ function PersonalInsightsEditor({ userId, shortText, fullText, analysisCompleted
   async function handleSave() {
     setSaving(true);
     try {
-      const r = await fetch(`/api/admin/users/${userId}`, {
+      const r = await apiFetch(`/admin/users/${userId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ personal_insights_short: short.trim() || null, personal_insights_full: full.trim() || null }),
@@ -75,7 +76,7 @@ function PersonalInsightsEditor({ userId, shortText, fullText, analysisCompleted
   async function toggleCompleted() {
     const newVal = !completed;
     try {
-      const r = await fetch(`/api/admin/users/${userId}`, {
+      const r = await apiFetch(`/admin/users/${userId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ analysis_completed: newVal }),
@@ -154,7 +155,7 @@ function CoupleInsightsEditor({ userId, value, onSave }: { userId: number; value
   async function handleSave() {
     setSaving(true);
     try {
-      const r = await fetch(`/api/admin/users/${userId}`, {
+      const r = await apiFetch(`/admin/users/${userId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ couple_insights: text.trim() || null }),
@@ -236,7 +237,7 @@ function InjectConversation({ userId, userName, onDone }: { userId: number; user
     setInjecting(true);
     setResult(null);
     try {
-      const r = await fetch(`/api/admin/users/${userId}/inject-conversation`, {
+      const r = await apiFetch(`/admin/users/${userId}/inject-conversation`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ channel, messages }),
@@ -308,7 +309,7 @@ function PartnerCell({ userId, value }: { userId: number; value: string }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(value);
   if (editing) {
-    return <input autoFocus style={{ border: "1px solid #6366f1", borderRadius: 4, padding: "2px 6px", fontSize: 12, width: 70 }} value={val} onChange={e => setVal(e.target.value)} onBlur={() => { setEditing(false); if (val.trim() !== value) fetch(`/api/admin/users/${userId}`, { method: "PATCH", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ partner_name: val.trim() }) }).then(r => { if (!r.ok) console.error("Failed to save partner_name"); }).catch(e => console.error("Save error:", e)); }} onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />;
+    return <input autoFocus style={{ border: "1px solid #6366f1", borderRadius: 4, padding: "2px 6px", fontSize: 12, width: 70 }} value={val} onChange={e => setVal(e.target.value)} onBlur={() => { setEditing(false); if (val.trim() !== value) apiFetch(`/admin/users/${userId}`, { method: "PATCH", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ partner_name: val.trim() }) }).then(r => { if (!r.ok) console.error("Failed to save partner_name"); }).catch(e => console.error("Save error:", e)); }} onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />;
   }
   return <span>{val || "-"} <span style={{ cursor: "pointer", fontSize: 10, opacity: 0.5 }} onClick={() => setEditing(true)}>✏️</span></span>;
 }
@@ -319,7 +320,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
 
   // Check for new bug reports on mount
   useEffect(() => {
-    fetch("/api/admin/bug-reports").then(r => r.json()).then((reports: any[]) => {
+    apiFetch("/admin/bug-reports").then(r => r.json()).then((reports: any[]) => {
       if (!Array.isArray(reports)) return;
       const lastSeen = localStorage.getItem("admin_bugs_last_seen") || "1970-01-01";
       const newCount = reports.filter(r => r.created_at && r.created_at > lastSeen).length;
@@ -394,7 +395,7 @@ function OverviewTab() {
   const [stats, setStats] = useState<Record<string, number> | null>(null);
 
   useEffect(() => {
-    fetch("/api/admin/stats").then((r) => r.json()).then(setStats).catch(() => {});
+    apiFetch("/admin/stats").then((r) => r.json()).then(setStats).catch(() => {});
   }, []);
 
   if (!stats) return <p style={s.loading}>Loading...</p>;
@@ -421,7 +422,7 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
   const [filterGender, setFilterGender] = useState<"all" | "man" | "woman">("all");
 
   useEffect(() => {
-    fetch("/api/admin/users")
+    apiFetch("/admin/users")
       .then((r) => r.json())
       .then(setUsers)
       .catch(() => {})
@@ -647,7 +648,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   useEffect(() => { if (data?.user?.admin_message != null) setAdminMsg(data.user.admin_message); }, [data?.user?.admin_message]);
 
   function loadMatches() {
-    fetch(`/api/admin/users/${userId}/matches`)
+    apiFetch(`/admin/users/${userId}/matches`)
       .then((r) => r.json())
       .then(setMatches)
       .catch(() => {});
@@ -656,7 +657,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   async function submitRating(matchId: number, rating: string) {
     setRatingInProgress(matchId);
     try {
-      const r = await fetch(`/api/matches/${matchId}/rate`, {
+      const r = await apiFetch(`/matches/${matchId}/rate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: userId, rating }),
@@ -677,7 +678,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
     if (!confirm("Cancel this match?")) return;
     setCancelInProgress(matchId);
     try {
-      const r = await fetch(`/api/admin/matches/${matchId}/cancel`, { method: "POST" });
+      const r = await apiFetch(`/admin/matches/${matchId}/cancel`, { method: "POST" });
       const json = await r.json();
       if (!r.ok) alert(json.error || "Cancel failed");
       loadMatches();
@@ -691,7 +692,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   async function sendForRating(matchId: number) {
     setSendingForRating(matchId);
     try {
-      const r = await fetch(`/api/admin/matches/${matchId}/send-for-rating`, {
+      const r = await apiFetch(`/admin/matches/${matchId}/send-for-rating`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: userId }),
@@ -707,7 +708,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   }
 
   function loadUserData() {
-    fetch(`/api/admin/users/${userId}/full`)
+    apiFetch(`/admin/users/${userId}/full`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -718,7 +719,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   }
 
   function loadSystemQuestions() {
-    fetch(`/api/admin/users/${userId}/system-questions`)
+    apiFetch(`/admin/users/${userId}/system-questions`)
       .then(r => r.json())
       .then(data => setSystemQuestions(Array.isArray(data) ? data : []))
       .catch(() => {});
@@ -730,7 +731,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
     setEmailError(null);
     setEmailSent(false);
     try {
-      const r = await fetch(`/api/admin/users/${userId}/send-email`, {
+      const r = await apiFetch(`/admin/users/${userId}/send-email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subject: emailSubject, html: emailHtml }),
@@ -755,12 +756,12 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
     if (!confirm("Re-analyze this user? This will overwrite current trait scores with fresh results from the latest prompts.")) return;
     setReanalyzing(true);
     try {
-      const r = await fetch(`/api/admin/users/${userId}/reanalyze`, { method: "POST" });
+      const r = await apiFetch(`/admin/users/${userId}/reanalyze`, { method: "POST" });
       const json = await r.json();
       if (!r.ok) { alert(json.error || "Re-analysis failed"); return; }
       alert(`Re-analysis complete: ${json.saved.internal_saved} internal + ${json.saved.external_saved} external traits saved`);
       loadUserData();
-      fetch(`/api/admin/users/${userId}/analysis-run`).then(r => r.json()).then(setAnalysisRun).catch(() => {});
+      apiFetch(`/admin/users/${userId}/analysis-run`).then(r => r.json()).then(setAnalysisRun).catch(() => {});
     } catch { alert("Network error"); }
     finally { setReanalyzing(false); }
   }
@@ -769,7 +770,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
     setRunningCognitiveTest(true);
     setCognitiveTestOutput(null);
     try {
-      const r = await fetch(`/api/admin/users/${userId}/cognitive-test`, { method: "POST" });
+      const r = await apiFetch(`/admin/users/${userId}/cognitive-test`, { method: "POST" });
       const json = await r.json();
       if (!r.ok) { alert(json.error || "Cognitive test failed"); return; }
       setCognitiveTestOutput(json.output);
@@ -782,7 +783,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   async function handleGroupReanalyze(groupKey: string) {
     setRunningGroup(groupKey);
     try {
-      const r = await fetch(`/api/admin/users/${userId}/reanalyze-group`, {
+      const r = await apiFetch(`/admin/users/${userId}/reanalyze-group`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ group: groupKey }),
       });
@@ -809,7 +810,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
     )) return;
     setResetting(true);
     try {
-      const r = await fetch(`/api/admin/users/${userId}/reset-analysis`, { method: "POST" });
+      const r = await apiFetch(`/admin/users/${userId}/reset-analysis`, { method: "POST" });
       const json = await r.json();
       if (!r.ok) { alert(json.error || "Reset failed"); return; }
       alert(`Reset complete: ${json.deleted_traits} traits + ${json.deleted_look_traits} look traits deleted, ${json.cleared_profiles} profiles cleared`);
@@ -830,7 +831,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
     )) return;
 
     try {
-      const r = await fetch(`/api/admin/users/${userId}`, { method: "DELETE" });
+      const r = await apiFetch(`/admin/users/${userId}`, { method: "DELETE" });
       const json = await r.json();
       if (!r.ok) { alert(json.error || "Delete failed"); return; }
       alert(`User #${userId} deleted.`);
@@ -841,12 +842,12 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   useEffect(() => {
     loadUserData();
     loadMatches();
-    fetch(`/api/admin/users/${userId}/token-usage`).then(r => r.json()).then(setTokenUsage).catch(() => {});
-    fetch(`/api/admin/users/${userId}/full-transcript`).then(r => r.json()).then(setTranscript).catch(() => {});
-    fetch(`/api/admin/users/${userId}/direct-messages`).then(r => r.json()).then(d => setDirectMessages(d.messages || [])).catch(() => {});
-    fetch(`/api/admin/users/${userId}/analysis-run`).then(r => r.json()).then(setAnalysisRun).catch(() => {});
-    fetch(`/api/admin/users/${userId}/analysis-status`).then(r => r.json()).then(setAnalysisStatus).catch(() => {});
-    fetch(`/api/admin/users/${userId}/page-views`).then(r => r.json()).then(setPageViews).catch(() => {});
+    apiFetch(`/admin/users/${userId}/token-usage`).then(r => r.json()).then(setTokenUsage).catch(() => {});
+    apiFetch(`/admin/users/${userId}/full-transcript`).then(r => r.json()).then(setTranscript).catch(() => {});
+    apiFetch(`/admin/users/${userId}/direct-messages`).then(r => r.json()).then(d => setDirectMessages(d.messages || [])).catch(() => {});
+    apiFetch(`/admin/users/${userId}/analysis-run`).then(r => r.json()).then(setAnalysisRun).catch(() => {});
+    apiFetch(`/admin/users/${userId}/analysis-status`).then(r => r.json()).then(setAnalysisStatus).catch(() => {});
+    apiFetch(`/admin/users/${userId}/page-views`).then(r => r.json()).then(setPageViews).catch(() => {});
     loadSystemQuestions();
   }, [userId]);
 
@@ -892,7 +893,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
       };
     });
     try {
-      await fetch(`/api/admin/users/${userId}/look-traits`, {
+      await apiFetch(`/admin/users/${userId}/look-traits`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ traits: traitsToSave }),
@@ -1273,7 +1274,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                 : `Unfreeze user #${userId} (${user.first_name})? They will return to matching pool.`
               )) return;
               try {
-                const r = await fetch(`/api/admin/users/${userId}/${action}`, { method: "POST" });
+                const r = await apiFetch(`/admin/users/${userId}/${action}`, { method: "POST" });
                 const json = await r.json();
                 if (!r.ok) { alert(json.error || `${action} failed`); return; }
                 alert(`User ${action === "freeze" ? "frozen" : "unfrozen"}.`);
@@ -1336,7 +1337,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
             btn.disabled = true;
             const newVal = !user.in_matching_pool;
             try {
-              const res = await fetch(`/api/admin/users/${user.id}`, {
+              const res = await apiFetch(`/admin/users/${user.id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ in_matching_pool: newVal }),
@@ -1367,7 +1368,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
           onChange={async (e) => {
             const newType = e.target.value || null;
             try {
-              const res = await fetch(`/api/admin/users/${user.id}`, {
+              const res = await apiFetch(`/admin/users/${user.id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ test_user_type: newType }),
@@ -1771,7 +1772,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                   const u = data?.user;
                   const isFemale = u?.gender === "woman";
                   const gn = (m: string, f: string) => isFemale ? f : m;
-                  const r = await fetch(`/api/admin/users/${userId}/send-email`, {
+                  const r = await apiFetch(`/admin/users/${userId}/send-email`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -1817,7 +1818,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                 disabled={adminMsgSaving}
                 onClick={async () => {
                   setAdminMsgSaving(true);
-                  await fetch(`/api/admin/users/${userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin_message: adminMsg.trim() || null }) });
+                  await apiFetch(`/admin/users/${userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin_message: adminMsg.trim() || null }) });
                   loadUserData();
                   setAdminMsgSaving(false);
                 }}
@@ -1830,7 +1831,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                   onClick={async () => {
                     setAdminMsgSaving(true);
                     setAdminMsg("");
-                    await fetch(`/api/admin/users/${userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin_message: null }) });
+                    await apiFetch(`/admin/users/${userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin_message: null }) });
                     loadUserData();
                     setAdminMsgSaving(false);
                   }}
@@ -2811,7 +2812,7 @@ function UserProfilesTab() {
   const [sortAsc, setSortAsc] = useState(true);
 
   useEffect(() => {
-    fetch("/api/admin/user-profiles")
+    apiFetch("/admin/user-profiles")
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false); })
       .catch(() => setLoading(false));
@@ -2887,7 +2888,7 @@ function TraitDefsTab() {
   const [saved, setSaved] = useState<number | null>(null);
 
   useEffect(() => {
-    fetch("/api/admin/trait-definitions")
+    apiFetch("/admin/trait-definitions")
       .then((r) => r.json())
       .then(setData)
       .catch(() => {})
@@ -2904,7 +2905,7 @@ function TraitDefsTab() {
 
   async function saveRow(id: number) {
     const e = editing[id];
-    await fetch(`/api/admin/trait-definitions/${id}`, {
+    await apiFetch(`/admin/trait-definitions/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -3004,7 +3005,7 @@ function LookTraitDefsTab() {
   const [saved, setSaved] = useState<number | null>(null);
 
   useEffect(() => {
-    fetch("/api/admin/look-trait-definitions")
+    apiFetch("/admin/look-trait-definitions")
       .then((r) => r.json())
       .then(setData)
       .catch(() => {})
@@ -3021,7 +3022,7 @@ function LookTraitDefsTab() {
 
   async function saveRow(id: number) {
     const e = editing[id];
-    await fetch(`/api/admin/look-trait-definitions/${id}`, {
+    await apiFetch(`/admin/look-trait-definitions/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -3134,7 +3135,7 @@ function EnumsTab() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/admin/enum-options")
+    apiFetch("/admin/enum-options")
       .then((r) => r.json())
       .then(setData)
       .catch(() => {})
@@ -3193,7 +3194,7 @@ function ConfigTab() {
   const [saved, setSaved] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/admin/config")
+    apiFetch("/admin/config")
       .then((r) => r.json())
       .then(setData)
       .catch(() => {})
@@ -3204,7 +3205,7 @@ function ConfigTab() {
     const value = editing[key];
     if (value === undefined) return;
 
-    await fetch(`/api/admin/config/${encodeURIComponent(key)}`, {
+    await apiFetch(`/admin/config/${encodeURIComponent(key)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ value }),
@@ -3280,7 +3281,7 @@ function MatchesTab() {
 
   function load() {
     setLoading(true);
-    fetch("/api/admin/matches")
+    apiFetch("/admin/matches")
       .then((r) => r.json())
       .then(setAllData)
       .catch(() => {})
@@ -3361,7 +3362,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
 
   function load() {
     setLoading(true);
-    fetch("/api/admin/candidate-matches")
+    apiFetch("/admin/candidate-matches")
       .then((r) => r.json())
       .then(setData)
       .catch(() => {})
@@ -3376,7 +3377,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
     setRunning("algorithm");
     setResult(null);
     try {
-      const r = await fetch("/api/admin/run-matching", { method: "POST" });
+      const r = await apiFetch("/admin/run-matching", { method: "POST" });
       const json = await r.json();
       setResult(json);
       load();
@@ -3392,7 +3393,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
     setRunning("algorithm-expanded");
     setResult(null);
     try {
-      const r = await fetch("/api/admin/run-matching-expanded", { method: "POST" });
+      const r = await apiFetch("/admin/run-matching-expanded", { method: "POST" });
       const json = await r.json();
       setResult(json);
       load();
@@ -3408,7 +3409,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
     setRunning("algorithm-force");
     setResult(null);
     try {
-      const r = await fetch("/api/admin/run-matching-force", { method: "POST" });
+      const r = await apiFetch("/admin/run-matching-force", { method: "POST" });
       const json = await r.json();
       setResult(json);
       load();
@@ -3425,7 +3426,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
     setRunning("matchmaking");
     setResult(null);
     try {
-      const r = await fetch("/api/admin/run-matchmaking", { method: "POST" });
+      const r = await apiFetch("/admin/run-matchmaking", { method: "POST" });
       const json = await r.json();
       setResult(json);
       load();
@@ -3440,7 +3441,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
     setRunning("reset");
     setResult(null);
     try {
-      const r = await fetch("/api/admin/reset-matches", { method: "POST" });
+      const r = await apiFetch("/admin/reset-matches", { method: "POST" });
       const json = await r.json();
       setResult({ reset: true, ...json });
       load();
@@ -3455,7 +3456,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
     setRunning("approve");
     setResult(null);
     try {
-      const r = await fetch("/api/admin/approve-all-ratings", { method: "POST" });
+      const r = await apiFetch("/admin/approve-all-ratings", { method: "POST" });
       const json = await r.json();
       setResult({ approve_action: true, ...json });
       load();
@@ -3536,7 +3537,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
             if (!confirm("לשלוח מייל כרטיס התאמה לכל משתמשי המאגר שטרם קיבלו?")) return;
             setRunning("pool-email");
             try {
-              const r = await fetch("/api/admin/send-pool-emails", { method: "POST" });
+              const r = await apiFetch("/admin/send-pool-emails", { method: "POST" });
               const json = await r.json();
               alert(`נשלחו ${json.sent} מיילים מתוך ${json.total_pool} משתמשי מאגר`);
             } catch (e: any) { alert(`שגיאה: ${e.message}`); }
@@ -3644,7 +3645,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                         style={{ padding: "3px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#6f42c1", color: "#fff" }}
                         onClick={async () => {
                           if (!confirm(`להעביר את ${cm.user1_name} ו-${cm.user2_name} לסטטוס ממתין לכרטיס?`)) return;
-                          await fetch(`/api/admin/matches/${cm.match_id}/prepare`, { method: "POST" });
+                          await apiFetch(`/admin/matches/${cm.match_id}/prepare`, { method: "POST" });
                           load();
                         }}
                       >
@@ -3762,8 +3763,8 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                         if (!confirm("לשלוח את כרטיס ההתאמה לשני המשתמשים? הכרטיס יופיע להם במסך הבית.")) return;
                         setCardSending(true);
                         try {
-                          await fetch(`/api/admin/matches/${cardPreview.matchId}/approve-card`, { method: "POST" });
-                          await fetch(`/api/admin/matches/${cardPreview.matchId}/send`, { method: "POST" });
+                          await apiFetch(`/admin/matches/${cardPreview.matchId}/approve-card`, { method: "POST" });
+                          await apiFetch(`/admin/matches/${cardPreview.matchId}/send`, { method: "POST" });
                           setCardPreview(null);
                           load();
                         } catch { alert("שגיאה בשליחה"); }
@@ -3817,7 +3818,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                       onClick={async () => {
                         setCardSending(true);
                         try {
-                          await fetch(`/api/admin/matches/${cardPreview.matchId}/save-card`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ match_card_data: editData }) });
+                          await apiFetch(`/admin/matches/${cardPreview.matchId}/save-card`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ match_card_data: editData }) });
                           setCardPreview({ ...cardPreview, data: editData });
                           setCardEditing(false);
                           load();
@@ -3867,7 +3868,7 @@ function AnalyticsTab() {
   const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
-    fetch("/api/admin/page-views/stats")
+    apiFetch("/admin/page-views/stats")
       .then(r => r.json())
       .then(setStats)
       .catch(() => {})
@@ -3881,7 +3882,7 @@ function AnalyticsTab() {
     }
     setExpandedPage(page);
     setDetailLoading(true);
-    fetch(`/api/admin/page-views/detail/${encodeURIComponent(page)}`)
+    apiFetch(`/admin/page-views/detail/${encodeURIComponent(page)}`)
       .then(r => r.json())
       .then(setPageDetail)
       .catch(() => {})
@@ -3995,7 +3996,7 @@ function SendEmailTab() {
     setError(null);
     setSent(false);
     try {
-      const r = await fetch("/api/admin/send-email", {
+      const r = await apiFetch("/admin/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ to, subject, html }),
@@ -4093,7 +4094,7 @@ function BugReportsTab() {
 
   function loadReports() {
     setLoading(true);
-    fetch("/api/admin/bug-reports")
+    apiFetch("/admin/bug-reports")
       .then(r => r.json())
       .then(data => { setReports(Array.isArray(data) ? data : []); })
       .catch(() => {})
@@ -4102,7 +4103,7 @@ function BugReportsTab() {
 
   async function handleDelete(id: number) {
     if (!confirm("למחוק את הדיווח?")) return;
-    await fetch(`/api/admin/bug-reports/${id}`, { method: "DELETE" });
+    await apiFetch(`/admin/bug-reports/${id}`, { method: "DELETE" });
     setReports(prev => prev.filter(r => r.id !== id));
   }
 
@@ -4112,7 +4113,7 @@ function BugReportsTab() {
   }
 
   async function saveEdit(id: number) {
-    const res = await fetch(`/api/admin/bug-reports/${id}`, {
+    const res = await apiFetch(`/admin/bug-reports/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ report_text: editText }),
@@ -4246,7 +4247,7 @@ function UserPhotosGallery({ userId, userName, photoAiConsent }: { userId: numbe
   const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/users/${userId}/photos`).then(r => r.json())
+    apiFetch(`/users/${userId}/photos`).then(r => r.json())
       .then(data => setPhotos(Array.isArray(data?.photos) ? data.photos : Array.isArray(data) ? data : []))
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -4332,7 +4333,7 @@ function UserManagementTab() {
 
   function loadData() {
     setLoading(true);
-    fetch("/api/admin/user-management")
+    apiFetch("/admin/user-management")
       .then(r => r.json())
       .then(data => { setUsers(Array.isArray(data) ? data : []); })
       .finally(() => setLoading(false));
@@ -4537,7 +4538,7 @@ function DeletedUsersTab() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/admin/deleted-users")
+    apiFetch("/admin/deleted-users")
       .then((r) => r.json())
       .then((data) => { setRows(Array.isArray(data) ? data : []); setLoading(false); })
       .catch(() => setLoading(false));

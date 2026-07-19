@@ -48,11 +48,11 @@ export default function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch(`${getApiBaseUrl()}/api/cities`).then(r => r.json()).then(setCities).catch(() => {});
+    apiFetch("/cities").then(r => r.json()).then(setCities).catch(() => {});
   }, []);
 
   useEffect(() => {
-    fetch(`${getApiBaseUrl()}/api/admin/enum-options`)
+    apiFetch("/enum-options")
       .then((r) => r.json())
       .then((data: any[]) => {
         const grouped: Record<string, EnumOption[]> = {};
@@ -83,7 +83,7 @@ export default function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
     setLoading(true);
 
     try {
-      const res = await apiFetch(`/admin/users/${user.id}`, {
+      const res = await apiFetch(`/users/${user.id}`, {
         method: "PATCH",
         body: JSON.stringify({
           first_name: firstName.trim(),

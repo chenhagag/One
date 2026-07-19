@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiFetch } from "./lib/api";
 
 // ════════════════════════════════════════════════════════════════
 // AdminPipeline — 6-stage user management dashboard
@@ -223,25 +224,25 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
 
   function loadData() {
     setLoading(true);
-    fetch("/api/admin/user-management")
+    apiFetch("/admin/user-management")
       .then(r => r.json())
       .then(data => setUsers(Array.isArray(data) ? data : []))
       .finally(() => setLoading(false));
   }
 
   function loadAnsweredQuestions() {
-    fetch("/api/admin/system-questions/pending")
+    apiFetch("/admin/system-questions/pending")
       .then(r => r.json())
       .then(data => setAnsweredQuestions(Array.isArray(data) ? data : []));
   }
 
   async function markQuestionSeen(qId: number) {
-    await fetch(`/api/admin/system-questions/${qId}/mark-seen`, { method: "POST", headers: { "Content-Type": "application/json" } });
+    await apiFetch(`/admin/system-questions/${qId}/mark-seen`, { method: "POST" });
     loadAnsweredQuestions();
   }
 
   function loadMatchRatings() {
-    fetch("/api/admin/match-ratings/pending")
+    apiFetch("/admin/match-ratings/pending")
       .then(r => r.json())
       .then(data => setMatchRatings(Array.isArray(data) ? data : []));
   }
@@ -249,9 +250,8 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
   async function sendMatchForRating(matchId: number, targetUserId: number) {
     setSendingRating(matchId);
     try {
-      const r = await fetch(`/api/admin/matches/${matchId}/send-for-rating`, {
+      const r = await apiFetch(`/admin/matches/${matchId}/send-for-rating`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: targetUserId }),
       });
       if (!r.ok) { const j = await r.json(); alert(j.error || "Failed"); }
@@ -261,18 +261,16 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
   }
 
   async function pipelineAction(userId: number, action: string) {
-    await fetch(`/api/admin/users/${userId}/pipeline-action`, {
+    await apiFetch(`/admin/users/${userId}/pipeline-action`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action }),
     });
     loadData();
   }
 
   async function updateChecklist(userId: number, key: string, value: boolean) {
-    await fetch(`/api/admin/users/${userId}/update-checklist`, {
+    await apiFetch(`/admin/users/${userId}/update-checklist`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key, value }),
     });
     loadData();
@@ -536,9 +534,8 @@ function PipelineUserCard({
     setSending(true);
     setEmailError("");
     try {
-      const res = await fetch(`/api/admin/users/${u.id}/send-email`, {
+      const res = await apiFetch(`/admin/users/${u.id}/send-email`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subject: emailSubject, html: emailHtml }),
       });
       const data = await res.json();
@@ -557,9 +554,8 @@ function PipelineUserCard({
   async function handleSendMessage() {
     setMsgSending(true);
     try {
-      await fetch(`/api/admin/users/${u.id}`, {
+      await apiFetch(`/admin/users/${u.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ admin_message: msgText }),
       });
       setShowMessage(false);
@@ -571,7 +567,7 @@ function PipelineUserCard({
     if (!confirm(`להריץ ניתוח מחדש עבור ${u.first_name}?`)) return;
     setReanalyzing(true);
     try {
-      const res = await fetch(`/api/admin/users/${u.id}/reanalyze`, { method: "POST" });
+      const res = await apiFetch(`/admin/users/${u.id}/reanalyze`, { method: "POST" });
       const data = await res.json();
       if (res.ok) {
         alert(`ניתוח הושלם: ${data.internal_count || 0} internal + ${data.external_count || 0} external traits`);
@@ -586,7 +582,7 @@ function PipelineUserCard({
     if (!confirm(`להפיק תובנות AI עבור ${u.first_name}?`)) return;
     setGenerating(true);
     try {
-      const res = await fetch(`/api/admin/users/${u.id}/generate-insights`, { method: "POST" });
+      const res = await apiFetch(`/admin/users/${u.id}/generate-insights`, { method: "POST" });
       const data = await res.json();
       if (res.ok) {
         alert(`תובנות הופקו בהצלחה!\n\nסיכום קצר:\n${data.summary_short}\n\nניתוח מלא:\n${(data.summary_full || "").slice(0, 300)}...`);
@@ -703,7 +699,7 @@ function PipelineUserCard({
                 value={u.admin_location_override || ""}
                 onChange={async (e) => {
                   const val = e.target.value || null;
-                  await fetch(`/api/admin/users/${u.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", "x-admin-key": "admin-secret-key-2026" }, body: JSON.stringify({ admin_location_override: val }) });
+                  await apiFetch(`/admin/users/${u.id}`, { method: "PATCH", headers: { "x-admin-key": "admin-secret-key-2026" }, body: JSON.stringify({ admin_location_override: val }) });
                   onReload();
                 }}
                 style={{ marginRight: 4, fontSize: 10, padding: "1px 4px", border: "1px solid #cbd5e1", borderRadius: 4, background: u.admin_location_override ? "#fef3c7" : "#fff" }}
@@ -744,7 +740,7 @@ function PipelineUserCard({
               placeholder="הערות..." />
             <button disabled={savingNotes} onClick={async () => {
               setSavingNotes(true);
-              await fetch(`/api/admin/users/${u.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin_notes: notesText }) });
+              await apiFetch(`/admin/users/${u.id}`, { method: "PATCH", body: JSON.stringify({ admin_notes: notesText }) });
               setSavingNotes(false); setEditingNotes(false); onReload();
             }} style={{ fontSize: 11, padding: "4px 12px", background: "#7c3aed", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>
               {savingNotes ? "..." : "שמור"}
@@ -899,7 +895,7 @@ function PipelineUserCard({
               />
               <button style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: "#7c3aed", color: "#fff", fontSize: 12, cursor: "pointer", fontWeight: 600 }} onClick={async () => {
                 if (!questionText.trim()) return;
-                await fetch(`/api/admin/users/${u.id}/system-question`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question_text: questionText }) });
+                await apiFetch(`/admin/users/${u.id}/system-question`, { method: "POST", body: JSON.stringify({ question_text: questionText }) });
                 setQuestionText(""); setShowQuestion(false);
               }}>שלח</button>
               <button style={{ fontSize: 11, color: "#94a3b8", background: "none", border: "none", cursor: "pointer" }} onClick={() => setShowQuestion(false)}>✕</button>

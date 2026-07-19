@@ -5,7 +5,7 @@ import MatchCard from "./MatchCard";
 import MatchChat from "./MatchChat";
 import MatchCardConsentScreen from "./MatchCardConsentScreen";
 import { trackPage } from "./lib/trackPage";
-import { getApiBaseUrl } from "./lib/platform";
+import { apiFetch } from "./lib/api";
 import type { User } from "./App";
 
 interface Message {
@@ -169,7 +169,7 @@ function PotentialMatchScreen({ userId, userGender, onBack }: { userId: number; 
   const [submitted, setSubmitted] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/matches/pending-rating?user_id=${userId}`)
+    apiFetch(`/matches/pending-rating?user_id=${userId}`)
       .then(r => r.json())
       .then(d => {
         if (d.pending) {
@@ -187,9 +187,8 @@ function PotentialMatchScreen({ userId, userGender, onBack }: { userId: number; 
     if (!matchData || submitting) return;
     setSubmitting(true);
     try {
-      const r = await fetch(`/api/matches/${matchData.match_id}/rate`, {
+      const r = await apiFetch(`/matches/${matchData.match_id}/rate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: userId, rating }),
       });
       if (r.ok) {
@@ -389,7 +388,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   // Load recommendations status — on mount and whenever returning to home screen
   function loadRecommendations() {
     const gen = ++loadGenRef.current;
-    fetch(`/api/new-chat/status/${user.id}`)
+    apiFetch(`/new-chat/status/${user.id}`)
       .then(r => r.json())
       .then(data => {
         if (gen !== loadGenRef.current) return; // Stale response — newer request in flight
@@ -415,11 +414,11 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           if (data.taste_closed) setClosedChannels(prev => ({ ...prev, "new_chat_taste": true }));
 
           // Check for active match card + unread messages
-          fetch(`/api/users/${user.id}/active-match-card`).then(r => r.json()).then(mc => {
+          apiFetch(`/users/${user.id}/active-match-card`).then(r => r.json()).then(mc => {
             if (mc.match_card) {
               setActiveMatchCard(mc.match_card);
               // Lightweight unread count check
-              fetch(`/api/users/${user.id}/unread-count`).then(r => r.json()).then(uc => {
+              apiFetch(`/users/${user.id}/unread-count`).then(r => r.json()).then(uc => {
                 setUnreadMatchMessages(uc.unread_count || 0);
                 setMatchChatStarted(uc.chat_started || false);
               }).catch(() => {});
@@ -432,10 +431,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           // Load dashboard data when all channels are done
           const allDone = data.chat_closed && data.has_cognitive && data.has_taste_info;
           if (allDone) {
-            fetch(`/api/users/${user.id}/matching-progress`).then(r => r.json()).then(mp => {
+            apiFetch(`/users/${user.id}/matching-progress`).then(r => r.json()).then(mp => {
               if (mp.scanned_profiles !== undefined) setMatchingProgress(mp);
             }).catch(() => {});
-            fetch(`/api/users/${user.id}/detailed-traits`).then(r => r.json()).then(dt => {
+            apiFetch(`/users/${user.id}/detailed-traits`).then(r => r.json()).then(dt => {
               if (dt.mbti || dt.allValues || dt.allBigFive) setInsightCard(dt);
             }).catch(() => {});
             // Advance insight rotation
@@ -459,8 +458,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
     }
     // Only mark messages read when returning from chat specifically
     if (screen === "home" && prevScreenRef.current === "match_chat" && activeMatchCard) {
-      fetch(`/api/users/${user.id}/mark-messages-read`, { method: "POST" }).then(() => {
-        fetch(`/api/users/${user.id}/unread-count`).then(r => r.json()).then(uc => {
+      apiFetch(`/users/${user.id}/mark-messages-read`, { method: "POST" }).then(() => {
+        apiFetch(`/users/${user.id}/unread-count`).then(r => r.json()).then(uc => {
           setUnreadMatchMessages(uc.unread_count || 0);
           setMatchChatStarted(uc.chat_started || false);
         }).catch(() => {});
@@ -474,7 +473,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   useEffect(() => {
     if (screen !== "home" || !activeMatchCard) return;
     const iv = setInterval(() => {
-      fetch(`/api/users/${user.id}/unread-count`).then(r => r.json()).then(uc => {
+      apiFetch(`/users/${user.id}/unread-count`).then(r => r.json()).then(uc => {
         setUnreadMatchMessages(uc.unread_count || 0);
         setMatchChatStarted(uc.chat_started || false);
       }).catch(() => {});
@@ -484,17 +483,17 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
   // Load couple insights + personal insights status
   useEffect(() => {
-    fetch(`/api/users/${user.id}/couple-insights`).then(r => r.json()).then(d => {
+    apiFetch(`/users/${user.id}/couple-insights`).then(r => r.json()).then(d => {
       if (d.couple_insights) setCoupleInsights(d.couple_insights);
     }).catch(() => {});
-    fetch(`/api/users/${user.id}/personal-insights`).then(r => r.json()).then(d => {
+    apiFetch(`/users/${user.id}/personal-insights`).then(r => r.json()).then(d => {
       if (d.analysis_completed !== undefined) setAnalysisCompleted(d.analysis_completed);
     }).catch(() => {});
   }, [user.id]);
 
   // Load existing conversation history on mount — split by channel
   useEffect(() => {
-    fetch(`/api/admin/users/${user.id}/full-transcript`)
+    apiFetch(`/users/${user.id}/conversation-history`)
       .then(r => r.json())
       .then(data => {
         if (!data.messages) return;
@@ -584,9 +583,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 60000);
 
-        const r = await fetch(`${getApiBaseUrl()}/api/new-chat/message`, {
+        const r = await apiFetch(`/new-chat/message`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             user_id: user.id,
             message: msg,
@@ -605,7 +603,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           setMessagesForChannel(effectiveChannel, prev => [...prev, { role: "assistant", content: data.reply }]);
           if (data.closing_stage >= 3) {
             setClosedChannels(prev => ({ ...prev, [effectiveChannel]: true }));
-            fetch(`/api/new-chat/status/${user.id}`).then(r => r.json()).then(d => {
+            apiFetch(`/new-chat/status/${user.id}`).then(r => r.json()).then(d => {
               if (d.has_cognitive !== undefined) { setRecommendations({ has_cognitive: d.has_cognitive, has_taste_info: d.has_taste_info, chat_count: d.chat_count || 0, summary_fields: d.summary_fields || 0, cognitive_count: d.cognitive_count || 0, photo_count: d.photo_count || 0, has_profile_details: d.has_profile_details || false, analysis_run_count: d.analysis_run_count || 0, gender: d.gender || null, admin_message: d.admin_message || null, pending_rating: !!d.pending_rating, in_matching_pool: !!d.in_matching_pool, match_card_consent: d.match_card_consent || null }); setSystemQuestion(d.system_question || null); }
             }).catch(() => {});
           }
@@ -926,9 +924,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   onClick={async () => {
                     if (!bugText.trim() || !feedbackCategory) return;
                     try {
-                      await fetch(`${getApiBaseUrl()}/api/report-bug`, {
+                      await apiFetch(`/report-bug`, {
                         method: "POST",
-                        headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ user_id: user.id, report_text: `[${feedbackCategory}] ${bugText.trim()}` }),
                       });
                       setBugSent(true);
@@ -1130,7 +1127,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                         {["כן אין בעיה", "אפשרי", "לא"].map(opt => (
                           <button key={opt} onClick={async () => {
                             const q = systemQuestion;
-                            await fetch(`${getApiBaseUrl()}/api/system-question/answer`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question_id: q.id, answer: opt }) });
+                            await apiFetch(`/system-question/answer`, { method: "POST", body: JSON.stringify({ question_id: q.id, answer: opt }) });
                             setSystemQuestion(null);
                             setAnsweredQuestion({ question_text: q.question_text, answer: opt });
                           }} style={{ padding: "8px 20px", borderRadius: 20, border: "none", background: "#8b7ba8", color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
@@ -1671,7 +1668,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
   const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/users/${user.id}`).then(r => r.json()).then(data => {
+    apiFetch(`/users/${user.id}`).then(r => r.json()).then(data => {
       setPhotoAI(!!data.photo_ai_consent);
       setMatchCardConsent(data.match_card_consent || null);
       setEmailUpdates(data.email_updates !== false);
@@ -1684,9 +1681,8 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
     setSaving(true);
     setSaved(false);
     try {
-      await fetch(`/api/admin/users/${user.id}`, {
+      await apiFetch(`/users/${user.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(fields),
       });
       setSaved(true);
@@ -1698,7 +1694,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
   async function handleResetData() {
     setResetting(true);
     try {
-      const res = await fetch(`/api/users/${user.id}/reset-data`, { method: "POST" });
+      const res = await apiFetch(`/users/${user.id}/reset-data`, { method: "POST" });
       if (res.ok) {
         alert("הנתונים נמחקו בהצלחה. החשבון שלך נשמר.");
         setResetConfirm(false);
@@ -1715,7 +1711,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
   async function handleDeleteAccount() {
     setDeleting(true);
     try {
-      const res = await fetch(`/api/admin/users/${user.id}?self=true`, { method: "DELETE" });
+      const res = await apiFetch(`/users/${user.id}/account`, { method: "DELETE" });
       if (res.ok) {
         onLogout?.();
       } else {

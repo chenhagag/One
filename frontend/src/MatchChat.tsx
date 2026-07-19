@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { apiFetch } from "./lib/api";
 
 interface MatchChatProps {
   user: { id: number; first_name: string; gender?: string };
@@ -76,7 +77,7 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
 
   // Initial load
   useEffect(() => {
-    fetch(`/api/users/${user.id}/direct-messages`)
+    apiFetch(`/users/${user.id}/direct-messages`)
       .then((r) => r.json())
       .then((data) => {
         const msgs = data.messages || [];
@@ -91,7 +92,7 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
         scrollToBottom(false);
         // Mark as read
         if (data.unread_count > 0) {
-          fetch(`/api/users/${user.id}/mark-messages-read`, { method: "POST" });
+          apiFetch(`/users/${user.id}/mark-messages-read`, { method: "POST" });
         }
       })
       .catch(() => setLoaded(true));
@@ -103,14 +104,14 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
       try {
         const since = lastServerTimestampRef.current;
         const url = since
-          ? `/api/users/${user.id}/direct-messages?since=${encodeURIComponent(since)}`
-          : `/api/users/${user.id}/direct-messages`;
-        const res = await fetch(url);
+          ? `/users/${user.id}/direct-messages?since=${encodeURIComponent(since)}`
+          : `/users/${user.id}/direct-messages`;
+        const res = await apiFetch(url);
         const data = await res.json();
 
         // Mark as read only if there are unread messages from partner
         if (data.unread_count > 0) {
-          fetch(`/api/users/${user.id}/mark-messages-read`, { method: "POST" });
+          apiFetch(`/users/${user.id}/mark-messages-read`, { method: "POST" });
         }
 
         if (data.messages && data.messages.length > 0) {
@@ -174,9 +175,8 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
     (isTyping: boolean) => {
       if (lastTypingSentRef.current === isTyping) return;
       lastTypingSentRef.current = isTyping;
-      fetch(`/api/users/${user.id}/typing-status`, {
+      apiFetch(`/users/${user.id}/typing-status`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ is_typing: isTyping }),
       }).catch(() => {});
     },
@@ -229,9 +229,8 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
     scrollToBottom();
 
     try {
-      const res = await fetch(`/api/users/${user.id}/direct-messages`, {
+      const res = await apiFetch(`/users/${user.id}/direct-messages`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: text }),
       });
       const saved = await res.json();
@@ -281,9 +280,8 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
     // Report only
     setReportSending(true);
     try {
-      await fetch(`/api/users/${user.id}/report-match`, {
+      await apiFetch(`/users/${user.id}/report-match`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ report_text: reportText, block: false }),
       });
       setReportSent(true);
@@ -301,9 +299,8 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
   const confirmBlock = async () => {
     setReportSending(true);
     try {
-      await fetch(`/api/users/${user.id}/report-match`, {
+      await apiFetch(`/users/${user.id}/report-match`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           report_text: blockAction === "report_block" ? reportText : "",
           block: true,
@@ -512,7 +509,7 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
             <button
               onClick={async () => {
                 try {
-                  await fetch(`/api/users/${user.id}/unblock-match`, { method: "POST" });
+                  await apiFetch(`/users/${user.id}/unblock-match`, { method: "POST" });
                   setBlocked(null);
                 } catch {}
               }}
