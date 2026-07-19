@@ -3943,11 +3943,14 @@ app.post("/new-chat/message", aiLimiter, requireAuth, async (req, res) => {
   const { user_id, message, history, channel } = req.body;
   if (!user_id || !message) return res.status(400).json({ error: "user_id and message required" });
 
-  // Verify JWT user matches request body user_id
+  // Verify JWT user matches request body user_id (admin can act as any user)
   if (req.auth?.sub) {
-    const authUser = await pgQueryOne<{ id: number }>("SELECT id FROM users WHERE supabase_uid = $1", [req.auth.sub]);
-    if (!authUser || authUser.id !== user_id) {
-      return res.status(403).json({ error: "Access denied" });
+    const isAdmin = req.auth.email === "chen.hagag@gmail.com";
+    if (!isAdmin) {
+      const authUser = await pgQueryOne<{ id: number }>("SELECT id FROM users WHERE supabase_uid = $1", [req.auth.sub]);
+      if (!authUser || authUser.id !== user_id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
     }
   }
 
