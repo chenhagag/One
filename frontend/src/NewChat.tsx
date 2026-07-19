@@ -372,6 +372,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [insightResetKey, setInsightResetKey] = useState(0);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const loadGenRef = useRef(0); // Generation counter to prevent stale loadRecommendations responses
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Current channel's messages
@@ -387,9 +388,11 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
   // Load recommendations status — on mount and whenever returning to home screen
   function loadRecommendations() {
+    const gen = ++loadGenRef.current;
     fetch(`/api/new-chat/status/${user.id}`)
       .then(r => r.json())
       .then(data => {
+        if (gen !== loadGenRef.current) return; // Stale response — newer request in flight
         if (data.has_cognitive !== undefined) {
           setRecommendations({
             has_cognitive: data.has_cognitive,
@@ -415,10 +418,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           fetch(`/api/users/${user.id}/active-match-card`).then(r => r.json()).then(mc => {
             if (mc.match_card) {
               setActiveMatchCard(mc.match_card);
-              // Check unread messages + whether chat started
-              fetch(`/api/users/${user.id}/direct-messages`).then(r => r.json()).then(dm => {
-                setUnreadMatchMessages(dm.unread_count || 0);
-                setMatchChatStarted((dm.messages || []).length > 0);
+              // Lightweight unread count check
+              fetch(`/api/users/${user.id}/unread-count`).then(r => r.json()).then(uc => {
+                setUnreadMatchMessages(uc.unread_count || 0);
+                setMatchChatStarted(uc.chat_started || false);
               }).catch(() => {});
             } else {
               setActiveMatchCard(null);
@@ -454,26 +457,26 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
       localStorage.setItem(`match_card_viewed_${user.id}`, "true");
     }
     if (screen === "home" && activeMatchCard) {
-      // Ensure messages are marked read when returning from chat
+      // Ensure messages are marked read when returning from chat, then get fresh count
       fetch(`/api/users/${user.id}/mark-messages-read`, { method: "POST" }).then(() => {
-        fetch(`/api/users/${user.id}/direct-messages`).then(r => r.json()).then(dm => {
-          setUnreadMatchMessages(dm.unread_count || 0);
-          setMatchChatStarted((dm.messages || []).length > 0);
+        fetch(`/api/users/${user.id}/unread-count`).then(r => r.json()).then(uc => {
+          setUnreadMatchMessages(uc.unread_count || 0);
+          setMatchChatStarted(uc.chat_started || false);
         }).catch(() => {});
       }).catch(() => {});
     }
   }, [screen]);
   useEffect(() => { if (!adminViewing) trackPage(screen === "chat" ? "chat" : screen === "home" ? "home" : screen, user?.id); }, [screen]);
 
-  // Poll unread match messages on home screen
+  // Poll unread match messages on home screen (lightweight endpoint)
   useEffect(() => {
     if (screen !== "home" || !activeMatchCard) return;
     const iv = setInterval(() => {
-      fetch(`/api/users/${user.id}/direct-messages`).then(r => r.json()).then(dm => {
-        setUnreadMatchMessages(dm.unread_count || 0);
-        setMatchChatStarted((dm.messages || []).length > 0);
+      fetch(`/api/users/${user.id}/unread-count`).then(r => r.json()).then(uc => {
+        setUnreadMatchMessages(uc.unread_count || 0);
+        setMatchChatStarted(uc.chat_started || false);
       }).catch(() => {});
-    }, 5000);
+    }, 10000);
     return () => clearInterval(iv);
   }, [screen, activeMatchCard, user.id]);
 

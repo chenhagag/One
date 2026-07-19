@@ -65,7 +65,8 @@ const generalLimiter = rateLimit({
   legacyHeaders: false,
   skip: (req) => req.path.startsWith("/admin") || req.path.startsWith("/api/admin")
     || req.path.includes("/direct-messages") || req.path.includes("/mark-messages-read")
-    || req.path.includes("/typing-status") || req.path.includes("/active-match-card"),
+    || req.path.includes("/typing-status") || req.path.includes("/active-match-card")
+    || req.path.includes("/unread-count"),
   message: { error: "Too many requests, please try again later." },
 });
 
@@ -973,6 +974,38 @@ app.post("/users/:id/mark-messages-read", async (req, res) => {
   } catch (err) {
     console.error("[mark-messages-read] Error:", err);
     return res.json({ ok: true }); // Never crash on mark-read
+  }
+});
+
+// GET /users/:id/unread-count — Lightweight: just unread count + whether chat started
+app.get("/users/:id/unread-count", async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) return res.json({ unread_count: 0, chat_started: false });
+
+    const match = await findActiveMatch(userId);
+    if (!match) return res.json({ unread_count: 0, chat_started: false });
+
+    const partnerId = match.user1_id === userId ? match.user2_id : match.user1_id;
+
+    const unreadRow = await pgQueryOne<any>(
+      `SELECT COUNT(*) AS cnt FROM direct_messages
+       WHERE match_id = $1 AND sender_id = $2 AND read_at IS NULL`,
+      [match.match_id, partnerId]
+    );
+
+    const anyMsg = await pgQueryOne<any>(
+      `SELECT 1 FROM direct_messages WHERE match_id = $1 LIMIT 1`,
+      [match.match_id]
+    );
+
+    return res.json({
+      unread_count: parseInt(unreadRow?.cnt || "0", 10),
+      chat_started: !!anyMsg,
+    });
+  } catch (err) {
+    console.error("[unread-count] Error:", err);
+    return res.json({ unread_count: 0, chat_started: false });
   }
 });
 

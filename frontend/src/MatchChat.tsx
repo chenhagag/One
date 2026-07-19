@@ -39,10 +39,20 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
   const lastServerTimestampRef = useRef<string | null>(null); // Only server-confirmed timestamps for polling
   const typingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const isNearBottomRef = useRef(true);
+
   const scrollToBottom = useCallback((smooth = true) => {
     setTimeout(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto" });
     }, 50);
+  }, []);
+
+  // Track if user is near the bottom of the chat
+  const handleScroll = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const threshold = 100;
+    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
   }, []);
 
   // iOS virtual keyboard handling — scroll to bottom when keyboard opens/closes
@@ -98,52 +108,65 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
         const res = await fetch(url);
         const data = await res.json();
 
-        // Always mark as read while chat is open
-        fetch(`/api/users/${user.id}/mark-messages-read`, { method: "POST" });
+        // Mark as read only if there are unread messages from partner
+        if (data.unread_count > 0) {
+          fetch(`/api/users/${user.id}/mark-messages-read`, { method: "POST" });
+        }
 
         if (data.messages && data.messages.length > 0) {
-          // Update last server timestamp from the newest server message
           const serverMsgs = data.messages as Message[];
-          if (serverMsgs.length > 0) {
-            lastServerTimestampRef.current = serverMsgs[serverMsgs.length - 1].created_at;
-          }
-          let hasNew = false;
+          // Update last server timestamp
+          lastServerTimestampRef.current = serverMsgs[serverMsgs.length - 1].created_at;
+
           setMessages((prev) => {
             const existingIds = new Set(prev.map((m) => m.id));
-            const newMsgs = serverMsgs.filter((m) => !existingIds.has(m.id));
-            if (newMsgs.length === 0) return prev;
-            hasNew = true;
-            // Also replace any optimistic messages that now have server confirmation
-            const updatedPrev = prev.map((existing) => {
-              if (existing.id > 1700000000000) { // temp ID (Date.now())
-                const match = serverMsgs.find((s) => s.sender_id === existing.sender_id && s.content === existing.content);
-                if (match) return match;
+            const newFromServer = serverMsgs.filter((m) => !existingIds.has(m.id));
+            if (newFromServer.length === 0) return prev;
+
+            // Remove optimistic messages that now have server confirmation
+            const optimisticIds = new Set(
+              prev.filter((m) => m.id < 0).map((m) => m.id)
+            );
+            let cleaned = prev;
+            if (optimisticIds.size > 0) {
+              // Match optimistic msgs to server msgs by sender + content
+              const confirmedOptIds = new Set<number>();
+              for (const opt of prev.filter((m) => m.id < 0)) {
+                const confirmed = newFromServer.find(
+                  (s) => s.sender_id === opt.sender_id && s.content === opt.content && !confirmedOptIds.has(s.id)
+                );
+                if (confirmed) confirmedOptIds.add(confirmed.id);
               }
-              return existing;
-            });
-            const updatedIds = new Set(updatedPrev.map((m) => m.id));
-            const trulyNew = serverMsgs.filter((m) => !updatedIds.has(m.id));
-            if (trulyNew.length === 0 && updatedPrev.every((m, i) => m.id === prev[i]?.id)) return prev;
-            hasNew = trulyNew.length > 0;
-            return [...updatedPrev, ...trulyNew];
+              // Remove matched optimistic messages (server version will be added)
+              if (confirmedOptIds.size > 0) {
+                cleaned = prev.filter((m) => m.id >= 0 || !newFromServer.some(
+                  (s) => s.sender_id === m.sender_id && s.content === m.content
+                ));
+              }
+            }
+
+            const cleanedIds = new Set(cleaned.map((m) => m.id));
+            const toAdd = serverMsgs.filter((m) => !cleanedIds.has(m.id));
+            if (toAdd.length === 0 && cleaned.length === prev.length) return prev;
+            return [...cleaned, ...toAdd];
           });
-          if (hasNew) scrollToBottom();
+          if (isNearBottomRef.current) scrollToBottom();
         }
         setPartnerTyping(data.partner_typing || false);
         if (data.blocked_by) setBlocked(data.blocked_by);
       } catch {
         // ignore
       }
-    }, 3000);
+    }, 5000);
 
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [user.id, scrollToBottom]);
 
-  // Scroll on new messages
+  // Scroll on new messages — only if user is near the bottom
   useEffect(() => {
-    if (messages.length > 0) scrollToBottom();
+    if (messages.length > 0 && isNearBottomRef.current) scrollToBottom();
   }, [messages.length, scrollToBottom]);
 
   // Send typing status
@@ -193,9 +216,9 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
     sendTypingStatus(false);
     if (typingIntervalRef.current) { clearInterval(typingIntervalRef.current); typingIntervalRef.current = null; }
 
-    // Optimistic add
+    // Optimistic add — use negative ID to distinguish from real server IDs
     const tempMsg: Message = {
-      id: Date.now(),
+      id: -(Date.now()),
       match_id: matchId,
       sender_id: user.id,
       content: text,
@@ -400,7 +423,7 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
       )}
 
       {/* Messages area */}
-      <div ref={containerRef} style={styles.messagesArea}>
+      <div ref={containerRef} style={styles.messagesArea} onScroll={handleScroll}>
         {/* Welcome message */}
         {loaded && messages.length === 0 && (
           <div style={styles.welcomeContainer}>
