@@ -925,10 +925,9 @@ app.post("/users/:id/mark-messages-read", async (req, res) => {
 
   const partnerId = match.user1_id === userId ? match.user2_id : match.user1_id;
 
-  const result = await pgQueryOne<any>(
+  await pgQueryOne<any>(
     `UPDATE direct_messages SET read_at = NOW()
-     WHERE match_id = $1 AND sender_id = $2 AND read_at IS NULL
-     RETURNING COUNT(*) AS updated`,
+     WHERE match_id = $1 AND sender_id = $2 AND read_at IS NULL`,
     [match.match_id, partnerId]
   );
 
