@@ -53,7 +53,9 @@ const generalLimiter = rateLimit({
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.path.startsWith("/admin") || req.path.startsWith("/api/admin"),
+  skip: (req) => req.path.startsWith("/admin") || req.path.startsWith("/api/admin")
+    || req.path.includes("/direct-messages") || req.path.includes("/mark-messages-read")
+    || req.path.includes("/typing-status") || req.path.includes("/active-match-card"),
   message: { error: "Too many requests, please try again later." },
 });
 

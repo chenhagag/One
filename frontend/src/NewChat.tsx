@@ -473,7 +473,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         setUnreadMatchMessages(dm.unread_count || 0);
         setMatchChatStarted((dm.messages || []).length > 0);
       }).catch(() => {});
-    }, 15000);
+    }, 5000);
     return () => clearInterval(iv);
   }, [screen, activeMatchCard, user.id]);
 
@@ -1166,18 +1166,38 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       מצאנו מישהו/י שנראה שיש ביניכם חיבור מעניין ושווה בדיקה.
                       <br />כרטיס ההתאמה האישי שלכם מוכן, ואפשר לראות למה חשבנו שכדאי שתכירו.
                     </p>
-                    <button
-                      onClick={() => setScreen("match_card")}
-                      style={{
-                        padding: "12px 28px", fontSize: 15, fontWeight: 600,
-                        background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
-                        color: "#fff", border: "none", borderRadius: 12,
-                        cursor: "pointer", fontFamily: "inherit",
-                        boxShadow: "0 4px 14px rgba(99,102,241,0.35)",
-                      }}
-                    >
-                      צפייה בכרטיס ההתאמה
-                    </button>
+                    {unreadMatchMessages > 0 && (
+                      <p style={{ fontSize: 13, color: "#6366f1", fontWeight: 600, margin: "0 0 12px" }}>
+                        {unreadMatchMessages === 1 ? "יש לך הודעה חדשה" : `יש לך ${unreadMatchMessages} הודעות חדשות`} מ{activeMatchCard.partner_name}
+                      </p>
+                    )}
+                    <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+                      <button
+                        onClick={() => setScreen("match_card")}
+                        style={{
+                          padding: "12px 28px", fontSize: 15, fontWeight: 600,
+                          background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+                          color: "#fff", border: "none", borderRadius: 12,
+                          cursor: "pointer", fontFamily: "inherit",
+                          boxShadow: "0 4px 14px rgba(99,102,241,0.35)",
+                        }}
+                      >
+                        צפייה בכרטיס ההתאמה
+                      </button>
+                      {unreadMatchMessages > 0 && (
+                        <button
+                          onClick={() => { setScreen("match_chat"); setUnreadMatchMessages(0); }}
+                          style={{
+                            padding: "12px 28px", fontSize: 15, fontWeight: 600,
+                            background: "#fff", color: "#6366f1",
+                            border: "1.5px solid #d4d0e8", borderRadius: 12,
+                            cursor: "pointer", fontFamily: "inherit",
+                          }}
+                        >
+                          לשיחה
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
