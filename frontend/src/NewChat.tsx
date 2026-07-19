@@ -450,14 +450,15 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
   useEffect(() => { loadRecommendations(); }, [user.id]);
   useEffect(() => { if (screen === "home") loadRecommendations(); }, [screen]);
-  // Mark match card as viewed when user enters card screen, and mark read when leaving chat
+  // Mark match card as viewed when user enters card screen
+  const prevScreenRef = useRef(screen);
   useEffect(() => {
     if (screen === "match_card" && activeMatchCard && !matchCardViewed) {
       setMatchCardViewed(true);
       localStorage.setItem(`match_card_viewed_${user.id}`, "true");
     }
-    if (screen === "home" && activeMatchCard) {
-      // Ensure messages are marked read when returning from chat, then get fresh count
+    // Only mark messages read when returning from chat specifically
+    if (screen === "home" && prevScreenRef.current === "match_chat" && activeMatchCard) {
       fetch(`/api/users/${user.id}/mark-messages-read`, { method: "POST" }).then(() => {
         fetch(`/api/users/${user.id}/unread-count`).then(r => r.json()).then(uc => {
           setUnreadMatchMessages(uc.unread_count || 0);
@@ -465,6 +466,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         }).catch(() => {});
       }).catch(() => {});
     }
+    prevScreenRef.current = screen;
   }, [screen]);
   useEffect(() => { if (!adminViewing) trackPage(screen === "chat" ? "chat" : screen === "home" ? "home" : screen, user?.id); }, [screen]);
 
