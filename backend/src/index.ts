@@ -739,51 +739,57 @@ app.post("/users/:id/match-card-consent", async (req, res) => {
 
 // GET /users/:id/active-match-card — Get user's active match card (sent by admin)
 app.get("/users/:id/active-match-card", async (req, res) => {
-  const userId = parseInt(req.params.id, 10);
-  const match = await pgQueryOne<any>(
-    `SELECT m.id, m.match_card_data, m.user1_id, m.user2_id, m.match_card_sent_at,
-            u1.first_name AS user1_name, u2.first_name AS user2_name,
-            u1.age AS user1_age, u2.age AS user2_age
-     FROM matches m
-     JOIN users u1 ON u1.id = m.user1_id
-     JOIN users u2 ON u2.id = m.user2_id
-     WHERE (m.user1_id = $1 OR m.user2_id = $1)
-       AND m.status = 'in_match'
-       AND m.match_card_sent_at IS NOT NULL
-       AND m.match_card_data IS NOT NULL
-     ORDER BY m.match_card_sent_at DESC
-     LIMIT 1`,
-    [userId]
-  );
-  if (!match) return res.json({ match_card: null });
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) return res.json({ match_card: null });
+    const match = await pgQueryOne<any>(
+      `SELECT m.id, m.match_card_data, m.user1_id, m.user2_id, m.match_card_sent_at,
+              u1.first_name AS user1_name, u2.first_name AS user2_name,
+              u1.age AS user1_age, u2.age AS user2_age
+       FROM matches m
+       JOIN users u1 ON u1.id = m.user1_id
+       JOIN users u2 ON u2.id = m.user2_id
+       WHERE (m.user1_id = $1 OR m.user2_id = $1)
+         AND m.status = 'in_match'
+         AND m.match_card_sent_at IS NOT NULL
+         AND m.match_card_data IS NOT NULL
+       ORDER BY m.match_card_sent_at DESC
+       LIMIT 1`,
+      [userId]
+    );
+    if (!match) return res.json({ match_card: null });
 
-  const partnerId = match.user1_id === userId ? match.user2_id : match.user1_id;
-  const partnerName = match.user1_id === userId ? match.user2_name : match.user1_name;
-  const myName = match.user1_id === userId ? match.user1_name : match.user2_name;
-  const partnerAge = match.user1_id === userId ? match.user2_age : match.user1_age;
+    const partnerId = match.user1_id === userId ? match.user2_id : match.user1_id;
+    const partnerName = match.user1_id === userId ? match.user2_name : match.user1_name;
+    const myName = match.user1_id === userId ? match.user1_name : match.user2_name;
+    const partnerAge = match.user1_id === userId ? match.user2_age : match.user1_age;
 
-  // Get partner photos
-  const photos = await pgQueryAll<any>(
-    "SELECT id, filename FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1",
-    [partnerId]
-  );
-  const myPhotos = await pgQueryAll<any>(
-    "SELECT id, filename FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1",
-    [userId]
-  );
+    // Get partner photos
+    const photos = await pgQueryAll<any>(
+      "SELECT id, filename FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1",
+      [partnerId]
+    );
+    const myPhotos = await pgQueryAll<any>(
+      "SELECT id, filename FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1",
+      [userId]
+    );
 
-  return res.json({
-    match_card: {
-      match_id: match.id,
-      data: match.match_card_data,
-      partner_name: partnerName,
-      partner_age: partnerAge,
-      my_name: myName,
-      partner_photo: photos.length > 0 ? `/uploads/${photos[0].filename}` : null,
-      my_photo: myPhotos.length > 0 ? `/uploads/${myPhotos[0].filename}` : null,
-      sent_at: match.match_card_sent_at,
-    },
-  });
+    return res.json({
+      match_card: {
+        match_id: match.id,
+        data: match.match_card_data,
+        partner_name: partnerName,
+        partner_age: partnerAge,
+        my_name: myName,
+        partner_photo: photos.length > 0 ? `/uploads/${photos[0].filename}` : null,
+        my_photo: myPhotos.length > 0 ? `/uploads/${myPhotos[0].filename}` : null,
+        sent_at: match.match_card_sent_at,
+      },
+    });
+  } catch (err) {
+    console.error("[active-match-card] Error:", err);
+    return res.status(500).json({ match_card: null });
+  }
 });
 
 // ================================================================
@@ -807,164 +813,194 @@ async function findActiveMatch(userId: number) {
 
 // GET /users/:id/direct-messages — Fetch messages for active match
 app.get("/users/:id/direct-messages", async (req, res) => {
-  const userId = parseInt(req.params.id, 10);
-  const since = req.query.since as string | undefined;
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) return res.json({ messages: [], partner_typing: false, match_id: null, unread_count: 0 });
+    const since = req.query.since as string | undefined;
 
-  const match = await findActiveMatch(userId);
-  if (!match) return res.json({ messages: [], partner_typing: false, match_id: null, unread_count: 0 });
+    const match = await findActiveMatch(userId);
+    if (!match) return res.json({ messages: [], partner_typing: false, match_id: null, unread_count: 0 });
 
-  const partnerId = match.user1_id === userId ? match.user2_id : match.user1_id;
+    const partnerId = match.user1_id === userId ? match.user2_id : match.user1_id;
 
-  // Get messages (optionally only new ones)
-  let messages;
-  if (since) {
-    messages = await pgQueryAll<any>(
-      `SELECT id, match_id, sender_id, content, read_at, created_at
-       FROM direct_messages WHERE match_id = $1 AND created_at > $2
-       ORDER BY created_at ASC`,
-      [match.match_id, since]
+    // Get messages (optionally only new ones)
+    let messages;
+    if (since) {
+      messages = await pgQueryAll<any>(
+        `SELECT id, match_id, sender_id, content, read_at, created_at
+         FROM direct_messages WHERE match_id = $1 AND created_at > $2
+         ORDER BY created_at ASC LIMIT 200`,
+        [match.match_id, since]
+      );
+    } else {
+      messages = await pgQueryAll<any>(
+        `SELECT id, match_id, sender_id, content, read_at, created_at
+         FROM direct_messages WHERE match_id = $1
+         ORDER BY created_at ASC LIMIT 200`,
+        [match.match_id]
+      );
+    }
+
+    // Check partner typing status (only if updated within last 6 seconds)
+    const typing = await pgQueryOne<any>(
+      `SELECT is_typing, updated_at FROM typing_status
+       WHERE match_id = $1 AND user_id = $2
+         AND is_typing = TRUE
+         AND updated_at > NOW() - INTERVAL '6 seconds'`,
+      [match.match_id, partnerId]
     );
-  } else {
-    messages = await pgQueryAll<any>(
-      `SELECT id, match_id, sender_id, content, read_at, created_at
-       FROM direct_messages WHERE match_id = $1
-       ORDER BY created_at ASC LIMIT 200`,
-      [match.match_id]
+
+    // Count unread messages from partner
+    const unreadRow = await pgQueryOne<any>(
+      `SELECT COUNT(*) AS cnt FROM direct_messages
+       WHERE match_id = $1 AND sender_id = $2 AND read_at IS NULL`,
+      [match.match_id, partnerId]
     );
+
+    return res.json({
+      messages,
+      partner_typing: !!typing,
+      match_id: match.match_id,
+      unread_count: parseInt(unreadRow?.cnt || "0", 10),
+      blocked_by: match.blocked_by || null,
+    });
+  } catch (err) {
+    console.error("[direct-messages GET] Error:", err);
+    return res.json({ messages: [], partner_typing: false, match_id: null, unread_count: 0 });
   }
-
-  // Check partner typing status (only if updated within last 6 seconds)
-  const typing = await pgQueryOne<any>(
-    `SELECT is_typing, updated_at FROM typing_status
-     WHERE match_id = $1 AND user_id = $2
-       AND is_typing = TRUE
-       AND updated_at > NOW() - INTERVAL '6 seconds'`,
-    [match.match_id, partnerId]
-  );
-
-  // Count unread messages from partner
-  const unreadRow = await pgQueryOne<any>(
-    `SELECT COUNT(*) AS cnt FROM direct_messages
-     WHERE match_id = $1 AND sender_id = $2 AND read_at IS NULL`,
-    [match.match_id, partnerId]
-  );
-
-  return res.json({
-    messages,
-    partner_typing: !!typing,
-    match_id: match.match_id,
-    unread_count: parseInt(unreadRow?.cnt || "0", 10),
-    blocked_by: match.blocked_by || null,
-  });
 });
 
 // POST /users/:id/direct-messages — Send a message
 app.post("/users/:id/direct-messages", async (req, res) => {
-  const userId = parseInt(req.params.id, 10);
-  const { content } = req.body;
-  if (!content || typeof content !== "string" || content.trim().length === 0) {
-    return res.status(400).json({ error: "content required" });
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) return res.status(400).json({ error: "Invalid user ID" });
+    const { content } = req.body;
+    if (!content || typeof content !== "string" || content.trim().length === 0) {
+      return res.status(400).json({ error: "content required" });
+    }
+    if (content.length > 2000) {
+      return res.status(400).json({ error: "Message too long (max 2000 chars)" });
+    }
+
+    const match = await findActiveMatch(userId);
+    if (!match) return res.status(404).json({ error: "No active match found" });
+
+    // Verify user is part of this match
+    if (match.user1_id !== userId && match.user2_id !== userId) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    // Check if blocked
+    if (match.blocked_by) {
+      return res.status(403).json({ error: "blocked", blocked: true });
+    }
+
+    const msg = await pgQueryOne<any>(
+      `INSERT INTO direct_messages (match_id, sender_id, content)
+       VALUES ($1, $2, $3)
+       RETURNING id, match_id, sender_id, content, read_at, created_at`,
+      [match.match_id, userId, content.trim()]
+    );
+
+    // Clear own typing status
+    await pgQueryOne<any>(
+      `INSERT INTO typing_status (match_id, user_id, is_typing, updated_at)
+       VALUES ($1, $2, FALSE, NOW())
+       ON CONFLICT (match_id, user_id) DO UPDATE SET is_typing = FALSE, updated_at = NOW()`,
+      [match.match_id, userId]
+    );
+
+    return res.json(msg);
+  } catch (err) {
+    console.error("[direct-messages POST] Error:", err);
+    return res.status(500).json({ error: "Failed to send message" });
   }
-  if (content.length > 2000) {
-    return res.status(400).json({ error: "Message too long (max 2000 chars)" });
-  }
-
-  const match = await findActiveMatch(userId);
-  if (!match) return res.status(404).json({ error: "No active match found" });
-
-  // Verify user is part of this match
-  if (match.user1_id !== userId && match.user2_id !== userId) {
-    return res.status(403).json({ error: "Not authorized" });
-  }
-
-  // Check if blocked
-  if (match.blocked_by) {
-    return res.status(403).json({ error: "blocked", blocked: true });
-  }
-
-  const msg = await pgQueryOne<any>(
-    `INSERT INTO direct_messages (match_id, sender_id, content)
-     VALUES ($1, $2, $3)
-     RETURNING id, match_id, sender_id, content, read_at, created_at`,
-    [match.match_id, userId, content.trim()]
-  );
-
-  // Clear own typing status
-  await pgQueryOne<any>(
-    `INSERT INTO typing_status (match_id, user_id, is_typing, updated_at)
-     VALUES ($1, $2, FALSE, NOW())
-     ON CONFLICT (match_id, user_id) DO UPDATE SET is_typing = FALSE, updated_at = NOW()`,
-    [match.match_id, userId]
-  );
-
-  return res.json(msg);
 });
 
 // POST /users/:id/typing-status — Update typing indicator
 app.post("/users/:id/typing-status", async (req, res) => {
-  const userId = parseInt(req.params.id, 10);
-  const { is_typing } = req.body;
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) return res.json({ ok: true });
+    const { is_typing } = req.body;
 
-  const match = await findActiveMatch(userId);
-  if (!match) return res.status(404).json({ error: "No active match" });
+    const match = await findActiveMatch(userId);
+    if (!match) return res.json({ ok: true }); // Don't 404 — typing is non-critical
 
-  await pgQueryOne<any>(
-    `INSERT INTO typing_status (match_id, user_id, is_typing, updated_at)
-     VALUES ($1, $2, $3, NOW())
-     ON CONFLICT (match_id, user_id) DO UPDATE SET is_typing = $3, updated_at = NOW()`,
-    [match.match_id, userId, !!is_typing]
-  );
+    await pgQueryOne<any>(
+      `INSERT INTO typing_status (match_id, user_id, is_typing, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (match_id, user_id) DO UPDATE SET is_typing = $3, updated_at = NOW()`,
+      [match.match_id, userId, !!is_typing]
+    );
 
-  return res.json({ ok: true });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("[typing-status] Error:", err);
+    return res.json({ ok: true }); // Never crash on typing
+  }
 });
 
 // POST /users/:id/mark-messages-read — Mark partner's messages as read
 app.post("/users/:id/mark-messages-read", async (req, res) => {
-  const userId = parseInt(req.params.id, 10);
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) return res.json({ ok: true });
 
-  const match = await findActiveMatch(userId);
-  if (!match) return res.status(404).json({ error: "No active match" });
+    const match = await findActiveMatch(userId);
+    if (!match) return res.json({ ok: true }); // Don't 404 — mark-read is non-critical
 
-  const partnerId = match.user1_id === userId ? match.user2_id : match.user1_id;
+    const partnerId = match.user1_id === userId ? match.user2_id : match.user1_id;
 
-  await pgQueryOne<any>(
-    `UPDATE direct_messages SET read_at = NOW()
-     WHERE match_id = $1 AND sender_id = $2 AND read_at IS NULL`,
-    [match.match_id, partnerId]
-  );
+    await pgQueryOne<any>(
+      `UPDATE direct_messages SET read_at = NOW()
+       WHERE match_id = $1 AND sender_id = $2 AND read_at IS NULL`,
+      [match.match_id, partnerId]
+    );
 
-  return res.json({ ok: true });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("[mark-messages-read] Error:", err);
+    return res.json({ ok: true }); // Never crash on mark-read
+  }
 });
 
 // POST /users/:id/report-match — Report match partner (and optionally block)
 app.post("/users/:id/report-match", async (req, res) => {
-  const userId = parseInt(req.params.id, 10);
-  const { report_text, block } = req.body;
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) return res.status(400).json({ error: "Invalid user ID" });
+    const { report_text, block } = req.body;
 
-  const match = await findActiveMatch(userId);
-  if (!match) return res.status(404).json({ error: "No active match" });
+    const match = await findActiveMatch(userId);
+    if (!match) return res.status(404).json({ error: "No active match" });
 
-  const partnerId = match.user1_id === userId ? match.user2_id : match.user1_id;
+    const partnerId = match.user1_id === userId ? match.user2_id : match.user1_id;
 
-  // Save report to bug_reports with special flag
-  if (report_text && report_text.trim()) {
-    await pgQueryOne<any>(
-      `INSERT INTO bug_reports (user_id, report_text) VALUES ($1, $2)`,
-      [userId, `[match_report] דיווח על משתמש #${partnerId} (match #${match.match_id}): ${report_text.trim()}`]
-    );
-    console.log(`[match_report] User #${userId} reported user #${partnerId} in match #${match.match_id}`);
+    // Save report to bug_reports with special flag
+    if (report_text && report_text.trim()) {
+      await pgQueryOne<any>(
+        `INSERT INTO bug_reports (user_id, report_text) VALUES ($1, $2)`,
+        [userId, `[match_report] דיווח על משתמש #${partnerId} (match #${match.match_id}): ${report_text.trim()}`]
+      );
+      console.log(`[match_report] User #${userId} reported user #${partnerId} in match #${match.match_id}`);
+    }
+
+    // Block if requested
+    if (block) {
+      await pgQueryOne<any>(
+        `UPDATE matches SET blocked_by = $1, updated_at = NOW() WHERE id = $2`,
+        [userId, match.match_id]
+      );
+      console.log(`[match_block] User #${userId} blocked user #${partnerId} in match #${match.match_id}`);
+    }
+
+    return res.json({ ok: true, blocked: !!block });
+  } catch (err) {
+    console.error("[report-match] Error:", err);
+    return res.status(500).json({ error: "Failed to process report" });
   }
-
-  // Block if requested
-  if (block) {
-    await pgQueryOne<any>(
-      `UPDATE matches SET blocked_by = $1, updated_at = NOW() WHERE id = $2`,
-      [userId, match.match_id]
-    );
-    console.log(`[match_block] User #${userId} blocked user #${partnerId} in match #${match.match_id}`);
-  }
-
-  return res.json({ ok: true, blocked: !!block });
 });
 
 function parseUserId(raw: any): number | null {
@@ -974,21 +1010,26 @@ function parseUserId(raw: any): number | null {
 
 // GET /admin/users/:id/direct-messages — Admin view of user's match messaging history
 app.get("/admin/users/:id/direct-messages", async (req, res) => {
-  const userId = parseInt(req.params.id, 10);
-  const messages = await pgQueryAll<any>(
-    `SELECT dm.id, dm.match_id, dm.sender_id, dm.content, dm.read_at, dm.created_at,
-            u.first_name AS sender_name,
-            CASE WHEN m.user1_id = $1 THEN u2.first_name ELSE u1.first_name END AS partner_name
-     FROM direct_messages dm
-     JOIN matches m ON m.id = dm.match_id
-     JOIN users u ON u.id = dm.sender_id
-     JOIN users u1 ON u1.id = m.user1_id
-     JOIN users u2 ON u2.id = m.user2_id
-     WHERE m.user1_id = $1 OR m.user2_id = $1
-     ORDER BY dm.created_at ASC`,
-    [userId]
-  );
-  return res.json({ messages });
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const messages = await pgQueryAll<any>(
+      `SELECT dm.id, dm.match_id, dm.sender_id, dm.content, dm.read_at, dm.created_at,
+              u.first_name AS sender_name,
+              CASE WHEN m.user1_id = $1 THEN u2.first_name ELSE u1.first_name END AS partner_name
+       FROM direct_messages dm
+       JOIN matches m ON m.id = dm.match_id
+       JOIN users u ON u.id = dm.sender_id
+       JOIN users u1 ON u1.id = m.user1_id
+       JOIN users u2 ON u2.id = m.user2_id
+       WHERE m.user1_id = $1 OR m.user2_id = $1
+       ORDER BY dm.created_at ASC`,
+      [userId]
+    );
+    return res.json({ messages });
+  } catch (err) {
+    console.error("[admin direct-messages] Error:", err);
+    return res.json({ messages: [] });
+  }
 });
 
 // GET /admin/users/:id/full-transcript — Full conversation history (both roles)
