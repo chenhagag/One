@@ -1,6 +1,16 @@
 import express from "express";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
+
+// ── Prevent unhandled errors from crashing the server ────────────
+process.on("unhandledRejection", (reason: any) => {
+  console.error("[unhandledRejection] Caught — server stays alive:", reason?.message || reason);
+});
+process.on("uncaughtException", (err: Error) => {
+  console.error("[uncaughtException] Caught — server stays alive:", err.message);
+  // Note: for truly fatal errors (OOM, corrupted state) it's better to exit,
+  // but for Express route errors this keeps the server running.
+});
 import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
@@ -2757,6 +2767,7 @@ app.get("/matches/pending-rating", optionalAuth, async (req, res) => {
     "SELECT id, first_name, age, city, gender FROM users WHERE id = $1",
     [partnerId]
   );
+  if (!partner) return res.json({ pending: false }); // Partner deleted
 
   // Get partner's photos
   const photos = await pgQueryAll(
@@ -3884,6 +3895,16 @@ app.get("/terms", (_req, res) => {
   res.sendFile(path.join(frontendDist, "terms.html"), (err) => {
     if (err) res.status(404).send("Page not found");
   });
+});
+
+// ── Global async error handler ───────────────────────────────────
+// Catches any unhandled errors from async route handlers so they
+// return 500 instead of crashing the entire server process.
+app.use((err: any, _req: any, res: any, _next: any) => {
+  console.error("[unhandled route error]", err?.message || err);
+  if (!res.headersSent) {
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // Health check endpoint for Railway zero-downtime deploys (must be before SPA catch-all)
