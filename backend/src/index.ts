@@ -5,11 +5,11 @@ import rateLimit from "express-rate-limit";
 // ── Prevent unhandled errors from crashing the server ────────────
 process.on("unhandledRejection", (reason: any) => {
   console.error("[unhandledRejection] Caught — server stays alive:", reason?.message || reason);
+  try { logError({ source: "backend", message: `unhandledRejection: ${reason?.message || reason}`, stack: reason?.stack }); } catch {}
 });
 process.on("uncaughtException", (err: Error) => {
   console.error("[uncaughtException] Caught — server stays alive:", err.message);
-  // Note: for truly fatal errors (OOM, corrupted state) it's better to exit,
-  // but for Express route errors this keeps the server running.
+  try { logError({ source: "backend", message: `uncaughtException: ${err.message}`, stack: err.stack }); } catch {}
 });
 import dotenv from "dotenv";
 import path from "path";
@@ -48,6 +48,15 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/** Log an error to the error_logs table (fire-and-forget) */
+function logError(opts: { source: string; route?: string; method?: string; status_code?: number; message: string; stack?: string; user_id?: number; user_agent?: string }) {
+  pgQueryOne(
+    `INSERT INTO error_logs (source, user_id, route, method, status_code, message, stack, user_agent)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [opts.source, opts.user_id || null, opts.route || null, opts.method || null, opts.status_code || null, opts.message.slice(0, 2000), opts.stack?.slice(0, 5000) || null, opts.user_agent || null]
+  ).catch(() => {}); // Never let logging itself cause issues
 }
 
 const app = express();
@@ -3646,6 +3655,70 @@ app.post("/report-bug", requireAuth, async (req, res) => {
     console.error("[bug] Failed to save report:", err.message);
     return res.status(500).json({ error: "Failed to save report" });
   }
+});
+
+// POST /log-error — Frontend error reporting (optionalAuth so unauthenticated errors are captured too)
+app.post("/log-error", optionalAuth, async (req, res) => {
+  try {
+    const { source, route, method, status_code, message, stack, extra } = req.body;
+    if (!message) return res.status(400).json({ error: "message required" });
+
+    // Resolve user_id from JWT if available
+    let userId: number | null = req.body.user_id || null;
+    if (req.auth?.sub && !userId) {
+      const authUser = await pgQueryOne<{ id: number }>("SELECT id FROM users WHERE supabase_uid = $1", [req.auth.sub]);
+      if (authUser) userId = authUser.id;
+    }
+
+    await pgQueryOne(
+      `INSERT INTO error_logs (source, user_id, route, method, status_code, message, stack, user_agent, extra)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        source || "frontend",
+        userId,
+        route || null,
+        method || null,
+        status_code || null,
+        message.slice(0, 2000),
+        stack ? stack.slice(0, 5000) : null,
+        req.headers["user-agent"] || null,
+        extra ? JSON.stringify(extra) : null,
+      ]
+    );
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("[log-error] Failed:", err);
+    return res.json({ ok: true }); // Never fail — error logging shouldn't break anything
+  }
+});
+
+// GET /admin/error-logs — Recent errors (admin only)
+app.get("/admin/error-logs", async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
+  const source = req.query.source as string | undefined;
+  const since = req.query.since as string | undefined;
+
+  let query = `SELECT * FROM error_logs`;
+  const conditions: string[] = [];
+  const values: any[] = [];
+  let p = 1;
+
+  if (source) { conditions.push(`source = $${p++}`); values.push(source); }
+  if (since) { conditions.push(`created_at > $${p++}`); values.push(since); }
+
+  if (conditions.length > 0) query += ` WHERE ${conditions.join(" AND ")}`;
+  query += ` ORDER BY created_at DESC LIMIT $${p}`;
+  values.push(limit);
+
+  const logs = await pgQueryAll<any>(query, values);
+  return res.json(logs);
+});
+
+// DELETE /admin/error-logs — Clear old logs
+app.delete("/admin/error-logs", async (req, res) => {
+  const beforeDays = parseInt(req.query.before_days as string) || 30;
+  await pgQueryAll(`DELETE FROM error_logs WHERE created_at < NOW() - INTERVAL '${beforeDays} days'`);
+  return res.json({ ok: true });
 });
 
 // GET /admin/bug-reports — All bug reports (admin only)

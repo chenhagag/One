@@ -15,7 +15,7 @@ import AdminPipeline from "./AdminPipeline";
  * - Matches
  */
 
-type Tab = "overview" | "users" | "profiles" | "traits" | "look_traits" | "enums" | "config" | "matches" | "candidates" | "bugs" | "email" | "analytics" | "user_mgmt" | "deleted_users";
+type Tab = "overview" | "users" | "profiles" | "traits" | "look_traits" | "enums" | "config" | "matches" | "candidates" | "bugs" | "errors" | "email" | "analytics" | "user_mgmt" | "deleted_users";
 
 const s: Record<string, React.CSSProperties> = {
   heading: { marginTop: 0, marginBottom: 8, fontSize: 22 },
@@ -353,6 +353,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
           ["candidates", "Candidate Matches"],
           ["matches", "Matched"],
           ["bugs", "משוב ודיווחים"],
+          ["errors", "שגיאות"],
           ["analytics", "Analytics"],
           ["email", "Send Email"],
           ["user_mgmt", "ניהול משתמשים"],
@@ -381,6 +382,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
       {tab === "matches" && <MatchesTab />}
       {tab === "candidates" && <CandidateMatchesTab onViewDashboard={onViewDashboard} onStartChat={onStartChat} onViewNewChat={onViewNewChat} />}
       {tab === "bugs" && <BugReportsTab />}
+      {tab === "errors" && <ErrorLogsTab />}
       {tab === "analytics" && <AnalyticsTab />}
       {tab === "email" && <SendEmailTab />}
       {tab === "user_mgmt" && <AdminPipeline onSelectUser={(userId) => { setTab("users"); setTimeout(() => window.dispatchEvent(new CustomEvent("admin-select-user", { detail: userId })), 100); }} />}
@@ -4312,6 +4314,80 @@ function UserPhotosGallery({ userId, userName, photoAiConsent }: { userId: numbe
         <div onClick={() => setViewPhoto(null)}
           style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.85)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
           <img src={viewPhoto} style={{ maxWidth: "90vw", maxHeight: "90vh", borderRadius: 12 }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ErrorLogsTab() {
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sourceFilter, setSourceFilter] = useState<string>("all");
+
+  useEffect(() => { loadLogs(); }, []);
+
+  function loadLogs() {
+    setLoading(true);
+    apiFetch("/admin/error-logs?limit=200")
+      .then(r => r.json())
+      .then(data => setLogs(Array.isArray(data) ? data : []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }
+
+  async function handleClear() {
+    if (!confirm("למחוק לוגים ישנים מ-30 יום אחרונים?")) return;
+    await apiFetch("/admin/error-logs?before_days=30", { method: "DELETE" });
+    loadLogs();
+  }
+
+  if (loading) return <p>Loading...</p>;
+
+  const filtered = sourceFilter === "all" ? logs : logs.filter(l => l.source === sourceFilter);
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+        <h3 style={{ margin: 0 }}>שגיאות ({logs.length})</h3>
+        <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)} style={{ padding: "4px 8px", fontSize: 12 }}>
+          <option value="all">הכל</option>
+          <option value="frontend">Frontend</option>
+          <option value="backend">Backend</option>
+        </select>
+        <button onClick={loadLogs} style={{ padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>רענן</button>
+        <button onClick={handleClear} style={{ padding: "4px 10px", fontSize: 12, cursor: "pointer", color: "#c00" }}>נקה ישנים</button>
+      </div>
+      {filtered.length === 0 ? <p style={{ color: "#888" }}>אין שגיאות</p> : (
+        <div style={{ maxHeight: "70vh", overflowY: "auto" }}>
+          <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "#f5f5f5", position: "sticky", top: 0 }}>
+                <th style={{ padding: 6, textAlign: "right" }}>זמן</th>
+                <th style={{ padding: 6, textAlign: "right" }}>מקור</th>
+                <th style={{ padding: 6, textAlign: "right" }}>משתמש</th>
+                <th style={{ padding: 6, textAlign: "right" }}>route</th>
+                <th style={{ padding: 6, textAlign: "right" }}>סטטוס</th>
+                <th style={{ padding: 6, textAlign: "right" }}>הודעה</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(log => (
+                <tr key={log.id} style={{ borderBottom: "1px solid #eee" }}>
+                  <td style={{ padding: 6, whiteSpace: "nowrap" }}>{new Date(log.created_at).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>
+                  <td style={{ padding: 6 }}>
+                    <span style={{ padding: "2px 6px", borderRadius: 4, fontSize: 10, background: log.source === "backend" ? "#fee2e2" : "#e0e7ff", color: log.source === "backend" ? "#991b1b" : "#3730a3" }}>
+                      {log.source}
+                    </span>
+                  </td>
+                  <td style={{ padding: 6 }}>{log.user_id || "-"}</td>
+                  <td style={{ padding: 6, fontFamily: "monospace", fontSize: 11 }}>{log.method ? `${log.method} ` : ""}{log.route || "-"}</td>
+                  <td style={{ padding: 6 }}>{log.status_code || "-"}</td>
+                  <td style={{ padding: 6, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={log.message}>{log.message}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
