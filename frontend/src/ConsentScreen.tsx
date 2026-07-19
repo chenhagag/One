@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { apiFetch } from "./lib/api";
 import type { User } from "./App";
 
 interface ConsentScreenProps {
@@ -20,8 +19,9 @@ export default function ConsentScreen({ user, onComplete }: ConsentScreenProps) 
     setError("");
 
     try {
-      const res = await apiFetch(`/admin/users/${user.id}`, {
+      const res = await fetch(`/api/admin/users/${user.id}`, {
         method: "PATCH",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ consent_accepted: true }),
       });
 

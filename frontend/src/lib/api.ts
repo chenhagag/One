@@ -75,9 +75,8 @@ export async function apiFetch(
   path: string,
   options?: RequestInit
 ): Promise<Response> {
-  const isFormData = options?.body instanceof FormData;
   const headers: Record<string, string> = {
-    ...(isFormData ? {} : { "Content-Type": "application/json" }),
+    "Content-Type": "application/json",
     ...(options?.headers as Record<string, string>),
   };
 

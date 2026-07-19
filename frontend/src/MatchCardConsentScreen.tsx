@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { apiFetch } from "./lib/api";
 import type { User } from "./App";
 
 interface MatchCardConsentScreenProps {
@@ -25,8 +24,9 @@ export default function MatchCardConsentScreen({ user, onComplete, onShowExample
     setLoading(true);
     setError("");
     try {
-      const res = await apiFetch(`/users/${user.id}/match-card-consent`, {
+      const res = await fetch(`/api/users/${user.id}/match-card-consent`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ consent, restrictions: restrictions.trim() || undefined }),
       });
       if (!res.ok) { setError("שגיאה בשמירה, נסו שוב"); return; }
