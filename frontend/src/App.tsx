@@ -492,14 +492,14 @@ export default function App() {
           }}
           onViewDashboard={(u) => {
             setAdminViewingUser(true);
-            setUser({ id: u.id, first_name: u.first_name, email: u.email } as User);
-            saveSession({ id: u.id, first_name: u.first_name, email: u.email } as User);
+            setUser(u as User);
+            saveSession(u as User);
             setView("new_chat");
           }}
           onViewNewChat={(u) => {
             setAdminViewingUser(true);
-            setUser({ id: u.id, first_name: u.first_name, email: u.email } as User);
-            saveSession({ id: u.id, first_name: u.first_name, email: u.email } as User);
+            setUser(u as User);
+            saveSession(u as User);
             setView("new_chat");
           }}
         />

@@ -1257,7 +1257,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
           {onViewDashboard && (
             <button
               style={{ padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", background: "#7c3aed", color: "#fff", border: "none", borderRadius: 6 }}
-              onClick={() => onViewDashboard({ id: user.id, first_name: user.first_name, email: user.email })}
+              onClick={() => onViewDashboard(user)}
             >
               צפייה במסך המשתמש
             </button>
