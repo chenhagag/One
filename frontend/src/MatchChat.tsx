@@ -38,7 +38,6 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastServerTimestampRef = useRef<string | null>(null); // Only server-confirmed timestamps for polling
   const typingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
 
   const scrollToBottom = useCallback((smooth = true) => {
     setTimeout(() => {
@@ -46,26 +45,23 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
     }, 50);
   }, []);
 
-  // iOS virtual keyboard handling — use visualViewport to resize chat properly
+  // iOS virtual keyboard handling — scroll to bottom when keyboard opens/closes
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
 
+    let prevHeight = vv.height;
     const handleResize = () => {
-      setViewportHeight(vv.height);
-      // Scroll to bottom when keyboard opens (viewport shrinks)
-      scrollToBottom(false);
+      const newHeight = vv.height;
+      // Keyboard opened (viewport shrank) or closed — scroll to keep messages visible
+      if (Math.abs(newHeight - prevHeight) > 50) {
+        scrollToBottom(false);
+      }
+      prevHeight = newHeight;
     };
 
     vv.addEventListener("resize", handleResize);
-    vv.addEventListener("scroll", handleResize);
-    // Set initial height
-    setViewportHeight(vv.height);
-
-    return () => {
-      vv.removeEventListener("resize", handleResize);
-      vv.removeEventListener("scroll", handleResize);
-    };
+    return () => vv.removeEventListener("resize", handleResize);
   }, [scrollToBottom]);
 
   // Initial load
@@ -301,7 +297,7 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
   const isBlocked = !!blocked;
 
   return (
-    <div style={{ ...styles.container, ...(viewportHeight ? { height: viewportHeight } : {}) }}>
+    <div style={styles.container}>
       {/* Header */}
       <div style={styles.header}>
         <button onClick={onBack} style={styles.backBtn}>
