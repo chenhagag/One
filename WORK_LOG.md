@@ -1,39 +1,102 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-07-19 (Direct Messaging — iOS Keyboard, Banner Redesign, Unread Fixes)
+## Latest Session: 2026-07-19 (Direct Messaging — Full Stability Pass + Features)
 
 ### What We Did
 
-#### 1. iOS Keyboard Fix (MatchChat.tsx)
-- Used `visualViewport` API to handle iOS virtual keyboard properly
-- Container resizes to actual viewport height when keyboard opens (prevents chat from being pushed off-screen)
-- Auto-scrolls to bottom on keyboard open
-- Added `overflow: hidden` + `position: relative` to container
+#### Part 1: Features
 
-#### 2. Home Banner Redesign — Two Modes (NewChat.tsx)
-- **Before card view**: Celebratory banner with 🎉 "יש לך התאמה חדשה!" + view card button (same as before)
-- **After card view**: Persistent compact card with partner photo, name + age, "ההתאמה שלי" subtitle, round chat button (with unread badge), round card button
+##### 1. iOS Keyboard Fix (MatchChat.tsx)
+- First attempt: `visualViewport` resize collapsed entire chat — reverted
+- Final: scroll-only approach — detects keyboard open/close via viewport height change, scrolls to bottom
+
+##### 2. Home Banner Redesign — Two Modes (NewChat.tsx)
+- **Before card view**: Celebratory banner with 🎉 + view card button + unread indicator + chat button
+- **After card view**: Persistent compact card with partner photo, name + age, "ההתאמה שלי", round chat/card buttons with badge
 - Tracked via `localStorage` (`match_card_viewed_{userId}`)
 
-#### 3. "Waiting for First Message" Indicator (NewChat.tsx)
-- On persistent banner: if partner sent messages but user hasn't started chatting → "ממתינה לך הודעה מ{name}"
-- If chat started and new messages exist → "X הודעות חדשות"
-
-#### 4. Unread Badge Reliability Fix (NewChat.tsx)
-- When returning from match_chat to home: explicitly calls `mark-messages-read` then re-fetches `direct-messages` for fresh unread count
-- Prevents stale badge counts from showing
-
-#### 5. Partner Age in Match Card API (backend/index.ts)
+##### 3. Partner Age in Match Card API (backend/index.ts)
 - Added `partner_age` to `GET /users/:id/active-match-card` response
-- Queries `u1.age` and `u2.age` from users table join
 
-### Technical Details
-- `MatchChat.tsx`: `visualViewport` resize/scroll listeners + `viewportHeight` state applied to container
-- `NewChat.tsx`: `matchCardViewed` state (localStorage-backed), new `useEffect` on screen change for mark-read + re-fetch, two-mode banner JSX
-- `backend/index.ts`: `active-match-card` query now joins `age` column, returns `partner_age`
+##### 4. Unblock Match (MatchChat.tsx + backend)
+- New `POST /users/:id/unblock-match` — only the blocker can unblock
+- Frontend shows "הסרת חסימה" button when blocked by current user
 
-### Continuing from Previous Session (2026-07-18)
-Issues 1+2 (message delivery reliability + typing keep-alive) were already coded in MatchChat.tsx but not committed. This session completed issues 3-6 and commits all 6 together.
+#### Part 2: Critical Bug Fixes
+
+##### 5. Server Crash Fix — RETURNING COUNT(*)
+- `mark-messages-read` used `RETURNING COUNT(*)` — illegal in PostgreSQL
+- This crashed the server **every time** a user opened match chat
+- Root cause of repeated Railway crashes
+
+##### 6. Health Endpoint Ordering
+- `/health` was registered AFTER the SPA catch-all `app.get("*")`
+- Railway health check got HTML instead of JSON → killed deployments
+- Moved `/health` before catch-all
+
+#### Part 3: Stability & Performance
+
+##### 7. Global Crash Protection (backend/index.ts)
+- Added `process.on("unhandledRejection")` + `process.on("uncaughtException")`
+- 60+ async route handlers lack try-catch — this prevents ANY unhandled error from killing the server
+- Also wrapped all 7 DM endpoints in individual try-catch with safe fallback responses
+- Added NaN validation on all parseInt(req.params.id)
+- Null check for deleted partner in pending-rating endpoint
+
+##### 8. Rate Limit Fix
+- DM endpoints (direct-messages, mark-messages-read, typing-status, active-match-card, unread-count) excluded from general rate limiter
+- Problem: chat polling every 3s = ~60 req/min, hit 300/15min limit → blocked ALL API calls for user
+- Fix: skip rate limit for high-frequency polling endpoints
+
+##### 9. Lightweight Unread Count Endpoint
+- New `GET /users/:id/unread-count` — returns `{ unread_count, chat_started }` only
+- Home screen was fetching 200 messages just to count unread — now uses this instead
+- Home polling interval: 5s → 10s
+
+##### 10. Chat Polling Optimization (MatchChat.tsx)
+- Polling interval: 3s → 5s
+- `mark-messages-read` only fires when `unread_count > 0` (was every poll)
+- `since` query now has `LIMIT 200` (was unbounded)
+
+##### 11. Optimistic Message Dedup Fix (MatchChat.tsx)
+- Temp messages now use negative IDs `-(Date.now())` instead of `Date.now()`
+- Old approach: ID > 1.7 trillion = temp (brittle heuristic, could collide with real IDs)
+- New approach: `id < 0` = temp (clean, impossible to collide)
+- Dedup logic cleaned up — removes matched optimistic msgs before adding server msgs
+
+##### 12. Smart Scroll (MatchChat.tsx)
+- Tracks `isNearBottomRef` via `onScroll` handler
+- Auto-scroll only fires if user is near bottom (threshold: 100px)
+- Prevents losing scroll position when reading old messages and new one arrives
+
+##### 13. Race Condition Fix (NewChat.tsx)
+- `loadRecommendations` now uses generation counter (`loadGenRef`)
+- Stale responses from rapid screen switching are discarded
+- Prevents badge flicker and state overwrites
+
+##### 14. Mark-Read Timing Fix (NewChat.tsx)
+- Was marking messages read when returning from ANY screen to home
+- Now uses `prevScreenRef` — only marks read when returning from `match_chat`
+- Prevents unread badge disappearing without user reading messages
+
+### Match Card Written
+- Wrote match card for חן (150) + שני (142), match ID 3121 (staging)
+
+### Infrastructure Issues Discovered
+- Railway crashes were caused by two bugs: RETURNING COUNT(*) + health endpoint ordering
+- NOT caused by code complexity or DM system itself
+
+### Deployment State
+- **Production** (main remote): has commits up to `9edd5f3` — rate limit fix + notification improvements
+- **Staging** (staging remote): has all commits up to `ad32190` — full stability pass
+- Staging needs testing confirmation before pushing to production
+
+### Open Items
+- **Auth verification on ALL API endpoints** — critical security gap, planned for next session
+  - No endpoint verifies caller identity via JWT
+  - Anyone with a user ID can read/write data via API
+  - Need: Supabase JWT middleware + update frontend fetch calls to send token
+  - `lib/api.ts` has auth wrapper but MatchChat.tsx uses raw fetch
 
 ---
 
