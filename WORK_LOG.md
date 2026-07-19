@@ -1,39 +1,168 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-07-19 (Direct Messaging — iOS Keyboard, Banner Redesign, Unread Fixes)
+## Latest Session: 2026-07-19 (API Security — Full Auth Enforcement)
 
 ### What We Did
 
-#### 1. iOS Keyboard Fix (MatchChat.tsx)
-- Used `visualViewport` API to handle iOS virtual keyboard properly
-- Container resizes to actual viewport height when keyboard opens (prevents chat from being pushed off-screen)
-- Auto-scrolls to bottom on keyboard open
-- Added `overflow: hidden` + `position: relative` to container
+#### Full JWT Auth Enforcement Across All API Endpoints
 
-#### 2. Home Banner Redesign — Two Modes (NewChat.tsx)
-- **Before card view**: Celebratory banner with 🎉 "יש לך התאמה חדשה!" + view card button (same as before)
-- **After card view**: Persistent compact card with partner photo, name + age, "ההתאמה שלי" subtitle, round chat button (with unread badge), round card button
+**Problem**: 107 out of 111 API routes had NO authentication — anyone with a user ID could read/write any user's data.
+
+**Solution**: Three-layer auth middleware applied to all endpoints:
+
+##### 1. `requireUserAuth` (user-facing routes)
+- Verifies Supabase JWT token
+- Resolves numeric user ID from `supabase_uid`
+- Checks `:id` URL param matches the authenticated user (prevents accessing other users' data)
+- Applied to all 22 `/users/:id/*` routes
+
+##### 2. `requireAdmin` (admin routes)
+- Verifies JWT + checks email is in admin whitelist (`chen.hagag@gmail.com`)
+- Applied globally via `app.use("/admin", requireAdmin)` — covers all 65 admin routes
+- Also protects `/api/users/:id/reset-data` and `GET /users` (list all)
+
+##### 3. `requireAuth` (general protected routes)
+- JWT verification only (no user ID matching needed)
+- Applied to: `/new-chat/message`, `/analyze`, `/analyze-profile`, `/report-bug`, `/system-question/answer`, `/matches/:id/rate`, `/matches/pending-rating`
+
+##### Frontend Changes
+- **MatchChat.tsx**: 9 raw `fetch()` calls → `apiFetch()` (sends JWT token)
+- **AdminView.tsx**: ~52 raw fetches → `apiFetch()`
+- **AdminPipeline.tsx**: 14 fetches → `apiFetch()`
+- **NewChat.tsx**: 18 fetches → `apiFetch()`
+- **ProfileEdit.tsx**: 8 fetches → `apiFetch()`
+- **All other components**: migrated to `apiFetch()`
+- **lib/api.ts**: Added FormData detection (skips Content-Type for file uploads)
+- **New public `/enum-options` route**: for ProfileSetup/Register (was `/admin/enum-options`)
+
+##### Routes Intentionally Left Open (pre-auth):
+`/cities`, `/enum-options`, `/login`, `/register`, `/auth/*`, `/health`, `/privacy`, `/terms`, `POST /users`, `/track-page` (optionalAuth)
+
+### Scaling Notes (Address When 100+ Concurrent Chat Users)
+
+| Issue | Impact | When to Fix | Solution |
+|-------|--------|-------------|----------|
+| Polling DB load (5 queries/5s/user) | ~100 queries/sec at 100 users | 500+ concurrent | WebSocket or longer intervals |
+| `findActiveMatch` no cache | Same query 12x/min per user | 200+ concurrent | In-memory cache, 30s TTL |
+| `requireUserAuth` DB lookup | +1 query per request | 500+ concurrent | Cache uid→id, 5min TTL |
+| No connection pool tuning | May exhaust PG connections | 300+ concurrent | Configure pool size |
+
+**NOT a risk**: crashes (all try-catch + global handlers), message table growth (indexed + LIMIT 200).
+
+### Files Changed
+- `backend/src/auth.ts` — Added `requireUserAuth`, `requireAdmin` middlewares
+- `backend/src/index.ts` — Applied auth to all routes + public `/enum-options`
+- `frontend/src/MatchChat.tsx` — All fetch → apiFetch
+- `frontend/src/AdminView.tsx` — All fetch → apiFetch
+- `frontend/src/AdminPipeline.tsx` — All fetch → apiFetch
+- `frontend/src/NewChat.tsx` — All fetch → apiFetch
+- `frontend/src/ProfileEdit.tsx` — All fetch → apiFetch
+- `frontend/src/Insights.tsx` — All fetch → apiFetch
+- `frontend/src/ConsentScreen.tsx` — fetch → apiFetch
+- `frontend/src/MatchCardConsentScreen.tsx` — fetch → apiFetch
+- `frontend/src/Register.tsx` — fetch → apiFetch
+- `frontend/src/ProfileSetup.tsx` — fetch → apiFetch
+- `frontend/src/lib/api.ts` — FormData detection
+
+---
+
+## Previous Session: 2026-07-19 (Direct Messaging — Full Stability Pass + Features)
+
+### What We Did
+
+#### Part 1: Features
+
+##### 1. iOS Keyboard Fix (MatchChat.tsx)
+- First attempt: `visualViewport` resize collapsed entire chat — reverted
+- Final: scroll-only approach — detects keyboard open/close via viewport height change, scrolls to bottom
+
+##### 2. Home Banner Redesign — Two Modes (NewChat.tsx)
+- **Before card view**: Celebratory banner with 🎉 + view card button + unread indicator + chat button
+- **After card view**: Persistent compact card with partner photo, name + age, "ההתאמה שלי", round chat/card buttons with badge
 - Tracked via `localStorage` (`match_card_viewed_{userId}`)
 
-#### 3. "Waiting for First Message" Indicator (NewChat.tsx)
-- On persistent banner: if partner sent messages but user hasn't started chatting → "ממתינה לך הודעה מ{name}"
-- If chat started and new messages exist → "X הודעות חדשות"
-
-#### 4. Unread Badge Reliability Fix (NewChat.tsx)
-- When returning from match_chat to home: explicitly calls `mark-messages-read` then re-fetches `direct-messages` for fresh unread count
-- Prevents stale badge counts from showing
-
-#### 5. Partner Age in Match Card API (backend/index.ts)
+##### 3. Partner Age in Match Card API (backend/index.ts)
 - Added `partner_age` to `GET /users/:id/active-match-card` response
-- Queries `u1.age` and `u2.age` from users table join
 
-### Technical Details
-- `MatchChat.tsx`: `visualViewport` resize/scroll listeners + `viewportHeight` state applied to container
-- `NewChat.tsx`: `matchCardViewed` state (localStorage-backed), new `useEffect` on screen change for mark-read + re-fetch, two-mode banner JSX
-- `backend/index.ts`: `active-match-card` query now joins `age` column, returns `partner_age`
+##### 4. Unblock Match (MatchChat.tsx + backend)
+- New `POST /users/:id/unblock-match` — only the blocker can unblock
+- Frontend shows "הסרת חסימה" button when blocked by current user
 
-### Continuing from Previous Session (2026-07-18)
-Issues 1+2 (message delivery reliability + typing keep-alive) were already coded in MatchChat.tsx but not committed. This session completed issues 3-6 and commits all 6 together.
+#### Part 2: Critical Bug Fixes
+
+##### 5. Server Crash Fix — RETURNING COUNT(*)
+- `mark-messages-read` used `RETURNING COUNT(*)` — illegal in PostgreSQL
+- This crashed the server **every time** a user opened match chat
+- Root cause of repeated Railway crashes
+
+##### 6. Health Endpoint Ordering
+- `/health` was registered AFTER the SPA catch-all `app.get("*")`
+- Railway health check got HTML instead of JSON → killed deployments
+- Moved `/health` before catch-all
+
+#### Part 3: Stability & Performance
+
+##### 7. Global Crash Protection (backend/index.ts)
+- Added `process.on("unhandledRejection")` + `process.on("uncaughtException")`
+- 60+ async route handlers lack try-catch — this prevents ANY unhandled error from killing the server
+- Also wrapped all 7 DM endpoints in individual try-catch with safe fallback responses
+- Added NaN validation on all parseInt(req.params.id)
+- Null check for deleted partner in pending-rating endpoint
+
+##### 8. Rate Limit Fix
+- DM endpoints (direct-messages, mark-messages-read, typing-status, active-match-card, unread-count) excluded from general rate limiter
+- Problem: chat polling every 3s = ~60 req/min, hit 300/15min limit → blocked ALL API calls for user
+- Fix: skip rate limit for high-frequency polling endpoints
+
+##### 9. Lightweight Unread Count Endpoint
+- New `GET /users/:id/unread-count` — returns `{ unread_count, chat_started }` only
+- Home screen was fetching 200 messages just to count unread — now uses this instead
+- Home polling interval: 5s → 10s
+
+##### 10. Chat Polling Optimization (MatchChat.tsx)
+- Polling interval: 3s → 5s
+- `mark-messages-read` only fires when `unread_count > 0` (was every poll)
+- `since` query now has `LIMIT 200` (was unbounded)
+
+##### 11. Optimistic Message Dedup Fix (MatchChat.tsx)
+- Temp messages now use negative IDs `-(Date.now())` instead of `Date.now()`
+- Old approach: ID > 1.7 trillion = temp (brittle heuristic, could collide with real IDs)
+- New approach: `id < 0` = temp (clean, impossible to collide)
+- Dedup logic cleaned up — removes matched optimistic msgs before adding server msgs
+
+##### 12. Smart Scroll (MatchChat.tsx)
+- Tracks `isNearBottomRef` via `onScroll` handler
+- Auto-scroll only fires if user is near bottom (threshold: 100px)
+- Prevents losing scroll position when reading old messages and new one arrives
+
+##### 13. Race Condition Fix (NewChat.tsx)
+- `loadRecommendations` now uses generation counter (`loadGenRef`)
+- Stale responses from rapid screen switching are discarded
+- Prevents badge flicker and state overwrites
+
+##### 14. Mark-Read Timing Fix (NewChat.tsx)
+- Was marking messages read when returning from ANY screen to home
+- Now uses `prevScreenRef` — only marks read when returning from `match_chat`
+- Prevents unread badge disappearing without user reading messages
+
+### Match Card Written
+- Wrote match card for חן (150) + שני (142), match ID 3121 (staging)
+
+### Infrastructure Issues Discovered
+- Railway crashes were caused by two bugs: RETURNING COUNT(*) + health endpoint ordering
+- NOT caused by code complexity or DM system itself
+
+### Deployment State
+- **Production** (main remote): has commits up to `9edd5f3` — rate limit fix + notification improvements
+- **Staging** (staging remote): has all commits up to `ad32190` — full stability pass
+- Staging needs testing confirmation before pushing to production
+
+### Open Items
+- **Auth verification on ALL API endpoints** — critical security gap, planned for next session
+  - No endpoint verifies caller identity via JWT
+  - Anyone with a user ID can read/write data via API
+  - Need: Supabase JWT middleware + update frontend fetch calls to send token
+  - `lib/api.ts` has auth wrapper but MatchChat.tsx uses raw fetch
 
 ---
 

@@ -8,6 +8,7 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import jwksRsa from "jwks-rsa";
+import { queryOne as pgQueryOne } from "./db.pg";
 
 // ── Types ───────────────────────────────────────────────────────
 
@@ -31,6 +32,8 @@ declare global {
     interface Request {
       /** Populated by requireAuth / optionalAuth middleware */
       auth?: SupabaseClaims;
+      /** Numeric user ID resolved from JWT (set by requireUserAuth) */
+      userId?: number;
     }
   }
 }
@@ -129,4 +132,70 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
   } else {
     next();
   }
+}
+
+/**
+ * Requires valid JWT + resolves user's numeric ID from supabase_uid.
+ * If route has :id param, verifies it matches the authenticated user.
+ * Sets req.userId for downstream use.
+ */
+export function requireUserAuth(req: Request, res: Response, next: NextFunction) {
+  const token = extractToken(req);
+  if (!token) {
+    return res.status(401).json({ error: "Missing authorization token" });
+  }
+
+  verifyToken(token)
+    .then(async (claims) => {
+      req.auth = claims;
+      // Resolve numeric user ID from supabase_uid
+      const user = await pgQueryOne<{ id: number }>(
+        "SELECT id FROM users WHERE supabase_uid = $1",
+        [claims.sub]
+      );
+      if (!user) {
+        return res.status(401).json({ error: "User not found" });
+      }
+      req.userId = user.id;
+
+      // If route has :id param, verify it matches the authenticated user
+      const paramId = req.params.id || req.params.user_id;
+      if (paramId) {
+        const requestedId = parseInt(paramId, 10);
+        if (!isNaN(requestedId) && requestedId !== user.id) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+      }
+      next();
+    })
+    .catch((err: any) => {
+      console.error("[auth] JWT verification failed:", err.message);
+      return res.status(401).json({ error: "Invalid or expired token" });
+    });
+}
+
+/** Admin email whitelist */
+const ADMIN_EMAILS = ["chen.hagag@gmail.com"];
+
+/**
+ * Requires valid JWT + user must be an admin (by email).
+ */
+export function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  const token = extractToken(req);
+  if (!token) {
+    return res.status(401).json({ error: "Missing authorization token" });
+  }
+
+  verifyToken(token)
+    .then((claims) => {
+      req.auth = claims;
+      if (!claims.email || !ADMIN_EMAILS.includes(claims.email)) {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      next();
+    })
+    .catch((err: any) => {
+      console.error("[auth] JWT verification failed:", err.message);
+      return res.status(401).json({ error: "Invalid or expired token" });
+    });
 }

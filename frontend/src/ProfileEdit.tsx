@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { User } from "./App";
-import { getApiBaseUrl } from "./lib/platform";
+import { apiFetch } from "./lib/api";
 
 interface EnumOption { value: string; label_he: string; label_en: string; }
 
@@ -48,7 +48,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
 
   // Fetch fresh user data from pg on mount
   useEffect(() => {
-    fetch(`/api/users/${user.id}`)
+    apiFetch(`/users/${user.id}`)
       .then(r => r.json())
       .then((u: any) => {
         if (u.first_name) setFirstName(u.first_name);
@@ -75,11 +75,11 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
   }, [user.id]);
 
   useEffect(() => {
-    fetch(`${getApiBaseUrl()}/api/cities`).then(r => r.json()).then(setCities).catch(() => {});
+    apiFetch(`/cities`).then(r => r.json()).then(setCities).catch(() => {});
   }, []);
 
   useEffect(() => {
-    fetch(`${getApiBaseUrl()}/api/admin/enum-options`)
+    apiFetch(`/admin/enum-options`)
       .then((r) => r.json())
       .then((data: any[]) => {
         const grouped: Record<string, EnumOption[]> = {};
@@ -94,7 +94,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
 
   // Photos
   function loadPhotos() {
-    fetch(`/api/users/${user.id}/photos`).then(r => r.json()).then(data => {
+    apiFetch(`/users/${user.id}/photos`).then(r => r.json()).then(data => {
       if (data.photos) setPhotos(data.photos);
     }).catch(() => {});
   }
@@ -106,7 +106,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
     form.append("photo", file);
     setUploading(true);
     try {
-      await fetch(`/api/users/${user.id}/photos`, { method: "POST", body: form });
+      await apiFetch(`/users/${user.id}/photos`, { method: "POST", body: form });
       loadPhotos();
     } catch { alert("שגיאה בהעלאת התמונה"); }
     finally { setUploading(false); }
@@ -125,9 +125,8 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
     if (!consentProfile) return;
     setPhotoConsentGiven(true);
     setShowPhotoConsent(false);
-    fetch(`/api/admin/users/${user.id}`, {
+    apiFetch(`/admin/users/${user.id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ photo_ai_consent: consentAI }),
     }).catch(() => {});
     if (pendingFile) {
@@ -137,7 +136,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
   }
 
   async function handleDeletePhoto(id: number) {
-    await fetch(`/api/users/${user.id}/photos/${id}`, { method: "DELETE" });
+    await apiFetch(`/users/${user.id}/photos/${id}`, { method: "DELETE" });
     setSelectedPhotoId(null);
     loadPhotos();
   }
@@ -146,9 +145,8 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
     e.preventDefault();
     setError(""); setSaved(false); setLoading(true);
     try {
-      const res = await fetch(`/api/users/${user.id}`, {
+      const res = await apiFetch(`/users/${user.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           first_name: firstName.trim(),
           age: age ? parseInt(age) : null,

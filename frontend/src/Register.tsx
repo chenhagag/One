@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { apiFetch } from "./lib/api";
 import { User } from "./App";
 
 /**
@@ -105,7 +106,7 @@ export default function Register({ onSuccess }: { onSuccess: (u: User) => void }
 
   // Load enum options on mount
   useEffect(() => {
-    fetch("/api/admin/enum-options")
+    apiFetch("/enum-options")
       .then((r) => r.json())
       .then((data: any[]) => {
         const grouped: Record<string, EnumOption[]> = {};
@@ -136,7 +137,7 @@ export default function Register({ onSuccess }: { onSuccess: (u: User) => void }
     setLoading(true);
 
     try {
-      const res = await fetch("/api/register", {
+      const res = await apiFetch("/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
