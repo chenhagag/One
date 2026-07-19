@@ -20,7 +20,7 @@ export default function ConsentScreen({ user, onComplete }: ConsentScreenProps) 
     setError("");
 
     try {
-      const res = await apiFetch(`/admin/users/${user.id}`, {
+      const res = await apiFetch(`/users/${user.id}`, {
         method: "PATCH",
         body: JSON.stringify({ consent_accepted: true }),
       });

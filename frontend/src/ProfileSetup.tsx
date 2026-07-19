@@ -83,7 +83,7 @@ export default function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
     setLoading(true);
 
     try {
-      const res = await apiFetch(`/admin/users/${user.id}`, {
+      const res = await apiFetch(`/users/${user.id}`, {
         method: "PATCH",
         body: JSON.stringify({
           first_name: firstName.trim(),

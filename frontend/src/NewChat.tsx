@@ -493,7 +493,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
   // Load existing conversation history on mount — split by channel
   useEffect(() => {
-    apiFetch(`/admin/users/${user.id}/full-transcript`)
+    apiFetch(`/users/${user.id}/conversation-history`)
       .then(r => r.json())
       .then(data => {
         if (!data.messages) return;
@@ -1681,7 +1681,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
     setSaving(true);
     setSaved(false);
     try {
-      await apiFetch(`/admin/users/${user.id}`, {
+      await apiFetch(`/users/${user.id}`, {
         method: "PATCH",
         body: JSON.stringify(fields),
       });
@@ -1711,7 +1711,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
   async function handleDeleteAccount() {
     setDeleting(true);
     try {
-      const res = await apiFetch(`/admin/users/${user.id}?self=true`, { method: "DELETE" });
+      const res = await apiFetch(`/users/${user.id}/account`, { method: "DELETE" });
       if (res.ok) {
         onLogout?.();
       } else {

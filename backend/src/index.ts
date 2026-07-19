@@ -550,7 +550,9 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
     desired_height_min, desired_height_max, height_flexibility,
     desired_location_range,
     marital_status, has_children, religion, smoker,
-    partner_name,
+    partner_name, consent_accepted, photo_ai_consent,
+    email_updates, whatsapp_updates, whatsapp_phone,
+    match_card_consent, match_card_restrictions, profile_complete,
   } = req.body;
   // Build pg UPDATE with dynamic $N placeholders
   const assignments: string[] = [];
@@ -584,6 +586,14 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
   if (religion !== undefined)              push("religion", religion);
   if (smoker !== undefined)                push("smoker", smoker);
   if (partner_name !== undefined)          push("partner_name", partner_name);
+  if (consent_accepted !== undefined)     push("consent_accepted", consent_accepted);
+  if (photo_ai_consent !== undefined)     push("photo_ai_consent", photo_ai_consent);
+  if (email_updates !== undefined)        push("email_updates", email_updates);
+  if (whatsapp_updates !== undefined)     push("whatsapp_updates", whatsapp_updates);
+  if (whatsapp_phone !== undefined)       push("whatsapp_phone", whatsapp_phone);
+  if (match_card_consent !== undefined)   push("match_card_consent", match_card_consent);
+  if (match_card_restrictions !== undefined) push("match_card_restrictions", match_card_restrictions);
+  if (profile_complete !== undefined)     push("profile_complete", profile_complete);
 
   if (assignments.length === 0) return res.status(400).json({ error: "No fields to update" });
 
@@ -1087,6 +1097,95 @@ function parseUserId(raw: any): number | null {
   const id = typeof raw === "string" ? parseInt(raw, 10) : Number(raw);
   return Number.isFinite(id) && id > 0 ? id : null;
 }
+
+// ── User-facing routes that mirror admin functionality ──────────
+
+// GET /users/:id/conversation-history — User loads their own chat history
+app.get("/users/:id/conversation-history", requireUserAuth, async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+
+  const dbMessages = await pgQueryAll<{ role: string; content: string; created_at: string; guide: string | null }>(
+    "SELECT role, content, created_at, guide FROM conversation_messages WHERE user_id = $1 ORDER BY created_at ASC, id ASC",
+    [userId]
+  );
+
+  if (dbMessages.length > 0) {
+    return res.json({
+      source: "db",
+      turn_count: dbMessages.filter(m => m.role === "user").length,
+      messages: dbMessages.map((m, i) => ({
+        index: i,
+        role: m.role,
+        content: m.content,
+        timestamp: m.created_at,
+        chat_type: m.guide === "psychologist" ? "psychologist"
+          : m.guide && (m.guide.startsWith("new_chat") || m.guide.startsWith("qa_")) ? m.guide
+          : "interviewer",
+      })),
+    });
+  }
+
+  const profiles = await pgQueryAll<{ raw_answer: string; created_at: string }>(
+    "SELECT raw_answer, created_at FROM profiles WHERE user_id = $1 ORDER BY created_at ASC",
+    [userId]
+  );
+
+  if (profiles.length === 0) {
+    return res.json({ source: "none", turn_count: 0, messages: [] });
+  }
+
+  const messages = profiles.map((p, i) => ({
+    index: i,
+    role: "user" as const,
+    content: p.raw_answer,
+    timestamp: p.created_at,
+  }));
+
+  return res.json({
+    source: "db",
+    turn_count: profiles.length,
+    messages,
+  });
+});
+
+// DELETE /users/:id/account — User deletes their own account
+app.delete("/users/:id/account", requireUserAuth, async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+
+  const user = await pgQueryOne<any>(
+    "SELECT id, first_name, email, gender, age, city, test_user_type, created_at, in_matching_pool, personal_insights_short, personal_insights_full, couple_insights FROM users WHERE id = $1",
+    [userId]
+  );
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  try {
+    const chatCount = await pgQueryOne<any>(
+      "SELECT COUNT(*)::int AS cnt FROM conversation_messages WHERE user_id = $1 AND role = 'user'", [userId]
+    );
+    await pgQueryAll(
+      `INSERT INTO deleted_users (original_user_id, first_name, email, gender, age, city, test_user_type, created_at, deleted_by, chat_count, was_in_pool, had_insights)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [userId, user.first_name, user.email, user.gender, user.age, user.city, user.test_user_type, user.created_at,
+       "self", chatCount?.cnt || 0, !!user.in_matching_pool, !!(user.personal_insights_short || user.personal_insights_full || user.couple_insights)]
+    );
+  } catch (e) {
+    console.error("[delete-account] Failed to save to deleted_users:", e);
+  }
+
+  // Hard delete
+  await pgQueryAll("DELETE FROM conversation_messages WHERE user_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM user_traits WHERE user_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM user_look_traits WHERE user_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM user_chat_summaries WHERE user_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM analysis_runs WHERE user_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM user_photos WHERE user_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM token_usage WHERE user_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM candidate_matches WHERE user1_id = $1 OR user2_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM matches WHERE user1_id = $1 OR user2_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM users WHERE id = $1", [userId]);
+
+  return res.json({ ok: true });
+});
 
 // ── Admin auth — all /admin/* routes require admin JWT ──────────
 app.use("/admin", requireAdmin);

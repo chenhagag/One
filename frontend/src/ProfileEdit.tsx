@@ -79,7 +79,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
   }, []);
 
   useEffect(() => {
-    apiFetch(`/admin/enum-options`)
+    apiFetch(`/enum-options`)
       .then((r) => r.json())
       .then((data: any[]) => {
         const grouped: Record<string, EnumOption[]> = {};
@@ -125,7 +125,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
     if (!consentProfile) return;
     setPhotoConsentGiven(true);
     setShowPhotoConsent(false);
-    apiFetch(`/admin/users/${user.id}`, {
+    apiFetch(`/users/${user.id}`, {
       method: "PATCH",
       body: JSON.stringify({ photo_ai_consent: consentAI }),
     }).catch(() => {});
