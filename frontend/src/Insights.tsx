@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { apiFetch } from "./lib/api";
 import { trackPage } from "./lib/trackPage";
 
 interface InsightsProps {
@@ -137,16 +138,16 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
   }, [detailView]);
 
   useEffect(() => {
-    fetch(`/api/users/${user.id}/detailed-traits`)
+    apiFetch(`/users/${user.id}/detailed-traits`)
       .then(r => r.json())
       .then((data: DetailedProfile) => setProfile(data))
       .catch(() => {})
       .finally(() => setLoading(false));
-    fetch(`/api/users/${user.id}`)
+    apiFetch(`/users/${user.id}`)
       .then(r => r.json())
       .then(u => { if (u.gender) setGender(u.gender); })
       .catch(() => {});
-    fetch(`/api/users/${user.id}/personal-insights`)
+    apiFetch(`/users/${user.id}/personal-insights`)
       .then(r => r.json())
       .then(d => setPersonalInsights(d))
       .catch(() => {});

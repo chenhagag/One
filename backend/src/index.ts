@@ -36,7 +36,7 @@ import { maybeAutoAnalyze, maybeAutoAnalyzeAfterChat, maybeAutoAnalyzeAfterAll }
 import OpenAI from "openai";
 import { Resend } from "resend";
 import { trackTokens } from "./tokenTracker";
-import { requireAuth, optionalAuth } from "./auth";
+import { requireAuth, optionalAuth, requireUserAuth, requireAdmin } from "./auth";
 
 dotenv.config();
 
@@ -114,6 +114,15 @@ app.get("/cities", async (_req, res) => {
     "SELECT city_name, region FROM cities ORDER BY city_name"
   );
   return res.json(rows);
+});
+
+// GET /enum-options — Public route for registration form dropdowns
+app.get("/enum-options", async (req, res) => {
+  const category = req.query.category as string | undefined;
+  const options = category
+    ? await pgQueryAll("SELECT * FROM enum_options WHERE category = $1 ORDER BY sort_order", [category])
+    : await pgQueryAll("SELECT * FROM enum_options ORDER BY category, sort_order");
+  return res.json(options);
 });
 
 // POST /login — Simple email-based login (no password)
@@ -509,7 +518,7 @@ app.post("/register", async (req, res) => {
 });
 
 // PATCH /users/:id/guide — Save selected conversation guide
-app.patch("/users/:id/guide", async (req, res) => {
+app.patch("/users/:id/guide", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const { selected_guide } = req.body;
   const valid = ["psychologist", "coach", "spiritual_mentor"];
@@ -524,7 +533,7 @@ app.patch("/users/:id/guide", async (req, res) => {
 });
 
 // GET /users/:id — Get user profile (reads from pg)
-app.get("/users/:id", async (req, res) => {
+app.get("/users/:id", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const user = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [userId]);
   if (!user) return res.status(404).json({ error: "User not found" });
@@ -533,7 +542,7 @@ app.get("/users/:id", async (req, res) => {
 });
 
 // PATCH /users/:id — Update user profile fields
-app.patch("/users/:id", async (req, res) => {
+app.patch("/users/:id", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const {
     first_name, age, gender, looking_for_gender, city, height, self_style,
@@ -616,7 +625,7 @@ app.post("/users", async (req, res) => {
 // It does NOT update user_traits or user_look_traits.
 // ════════════════════════════════════════════════════════════════
 
-app.post("/analyze", aiLimiter, async (req, res) => {
+app.post("/analyze", aiLimiter, requireAuth, async (req, res) => {
   const { user_id, answer } = req.body;
 
   if (!user_id || !answer) {
@@ -668,7 +677,7 @@ const upload = multer({
 app.use("/uploads", express.static(uploadsDir));
 
 // POST /users/:id/photos — Upload a photo
-app.post("/users/:id/photos", upload.single("photo"), async (req, res) => {
+app.post("/users/:id/photos", requireUserAuth, upload.single("photo"), async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
@@ -692,7 +701,7 @@ app.post("/users/:id/photos", upload.single("photo"), async (req, res) => {
 });
 
 // GET /users/:id/photos — List user's photos
-app.get("/users/:id/photos", async (req, res) => {
+app.get("/users/:id/photos", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const photos = await pgQueryAll<any>(
     "SELECT id, filename, original_name, created_at FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC",
@@ -712,7 +721,7 @@ app.get("/users/:id/photos", async (req, res) => {
 });
 
 // DELETE /users/:id/photos/:photoId — Delete a specific photo
-app.delete("/users/:id/photos/:photoId", async (req, res) => {
+app.delete("/users/:id/photos/:photoId", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const photoId = parseInt(req.params.photoId, 10);
 
@@ -734,7 +743,7 @@ app.delete("/users/:id/photos/:photoId", async (req, res) => {
 });
 
 // POST /users/:id/match-card-consent — Save match card consent decision
-app.post("/users/:id/match-card-consent", async (req, res) => {
+app.post("/users/:id/match-card-consent", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const { consent, restrictions } = req.body;
   if (!consent || !["approved", "declined"].includes(consent)) {
@@ -749,7 +758,7 @@ app.post("/users/:id/match-card-consent", async (req, res) => {
 });
 
 // GET /users/:id/active-match-card — Get user's active match card (sent by admin)
-app.get("/users/:id/active-match-card", async (req, res) => {
+app.get("/users/:id/active-match-card", requireUserAuth, async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.json({ match_card: null });
@@ -823,7 +832,7 @@ async function findActiveMatch(userId: number) {
 }
 
 // GET /users/:id/direct-messages — Fetch messages for active match
-app.get("/users/:id/direct-messages", async (req, res) => {
+app.get("/users/:id/direct-messages", requireUserAuth, async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.json({ messages: [], partner_typing: false, match_id: null, unread_count: 0 });
@@ -882,7 +891,7 @@ app.get("/users/:id/direct-messages", async (req, res) => {
 });
 
 // POST /users/:id/direct-messages — Send a message
-app.post("/users/:id/direct-messages", async (req, res) => {
+app.post("/users/:id/direct-messages", requireUserAuth, async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.status(400).json({ error: "Invalid user ID" });
@@ -930,7 +939,7 @@ app.post("/users/:id/direct-messages", async (req, res) => {
 });
 
 // POST /users/:id/typing-status — Update typing indicator
-app.post("/users/:id/typing-status", async (req, res) => {
+app.post("/users/:id/typing-status", requireUserAuth, async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.json({ ok: true });
@@ -954,7 +963,7 @@ app.post("/users/:id/typing-status", async (req, res) => {
 });
 
 // POST /users/:id/mark-messages-read — Mark partner's messages as read
-app.post("/users/:id/mark-messages-read", async (req, res) => {
+app.post("/users/:id/mark-messages-read", requireUserAuth, async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.json({ ok: true });
@@ -978,7 +987,7 @@ app.post("/users/:id/mark-messages-read", async (req, res) => {
 });
 
 // GET /users/:id/unread-count — Lightweight: just unread count + whether chat started
-app.get("/users/:id/unread-count", async (req, res) => {
+app.get("/users/:id/unread-count", requireUserAuth, async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.json({ unread_count: 0, chat_started: false });
@@ -1010,7 +1019,7 @@ app.get("/users/:id/unread-count", async (req, res) => {
 });
 
 // POST /users/:id/unblock-match — Remove block (only the blocker can unblock)
-app.post("/users/:id/unblock-match", async (req, res) => {
+app.post("/users/:id/unblock-match", requireUserAuth, async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.status(400).json({ error: "Invalid user ID" });
@@ -1038,7 +1047,7 @@ app.post("/users/:id/unblock-match", async (req, res) => {
 });
 
 // POST /users/:id/report-match — Report match partner (and optionally block)
-app.post("/users/:id/report-match", async (req, res) => {
+app.post("/users/:id/report-match", requireUserAuth, async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.status(400).json({ error: "Invalid user ID" });
@@ -1078,6 +1087,9 @@ function parseUserId(raw: any): number | null {
   const id = typeof raw === "string" ? parseInt(raw, 10) : Number(raw);
   return Number.isFinite(id) && id > 0 ? id : null;
 }
+
+// ── Admin auth — all /admin/* routes require admin JWT ──────────
+app.use("/admin", requireAdmin);
 
 // GET /admin/users/:id/direct-messages — Admin view of user's match messaging history
 app.get("/admin/users/:id/direct-messages", async (req, res) => {
@@ -1161,7 +1173,7 @@ app.get("/admin/users/:id/full-transcript", async (req, res) => {
 // POST /analyze-profile — Submit a conversation answer and run trait analysis
 // Stores the answer, builds cumulative transcript, runs analysis agent, saves traits.
 // Incremental: each call adds to the user's profile, null values don't overwrite existing data.
-app.post("/analyze-profile", aiLimiter, async (req, res) => {
+app.post("/analyze-profile", aiLimiter, requireAuth, async (req, res) => {
   const { user_id: rawUserId, answer } = req.body;
 
   if (!rawUserId || !answer) {
@@ -1242,7 +1254,7 @@ app.post("/analyze-profile", aiLimiter, async (req, res) => {
 });
 
 // GET /users/:id/dashboard-progress — All progress data for the dashboard
-app.get("/users/:id/dashboard-progress", async (req, res) => {
+app.get("/users/:id/dashboard-progress", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const user = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [userId]);
   if (!user) return res.status(404).json({ error: "User not found" });
@@ -1293,7 +1305,7 @@ app.get("/users/:id/dashboard-progress", async (req, res) => {
 });
 
 // GET /users/:id/profile-status — Get current trait coverage and readiness (from pg)
-app.get("/users/:id/profile-status", async (req, res) => {
+app.get("/users/:id/profile-status", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id);
 
   const internalCount = Number((await pgQueryOne<{ c: string }>(
@@ -1368,7 +1380,7 @@ app.post("/admin/users/:id/inject-conversation", async (req, res) => {
 });
 
 // GET /users/:id/personal-insights — Get personal insights for user-facing display
-app.get("/users/:id/personal-insights", async (req, res) => {
+app.get("/users/:id/personal-insights", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const row = await pgQueryOne<{ personal_insights_short: string | null; personal_insights_full: string | null; analysis_completed: boolean }>(
     "SELECT personal_insights_short, personal_insights_full, analysis_completed FROM users WHERE id = $1", [userId]
@@ -1381,7 +1393,7 @@ app.get("/users/:id/personal-insights", async (req, res) => {
 });
 
 // GET /users/:id/couple-insights — Get couple insights for user-facing display
-app.get("/users/:id/couple-insights", async (req, res) => {
+app.get("/users/:id/couple-insights", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const row = await pgQueryOne<{ couple_insights: string | null }>(
     "SELECT couple_insights FROM users WHERE id = $1", [userId]
@@ -1538,7 +1550,7 @@ app.delete("/admin/users/:id", async (req, res) => {
 });
 
 // POST /api/users/:id/reset-data — Delete all user data but keep account
-app.post("/api/users/:id/reset-data", async (req, res) => {
+app.post("/api/users/:id/reset-data", requireAdmin, async (req, res) => {
   const userId = parseInt(req.params.id);
   if (isNaN(userId)) return res.status(400).json({ error: "Invalid user ID" });
 
@@ -2463,11 +2475,11 @@ app.get("/admin/users/:id/candidate-matches", async (req, res) => {
 
 const VALID_RATINGS = new Set(["miss", "possible", "bullseye", "known_person"]);
 
-app.post("/matches/:id/rate", optionalAuth, async (req, res) => {
+app.post("/matches/:id/rate", requireAuth, async (req, res) => {
   const { rating } = req.body;
   let { user_id } = req.body;
 
-  // If JWT is present, resolve user_id from token (prevents ID spoofing)
+  // Resolve user_id from JWT token (prevents ID spoofing)
   if (req.auth?.sub) {
     const authUser = await pgQueryOne<any>("SELECT id FROM users WHERE supabase_uid = $1", [req.auth.sub]);
     if (!authUser) return res.status(401).json({ error: "User not found" });
@@ -2797,7 +2809,7 @@ app.post("/admin/send-pool-emails", async (req, res) => {
 });
 
 // GET /matches/pending-rating — Get pending match for user to rate (user-facing)
-app.get("/matches/pending-rating", optionalAuth, async (req, res) => {
+app.get("/matches/pending-rating", requireAuth, async (req, res) => {
   let userId = req.query.user_id ? parseInt(req.query.user_id as string, 10) : null;
 
   if (req.auth?.sub) {
@@ -2946,7 +2958,7 @@ app.post("/admin/users/:id/send-email", async (req, res) => {
 });
 
 // Keep old GET /users for backward compatibility
-app.get("/users", async (_req, res) => {
+app.get("/users", requireAdmin, async (_req, res) => {
   const users = await pgQueryAll<any>(`
     SELECT u.id, u.first_name as name, u.email, u.created_at,
       p.raw_answer, p.analysis_json, p.created_at as profile_created_at
@@ -3293,7 +3305,7 @@ app.get("/admin/users/:id/system-questions", async (req, res) => {
 });
 
 // POST /system-question/answer — User answers a question
-app.post("/system-question/answer", async (req, res) => {
+app.post("/system-question/answer", requireAuth, async (req, res) => {
   const { question_id, answer } = req.body;
   const validAnswers = ["כן אין בעיה", "אפשרי", "לא"];
   if (!validAnswers.includes(answer)) return res.status(400).json({ error: "invalid answer" });
@@ -3506,7 +3518,7 @@ ${fullTranscript}`;
 // BUG REPORTS
 // ════════════════════════════════════════════════════════════════
 
-app.post("/report-bug", async (req, res) => {
+app.post("/report-bug", requireAuth, async (req, res) => {
   const { user_id, report_text } = req.body;
   if (!report_text?.trim()) {
     return res.status(400).json({ error: "report_text is required" });
@@ -3561,7 +3573,7 @@ app.delete("/admin/bug-reports/:id", async (req, res) => {
 // ════════════════════════════════════════════════════════════════
 
 // GET /new-chat/status/:user_id — Returns recommendation flags for the home screen
-app.get("/new-chat/status/:user_id", async (req, res) => {
+app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.user_id, 10);
   if (!userId) return res.status(400).json({ error: "invalid user_id" });
 
@@ -3726,7 +3738,7 @@ app.get("/new-chat/status/:user_id", async (req, res) => {
 });
 
 // GET /users/:id/matching-progress — Dashboard data for waiting state
-app.get("/users/:id/matching-progress", async (req, res) => {
+app.get("/users/:id/matching-progress", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   if (!userId) return res.status(400).json({ error: "invalid id" });
 
@@ -3783,7 +3795,7 @@ app.get("/users/:id/matching-progress", async (req, res) => {
 });
 
 // GET /users/:id/detailed-traits — Detailed trait data for Insights screen
-app.get("/users/:id/detailed-traits", async (req, res) => {
+app.get("/users/:id/detailed-traits", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   if (!userId) return res.status(400).json({ error: "invalid id" });
 
@@ -3796,7 +3808,7 @@ app.get("/users/:id/detailed-traits", async (req, res) => {
 });
 
 // POST /users/:id/fine-tune-answer — Save fine-tuning question answer
-app.post("/users/:id/fine-tune-answer", async (req, res) => {
+app.post("/users/:id/fine-tune-answer", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const { question_key, answer } = req.body;
   if (!userId || !question_key || answer == null) return res.status(400).json({ error: "missing fields" });
@@ -3815,9 +3827,17 @@ app.post("/users/:id/fine-tune-answer", async (req, res) => {
   }
 });
 
-app.post("/new-chat/message", aiLimiter, async (req, res) => {
+app.post("/new-chat/message", aiLimiter, requireAuth, async (req, res) => {
   const { user_id, message, history, channel } = req.body;
   if (!user_id || !message) return res.status(400).json({ error: "user_id and message required" });
+
+  // Verify JWT user matches request body user_id
+  if (req.auth?.sub) {
+    const authUser = await pgQueryOne<{ id: number }>("SELECT id FROM users WHERE supabase_uid = $1", [req.auth.sub]);
+    if (!authUser || authUser.id !== user_id) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+  }
 
   // Validate channel — must start with new_chat or qa_
   const guide = typeof channel === "string" && (channel.startsWith("new_chat") || channel.startsWith("qa_")) ? channel : "new_chat";
