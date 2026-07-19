@@ -3844,6 +3844,9 @@ app.get("/terms", (_req, res) => {
   });
 });
 
+// Health check endpoint for Railway zero-downtime deploys (must be before SPA catch-all)
+app.get("/health", (_req, res) => res.status(200).json({ ok: true }));
+
 // ── SPA catch-all ────────────────────────────────────────────────
 // Any GET request that didn't match an API route or static file gets
 // the frontend's index.html — lets React Router handle client-side routing.
@@ -3856,9 +3859,6 @@ app.get("*", (_req, res) => {
     }
   });
 });
-
-// Health check endpoint for Railway zero-downtime deploys
-app.get("/health", (_req, res) => res.status(200).json({ ok: true }));
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
