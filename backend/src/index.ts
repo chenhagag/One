@@ -1009,6 +1009,34 @@ app.get("/users/:id/unread-count", async (req, res) => {
   }
 });
 
+// POST /users/:id/unblock-match — Remove block (only the blocker can unblock)
+app.post("/users/:id/unblock-match", async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) return res.status(400).json({ error: "Invalid user ID" });
+
+    const match = await pgQueryOne<any>(
+      `SELECT id, blocked_by FROM matches
+       WHERE (user1_id = $1 OR user2_id = $1)
+         AND status = 'in_match'
+         AND blocked_by = $1
+       ORDER BY updated_at DESC LIMIT 1`,
+      [userId]
+    );
+    if (!match) return res.status(404).json({ error: "No blocked match found" });
+
+    await pgQueryOne<any>(
+      `UPDATE matches SET blocked_by = NULL, updated_at = NOW() WHERE id = $1`,
+      [match.id]
+    );
+    console.log(`[match_unblock] User #${userId} unblocked match #${match.id}`);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("[unblock-match] Error:", err);
+    return res.status(500).json({ error: "Failed to unblock" });
+  }
+});
+
 // POST /users/:id/report-match — Report match partner (and optionally block)
 app.post("/users/:id/report-match", async (req, res) => {
   try {

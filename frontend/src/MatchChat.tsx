@@ -505,9 +505,22 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
       {/* Input area */}
       {isBlocked ? (
         <div style={styles.inputArea}>
-          <p style={{ fontSize: 13, color: "#999", textAlign: "center", margin: 0 }}>
+          <p style={{ fontSize: 13, color: "#999", textAlign: "center", margin: "0 0 8px" }}>
             השיחה נחסמה. לא ניתן לשלוח הודעות.
           </p>
+          {blocked === user.id && (
+            <button
+              onClick={async () => {
+                try {
+                  await fetch(`/api/users/${user.id}/unblock-match`, { method: "POST" });
+                  setBlocked(null);
+                } catch {}
+              }}
+              style={{ background: "none", border: "1px solid #d4d0e8", borderRadius: 8, padding: "6px 16px", fontSize: 13, color: "#6366f1", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}
+            >
+              הסרת חסימה
+            </button>
+          )}
         </div>
       ) : (
       <div style={styles.inputArea}>
