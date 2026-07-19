@@ -15,7 +15,7 @@ import AdminPipeline from "./AdminPipeline";
  * - Matches
  */
 
-type Tab = "overview" | "users" | "profiles" | "traits" | "look_traits" | "enums" | "config" | "matches" | "candidates" | "bugs" | "errors" | "email" | "analytics" | "user_mgmt" | "deleted_users";
+type Tab = "overview" | "users" | "profiles" | "traits" | "look_traits" | "enums" | "config" | "matches" | "candidates" | "bugs" | "card_requests" | "errors" | "email" | "analytics" | "user_mgmt" | "deleted_users";
 
 const s: Record<string, React.CSSProperties> = {
   heading: { marginTop: 0, marginBottom: 8, fontSize: 22 },
@@ -317,6 +317,8 @@ function PartnerCell({ userId, value }: { userId: number; value: string }) {
 export default function AdminView({ onBack, onStartChat, onViewDashboard, onViewNewChat }: { onBack: () => void; onStartChat?: (user: { id: number; first_name: string; email: string }) => void; onViewDashboard?: (user: { id: number; first_name: string; email: string }) => void; onViewNewChat?: (user: { id: number; first_name: string; email: string }) => void }) {
   const [tab, setTab] = useState<Tab>("overview");
   const [newBugCount, setNewBugCount] = useState(0);
+  const [cardRequests, setCardRequests] = useState<any[]>([]);
+  const [newCardRequestCount, setNewCardRequestCount] = useState(0);
 
   // Check for new bug reports on mount
   useEffect(() => {
@@ -328,10 +330,25 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
     }).catch(() => {});
   }, []);
 
+  // Check for card restriction requests on mount
+  useEffect(() => {
+    apiFetch("/admin/card-requests").then(r => r.json()).then((data: any[]) => {
+      if (!Array.isArray(data)) return;
+      setCardRequests(data);
+      const lastSeen = localStorage.getItem("admin_card_requests_last_seen") || "1970-01-01";
+      const newCount = data.filter(r => r.updated_at && r.updated_at > lastSeen).length;
+      setNewCardRequestCount(newCount);
+    }).catch(() => {});
+  }, []);
+
   function handleTabClick(key: Tab) {
     if (key === "bugs") {
       localStorage.setItem("admin_bugs_last_seen", new Date().toISOString());
       setNewBugCount(0);
+    }
+    if (key === "card_requests") {
+      localStorage.setItem("admin_card_requests_last_seen", new Date().toISOString());
+      setNewCardRequestCount(0);
     }
     setTab(key);
   }
@@ -353,6 +370,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
           ["candidates", "Candidate Matches"],
           ["matches", "Matched"],
           ["bugs", "משוב ודיווחים"],
+          ["card_requests", "בקשות כרטיס"],
           ["errors", "שגיאות"],
           ["analytics", "Analytics"],
           ["email", "Send Email"],
@@ -368,6 +386,9 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
             {key === "bugs" && newBugCount > 0 && (
               <span style={{ marginRight: 4, marginLeft: 4, background: "#dc2626", color: "#fff", borderRadius: 20, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>{newBugCount}</span>
             )}
+            {key === "card_requests" && newCardRequestCount > 0 && (
+              <span style={{ marginRight: 4, marginLeft: 4, background: "#dc2626", color: "#fff", borderRadius: 20, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>{newCardRequestCount}</span>
+            )}
           </button>
         ))}
       </div>
@@ -382,6 +403,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
       {tab === "matches" && <MatchesTab />}
       {tab === "candidates" && <CandidateMatchesTab onViewDashboard={onViewDashboard} onStartChat={onStartChat} onViewNewChat={onViewNewChat} />}
       {tab === "bugs" && <BugReportsTab />}
+      {tab === "card_requests" && <CardRequestsTab requests={cardRequests} />}
       {tab === "errors" && <ErrorLogsTab />}
       {tab === "analytics" && <AnalyticsTab />}
       {tab === "email" && <SendEmailTab />}
@@ -4079,6 +4101,39 @@ function SendEmailTab() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function CardRequestsTab({ requests }: { requests: any[] }) {
+  if (requests.length === 0) return <div><h3 style={{ margin: "0 0 12px" }}>בקשות לכרטיס התאמה</h3><p style={{ color: "#888" }}>אין בקשות מיוחדות.</p></div>;
+  return (
+    <div>
+      <h3 style={{ margin: "0 0 12px" }}>בקשות לכרטיס התאמה ({requests.length})</h3>
+      <table style={s.table}>
+        <thead><tr>
+          <th style={s.th}>ID</th>
+          <th style={s.th}>שם</th>
+          <th style={s.th}>הסכמה</th>
+          <th style={s.th}>בקשות מיוחדות</th>
+          <th style={s.th}>עדכון אחרון</th>
+        </tr></thead>
+        <tbody>
+          {requests.map(r => (
+            <tr key={r.id}>
+              <td style={s.td}>{r.id}</td>
+              <td style={s.td}><strong>{r.first_name}</strong></td>
+              <td style={s.td}>
+                <span style={{ ...s.badge, background: r.match_card_consent === "approved" ? "#d4edda" : r.match_card_consent === "declined" ? "#f8d7da" : "#f0f0f0", color: r.match_card_consent === "approved" ? "#155724" : r.match_card_consent === "declined" ? "#721c24" : "#666" }}>
+                  {r.match_card_consent === "approved" ? "אושר" : r.match_card_consent === "declined" ? "לא אושר" : "טרם נשאל"}
+                </span>
+              </td>
+              <td style={{ ...s.td, direction: "rtl", maxWidth: 400, whiteSpace: "pre-wrap" }}>{r.match_card_restrictions || "—"}</td>
+              <td style={s.td}>{r.updated_at ? new Date(r.updated_at).toLocaleDateString("he-IL") : "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

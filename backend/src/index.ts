@@ -3721,6 +3721,17 @@ app.delete("/admin/error-logs", async (req, res) => {
   return res.json({ ok: true });
 });
 
+// GET /admin/card-requests — Users with match card restrictions
+app.get("/admin/card-requests", async (_req, res) => {
+  const rows = await pgQueryAll<any>(`
+    SELECT id, first_name, email, gender, match_card_consent, match_card_restrictions, updated_at
+    FROM users
+    WHERE match_card_restrictions IS NOT NULL AND match_card_restrictions != ''
+    ORDER BY updated_at DESC
+  `);
+  return res.json(rows);
+});
+
 // GET /admin/bug-reports — All bug reports (admin only)
 app.get("/admin/bug-reports", async (_req, res) => {
   const reports = await pgQueryAll<any>(`

@@ -1679,6 +1679,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onLogout?: () => void; onShowMatchCardInfo?: () => void }) {
   const [photoAI, setPhotoAI] = useState(false);
   const [matchCardConsent, setMatchCardConsent] = useState<string | null>(null);
+  const [matchCardRestrictions, setMatchCardRestrictions] = useState<string>("");
   const [emailUpdates, setEmailUpdates] = useState(true);
   const [whatsappUpdates, setWhatsappUpdates] = useState(false);
   const [phone, setPhone] = useState("");
@@ -1694,6 +1695,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
     apiFetch(`/users/${user.id}`).then(r => r.json()).then(data => {
       setPhotoAI(!!data.photo_ai_consent);
       setMatchCardConsent(data.match_card_consent || null);
+      setMatchCardRestrictions(data.match_card_restrictions || "");
       setEmailUpdates(data.email_updates !== false);
       setWhatsappUpdates(!!data.whatsapp_updates);
       setPhone(data.whatsapp_phone || "");
@@ -1800,6 +1802,22 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
               </>
             )}
           </p>
+          {matchCardRestrictions !== "" && (
+            <div style={{ marginTop: 10 }}>
+              <label style={{ fontSize: 13, color: "#555", fontWeight: 500, display: "block", marginBottom: 6 }}>
+                בקשות מיוחדות לכרטיס:
+              </label>
+              <textarea
+                value={matchCardRestrictions}
+                onChange={(e) => setMatchCardRestrictions(e.target.value)}
+                onBlur={() => saveSetting({ match_card_restrictions: matchCardRestrictions || null })}
+                disabled={saving || loading}
+                rows={3}
+                style={{ width: "100%", fontSize: 13, padding: "8px 10px", borderRadius: 8, border: "1px solid #ddd", fontFamily: "inherit", direction: "rtl", resize: "vertical", boxSizing: "border-box" }}
+              />
+              <p style={{ ...hintStyle, marginTop: 4 }}>ניתן לערוך — השינויים יישמרו אוטומטית.</p>
+            </div>
+          )}
         </div>
 
         {/* Notifications */}
