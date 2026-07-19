@@ -1172,16 +1172,21 @@ app.delete("/users/:id/account", requireUserAuth, async (req, res) => {
     console.error("[delete-account] Failed to save to deleted_users:", e);
   }
 
-  // Hard delete
+  // Hard delete (order matters due to FKs)
+  await pgQueryAll("DELETE FROM profiles WHERE user_id = $1", [userId]);
   await pgQueryAll("DELETE FROM conversation_messages WHERE user_id = $1", [userId]);
   await pgQueryAll("DELETE FROM user_traits WHERE user_id = $1", [userId]);
   await pgQueryAll("DELETE FROM user_look_traits WHERE user_id = $1", [userId]);
   await pgQueryAll("DELETE FROM user_chat_summaries WHERE user_id = $1", [userId]);
   await pgQueryAll("DELETE FROM analysis_runs WHERE user_id = $1", [userId]);
   await pgQueryAll("DELETE FROM user_photos WHERE user_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM bug_reports WHERE user_id = $1", [userId]);
   await pgQueryAll("DELETE FROM token_usage WHERE user_id = $1", [userId]);
-  await pgQueryAll("DELETE FROM candidate_matches WHERE user1_id = $1 OR user2_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM direct_messages WHERE match_id IN (SELECT id FROM matches WHERE user1_id = $1 OR user2_id = $1)", [userId]);
+  await pgQueryAll("DELETE FROM typing_status WHERE match_id IN (SELECT id FROM matches WHERE user1_id = $1 OR user2_id = $1)", [userId]);
+  await pgQueryAll("DELETE FROM match_scores WHERE match_id IN (SELECT id FROM matches WHERE user1_id = $1 OR user2_id = $1)", [userId]);
   await pgQueryAll("DELETE FROM matches WHERE user1_id = $1 OR user2_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM candidate_matches WHERE user_id = $1 OR candidate_user_id = $1", [userId]);
   await pgQueryAll("DELETE FROM users WHERE id = $1", [userId]);
 
   return res.json({ ok: true });
@@ -3527,14 +3532,22 @@ app.post("/admin/users/:id/generate-insights", aiLimiter, async (req, res) => {
 אתה לא מסכם את השיחה. אתה מנתח אותה.
 - לעולם אל תצטט מה ${genderWord} אמר/ה בשיחה ("כשנשאלת X, ענית Y")
 - לעולם אל תחזור על עובדות יבשות (איפה עובד/ת, מה למד/ה, מה הערב המושלם)
+- לעולם אל תכתוב משפטים גנריים שמתאימים לכל אחד ("את מחפשת קשר עמוק ומשמעותי", "את מעריכה עצמאות", "נשמע שאת מצליחה לשמור על יחסים טובים")
 - במקום זה: זהה דפוסים, חבר נקודות, הסק מסקנות שהמשתמש/ת לא בהכרח רואה בעצמו/ה
 - כל פסקה צריכה לחשוף משהו חדש — לא לאשר מה שכבר ידוע
+- אל תכתוב "זה חשוב", "זה נהדר", "נשמע ש..." — אלה ביטויים של שיחה, לא של ניתוח
 
 ## מה לא לכלול
 - אל תציין פרטים אינטימיים או מיניים גם אם שותפו בשיחה
 - אל תרשום רשימת עובדות (תחביבים, מקצוע, סטטוס משפחתי) — אלה ידועים למשתמש/ת
 - אל תכתוב "את בן אדם" — כתוב "את אדם" (המילה "אדם" היא זכר בעברית)
-- אל תהיה גנרי — "את מחפשת קשר עמוק ומשמעותי" לא אומר כלום. תגיד מה ספציפית
+- אל תהיה גנרי — אל תכתוב משפטים שאפשר להדביק לכל אחד. כל משפט צריך להיות ספציפי לאדם הזה
+- אל תשתמש בשפה מליצית ריקה ("מסע של גילוי", "חיים מלאי עניין ומשמעות", "שותפה אמיתית לחיים") — תהיה קונקרטי
+
+## התאמה למי שהמשתמש/ת מחפש/ת
+- בדוק בפרטי המשתמש/ת את שדה "מחפש/ת" — זה מגדר בן/בת הזוג שמחפשים
+- כשכותבים על בן/בת הזוג המתאים — התאם מגדרית: "בן זוג" / "בת זוג", "גבר" / "אישה", "הוא" / "היא"
+- אל תניח הנחות על מגדר בן/בת הזוג — תמיד תסתמך על מה שכתוב בפרטים
 
 ## הטון
 - עברית, גוף שני (${youWord}), מותאם מגדרית
