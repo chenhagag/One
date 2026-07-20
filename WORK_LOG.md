@@ -81,6 +81,32 @@ Fixed critical auth issues affecting OTP users, improved error handling, and upd
 | `frontend/public/csae-policy.html` | Support email fix |
 | `frontend/public/delete-account.html` | Support email fix |
 
+### 7. Session-Expired UX
+**Problem:** When a user's token expired, they were silently redirected to the login screen with no explanation. Users with legacy sessions (no JWT) got stuck on a broken screen entirely — `session-expired` didn't fire because the guard required a token to exist.
+
+**Fixes:**
+- `apiFetch`: fire `session-expired` on any 401 (not just when token existed). Safe because `apiFetch` is only called by logged-in components; login/OTP flows use raw `fetch`
+- Added dedup (`fireSessionExpired`) to prevent multiple simultaneous events from parallel API calls
+- Auth screen now shows a yellow notice: "החיבור שלך פג תוקף. יש להתחבר מחדש." when redirected via session-expired
+
+### 8. ErrorBoundary — Report Link
+**Problem:** When the app crashed, users saw a friendly error screen but had no way to report the issue if the app was fully broken.
+
+**Fix:** Added a `mailto:one-support@googlegroups.com` link on the crash screen: "הבעיה חוזרת? כתבו לנו ונטפל"
+
+### 9. Admin Error Log Clear
+**Problem:** "נקה ישנים" button only deleted logs older than 30 days. All visible logs were recent, so nothing was deleted.
+
+**Fix:** Changed to delete all logs (`?all=true`). Also fixed SQL injection in the interval parameter (was string interpolation, now parameterized).
+
+### 10. Insights Crash — allValues Undefined
+**Problem:** When `/detailed-traits` API returned 401 (error JSON like `{error: "..."}`), the response was stored as `profile`. Then `profile.allValues.length` crashed because `allValues` didn't exist on the error object.
+
+**Fix:**
+- Check `r.ok` before parsing detailed-traits response
+- Validate `data.allValues` exists before setting profile
+- Added `?.` null checks on `allValues` and `allBigFive` accessors
+
 ### Affected Users (Production):
 - **ענבל (246)** — insights rewritten to second person directly in DB
 - **הדר (244), דנית (207), טל (168), יוליה (245)** — will auto-fix on next OTP login (get JWT + supabase_uid)
