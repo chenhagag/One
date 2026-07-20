@@ -362,9 +362,15 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event) => {
         if (event === "SIGNED_OUT") {
-          clearSession();
-          setUser(null);
-          setView("auth");
+          // Only act on SIGNED_OUT if we don't have our own saved token.
+          // OTP login uses a self-signed JWT (not a Supabase session), so
+          // Supabase client may fire SIGNED_OUT even though the user is valid.
+          const hasOwnToken = !!localStorage.getItem("one_access_token");
+          if (!hasOwnToken) {
+            clearSession();
+            setUser(null);
+            setView("auth");
+          }
         }
       }
     );
