@@ -2,6 +2,7 @@ import express from "express";
 import helmet from "helmet";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
+import crypto from "crypto";
 
 // ── Prevent unhandled errors from crashing the server ────────────
 process.on("unhandledRejection", (reason: any) => {
@@ -576,7 +577,8 @@ app.post("/auth/verify-otp", authLimiter, async (req, res) => {
     // Ensure user has a supabase_uid (needed as JWT sub for requireUserAuth)
     let uid = user.supabase_uid;
     if (!uid) {
-      uid = `otp-${user.id}`;
+      // Generate a proper UUID (supabase_uid column is UUID type)
+      uid = crypto.randomUUID();
       await pgQueryAll(
         `UPDATE users SET supabase_uid = $1, updated_at = NOW() WHERE id = $2`,
         [uid, user.id]
