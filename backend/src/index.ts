@@ -3929,16 +3929,16 @@ app.get("/admin/error-logs", async (req, res) => {
   const source = req.query.source as string | undefined;
   const since = req.query.since as string | undefined;
 
-  let query = `SELECT * FROM error_logs`;
+  let query = `SELECT e.*, u.first_name AS user_name FROM error_logs e LEFT JOIN users u ON u.id = e.user_id`;
   const conditions: string[] = [];
   const values: any[] = [];
   let p = 1;
 
-  if (source) { conditions.push(`source = $${p++}`); values.push(source); }
-  if (since) { conditions.push(`created_at > $${p++}`); values.push(since); }
+  if (source) { conditions.push(`e.source = $${p++}`); values.push(source); }
+  if (since) { conditions.push(`e.created_at > $${p++}`); values.push(since); }
 
   if (conditions.length > 0) query += ` WHERE ${conditions.join(" AND ")}`;
-  query += ` ORDER BY created_at DESC LIMIT $${p}`;
+  query += ` ORDER BY e.created_at DESC LIMIT $${p}`;
   values.push(limit);
 
   const logs = await pgQueryAll<any>(query, values);

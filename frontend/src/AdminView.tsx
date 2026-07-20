@@ -4447,7 +4447,7 @@ function ErrorLogsTab() {
                       {log.source}
                     </span>
                   </td>
-                  <td style={{ padding: 6 }}>{log.user_id || "-"}</td>
+                  <td style={{ padding: 6 }}>{log.user_id ? `${log.user_name || ""} (#${log.user_id})` : "-"}</td>
                   <td style={{ padding: 6, fontFamily: "monospace", fontSize: 11 }}>{log.method ? `${log.method} ` : ""}{log.route || "-"}</td>
                   <td style={{ padding: 6 }}>{log.status_code || "-"}</td>
                   <td style={{ padding: 6, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={log.message}>{log.message}</td>
