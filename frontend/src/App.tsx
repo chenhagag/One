@@ -214,7 +214,7 @@ class ErrorBoundary extends React.Component<
           <p style={{ fontSize: 14, color: "#888", margin: "0 0 24px", maxWidth: 300 }}>
             נתקלנו בתקלה לא צפויה. הצוות שלנו קיבל דיווח אוטומטי.
           </p>
-          <div style={{ display: "flex", gap: 12 }}>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
             <button
               onClick={() => window.location.reload()}
               style={{
@@ -238,6 +238,12 @@ class ErrorBoundary extends React.Component<
               חזרה למסך הראשי
             </button>
           </div>
+          <a
+            href="mailto:one-support@googlegroups.com?subject=תקלה באפליקציה"
+            style={{ display: "block", marginTop: 20, fontSize: 13, color: "#6366f1", textDecoration: "underline" }}
+          >
+            הבעיה חוזרת? כתבו לנו ונטפל
+          </a>
         </div>
       );
     }
@@ -253,6 +259,7 @@ export default function App() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [autoLoginDone, setAutoLoginDone] = useState(false);
   const [adminViewingUser, setAdminViewingUser] = useState(false);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
 
   // ── Initialize error reporting ────────────────
   useEffect(() => { initErrorReporting(); }, []);
@@ -417,6 +424,7 @@ export default function App() {
       clearSupabaseTokens();
       setUser(null);
       setAnalysis(null);
+      setAuthNotice("החיבור שלך פג תוקף. יש להתחבר מחדש.");
       setView("auth");
     };
     window.addEventListener("session-expired", handler);
@@ -500,7 +508,7 @@ export default function App() {
 
       {/* Auth screen — OAuth buttons (new default landing) */}
       {(view === "landing" || view === "auth") && (
-        <AuthScreen onOtpSuccess={handleAuthSuccess} />
+        <AuthScreen onOtpSuccess={(u, p) => { setAuthNotice(null); handleAuthSuccess(u, p); }} notice={authNotice} />
       )}
 
       {/* OAuth callback — handles redirect from Google/Apple */}

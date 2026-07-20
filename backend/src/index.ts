@@ -3935,10 +3935,15 @@ app.get("/admin/error-logs", async (req, res) => {
   return res.json(logs);
 });
 
-// DELETE /admin/error-logs — Clear old logs
+// DELETE /admin/error-logs — Clear logs (all or older than N days)
 app.delete("/admin/error-logs", async (req, res) => {
-  const beforeDays = parseInt(req.query.before_days as string) || 30;
-  await pgQueryAll(`DELETE FROM error_logs WHERE created_at < NOW() - INTERVAL '${beforeDays} days'`);
+  const all = req.query.all === "true";
+  if (all) {
+    await pgQueryAll("DELETE FROM error_logs");
+  } else {
+    const beforeDays = parseInt(req.query.before_days as string) || 30;
+    await pgQueryAll("DELETE FROM error_logs WHERE created_at < NOW() - $1::interval", [`${beforeDays} days`]);
+  }
   return res.json({ ok: true });
 });
 

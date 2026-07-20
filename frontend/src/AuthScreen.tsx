@@ -8,9 +8,10 @@ import type { User } from "./App";
 
 interface AuthScreenProps {
   onOtpSuccess?: (user: User, profileComplete: boolean) => void;
+  notice?: string | null;
 }
 
-export default function AuthScreen({ onOtpSuccess }: AuthScreenProps) {
+export default function AuthScreen({ onOtpSuccess, notice }: AuthScreenProps) {
   const [loading, setLoading] = useState<"google" | "apple" | null>(null);
   const [error, setError] = useState("");
   // Detect native: Capacitor runs on https://localhost (not http)
@@ -464,6 +465,16 @@ export default function AuthScreen({ onOtpSuccess }: AuthScreenProps) {
         </div>
         <p className="text-base text-gray-400">Meet, as you are.</p>
       </div>
+
+      {notice && (
+        <div dir="rtl" style={{
+          background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 12,
+          padding: "10px 16px", marginBottom: 16, maxWidth: 320, textAlign: "center",
+          fontSize: 14, color: "#92400e", lineHeight: 1.6,
+        }}>
+          {notice}
+        </div>
+      )}
 
       {isInAppBrowser ? (
         <>

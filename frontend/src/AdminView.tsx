@@ -4404,8 +4404,8 @@ function ErrorLogsTab() {
   }
 
   async function handleClear() {
-    if (!confirm("למחוק לוגים ישנים מ-30 יום אחרונים?")) return;
-    await apiFetch("/admin/error-logs?before_days=30", { method: "DELETE" });
+    if (!confirm("למחוק את כל הלוגים?")) return;
+    await apiFetch("/admin/error-logs?all=true", { method: "DELETE" });
     loadLogs();
   }
 
