@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { supabase } from "./lib/supabase";
+import { saveSupabaseTokens } from "./lib/api";
 import { isNativeApp, getOAuthRedirectUrl, getApiBaseUrl } from "./lib/platform";
 import { Browser } from "@capacitor/browser";
 import PWAInstallFlow from "./PWAInstallFlow";
@@ -154,6 +155,15 @@ export default function AuthScreen({ onOtpSuccess }: AuthScreenProps) {
         setOtpCode(["", "", "", "", "", ""]);
         setTimeout(() => digitRefs.current[0]?.focus(), 100);
         return;
+      }
+      // Save Supabase tokens if returned (OTP now generates a real session)
+      if (data.access_token) {
+        saveSupabaseTokens(data.access_token, data.refresh_token);
+        // Also set the session on the Supabase client for auto-refresh
+        supabase?.auth.setSession({
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+        }).catch(() => {});
       }
       // Success — pass user to App
       if (onOtpSuccess) {

@@ -548,25 +548,106 @@ app.post("/auth/verify-otp", authLimiter, async (req, res) => {
             profile_complete, consent_accepted, photo_ai_consent, supabase_uid, auth_provider,
             last_device, pwa_installed, test_user_type, match_card_consent`;
 
-    // Find existing user by email
+    // ── Generate Supabase session for this email ──────────────────
+    // OTP users need a valid JWT for all API routes (requireAuth).
+    // Use Supabase Admin API to find/create auth user + generate session.
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    let accessToken: string | undefined;
+    let refreshToken: string | undefined;
+    let supabaseUid: string | undefined;
+
+    if (supabaseUrl && serviceRoleKey) {
+      try {
+        // Generate a magic link (auto-creates Supabase auth user if needed),
+        // then verify the token to get a session with access_token + refresh_token.
+        const linkRes = await fetch(`${supabaseUrl}/auth/v1/admin/generate_link`, {
+          method: "POST",
+          headers: {
+            apikey: serviceRoleKey,
+            Authorization: `Bearer ${serviceRoleKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            type: "magiclink",
+            email: normalizedEmail,
+          }),
+        });
+
+        if (linkRes.ok) {
+          const linkData = await linkRes.json();
+          const hashedToken = linkData.properties?.hashed_token;
+          supabaseUid = linkData.id; // The Supabase auth user ID
+
+          if (hashedToken) {
+            // Step 2: Verify the token to get a session
+            const verifyRes = await fetch(
+              `${supabaseUrl}/auth/v1/verify`,
+              {
+                method: "POST",
+                headers: {
+                  apikey: serviceRoleKey,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  type: "magiclink",
+                  token: hashedToken,
+                }),
+              }
+            );
+
+            if (verifyRes.ok) {
+              const session = await verifyRes.json();
+              accessToken = session.access_token;
+              refreshToken = session.refresh_token;
+              console.log("[otp] Supabase session created for", normalizedEmail);
+            } else {
+              console.error("[otp] Supabase verify failed:", verifyRes.status, await verifyRes.text().catch(() => ""));
+            }
+          }
+        } else {
+          console.error("[otp] Supabase generate_link failed:", linkRes.status, await linkRes.text().catch(() => ""));
+        }
+      } catch (sbErr: any) {
+        console.error("[otp] Supabase session generation failed:", sbErr.message);
+        // Non-fatal — continue without tokens (user will be prompted to re-login)
+      }
+    }
+
+    // ── Find or create app user ──────────────────────────────────
     let user = await pgQueryOne<any>(
       `SELECT ${OTP_SAFE_FIELDS} FROM users WHERE email = $1`,
       [normalizedEmail]
     );
 
     if (user) {
-      return res.json({ ...user, profile_complete: user.profile_complete ?? true });
+      // Link supabase_uid if we got one and user doesn't have it
+      if (supabaseUid && !user.supabase_uid) {
+        await pgQueryAll(
+          `UPDATE users SET supabase_uid = $1, updated_at = NOW() WHERE id = $2`,
+          [supabaseUid, user.id]
+        );
+        user.supabase_uid = supabaseUid;
+      }
+      return res.json({
+        ...user,
+        profile_complete: user.profile_complete ?? true,
+        ...(accessToken ? { access_token: accessToken, refresh_token: refreshToken } : {}),
+      });
     }
 
     // New user — create minimal row
     user = await pgQueryOne<any>(
-      `INSERT INTO users (first_name, email, auth_provider, profile_complete)
-       VALUES ($1, $2, 'otp', false)
+      `INSERT INTO users (first_name, email, auth_provider, profile_complete${supabaseUid ? ", supabase_uid" : ""})
+       VALUES ($1, $2, 'otp', false${supabaseUid ? ", $3" : ""})
        RETURNING ${OTP_SAFE_FIELDS}`,
-      ["", normalizedEmail]
+      supabaseUid ? ["", normalizedEmail, supabaseUid] : ["", normalizedEmail]
     );
 
-    return res.status(201).json(user);
+    return res.status(201).json({
+      ...user,
+      ...(accessToken ? { access_token: accessToken, refresh_token: refreshToken } : {}),
+    });
   } catch (err: any) {
     console.error("[otp/verify]", err.message);
     return res.status(500).json({ error: "Failed to verify" });

@@ -105,8 +105,9 @@ export async function apiFetch(
 
   let res = await fetch(`${getApiBaseUrl()}/api${path}`, { ...options, headers: baseHeaders });
 
-  // On 401 — try refreshing the token and retry once
-  if (res.status === 401 && !path.includes("/log-error")) {
+  // On 401 — try refreshing the token and retry once.
+  // Only attempt refresh if we had a token (avoid triggering during pre-auth flows).
+  if (res.status === 401 && token && !path.includes("/log-error")) {
     const newToken = await tryRefreshToken();
     if (newToken) {
       baseHeaders["Authorization"] = `Bearer ${newToken}`;
