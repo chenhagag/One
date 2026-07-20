@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Register from "./Register";
 import ProfileEdit from "./ProfileEdit";
 import Result from "./Result";
@@ -164,6 +164,86 @@ const styles: Record<string, React.CSSProperties> = {
     border: "none",
   },
 };
+
+// ── Error Boundary ──────────────────────────────────────────────
+// Catches any React render crash and shows a friendly message
+// instead of a blank white screen.
+
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error?: Error }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    // Report to our error logging endpoint
+    try {
+      const token = localStorage.getItem("one_access_token");
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      fetch(`${getApiBaseUrl()}/api/log-error`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          source: "frontend",
+          message: `React crash: ${error.message}`,
+          stack: error.stack,
+          extra: { componentStack: info.componentStack?.slice(0, 500) },
+        }),
+      }).catch(() => {});
+    } catch {}
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div dir="rtl" style={{
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          minHeight: "100vh", padding: 24, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+          background: "#fafafa", textAlign: "center",
+        }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>😔</div>
+          <h2 style={{ fontSize: 20, color: "#333", margin: "0 0 8px" }}>משהו השתבש</h2>
+          <p style={{ fontSize: 14, color: "#888", margin: "0 0 24px", maxWidth: 300 }}>
+            נתקלנו בתקלה לא צפויה. הצוות שלנו קיבל דיווח אוטומטי.
+          </p>
+          <div style={{ display: "flex", gap: 12 }}>
+            <button
+              onClick={() => window.location.reload()}
+              style={{
+                padding: "10px 24px", borderRadius: 24, border: "none",
+                background: "#6366f1", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              רענון העמוד
+            </button>
+            <button
+              onClick={() => {
+                this.setState({ hasError: false });
+                window.location.hash = "";
+                window.location.replace("/");
+              }}
+              style={{
+                padding: "10px 24px", borderRadius: 24, border: "1px solid #ddd",
+                background: "#fff", color: "#333", fontSize: 14, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              חזרה למסך הראשי
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // ── App ─────────────────────────────────────────────────────────
 
@@ -403,6 +483,7 @@ export default function App() {
   const showHeader = view !== "landing" && view !== "admin" && view !== "welcome" && view !== "new_chat" && view !== "insights" && view !== "auth" && view !== "auth_callback" && view !== "profile_setup";
 
   return (
+    <ErrorBoundary>
     <div style={view === "admin" ? { ...styles.app, maxWidth: "100%" } : view === "new_chat" ? { ...styles.app, maxWidth: "100%", padding: 0 } : styles.app}>
       {showHeader && (
         <div style={styles.header}>
@@ -536,5 +617,6 @@ export default function App() {
 
       {/* Insights is now rendered inside NewChat via onNavigate */}
     </div>
+    </ErrorBoundary>
   );
 }

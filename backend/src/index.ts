@@ -3910,7 +3910,7 @@ ${fullTranscript}`;
 // BUG REPORTS
 // ════════════════════════════════════════════════════════════════
 
-app.post("/report-bug", requireAuth, async (req, res) => {
+app.post("/report-bug", optionalAuth, async (req, res) => {
   const { user_id, report_text } = req.body;
   if (!report_text?.trim()) {
     return res.status(400).json({ error: "report_text is required" });
