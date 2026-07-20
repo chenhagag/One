@@ -1,6 +1,142 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-07-19 (API Security + Error Logging + Gender Fixes)
+## Latest Session: 2026-07-20 (OTP Auth Fix + Error Handling + Insights Prompt)
+
+### What We Did
+Fixed critical auth issues affecting OTP users, improved error handling, and updated insights generation prompt.
+
+**Branch:** `staging` → deployed to both staging and production
+
+### 1. OTP Login — Complete Auth Flow Fix
+**Problem:** Security hardening (2026-07-19) added `requireAuth` to all API routes, but OTP login never created a JWT. All OTP users (דנית, הדר, טל, יוליה) got 401 on every API call — broken app experience.
+
+**Root cause chain:**
+- `verify-otp` returned user data without any JWT token
+- No Supabase session created for OTP users
+- All subsequent API calls rejected by `requireAuth` middleware
+
+**Solution — self-signed JWT approach:**
+- Backend signs JWT using `SUPABASE_JWT_SECRET` (HS256, 7-day expiry) after OTP verification
+- JWT `sub` = user's existing `supabase_uid` (or generated `otp-{id}` for new users)
+- `auth.ts`: added `!header.kid` check to skip JWKS and use JWT secret directly for HS256 tokens (JWKS `getSigningKey(undefined)` threw instead of calling error callback)
+- Frontend saves token to localStorage via `saveSupabaseTokens()`
+
+**Additional OTP fixes:**
+- `getAccessToken()`: reversed strategy — localStorage first, Supabase client fallback (prevents Supabase from interfering with OTP sessions)
+- `onAuthStateChange` SIGNED_OUT handler: disabled entirely (Supabase client fires SIGNED_OUT for OTP users who have no Supabase session, causing logout loops)
+- Logout now handled only by explicit `handleLogout()` and `session-expired` events
+
+### 2. Token Refresh Mechanism
+**Problem:** When Supabase JWT expired (after 1 hour), users saw a broken/blank app with no way to recover.
+
+**Solution:**
+- `apiFetch`: on 401 with existing token → attempt `supabase.auth.refreshSession()` → retry request
+- If refresh fails → dispatch `session-expired` event → redirect to login screen
+- Guard: only triggers when token existed (prevents firing during pre-auth flows)
+
+### 3. ErrorBoundary — No More White Screens
+**Problem:** React render crashes showed blank white pages.
+
+**Solution:**
+- `ErrorBoundary` class component wraps entire App
+- Shows friendly Hebrew error screen: 😔 "משהו השתבש" with reload/home buttons
+- Auto-reports crash to `/api/log-error` with component stack
+- `report-bug` endpoint changed from `requireAuth` to `optionalAuth` (bug reports work even when auth is broken)
+
+### 4. Insights Prompt — Second Person (גוף שני)
+**Problem:** Generated insights for ענבל were written in third person ("ענבל היא אישה...").
+
+**Solution:**
+- Rewrote system prompt with explicit correct/incorrect examples
+- Removed `genderWord` ("המשתמשת") from prompt body — replaced with direct second-person references
+- Added closing reminder: "כל הטקסט בגוף שני"
+- Fixed `partnerType` bug: was based on user's gender instead of `looking_for_gender`
+- Fixed ענבל's existing insights directly in production DB
+
+### 5. Insights Null Safety
+**Problem:** Users without traits data (דנית, טל) got JS crash: `Cannot read properties of undefined (reading 'type')`.
+
+**Solution:** Added `?.` to `profile.mbti?.type` in 3 places in `Insights.tsx` (lines 159, 187, 519).
+
+### 6. Admin Email Template + Support Email Fix
+- New template: "עדכון לאחר תקלה" — post-bug-fix notification email with support contact
+- Fixed incorrect support email across all public pages:
+  - `terms.html`: contact@joinone.io → one-support@googlegroups.com
+  - `privacy.html`: contact@joinone.io → one-support@googlegroups.com
+  - `csae-policy.html`: support@joinone.io → one-support@googlegroups.com
+  - `delete-account.html`: support@joinone.io → one-support@googlegroups.com
+
+### Files Changed:
+| File | Changes |
+|------|---------|
+| `backend/src/index.ts` | OTP verify: self-signed JWT, supabase_uid sync, insights prompt rewrite, report-bug optionalAuth, jwt import |
+| `backend/src/auth.ts` | JWKS kid guard for HS256 fallback |
+| `frontend/src/App.tsx` | ErrorBoundary, session-expired listener, disabled SIGNED_OUT handler |
+| `frontend/src/lib/api.ts` | Token refresh on 401, localStorage-first getAccessToken |
+| `frontend/src/AuthScreen.tsx` | Save OTP tokens to localStorage |
+| `frontend/src/Insights.tsx` | mbti?.type null checks |
+| `frontend/src/AdminView.tsx` | Post-bug-fix email template |
+| `frontend/public/terms.html` | Support email fix |
+| `frontend/public/privacy.html` | Support email fix |
+| `frontend/public/csae-policy.html` | Support email fix |
+| `frontend/public/delete-account.html` | Support email fix |
+
+### Affected Users (Production):
+- **ענבל (246)** — insights rewritten to second person directly in DB
+- **הדר (244), דנית (207), טל (168), יוליה (245)** — will auto-fix on next OTP login (get JWT + supabase_uid)
+
+---
+
+## Previous Session: 2026-07-19 (Security Hardening Audit)
+
+### What We Did
+Full security audit + 2 rounds of fixes pushed to `staging` branch.
+
+**Branch:** `security-hardening` merged into `staging` (2 commits: 89b7cbf, 1ea4f45)
+
+### Fixes Applied (12 items):
+1. **CORS restricted** — allowlist: joinone.io, staging env var, localhost, Capacitor origins
+2. **Helmet.js added** — CSP, HSTS, X-Frame-Options, X-Content-Type-Options
+3. **`/login` hardened** — returns only id/email/first_name/gender, normalized error (anti-enumeration)
+4. **`/analyze` + `/analyze-profile` IDOR fixed** — JWT owner verification added
+5. **`/system-question/answer` ownership** — verifies question belongs to auth user
+6. **`GET /users/:id` safe fields** — explicit 28 fields instead of SELECT *
+7. **Photo file deletion** — files deleted from disk on account deletion (user + admin)
+8. **Auth rate limiting** — authLimiter (10/10min/IP), otpSendLimiter (5/hour/email)
+9. **OTP verify lockout** — per-email failed_attempts counter, blocks after 5 failures
+10. **Open redirect fixed** — redirectTo validated: strict origin + /auth/callback path only
+11. **PII removed from logs** — emails, transcripts, user details stripped from console.log
+12. **File upload hardening** — extension whitelist (jpg/png/webp/heic), double MIME+ext check
+13. **`/uploads` protection** — origin/referer middleware blocks direct cross-origin access
+14. **express.json limit** — 1mb payload cap
+
+### Schema Change:
+- `otp_codes` table: added `failed_attempts INTEGER DEFAULT 0` column (with ALTER TABLE migration)
+
+### New File:
+- `backend/src/audit-orphan-photos.ts` — reports files on disk with no DB record (run with `npx ts-node src/audit-orphan-photos.ts`)
+
+### Pending — User Must Test on Staging:
+1. ✅ Login works (OTP sends and verifies)
+2. ✅ Chat works (conversation loads and responds)
+3. ✅ Photos load (profile photos visible in app + admin)
+4. ✅ No CSP errors in DevTools Console (no "Refused to load" messages)
+5. ✅ OAuth/Google login works
+6. ✅ Capacitor app still works (if testing on mobile)
+7. ✅ Admin panel loads and functions normally
+
+### Pending — Not Yet Done (GPT review items):
+- Integration tests with 2 users (IDOR attempts, invalid tokens, etc.)
+- `STAGING_URL` env var needs to be added in Railway (the staging service URL)
+- Full endpoint audit table (post-fixes)
+- Production deploy (only after staging verified)
+
+### Security Audit Report:
+Full report saved to `reports/security-audit-2026-07-19.md`
+
+---
+
+## Previous Session: 2026-07-19 (API Security + Error Logging + Gender Fixes)
 
 ### What We Did
 
