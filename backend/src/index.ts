@@ -621,8 +621,10 @@ app.post("/auth/verify-otp", authLimiter, async (req, res) => {
     );
 
     if (user) {
-      // Link supabase_uid if we got one and user doesn't have it
-      if (supabaseUid && !user.supabase_uid) {
+      // Always sync supabase_uid to match the current session's UUID.
+      // This handles users who previously logged in via Google (different UUID)
+      // and now login via OTP — the JWT sub must match what's in the DB.
+      if (supabaseUid && user.supabase_uid !== supabaseUid) {
         await pgQueryAll(
           `UPDATE users SET supabase_uid = $1, updated_at = NOW() WHERE id = $2`,
           [supabaseUid, user.id]

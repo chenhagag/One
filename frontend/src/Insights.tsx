@@ -184,7 +184,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
   }
 
   // ── Detail: MBTI ──
-  if (detailView === "mbti" && profile?.mbti.type) {
+  if (detailView === "mbti" && profile?.mbti?.type) {
     const type = profile.mbti.type;
     const compat = MBTI_COMPATIBILITY[type];
     const relDetail = MBTI_RELATIONSHIP_DETAIL[type];
