@@ -139,8 +139,8 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
 
   useEffect(() => {
     apiFetch(`/users/${user.id}/detailed-traits`)
-      .then(r => r.json())
-      .then((data: DetailedProfile) => setProfile(data))
+      .then(r => { if (!r.ok) throw new Error("API error"); return r.json(); })
+      .then((data: DetailedProfile) => { if (data && data.allValues) setProfile(data); })
       .catch(() => {})
       .finally(() => setLoading(false));
     apiFetch(`/users/${user.id}`)
@@ -156,11 +156,11 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
   const isFemale = gender === "woman";
   const g = (male: string, female: string) => isFemale ? female : male;
 
-  const hasData = profile && (profile.mbti?.type || profile.allValues.length > 0 || profile.allBigFive.length > 0 || profile.enneagram?.primaryType || profile.attachment?.dominant);
-  const strongValues = profile?.allValues.filter(v => v.score > 60) || [];
-  const weakValues = profile?.allValues.filter(v => v.score < 40) || [];
-  const highBigFive = profile?.allBigFive.filter(v => v.score >= 65) || [];
-  const lowBigFive = profile?.allBigFive.filter(v => v.score < 40) || [];
+  const hasData = profile && (profile.mbti?.type || profile.allValues?.length > 0 || profile.allBigFive?.length > 0 || profile.enneagram?.primaryType || profile.attachment?.dominant);
+  const strongValues = profile?.allValues?.filter(v => v.score > 60) || [];
+  const weakValues = profile?.allValues?.filter(v => v.score < 40) || [];
+  const highBigFive = profile?.allBigFive?.filter(v => v.score >= 65) || [];
+  const lowBigFive = profile?.allBigFive?.filter(v => v.score < 40) || [];
 
   function renderDisagreeSection(topic: string) {
     return (
