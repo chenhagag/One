@@ -131,10 +131,10 @@ const aiLimiter = rateLimit({
 // Auth rate limiter — prevents OTP brute force and email enumeration
 const authLimiter = rateLimit({
   windowMs: 10 * 60 * 1000, // 10 minutes
-  max: 10, // 10 attempts per IP per 10 minutes
+  max: 30, // 30 attempts per IP per 10 minutes
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: "יותר מדי ניסיונות. נסו שוב בעוד כמה דקות." },
+  message: { error: "too_many_attempts" },
 });
 
 // Per-email OTP send limiter (keyed by email in body)

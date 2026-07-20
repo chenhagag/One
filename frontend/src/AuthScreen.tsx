@@ -96,7 +96,11 @@ export default function AuthScreen({ onOtpSuccess, notice }: AuthScreenProps) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "שליחת הקוד נכשלה");
+        if (res.status === 429 || data.error === "too_many_attempts") {
+          setError("יותר מדי ניסיונות. נסו שוב בעוד כמה דקות.");
+        } else {
+          setError(data.error || "שליחת הקוד נכשלה");
+        }
         return;
       }
       setOtpSent(true);
@@ -148,7 +152,9 @@ export default function AuthScreen({ onOtpSuccess, notice }: AuthScreenProps) {
       });
       const data = await res.json();
       if (!res.ok) {
-        if (data.error === "invalid_code") {
+        if (res.status === 429 || data.error === "too_many_attempts") {
+          setError("יותר מדי ניסיונות. נסו שוב בעוד כמה דקות.");
+        } else if (data.error === "invalid_code") {
           setError("הקוד שגוי או שפג תוקפו. נסו שוב.");
         } else {
           setError(data.error || "אימות נכשל");
