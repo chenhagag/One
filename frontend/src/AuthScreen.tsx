@@ -267,8 +267,14 @@ export default function AuthScreen({ onOtpSuccess, notice }: AuthScreenProps) {
               </div>
             ))}
           </div>
-          <p style={{ fontSize: 14, color: "#2a2a3e", textAlign: "center", margin: "0 0 24px", lineHeight: 1.6 }}>
+          <p style={{ fontSize: 14, color: "#2a2a3e", textAlign: "center", margin: "0 0 12px", lineHeight: 1.6 }}>
             בהצלחה,<br />צוות One
+          </p>
+          <p style={{ fontSize: 12, color: "#888", textAlign: "center", margin: "0 0 24px", lineHeight: 1.7 }}>
+            נתקלתם בבעיה? דווחו לנו{" "}
+            <a href="mailto:one-support@googlegroups.com" style={{ color: "#8b7ba8", fontWeight: 600 }}>במייל</a>
+            {" "}או{" "}
+            <a href="https://wa.me/972549037400" target="_blank" rel="noopener noreferrer" style={{ color: "#8b7ba8", fontWeight: 600 }}>בווטסאפ</a>
           </p>
           <button
             onClick={() => {
@@ -387,6 +393,23 @@ export default function AuthScreen({ onOtpSuccess, notice }: AuthScreenProps) {
             {otpLoading ? "שולח..." : "שליחה מחדש"}
           </button>
         </div>
+
+        {/* Temporary notice: OTP issues + alternative contact */}
+        <div dir="rtl" style={{
+          marginTop: 24, padding: "12px 16px", background: "#fef9e7", border: "1px solid #f0e3a0",
+          borderRadius: 12, maxWidth: 320, textAlign: "center", fontSize: 13, color: "#6b5e00", lineHeight: 1.7,
+        }}>
+          יש לנו תקלה זמנית ויתכנו בעיות בחיבור דרך המייל.
+          <br />
+          מוזמנים{" "}
+          <span style={{ cursor: "pointer", textDecoration: "underline", fontWeight: 600 }}
+            onClick={() => handleOAuth("google")}>להתחבר דרך גוגל</span>
+          ,{" "}
+          או לדווח לנו:{" "}
+          <a href="mailto:one-support@googlegroups.com" style={{ color: "#6b5e00", fontWeight: 600 }}>במייל</a>
+          {" / "}
+          <a href="https://wa.me/972549037400" target="_blank" rel="noopener noreferrer" style={{ color: "#6b5e00", fontWeight: 600 }}>בווטסאפ</a>
+        </div>
       </div>
     );
   }
@@ -444,6 +467,23 @@ export default function AuthScreen({ onOtpSuccess, notice }: AuthScreenProps) {
           חזרה
         </button>
 
+        {/* Temporary notice */}
+        <div dir="rtl" style={{
+          marginTop: 20, padding: "12px 16px", background: "#fef9e7", border: "1px solid #f0e3a0",
+          borderRadius: 12, maxWidth: 320, textAlign: "center", fontSize: 13, color: "#6b5e00", lineHeight: 1.7,
+        }}>
+          יש לנו תקלה זמנית ויתכנו בעיות בחיבור דרך המייל.
+          <br />
+          מוזמנים{" "}
+          <span style={{ cursor: "pointer", textDecoration: "underline", fontWeight: 600 }}
+            onClick={() => { setShowEmailForm(false); handleOAuth("google"); }}>להתחבר דרך גוגל</span>
+          ,{" "}
+          או לדווח לנו:{" "}
+          <a href="mailto:one-support@googlegroups.com" style={{ color: "#6b5e00", fontWeight: 600 }}>במייל</a>
+          {" / "}
+          <a href="https://wa.me/972549037400" target="_blank" rel="noopener noreferrer" style={{ color: "#6b5e00", fontWeight: 600 }}>בווטסאפ</a>
+        </div>
+
         <p className="mt-auto pt-12 text-center text-xs text-gray-300">
           By continuing, you agree to our Terms of Service
           <br />
@@ -484,60 +524,30 @@ export default function AuthScreen({ onOtpSuccess, notice }: AuthScreenProps) {
         </div>
       )}
 
-      {isInAppBrowser ? (
-        <>
-          {/* In-app browser: OTP email is primary */}
-          <div className="flex w-full max-w-xs flex-col gap-3">
-            <button
-              onClick={() => setShowEmailForm(true)}
-              className="flex h-[52px] w-full items-center justify-center rounded-xl bg-gray-900 text-[15px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
-            >
-              כניסה עם אימייל
-            </button>
-          </div>
+      {/* Google is always primary (temporarily, while OTP issue is investigated) */}
+      <div className="flex w-full max-w-xs flex-col gap-3">
+        <button
+          onClick={() => handleOAuth("google")}
+          disabled={!!loading}
+          className="flex h-[52px] w-full items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white text-[15px] font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50"
+        >
+          <GoogleLogo />
+          Continue with Google
+        </button>
+      </div>
 
-          <div className="my-6 flex w-full max-w-xs items-center gap-3">
-            <div className="h-px flex-1 bg-gray-200" />
-            <span className="text-xs text-gray-400">or</span>
-            <div className="h-px flex-1 bg-gray-200" />
-          </div>
+      <div className="my-6 flex w-full max-w-xs items-center gap-3">
+        <div className="h-px flex-1 bg-gray-200" />
+        <span className="text-xs text-gray-400">or</span>
+        <div className="h-px flex-1 bg-gray-200" />
+      </div>
 
-          <button
-            onClick={() => handleOAuth("google")}
-            disabled={!!loading}
-            className="text-sm text-gray-400 transition-colors hover:text-gray-600"
-          >
-            Continue with Google
-          </button>
-        </>
-      ) : (
-        <>
-          {/* Regular browser: Google is primary */}
-          <div className="flex w-full max-w-xs flex-col gap-3">
-            <button
-              onClick={() => handleOAuth("google")}
-              disabled={!!loading}
-              className="flex h-[52px] w-full items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white text-[15px] font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50"
-            >
-              <GoogleLogo />
-              Continue with Google
-            </button>
-          </div>
-
-          <div className="my-6 flex w-full max-w-xs items-center gap-3">
-            <div className="h-px flex-1 bg-gray-200" />
-            <span className="text-xs text-gray-400">or</span>
-            <div className="h-px flex-1 bg-gray-200" />
-          </div>
-
-          <button
-            onClick={() => setShowEmailForm(true)}
-            className="text-sm text-gray-400 transition-colors hover:text-gray-600"
-          >
-            Login / Register with email
-          </button>
-        </>
-      )}
+      <button
+        onClick={() => setShowEmailForm(true)}
+        className="text-sm text-gray-400 transition-colors hover:text-gray-600"
+      >
+        Login / Register with email
+      </button>
 
       {error && (
         <div className="mt-6 w-full max-w-xs rounded-lg bg-red-50 px-4 py-3 text-center text-sm text-red-600" dir="rtl">
