@@ -609,6 +609,7 @@ app.post("/auth/verify-otp", authLimiter, async (req, res) => {
     });
   } catch (err: any) {
     console.error("[otp/verify]", err.message);
+    logError({ source: "otp-diag", route: "/auth/verify-otp", status_code: 500, message: `step=catch_error error=${err.message}` });
     return res.status(500).json({ error: "Failed to verify" });
   }
 });
