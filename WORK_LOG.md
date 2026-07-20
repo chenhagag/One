@@ -3,9 +3,12 @@
 ## Latest Session: 2026-07-20 (OTP Auth Fix + Error Handling + Insights Prompt)
 
 ### What We Did
-Fixed critical auth issues affecting OTP users, improved error handling, and updated insights generation prompt.
+Fixed critical auth issues affecting OTP users after security hardening broke OTP login (no JWT was generated). Multiple iterations required due to incorrect initial approach. Also improved error handling and updated insights prompt.
+
+**Full technical report for security review:** [`reports/otp-auth-fix-2026-07-20.md`](../reports/otp-auth-fix-2026-07-20.md)
 
 **Branch:** `staging` → deployed to both staging and production
+**17 commits** — see report for full list and rationale
 
 ### 1. OTP Login — Complete Auth Flow Fix
 **Problem:** Security hardening (2026-07-19) added `requireAuth` to all API routes, but OTP login never created a JWT. All OTP users (דנית, הדר, טל, יוליה) got 401 on every API call — broken app experience.
