@@ -401,9 +401,14 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
       }
     }
 
+    // Safe fields to return from /auth/sync (no admin_notes, devices_seen, etc.)
+    const SYNC_SAFE_FIELDS = `id, email, first_name, age, gender, city, looking_for_gender,
+            profile_complete, consent_accepted, photo_ai_consent, supabase_uid, auth_provider,
+            last_device, pwa_installed, dark_mode, test_user_type, match_card_consent`;
+
     // 1. Check if already linked by supabase_uid
     let user = await pgQueryOne<any>(
-      "SELECT * FROM users WHERE supabase_uid = $1",
+      `SELECT ${SYNC_SAFE_FIELDS} FROM users WHERE supabase_uid = $1`,
       [supabaseUid]
     );
     if (user) {
@@ -413,7 +418,7 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
 
     // 2. Check if existing user by email (legacy → link OAuth identity)
     user = await pgQueryOne<any>(
-      "SELECT * FROM users WHERE email = $1",
+      `SELECT ${SYNC_SAFE_FIELDS} FROM users WHERE email = $1`,
       [email.trim().toLowerCase()]
     );
     if (user) {
@@ -430,7 +435,7 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
     const newUser = await pgQueryOne<any>(
       `INSERT INTO users (first_name, email, supabase_uid, auth_provider, profile_complete, last_device, pwa_installed)
        VALUES ($1, $2, $3, $4, false, $5, $6)
-       RETURNING *`,
+       RETURNING ${SYNC_SAFE_FIELDS}`,
       ["", email.trim().toLowerCase(), supabaseUid, provider, device || null, !!pwa_installed]
     );
 
@@ -539,9 +544,13 @@ app.post("/auth/verify-otp", authLimiter, async (req, res) => {
   await pgQueryAll("UPDATE otp_codes SET used = TRUE WHERE id = $1", [otpRow.id]);
 
   try {
+    const OTP_SAFE_FIELDS = `id, email, first_name, age, gender, city, looking_for_gender,
+            profile_complete, consent_accepted, photo_ai_consent, supabase_uid, auth_provider,
+            last_device, pwa_installed, test_user_type, match_card_consent`;
+
     // Find existing user by email
     let user = await pgQueryOne<any>(
-      "SELECT * FROM users WHERE email = $1",
+      `SELECT ${OTP_SAFE_FIELDS} FROM users WHERE email = $1`,
       [normalizedEmail]
     );
 
@@ -553,7 +562,7 @@ app.post("/auth/verify-otp", authLimiter, async (req, res) => {
     user = await pgQueryOne<any>(
       `INSERT INTO users (first_name, email, auth_provider, profile_complete)
        VALUES ($1, $2, 'otp', false)
-       RETURNING *`,
+       RETURNING ${OTP_SAFE_FIELDS}`,
       ["", normalizedEmail]
     );
 
