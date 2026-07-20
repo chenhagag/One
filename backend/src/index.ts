@@ -566,28 +566,27 @@ app.post("/auth/verify-otp", authLimiter, async (req, res) => {
       );
     }
 
+    // [DIAG] Log OTP flow for debugging legacy user issues
+    logError({ source: "otp-diag", user_id: user.id, route: "/auth/verify-otp", message: `step=user_found isNew=${isNew} uid_before=${user.supabase_uid || 'NULL'} provider=${user.auth_provider}` });
+
     // ── Generate JWT for this user ──────────────────────────────
-    // OTP users need a valid JWT for all API routes (requireAuth).
-    // We sign a JWT using SUPABASE_JWT_SECRET with the user's existing
-    // supabase_uid (or a generated one). The backend verifies it via
-    // the same secret (HS256 fallback in auth.ts).
     let accessToken: string | undefined;
     const jwtSecret = process.env.SUPABASE_JWT_SECRET;
 
     // Ensure user has a supabase_uid (needed as JWT sub for requireUserAuth)
     let uid = user.supabase_uid;
     if (!uid) {
-      // Generate a stable UID for OTP users: "otp-{user.id}"
       uid = `otp-${user.id}`;
       await pgQueryAll(
         `UPDATE users SET supabase_uid = $1, updated_at = NOW() WHERE id = $2`,
         [uid, user.id]
       );
       user.supabase_uid = uid;
+      logError({ source: "otp-diag", user_id: user.id, route: "/auth/verify-otp", message: `step=uid_assigned uid=${uid}` });
     }
 
     if (!jwtSecret) {
-      console.error("[otp] SUPABASE_JWT_SECRET not set — cannot sign JWT");
+      logError({ source: "otp-diag", user_id: user.id, route: "/auth/verify-otp", status_code: 503, message: "step=jwt_failed reason=SUPABASE_JWT_SECRET_missing" });
       return res.status(503).json({ error: "Authentication service unavailable" });
     }
 
@@ -597,8 +596,9 @@ app.post("/auth/verify-otp", authLimiter, async (req, res) => {
         jwtSecret,
         { expiresIn: "7d", algorithm: "HS256" }
       );
+      logError({ source: "otp-diag", user_id: user.id, route: "/auth/verify-otp", message: `step=jwt_signed sub=${uid} has_token=true` });
     } catch (jwtErr: any) {
-      console.error("[otp] JWT signing failed:", jwtErr.message);
+      logError({ source: "otp-diag", user_id: user.id, route: "/auth/verify-otp", status_code: 500, message: `step=jwt_failed reason=${jwtErr.message}` });
       return res.status(500).json({ error: "Login failed — please try again" });
     }
 
