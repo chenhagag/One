@@ -81,6 +81,16 @@ async function tryRefreshToken(): Promise<string | null> {
   }
 }
 
+// Prevent multiple session-expired events from firing simultaneously
+let sessionExpiredFired = false;
+function fireSessionExpired() {
+  if (sessionExpiredFired) return;
+  sessionExpiredFired = true;
+  window.dispatchEvent(new CustomEvent("session-expired"));
+  // Reset after 3s so it can fire again if user logs in and expires again
+  setTimeout(() => { sessionExpiredFired = false; }, 3000);
+}
+
 /**
  * Fetch wrapper that auto-attaches the Supabase JWT to every request.
  * On 401, attempts a token refresh and retries once. If refresh fails,
@@ -104,15 +114,21 @@ export async function apiFetch(
   let res = await fetch(`${getApiBaseUrl()}/api${path}`, { ...options, headers: baseHeaders });
 
   // On 401 — try refreshing the token and retry once.
-  // Only attempt refresh if we had a token (avoid triggering during pre-auth flows).
-  if (res.status === 401 && token && !path.includes("/log-error")) {
-    const newToken = await tryRefreshToken();
-    if (newToken) {
-      baseHeaders["Authorization"] = `Bearer ${newToken}`;
-      res = await fetch(`${getApiBaseUrl()}/api${path}`, { ...options, headers: baseHeaders });
+  // apiFetch is only used by logged-in components (login/OTP use raw fetch),
+  // so a 401 here always means the session is broken.
+  if (res.status === 401 && !path.includes("/log-error")) {
+    if (token) {
+      // Had a token but it was rejected — try refreshing
+      const newToken = await tryRefreshToken();
+      if (newToken) {
+        baseHeaders["Authorization"] = `Bearer ${newToken}`;
+        res = await fetch(`${getApiBaseUrl()}/api${path}`, { ...options, headers: baseHeaders });
+      } else {
+        fireSessionExpired();
+      }
     } else {
-      // Token refresh failed — session is dead, notify the app
-      window.dispatchEvent(new CustomEvent("session-expired"));
+      // No token at all (legacy login without JWT) — session is invalid
+      fireSessionExpired();
     }
   }
 
