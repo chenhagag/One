@@ -3954,6 +3954,49 @@ app.delete("/admin/error-logs", async (req, res) => {
   return res.json({ ok: true });
 });
 
+// GET /admin/auth-alerts — Detect suspicious 401 patterns (read-only, no side effects)
+app.get("/admin/auth-alerts", async (_req, res) => {
+  try {
+    // Alert 1: Users with 3+ 401 errors in last 5 minutes
+    const repeated401 = await pgQueryAll<any>(
+      `SELECT e.user_id, u.first_name, COUNT(*)::int AS count_401,
+              MIN(e.created_at) AS first_at, MAX(e.created_at) AS last_at
+       FROM error_logs e
+       LEFT JOIN users u ON u.id = e.user_id
+       WHERE e.status_code = 401 AND e.created_at > NOW() - INTERVAL '5 minutes'
+       AND e.user_id IS NOT NULL
+       GROUP BY e.user_id, u.first_name
+       HAVING COUNT(*) >= 3
+       ORDER BY COUNT(*) DESC`
+    );
+
+    // Alert 2: OTP success followed by 401 within 2 minutes (last 24 hours)
+    const otpThen401 = await pgQueryAll<any>(
+      `SELECT e.user_id, u.first_name, e.route, e.created_at
+       FROM error_logs e
+       LEFT JOIN users u ON u.id = e.user_id
+       WHERE e.status_code = 401
+         AND e.created_at > NOW() - INTERVAL '24 hours'
+         AND e.user_id IN (
+           SELECT el2.user_id FROM error_logs el2
+           WHERE el2.route LIKE '%verify-otp%' AND el2.status_code IS NULL
+             AND el2.created_at > NOW() - INTERVAL '24 hours'
+             AND e.created_at BETWEEN el2.created_at AND el2.created_at + INTERVAL '2 minutes'
+         )
+       ORDER BY e.created_at DESC
+       LIMIT 20`
+    );
+
+    return res.json({
+      repeated_401: repeated401,
+      otp_then_401: otpThen401,
+      checked_at: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /admin/card-requests — Users with match card restrictions
 app.get("/admin/card-requests", async (_req, res) => {
   const rows = await pgQueryAll<any>(`
