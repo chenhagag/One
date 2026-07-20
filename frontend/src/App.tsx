@@ -412,7 +412,11 @@ export default function App() {
   // When apiFetch detects a 401 that can't be refreshed, it fires this event
   useEffect(() => {
     const handler = () => {
-      console.warn("[session-expired] Token refresh failed — redirecting to login");
+      // DEBUG: show what triggered this instead of silently redirecting
+      const token = localStorage.getItem("one_access_token");
+      const msg = `[session-expired] token exists: ${!!token}, token length: ${token?.length || 0}`;
+      console.warn(msg);
+      alert("Session expired triggered!\n" + msg);
       clearSession();
       clearSupabaseTokens();
       setUser(null);
@@ -437,16 +441,12 @@ export default function App() {
   const handleAuthSuccess = useCallback((u: User, profileComplete: boolean) => {
     // Clean URL so refresh doesn't re-trigger auth callback
     window.history.replaceState({}, "", "/");
-    console.log("[auth] success, user:", JSON.stringify(u));
+    const token = localStorage.getItem("one_access_token");
+    const targetView = !profileComplete ? "profile_setup" : !u.consent_accepted ? "consent" : "new_chat";
+    console.log("[auth] success, user:", u.id, u.email, "profileComplete:", profileComplete, "consent:", u.consent_accepted, "→", targetView, "token:", !!token);
     saveSession(u);
     setUser(u);
-    if (!profileComplete) {
-      setView("profile_setup");
-    } else if (!u.consent_accepted) {
-      setView("consent");
-    } else {
-      setView("new_chat");
-    }
+    setView(targetView);
   }, []);
 
   const handleAuthError = useCallback((message: string) => {
