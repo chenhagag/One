@@ -163,10 +163,12 @@ export default function AuthScreen({ onOtpSuccess, notice }: AuthScreenProps) {
         setTimeout(() => digitRefs.current[0]?.focus(), 100);
         return;
       }
-      // Save JWT token from OTP login (self-signed by backend, valid for 7 days)
-      if (data.access_token) {
-        saveSupabaseTokens(data.access_token);
+      // OTP login must include access_token — without it, all API calls will fail
+      if (!data.access_token) {
+        setError("אירעה תקלה בהתחברות. נסו שוב.");
+        return;
       }
+      saveSupabaseTokens(data.access_token);
       // Success — pass user to App
       if (onOtpSuccess) {
         onOtpSuccess(data as User, data.profile_complete !== false);

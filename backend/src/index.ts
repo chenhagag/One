@@ -586,26 +586,26 @@ app.post("/auth/verify-otp", authLimiter, async (req, res) => {
       user.supabase_uid = uid;
     }
 
-    if (jwtSecret) {
-      try {
-        accessToken = jwt.sign(
-          { sub: uid, email: normalizedEmail, role: "authenticated", aud: "authenticated" },
-          jwtSecret,
-          { expiresIn: "7d", algorithm: "HS256" }
-        );
-        console.log("[otp] JWT signed for", normalizedEmail, "uid:", uid);
-      } catch (jwtErr: any) {
-        console.error("[otp] JWT signing failed:", jwtErr.message);
-        // Non-fatal: continue without token, user will need to re-login
-      }
-    } else {
+    if (!jwtSecret) {
       console.error("[otp] SUPABASE_JWT_SECRET not set — cannot sign JWT");
+      return res.status(503).json({ error: "Authentication service unavailable" });
+    }
+
+    try {
+      accessToken = jwt.sign(
+        { sub: uid, email: normalizedEmail, role: "authenticated", aud: "authenticated" },
+        jwtSecret,
+        { expiresIn: "7d", algorithm: "HS256" }
+      );
+    } catch (jwtErr: any) {
+      console.error("[otp] JWT signing failed:", jwtErr.message);
+      return res.status(500).json({ error: "Login failed — please try again" });
     }
 
     return res.status(isNew ? 201 : 200).json({
       ...user,
       profile_complete: user.profile_complete ?? true,
-      ...(accessToken ? { access_token: accessToken } : {}),
+      access_token: accessToken,
     });
   } catch (err: any) {
     console.error("[otp/verify]", err.message);
