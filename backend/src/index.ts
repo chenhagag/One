@@ -14,6 +14,7 @@ process.on("uncaughtException", (err: Error) => {
 });
 import dotenv from "dotenv";
 import path from "path";
+import jwt from "jsonwebtoken";
 import fs from "fs";
 import multer from "multer";
 import db from "./db";
@@ -548,107 +549,56 @@ app.post("/auth/verify-otp", authLimiter, async (req, res) => {
             profile_complete, consent_accepted, photo_ai_consent, supabase_uid, auth_provider,
             last_device, pwa_installed, test_user_type, match_card_consent`;
 
-    // ── Generate Supabase session for this email ──────────────────
-    // OTP users need a valid JWT for all API routes (requireAuth).
-    // Use Supabase Admin API to find/create auth user + generate session.
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    let accessToken: string | undefined;
-    let refreshToken: string | undefined;
-    let supabaseUid: string | undefined;
-
-    if (supabaseUrl && serviceRoleKey) {
-      try {
-        // Generate a magic link (auto-creates Supabase auth user if needed),
-        // then verify the token to get a session with access_token + refresh_token.
-        const linkRes = await fetch(`${supabaseUrl}/auth/v1/admin/generate_link`, {
-          method: "POST",
-          headers: {
-            apikey: serviceRoleKey,
-            Authorization: `Bearer ${serviceRoleKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            type: "magiclink",
-            email: normalizedEmail,
-          }),
-        });
-
-        if (linkRes.ok) {
-          const linkData = await linkRes.json();
-          const hashedToken = linkData.properties?.hashed_token;
-          supabaseUid = linkData.id; // The Supabase auth user ID
-
-          if (hashedToken) {
-            // Step 2: Verify the token to get a session
-            const verifyRes = await fetch(
-              `${supabaseUrl}/auth/v1/verify`,
-              {
-                method: "POST",
-                headers: {
-                  apikey: serviceRoleKey,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  type: "magiclink",
-                  token: hashedToken,
-                }),
-              }
-            );
-
-            if (verifyRes.ok) {
-              const session = await verifyRes.json();
-              accessToken = session.access_token;
-              refreshToken = session.refresh_token;
-              console.log("[otp] Supabase session created for", normalizedEmail);
-            } else {
-              console.error("[otp] Supabase verify failed:", verifyRes.status, await verifyRes.text().catch(() => ""));
-            }
-          }
-        } else {
-          console.error("[otp] Supabase generate_link failed:", linkRes.status, await linkRes.text().catch(() => ""));
-        }
-      } catch (sbErr: any) {
-        console.error("[otp] Supabase session generation failed:", sbErr.message);
-        // Non-fatal — continue without tokens (user will be prompted to re-login)
-      }
-    }
-
     // ── Find or create app user ──────────────────────────────────
     let user = await pgQueryOne<any>(
       `SELECT ${OTP_SAFE_FIELDS} FROM users WHERE email = $1`,
       [normalizedEmail]
     );
 
-    if (user) {
-      // Always sync supabase_uid to match the current session's UUID.
-      // This handles users who previously logged in via Google (different UUID)
-      // and now login via OTP — the JWT sub must match what's in the DB.
-      if (supabaseUid && user.supabase_uid !== supabaseUid) {
-        await pgQueryAll(
-          `UPDATE users SET supabase_uid = $1, updated_at = NOW() WHERE id = $2`,
-          [supabaseUid, user.id]
-        );
-        user.supabase_uid = supabaseUid;
-      }
-      return res.json({
-        ...user,
-        profile_complete: user.profile_complete ?? true,
-        ...(accessToken ? { access_token: accessToken, refresh_token: refreshToken } : {}),
-      });
+    let isNew = false;
+    if (!user) {
+      isNew = true;
+      user = await pgQueryOne<any>(
+        `INSERT INTO users (first_name, email, auth_provider, profile_complete)
+         VALUES ($1, $2, 'otp', false)
+         RETURNING ${OTP_SAFE_FIELDS}`,
+        ["", normalizedEmail]
+      );
     }
 
-    // New user — create minimal row
-    user = await pgQueryOne<any>(
-      `INSERT INTO users (first_name, email, auth_provider, profile_complete${supabaseUid ? ", supabase_uid" : ""})
-       VALUES ($1, $2, 'otp', false${supabaseUid ? ", $3" : ""})
-       RETURNING ${OTP_SAFE_FIELDS}`,
-      supabaseUid ? ["", normalizedEmail, supabaseUid] : ["", normalizedEmail]
-    );
+    // ── Generate JWT for this user ──────────────────────────────
+    // OTP users need a valid JWT for all API routes (requireAuth).
+    // We sign a JWT using SUPABASE_JWT_SECRET with the user's existing
+    // supabase_uid (or a generated one). The backend verifies it via
+    // the same secret (HS256 fallback in auth.ts).
+    let accessToken: string | undefined;
+    const jwtSecret = process.env.SUPABASE_JWT_SECRET;
 
-    return res.status(201).json({
+    // Ensure user has a supabase_uid (needed as JWT sub for requireUserAuth)
+    let uid = user.supabase_uid;
+    if (!uid) {
+      // Generate a stable UID for OTP users: "otp-{user.id}"
+      uid = `otp-${user.id}`;
+      await pgQueryAll(
+        `UPDATE users SET supabase_uid = $1, updated_at = NOW() WHERE id = $2`,
+        [uid, user.id]
+      );
+      user.supabase_uid = uid;
+    }
+
+    if (jwtSecret) {
+      accessToken = jwt.sign(
+        { sub: uid, email: normalizedEmail, role: "authenticated", aud: "authenticated" },
+        jwtSecret,
+        { expiresIn: "7d", algorithm: "HS256" }
+      );
+      console.log("[otp] JWT signed for", normalizedEmail, "uid:", uid);
+    }
+
+    return res.status(isNew ? 201 : 200).json({
       ...user,
-      ...(accessToken ? { access_token: accessToken, refresh_token: refreshToken } : {}),
+      profile_complete: user.profile_complete ?? true,
+      ...(accessToken ? { access_token: accessToken } : {}),
     });
   } catch (err: any) {
     console.error("[otp/verify]", err.message);

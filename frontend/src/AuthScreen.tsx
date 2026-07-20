@@ -156,14 +156,9 @@ export default function AuthScreen({ onOtpSuccess }: AuthScreenProps) {
         setTimeout(() => digitRefs.current[0]?.focus(), 100);
         return;
       }
-      // Save Supabase tokens if returned (OTP now generates a real session)
+      // Save JWT token from OTP login (self-signed by backend, valid for 7 days)
       if (data.access_token) {
-        saveSupabaseTokens(data.access_token, data.refresh_token);
-        // Also set the session on the Supabase client for auto-refresh
-        supabase?.auth.setSession({
-          access_token: data.access_token,
-          refresh_token: data.refresh_token,
-        }).catch(() => {});
+        saveSupabaseTokens(data.access_token);
       }
       // Success — pass user to App
       if (onOtpSuccess) {

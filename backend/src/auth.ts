@@ -58,7 +58,12 @@ function getSigningKey(header: jwt.JwtHeader): Promise<string> {
       return reject(new Error("No JWKS client or JWT secret configured"));
     }
     jwksClient.getSigningKey(header.kid, (err, key) => {
-      if (err) return reject(err);
+      if (err) {
+        // JWKS failed (e.g. self-signed HS256 token without kid) — fall back to JWT secret
+        const secret = process.env.SUPABASE_JWT_SECRET;
+        if (secret) return resolve(secret);
+        return reject(err);
+      }
       resolve(key!.getPublicKey());
     });
   });
