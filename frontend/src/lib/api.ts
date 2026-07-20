@@ -68,54 +68,25 @@ async function getAccessToken(): Promise<string | null> {
 }
 
 /**
- * Try to force-refresh the Supabase token.
- * Returns new access token or null if refresh failed.
- */
-async function tryRefreshToken(): Promise<string | null> {
-  if (!supabase) return null;
-  try {
-    const { data, error } = await supabase.auth.refreshSession();
-    if (error || !data.session?.access_token) return null;
-    saveSupabaseTokens(data.session.access_token, data.session.refresh_token);
-    return data.session.access_token;
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Fetch wrapper that auto-attaches the Supabase JWT to every request.
- * On 401, attempts a token refresh and retries once. If refresh fails,
- * dispatches a "session-expired" event so App.tsx can redirect to login.
+ * Falls back gracefully if no session exists (legacy email-only login).
  */
 export async function apiFetch(
   path: string,
   options?: RequestInit
 ): Promise<Response> {
   const isFormData = options?.body instanceof FormData;
-  const baseHeaders: Record<string, string> = {
+  const headers: Record<string, string> = {
     ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(options?.headers as Record<string, string>),
   };
 
   const token = await getAccessToken();
   if (token) {
-    baseHeaders["Authorization"] = `Bearer ${token}`;
+    headers["Authorization"] = `Bearer ${token}`;
   }
 
-  let res = await fetch(`${getApiBaseUrl()}/api${path}`, { ...options, headers: baseHeaders });
-
-  // On 401 — try refreshing the token and retry once
-  if (res.status === 401 && !path.includes("/log-error")) {
-    const newToken = await tryRefreshToken();
-    if (newToken) {
-      baseHeaders["Authorization"] = `Bearer ${newToken}`;
-      res = await fetch(`${getApiBaseUrl()}/api${path}`, { ...options, headers: baseHeaders });
-    } else {
-      // Token refresh failed — session is dead, notify the app
-      window.dispatchEvent(new CustomEvent("session-expired"));
-    }
-  }
+  const res = await fetch(`${getApiBaseUrl()}/api${path}`, { ...options, headers });
 
   // Auto-report errors (non-2xx) — skip /log-error to avoid infinite loop
   if (!res.ok && !path.includes("/log-error")) {

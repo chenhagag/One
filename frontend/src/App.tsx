@@ -330,21 +330,6 @@ export default function App() {
     setView(isNativeApp() ? "new_chat" : "welcome"); // Skip PWA install on native
   }
 
-  // ── Session expired listener ────────────────────────────────────
-  // When apiFetch detects a 401 that can't be refreshed, it fires this event
-  useEffect(() => {
-    const handler = () => {
-      console.warn("[session-expired] Token refresh failed — redirecting to login");
-      clearSession();
-      clearSupabaseTokens();
-      setUser(null);
-      setAnalysis(null);
-      setView("auth");
-    };
-    window.addEventListener("session-expired", handler);
-    return () => window.removeEventListener("session-expired", handler);
-  }, []);
-
   // ── Logout ─────────────────────────────────────────────────────
   function handleLogout() {
     supabase?.auth.signOut().catch(() => {});
