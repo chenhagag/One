@@ -156,7 +156,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
   const isFemale = gender === "woman";
   const g = (male: string, female: string) => isFemale ? female : male;
 
-  const hasData = profile && (profile.mbti.type || profile.allValues.length > 0 || profile.allBigFive.length > 0 || profile.enneagram?.primaryType || profile.attachment?.dominant);
+  const hasData = profile && (profile.mbti?.type || profile.allValues.length > 0 || profile.allBigFive.length > 0 || profile.enneagram?.primaryType || profile.attachment?.dominant);
   const strongValues = profile?.allValues.filter(v => v.score > 60) || [];
   const weakValues = profile?.allValues.filter(v => v.score < 40) || [];
   const highBigFive = profile?.allBigFive.filter(v => v.score >= 65) || [];
@@ -516,7 +516,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
         </div>
       ) : (
         <>
-          {profile?.mbti.type && (
+          {profile?.mbti?.type && (
             <div style={s.card}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0 }}>🧠 טיפוס MBTI</h3>
