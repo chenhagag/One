@@ -37,12 +37,15 @@ function getSavedAccessToken(): string | null {
 
 /**
  * Try to get a fresh access token. Strategy:
- * 1. Ask Supabase client (works when ITP doesn't block it)
- * 2. Fall back to our own localStorage copy
- * 3. If Supabase has a refresh token, try refreshing silently
+ * 1. Check our own localStorage copy first (instant, works for OTP + OAuth)
+ * 2. Ask Supabase client as fallback (for OAuth users whose token we don't have yet)
  */
 async function getAccessToken(): Promise<string | null> {
-  // Strategy 1: Supabase client — fast path, 2s timeout
+  // Strategy 1: Our own localStorage copy — fastest path
+  const saved = getSavedAccessToken();
+  if (saved) return saved;
+
+  // Strategy 2: Supabase client — for OAuth users, 2s timeout
   if (supabase) {
     try {
       const result = await Promise.race([
@@ -51,18 +54,13 @@ async function getAccessToken(): Promise<string | null> {
       ]);
       const session = result && "data" in result ? result.data.session : null;
       if (session?.access_token) {
-        // Keep our copy fresh
         saveSupabaseTokens(session.access_token, session.refresh_token);
         return session.access_token;
       }
     } catch {
-      // Supabase blocked — try our fallback
+      // Supabase blocked — no token available
     }
   }
-
-  // Strategy 2: Our own localStorage copy
-  const saved = getSavedAccessToken();
-  if (saved) return saved;
 
   return null;
 }

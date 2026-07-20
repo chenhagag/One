@@ -359,20 +359,12 @@ export default function App() {
 
     // Listen for auth state changes (only if Supabase configured)
     if (!supabase) return;
+    // Note: We do NOT listen for Supabase SIGNED_OUT events here.
+    // OTP login creates a self-signed JWT (not a Supabase session), so the
+    // Supabase client fires SIGNED_OUT spuriously and causes logout loops.
+    // Logout is handled explicitly by handleLogout() and session-expired events.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event) => {
-        if (event === "SIGNED_OUT") {
-          // Only act on SIGNED_OUT if we don't have our own saved token.
-          // OTP login uses a self-signed JWT (not a Supabase session), so
-          // Supabase client may fire SIGNED_OUT even though the user is valid.
-          const hasOwnToken = !!localStorage.getItem("one_access_token");
-          if (!hasOwnToken) {
-            clearSession();
-            setUser(null);
-            setView("auth");
-          }
-        }
-      }
+      () => { /* intentionally empty — logout handled elsewhere */ }
     );
 
     return () => subscription.unsubscribe();
