@@ -394,21 +394,14 @@ export default function AuthScreen({ onOtpSuccess, notice }: AuthScreenProps) {
           </button>
         </div>
 
-        {/* Temporary notice: OTP issues + alternative contact */}
-        <div dir="rtl" style={{
-          marginTop: 24, padding: "12px 16px", background: "#fef9e7", border: "1px solid #f0e3a0",
-          borderRadius: 12, maxWidth: 320, textAlign: "center", fontSize: 13, color: "#6b5e00", lineHeight: 1.7,
-        }}>
-          יש לנו תקלה זמנית ויתכנו בעיות בחיבור דרך המייל.
-          <br />
-          מוזמנים{" "}
-          <span style={{ cursor: "pointer", textDecoration: "underline", fontWeight: 600 }}
-            onClick={() => handleOAuth("google")}>להתחבר דרך גוגל</span>
-          ,{" "}
-          או לדווח לנו:{" "}
-          <a href="mailto:one-support@googlegroups.com" style={{ color: "#6b5e00", fontWeight: 600 }}>במייל</a>
+        <div dir="rtl" style={{ marginTop: 24, textAlign: "center", fontSize: 12, color: "#aaa", lineHeight: 1.7 }}>
+          חווים בעיות בחיבור?{" "}
+          <span style={{ cursor: "pointer", textDecoration: "underline" }}
+            onClick={() => handleOAuth("google")}>נסו דרך גוגל</span>
+          {" "}או דווחו לנו{" "}
+          <a href="mailto:one-support@googlegroups.com" style={{ color: "#aaa" }}>במייל</a>
           {" / "}
-          <a href="https://wa.me/972549037400" target="_blank" rel="noopener noreferrer" style={{ color: "#6b5e00", fontWeight: 600 }}>בווטסאפ</a>
+          <a href="https://wa.me/972549037400" target="_blank" rel="noopener noreferrer" style={{ color: "#aaa" }}>בווטסאפ</a>
         </div>
       </div>
     );
@@ -467,21 +460,14 @@ export default function AuthScreen({ onOtpSuccess, notice }: AuthScreenProps) {
           חזרה
         </button>
 
-        {/* Temporary notice */}
-        <div dir="rtl" style={{
-          marginTop: 20, padding: "12px 16px", background: "#fef9e7", border: "1px solid #f0e3a0",
-          borderRadius: 12, maxWidth: 320, textAlign: "center", fontSize: 13, color: "#6b5e00", lineHeight: 1.7,
-        }}>
-          יש לנו תקלה זמנית ויתכנו בעיות בחיבור דרך המייל.
-          <br />
-          מוזמנים{" "}
-          <span style={{ cursor: "pointer", textDecoration: "underline", fontWeight: 600 }}
-            onClick={() => { setShowEmailForm(false); handleOAuth("google"); }}>להתחבר דרך גוגל</span>
-          ,{" "}
-          או לדווח לנו:{" "}
-          <a href="mailto:one-support@googlegroups.com" style={{ color: "#6b5e00", fontWeight: 600 }}>במייל</a>
+        <div dir="rtl" style={{ marginTop: 20, textAlign: "center", fontSize: 12, color: "#aaa", lineHeight: 1.7 }}>
+          חווים בעיות בחיבור?{" "}
+          <span style={{ cursor: "pointer", textDecoration: "underline" }}
+            onClick={() => { setShowEmailForm(false); handleOAuth("google"); }}>נסו דרך גוגל</span>
+          {" "}או דווחו לנו{" "}
+          <a href="mailto:one-support@googlegroups.com" style={{ color: "#aaa" }}>במייל</a>
           {" / "}
-          <a href="https://wa.me/972549037400" target="_blank" rel="noopener noreferrer" style={{ color: "#6b5e00", fontWeight: 600 }}>בווטסאפ</a>
+          <a href="https://wa.me/972549037400" target="_blank" rel="noopener noreferrer" style={{ color: "#aaa" }}>בווטסאפ</a>
         </div>
 
         <p className="mt-auto pt-12 text-center text-xs text-gray-300">
