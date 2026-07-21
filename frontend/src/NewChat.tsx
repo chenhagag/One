@@ -1666,7 +1666,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               <p style={{ fontSize: 11, color: "#bbb", lineHeight: 1.5, margin: "0 0 4px" }}>
                 המערכת נמצאת בגרסת הרצה ראשונית (MVP). הצ׳אט עדיין נמצא בשיפור, ולכן ייתכנו ניסוחים פחות מדויקים או טעויות נקודתיות.
               </p>
-              <p style={{ fontSize: 11, color: "#bbb", margin: "0 0 6px" }}>מוזמנים לשתף אותנו:</p>
+              <p style={{ fontSize: 11, color: "#bbb", margin: "0 0 6px" }}>מוזמנים לשתף אותנו בתקלות, שאלות או כל דבר אחר:</p>
               <div style={{ display: "flex", justifyContent: "center", gap: 24 }}>
                 <div style={{ cursor: "pointer", opacity: 0.55, transition: "opacity 0.15s" }} onClick={() => setScreen("bug_report")} title="משוב">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8b7ba8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
