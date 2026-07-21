@@ -41,7 +41,7 @@ import { Resend } from "resend";
 import { trackTokens } from "./tokenTracker";
 import { requireAuth, optionalAuth, requireUserAuth, requireAdmin } from "./auth";
 import { generateInsights as generateInsightsFn } from "./pipeline/generateInsights";
-import { startJobRunner, requeueOrCreateJob as requeueOrCreateJobFn, processPendingJobs as processPendingJobsFn } from "./pipeline/jobRunner";
+import { startJobRunner, createJob as createPipelineJob, requeueOrCreateJob as requeueOrCreateJobFn, processPendingJobs as processPendingJobsFn } from "./pipeline/jobRunner";
 
 dotenv.config();
 
@@ -908,6 +908,17 @@ app.post("/users/:id/photos", requireUserAuth, (req, res, next) => {
   const countRow = await pgQueryOne<{ c: string }>(
     "SELECT COUNT(*)::int AS c FROM user_photos WHERE user_id = $1", [userId]
   );
+
+  // Trigger photo analysis if user completed analysis + has consent
+  const photoUser = await pgQueryOne<{ analysis_run_count: number; photo_ai_consent: boolean | null }>(
+    "SELECT COALESCE(analysis_run_count, 0) as analysis_run_count, photo_ai_consent FROM users WHERE id = $1",
+    [userId]
+  );
+  if (photoUser && photoUser.analysis_run_count >= 2 && photoUser.photo_ai_consent) {
+    createPipelineJob(userId, "photo_analysis").catch(err => {
+      console.error(`[photo-upload] Failed to create photo analysis job for user ${userId}:`, err.message);
+    });
+  }
 
   return res.json({
     filename: req.file.filename,
@@ -3743,6 +3754,55 @@ app.post("/admin/users/:id/run-pipeline", async (req, res) => {
     console.error("[run-pipeline]", err.message);
     return res.status(500).json({ error: err.message });
   }
+});
+
+// POST /admin/users/:id/run-photo-analysis — Manually trigger photo analysis
+app.post("/admin/users/:id/run-photo-analysis", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  if (!userId) return res.status(400).json({ error: "invalid id" });
+
+  try {
+    const user = await pgQueryOne<{ id: number }>("SELECT id FROM users WHERE id = $1", [userId]);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const jobId = await requeueOrCreateJobFn(userId, "photo_analysis");
+
+    processPendingJobsFn().catch(err => {
+      console.error("[run-photo-analysis] processing error:", err.message);
+    });
+
+    return res.json({ ok: true, job_id: jobId, message: "Photo analysis job created/re-queued" });
+  } catch (err: any) {
+    console.error("[run-photo-analysis]", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /admin/pipeline-jobs — View pipeline job status (for monitoring)
+app.get("/admin/pipeline-jobs", async (req, res) => {
+  const userId = req.query.user_id ? parseInt(req.query.user_id as string, 10) : null;
+  const status = req.query.status as string | null;
+
+  let query = `SELECT pj.*, u.first_name, u.email
+    FROM pipeline_jobs pj
+    LEFT JOIN users u ON u.id = pj.user_id`;
+  const conditions: string[] = [];
+  const params: any[] = [];
+
+  if (userId) {
+    params.push(userId);
+    conditions.push(`pj.user_id = $${params.length}`);
+  }
+  if (status) {
+    params.push(status);
+    conditions.push(`pj.status = $${params.length}`);
+  }
+
+  if (conditions.length) query += ` WHERE ${conditions.join(" AND ")}`;
+  query += ` ORDER BY pj.created_at DESC LIMIT 100`;
+
+  const jobs = await pgQueryAll<any>(query, params);
+  return res.json(jobs);
 });
 
 // ════════════════════════════════════════════════════════════════

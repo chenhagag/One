@@ -18,9 +18,12 @@ import {
   queryAll as pgQueryAll,
 } from "../db.pg";
 import { runCompletionPipeline } from "./completionPipeline";
+import { analyzeUserPhotos } from "./photoAnalysis";
 
 const JOB_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+const RECONCILE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 let intervalHandle: ReturnType<typeof setInterval> | null = null;
+let reconcileHandle: ReturnType<typeof setInterval> | null = null;
 
 // ── Job creation ─────────────────────────────────────────────────
 
@@ -144,7 +147,9 @@ async function processJob(job: PipelineJob): Promise<void> {
       case "completion":
         await runCompletionPipeline(user_id, id);
         break;
-      // Phase B: case "photo_analysis" will be added here
+      case "photo_analysis":
+        await analyzeUserPhotos(user_id, id);
+        break;
       default:
         throw new Error(`Unknown job type: ${job_type}`);
     }
@@ -182,6 +187,66 @@ async function processJob(job: PipelineJob): Promise<void> {
   }
 }
 
+// ── Photo reconciliation (daily) ─────────────────────────────────
+
+/**
+ * Find users with photo_ai_consent + photos that haven't been analyzed
+ * (or have new photos since last analysis), and create photo_analysis jobs.
+ */
+export async function reconcilePhotoJobs(): Promise<number> {
+  // Find users who:
+  // 1. Have photo_ai_consent = true
+  // 2. Have analysis_run_count >= 2 (completed chat analysis)
+  // 3. Have photos
+  // 4. Don't have a recent completed photo_analysis job, OR have newer photos
+  const candidates = await pgQueryAll<{ user_id: number }>(
+    `SELECT DISTINCT u.id AS user_id
+     FROM users u
+     JOIN user_photos up ON up.user_id = u.id
+     WHERE u.photo_ai_consent = TRUE
+       AND COALESCE(u.analysis_run_count, 0) >= 2
+       AND NOT EXISTS (
+         SELECT 1 FROM pipeline_jobs pj
+         WHERE pj.user_id = u.id
+           AND pj.job_type = 'photo_analysis'
+           AND pj.status IN ('pending', 'running')
+       )
+       AND (
+         -- No completed photo analysis job at all
+         NOT EXISTS (
+           SELECT 1 FROM pipeline_jobs pj
+           WHERE pj.user_id = u.id
+             AND pj.job_type = 'photo_analysis'
+             AND pj.status = 'completed'
+         )
+         OR
+         -- Has photos uploaded after last completed analysis
+         EXISTS (
+           SELECT 1 FROM user_photos up2
+           WHERE up2.user_id = u.id
+             AND up2.created_at > (
+               SELECT MAX(pj.completed_at) FROM pipeline_jobs pj
+               WHERE pj.user_id = u.id
+                 AND pj.job_type = 'photo_analysis'
+                 AND pj.status = 'completed'
+             )
+         )
+       )`,
+    []
+  );
+
+  let created = 0;
+  for (const c of candidates) {
+    await createJob(c.user_id, "photo_analysis");
+    created++;
+  }
+
+  if (created > 0) {
+    console.log(`[reconcile] Created ${created} photo_analysis jobs`);
+  }
+  return created;
+}
+
 // ── Runner lifecycle ─────────────────────────────────────────────
 
 export function startJobRunner(): void {
@@ -201,12 +266,29 @@ export function startJobRunner(): void {
       console.error("[jobRunner] Poll error:", err.message);
     });
   }, JOB_POLL_INTERVAL_MS);
+
+  // Daily photo reconciliation (run once on startup after 30s, then every 24h)
+  setTimeout(() => {
+    reconcilePhotoJobs().catch(err => {
+      console.error("[jobRunner] Initial reconciliation error:", err.message);
+    });
+  }, 30000);
+
+  reconcileHandle = setInterval(() => {
+    reconcilePhotoJobs().catch(err => {
+      console.error("[jobRunner] Reconciliation error:", err.message);
+    });
+  }, RECONCILE_INTERVAL_MS);
 }
 
 export function stopJobRunner(): void {
   if (intervalHandle) {
     clearInterval(intervalHandle);
     intervalHandle = null;
-    console.log("[jobRunner] Pipeline job runner stopped");
   }
+  if (reconcileHandle) {
+    clearInterval(reconcileHandle);
+    reconcileHandle = null;
+  }
+  console.log("[jobRunner] Pipeline job runner stopped");
 }
