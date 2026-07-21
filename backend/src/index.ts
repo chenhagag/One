@@ -40,6 +40,8 @@ import OpenAI from "openai";
 import { Resend } from "resend";
 import { trackTokens } from "./tokenTracker";
 import { requireAuth, optionalAuth, requireUserAuth, requireAdmin } from "./auth";
+import { generateInsights as generateInsightsFn } from "./pipeline/generateInsights";
+import { startJobRunner, requeueOrCreateJob as requeueOrCreateJobFn, processPendingJobs as processPendingJobsFn } from "./pipeline/jobRunner";
 
 dotenv.config();
 
@@ -718,7 +720,7 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
     desired_height_min, desired_height_max, height_flexibility,
     desired_location_range,
     marital_status, has_children, religion, smoker,
-    partner_name, consent_accepted, photo_ai_consent,
+    partner_name, test_user_type, consent_accepted, photo_ai_consent,
     email_updates, whatsapp_updates, whatsapp_phone,
     match_card_consent, match_card_restrictions, profile_complete,
   } = req.body;
@@ -754,6 +756,7 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
   if (religion !== undefined)              push("religion", religion);
   if (smoker !== undefined)                push("smoker", smoker);
   if (partner_name !== undefined)          push("partner_name", partner_name);
+  if (test_user_type !== undefined)       push("test_user_type", test_user_type);
   if (consent_accepted !== undefined)     push("consent_accepted", consent_accepted);
   if (photo_ai_consent !== undefined)     push("photo_ai_consent", photo_ai_consent);
   if (email_updates !== undefined)        push("email_updates", email_updates);
@@ -3711,165 +3714,33 @@ app.post("/admin/users/:id/generate-insights", aiLimiter, async (req, res) => {
   if (!userId) return res.status(400).json({ error: "invalid id" });
 
   try {
-    const user = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [userId]);
-    if (!user) return res.status(404).json({ error: "User not found" });
-
-    // Build full conversation transcript (all chat types)
-    const allMessages = await pgQueryAll<any>(
-      `SELECT role, content, guide, created_at FROM conversation_messages
-       WHERE user_id = $1 ORDER BY created_at ASC`,
-      [userId]
-    );
-    if (!allMessages.length) return res.status(400).json({ error: "No conversation data" });
-
-    // Format full conversations by channel
-    const channels: Record<string, string[]> = {};
-    for (const msg of allMessages) {
-      const ch = msg.guide || "unknown";
-      if (!channels[ch]) channels[ch] = [];
-      channels[ch].push(`${msg.role === "user" ? "משתמש/ת" : "מערכת"}: ${msg.content}`);
-    }
-
-    let fullTranscript = "";
-    const channelLabels: Record<string, string> = {
-      new_chat: "שיחה כללית",
-      new_chat_cognitive: "שיחת חשיבה",
-      new_chat_taste: "מבחן טעם",
-      interviewer: "ראיון אישיות",
-      psychologist: "שיחת עומק",
-    };
-    for (const [ch, msgs] of Object.entries(channels)) {
-      fullTranscript += `\n=== ${channelLabels[ch] || ch} ===\n${msgs.join("\n")}\n`;
-    }
-
-    // Get existing traits for context
-    const traits = await pgQueryAll<any>(
-      `SELECT td.internal_name, td.display_name_he, ut.score
-       FROM user_traits ut JOIN trait_definitions td ON ut.trait_definition_id = td.id
-       WHERE ut.user_id = $1 ORDER BY td.trait_group, td.internal_name`,
-      [userId]
-    );
-    const traitsSummary = traits.map((t: any) => `${t.display_name_he || t.internal_name}: ${t.score}`).join(", ");
-
-    const isFemale = user.gender === "woman";
-    const genderWord = isFemale ? "המשתמשת" : "המשתמש";
-    const searchGender = user.looking_for_gender === "woman" ? "נשים" : user.looking_for_gender === "man" ? "גברים" : "בני זוג";
-
-    const youWord = isFemale ? "את" : "אתה";
-    const partnerType = user.looking_for_gender === "woman" ? "בת" : "בן";
-    const readerWord = isFemale ? "הקוראת" : "הקורא";
-    const thirdPerson = isFemale ? "היא" : "הוא";
-    const selfWord = isFemale ? "בעצמה" : "בעצמו";
-    const doWord = isFemale ? "עושה" : "עושה";
-    const copesWord = isFemale ? "מתמודדת" : "מתמודד";
-    const learnedWord = isFemale ? "למדת" : "למדת";
-    const searchWord = isFemale ? "מחפשת" : "מחפש";
-    const needWord = isFemale ? "צריכה" : "צריך";
-
-    const systemPrompt = `אתה כותב תובנות אישיות עמוקות. אתה פונה ישירות אל ${readerWord} — תמיד בגוף שני.
-כל משפט שאתה כותב צריך לפנות ישירות אליך: "${youWord}..." — כאילו אתה מדבר אליו/ה פנים אל פנים.
-
-## כלל קריטי: גוף שני בלבד
-- נכון: "${youWord} ${isFemale ? "נוטה" : "נוטה"} לחפש שליטה כשמשהו מאיים ${isFemale ? "עלייך" : "עליך"}"
-- לא נכון: "${user.first_name} ${isFemale ? "נוטה" : "נוטה"} לחפש שליטה כשמשהו מאיים ${isFemale ? "עליה" : "עליו"}"
-- לא נכון: "${thirdPerson} ${isFemale ? "נוטה" : "נוטה"} לחפש שליטה כשמשהו מאיים ${isFemale ? "עליה" : "עליו"}"
-לעולם אל תכתוב על ${readerWord} בגוף שלישי. לעולם אל תשתמש בשם ${isFemale ? "שלה" : "שלו"} כנושא המשפט. תמיד "${youWord}".
-
-## הגישה שלך — תובנות, לא סיכום
-אתה לא מסכם את השיחה. אתה מנתח אותה.
-- לעולם אל תצטט מה נאמר בשיחה ("${isFemale ? "כשנשאלת" : "כשנשאלת"} X, ${isFemale ? "ענית" : "ענית"} Y")
-- לעולם אל תחזור על עובדות יבשות (איפה ${isFemale ? "עובדת" : "עובד"}, מה ${isFemale ? "למדת" : "למדת"}, מה הערב המושלם)
-- לעולם אל תכתוב משפטים גנריים שמתאימים לכל אחד ("${youWord} ${searchWord} קשר עמוק ומשמעותי", "${youWord} ${isFemale ? "מעריכה" : "מעריך"} עצמאות")
-- במקום זה: זהה דפוסים, חבר נקודות, הסק מסקנות ש${readerWord} לא בהכרח ${isFemale ? "רואה" : "רואה"} ${selfWord}
-- כל פסקה צריכה לחשוף משהו חדש — לא לאשר מה שכבר ידוע
-- אל תכתוב "זה חשוב", "זה נהדר", "נשמע ש..." — אלה ביטויים של שיחה, לא של ניתוח
-
-## מה לא לכלול
-- אל תציין פרטים אינטימיים או מיניים גם אם שותפו בשיחה
-- אל תרשום רשימת עובדות (תחביבים, מקצוע, סטטוס משפחתי) — אלה ידועים ל${readerWord}
-- אל תכתוב "${youWord} בן אדם" — כתוב "${youWord} אדם" (המילה "אדם" היא זכר בעברית)
-- אל תהיה גנרי — אל תכתוב משפטים שאפשר להדביק לכל אחד. כל משפט צריך להיות ספציפי לאדם הזה
-- אל תשתמש בשפה מליצית ריקה ("מסע של גילוי", "חיים מלאי עניין ומשמעות", "${isFemale ? "שותפה" : "שותף"} ${isFemale ? "אמיתית" : "אמיתי"} לחיים") — תהיה קונקרטי
-
-## התאמה למי שמחפשים
-- בדוק בפרטים את שדה "מחפש/ת" — זה מגדר בן/בת הזוג שמחפשים
-- כשכותבים על בן/בת הזוג המתאים — התאם מגדרית: "בן זוג" / "בת זוג", "גבר" / "אישה", "הוא" / "היא"
-- אל תניח הנחות על מגדר בן/בת הזוג — תמיד תסתמך על מה שכתוב בפרטים
-
-## הטון
-- עברית, גוף שני (${youWord}), מותאם מגדרית
-- מקצועי-חם — כמו ${isFemale ? "חברה תובנתית" : "חבר תובנתי"}, לא כמו דוח קליני
-- כנה בלי להיות חד. מדויק בלי להיות שיפוטי
-- ${readerWord} ${isFemale ? "צריכה" : "צריך"} להרגיש שבאמת ${isFemale ? "רואים אותה" : "רואים אותו"}
-
-## מבנה הפלט — JSON עם שני שדות:
-
-"summary_short" — 2-3 משפטים. פותח בתובנה על מי ${youWord}, ואז מה סוג ${partnerType} הזוג שיתאים לך. לא גנרי — ספציפי ומדויק.
-
-"summary_full" — 8-14 פסקאות ניתוח עמוק ומפורט. כל פסקה לפחות 3-4 משפטים. עובר בין הנושאים הבאים (לא חובה בסדר הזה, ולא חובה את כולם — תבחר מה רלוונטי):
-- מה מניע אותך בחיים — לא מה ${youWord} ${doWord}, אלא למה
-- דפוסים רגשיים — איך ${youWord} ${copesWord} עם קונפליקט, מה קורה כשפוגעים בך, מה מפחיד אותך
-- מה ${learnedWord} ממערכות יחסים קודמות — לא מה קרה, אלא מה המסקנה
-- הקשר עם המשפחה ואיך הוא משפיע על מה ש${youWord} ${searchWord} בזוגיות
-- דפוסים בטעם הזוגי (ממבחן הטעם) — מה מושך, מה דוחה, ולמה
-- מה ${youWord} ${needWord} בקשר — תובנה אמיתית, לא רשימת קניות
-- סגירה חזקה — מה סוג ${partnerType} הזוג שיתאים לך ולמה
-
-כל פסקה צריכה לחשוף תובנה, לא לתאר עובדה.
-חשוב: כתוב ניתוח מעמיק ומפורט — לא לחסוך במילים. ${readerWord} ${isFemale ? "רוצה" : "רוצה"} להרגיש שבאמת צללת לעומק.
-תזכורת אחרונה: כל הטקסט בגוף שני — "${youWord}...", לא "${user.first_name}...", לא "${thirdPerson}...".
-החזר JSON בלבד, ללא markdown, ללא בלוק קוד.`;
-
-    const userPrompt = `פרטי ${genderWord}:
-שם: ${user.first_name || "לא ידוע"}
-גיל: ${user.age || "לא ידוע"}
-מגדר: ${user.gender || "לא ידוע"}
-עיר: ${user.city || "לא ידוע"}
-מחפש/ת: ${searchGender}
-
-ציוני תכונות: ${traitsSummary || "אין עדיין"}
-
-${fullTranscript}`;
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.75,
-      max_tokens: 6000,
-      response_format: { type: "json_object" },
-    });
-
-    if (response.usage) {
-      trackTokens(userId, "generate_insights", "gpt-4o", response.usage as any);
-    }
-
-    const raw = response.choices[0]?.message?.content || "{}";
-    let parsed: { summary_short?: string; summary_full?: string };
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      return res.status(500).json({ error: "Failed to parse AI response", raw });
-    }
-
-    // Save to DB + auto-manage insights_pre_completion
-    const cogCount = allMessages.filter((m: any) => m.guide === "new_chat_cognitive").length;
-    const tasteCount = allMessages.filter((m: any) => m.guide === "new_chat_taste").length;
-    const preCompletion = cogCount < 5 || tasteCount < 5;
-    await pgQueryAll(
-      "UPDATE users SET personal_insights_short = $1, personal_insights_full = $2, insights_pre_completion = $3, updated_at = NOW() WHERE id = $4",
-      [parsed.summary_short || null, parsed.summary_full || null, preCompletion, userId]
-    );
-
-    return res.json({
-      ok: true,
-      summary_short: parsed.summary_short,
-      summary_full: parsed.summary_full,
-    });
+    const result = await generateInsightsFn(userId, { force: !!req.query.force });
+    return res.json({ ok: true, ...result });
   } catch (err: any) {
     console.error("[generate-insights]", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /admin/users/:id/run-pipeline — Manually trigger completion pipeline
+app.post("/admin/users/:id/run-pipeline", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  if (!userId) return res.status(400).json({ error: "invalid id" });
+
+  try {
+    const user = await pgQueryOne<{ id: number }>("SELECT id FROM users WHERE id = $1", [userId]);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const jobId = await requeueOrCreateJobFn(userId, "completion");
+
+    // Process immediately instead of waiting for next poll
+    processPendingJobsFn().catch(err => {
+      console.error("[run-pipeline] processing error:", err.message);
+    });
+
+    return res.json({ ok: true, job_id: jobId, message: "Pipeline job created/re-queued" });
+  } catch (err: any) {
+    console.error("[run-pipeline]", err.message);
     return res.status(500).json({ error: err.message });
   }
 });
@@ -4509,6 +4380,9 @@ app.listen(PORT, () => {
       await initPgDb();
       await syncConfigFromSqlite(db); // idempotent: seeds trait defs if pg is empty, else no-op
       console.log("[pg] ready");
+
+      // Start pipeline job runner (polls for pending completion/photo jobs)
+      startJobRunner();
     } catch (err: any) {
       console.error("[pg] init failed:", err.message);
     }

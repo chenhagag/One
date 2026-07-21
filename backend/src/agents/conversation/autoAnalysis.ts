@@ -17,6 +17,7 @@ import {
 import { buildAnalysisTranscript, computeCoverage } from "./analysisHelpers";
 import { runAnalysisAgent, buildAnalysisInput, saveAnalysisToDb, saveAnalysisRun } from "../analysis";
 import { updateCognitiveScore } from "../../cognitiveScore";
+import { createJob } from "../../pipeline/jobRunner";
 
 // ── Auto-analysis execution ─────────────────────────────────────
 
@@ -61,6 +62,14 @@ async function runAnalysis(userId: number, runNumber: number): Promise<void> {
     const cov = await computeCoverage(db, userId);
 
     console.log(`[auto-analysis] User ${userId}: run #${runNumber} DONE — ${saved.internal_saved} internal, ${saved.external_saved} external traits, cognitive=${cogScore}, matchable=${cov.ready_for_matching}`);
+
+    // After run #2 (all channels complete): trigger the completion pipeline
+    if (runNumber === 2) {
+      console.log(`[auto-analysis] User ${userId}: all channels done, creating completion pipeline job...`);
+      createJob(userId, "completion").catch(err => {
+        console.error(`[auto-analysis] User ${userId}: failed to create completion job:`, err.message);
+      });
+    }
   } catch (err: any) {
     console.error(`[auto-analysis] User ${userId}: run #${runNumber} ERROR —`, err.message);
   }

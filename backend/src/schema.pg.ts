@@ -929,4 +929,44 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_error_logs_created ON error_logs(created_at DESC);
   `);
+
+  // Pipeline jobs — reliable background job processing for user automation
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS pipeline_jobs (
+      id              SERIAL PRIMARY KEY,
+      user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      job_type        TEXT NOT NULL,
+      status          TEXT NOT NULL DEFAULT 'pending',
+      attempts        INTEGER DEFAULT 0,
+      max_attempts    INTEGER DEFAULT 3,
+      last_error      TEXT,
+      step_reached    TEXT,
+      metadata        JSONB,
+      created_at      TIMESTAMPTZ DEFAULT NOW(),
+      started_at      TIMESTAMPTZ,
+      completed_at    TIMESTAMPTZ,
+      next_retry_at   TIMESTAMPTZ
+    );
+    CREATE INDEX IF NOT EXISTS idx_pipeline_jobs_pending
+      ON pipeline_jobs (status, next_retry_at)
+      WHERE status IN ('pending', 'failed');
+    CREATE INDEX IF NOT EXISTS idx_pipeline_jobs_user
+      ON pipeline_jobs (user_id, job_type);
+  `);
+
+  // email_log: add email_type column for dedup
+  await pool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'email_log' AND column_name = 'email_type'
+      ) THEN
+        ALTER TABLE email_log ADD COLUMN email_type TEXT;
+      END IF;
+    END $$;
+  `);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_email_log_type_user
+      ON email_log (user_id, email_type) WHERE email_type IS NOT NULL;
+  `);
 }
