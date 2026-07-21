@@ -882,7 +882,15 @@ app.use("/uploads", (req, res, next) => {
 }, express.static(uploadsDir));
 
 // POST /users/:id/photos — Upload a photo
-app.post("/users/:id/photos", requireUserAuth, upload.single("photo"), async (req, res) => {
+app.post("/users/:id/photos", requireUserAuth, (req, res, next) => {
+  upload.single("photo")(req, res, (err: any) => {
+    if (err) {
+      logError({ source: "backend", user_id: parseInt(req.params.id, 10), route: "/users/:id/photos", method: "POST", status_code: 400, message: `Upload error: ${err.message}` });
+      return res.status(400).json({ error: err.message || "File upload failed" });
+    }
+    next();
+  });
+}, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
