@@ -169,7 +169,9 @@ function reportError(data: { route?: string; method?: string; status_code?: numb
   const key = `${data.message}:${data.route}`;
   if (errorReportQueue.some(e => `${e.message}:${e.route}` === key)) return;
 
-  errorReportQueue.push({ source: "frontend", ...data });
+  // Try to extract user_id from localStorage for error attribution
+  const savedId = localStorage.getItem("matchme_user_id");
+  errorReportQueue.push({ source: "frontend", ...data, ...(savedId ? { user_id: parseInt(savedId, 10) } : {}) });
 
   // Batch — flush after 2s to avoid spamming during rapid failures
   if (!errorFlushTimer) {

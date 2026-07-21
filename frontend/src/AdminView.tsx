@@ -4391,6 +4391,7 @@ function ErrorLogsTab() {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [sourceFilter, setSourceFilter] = useState<string>("all");
+  const [severityFilter, setSeverityFilter] = useState<string>("all");
 
   useEffect(() => { loadLogs(); }, []);
 
@@ -4409,18 +4410,81 @@ function ErrorLogsTab() {
     loadLogs();
   }
 
+  // Classify severity for each log
+  function getSeverity(log: any, allLogs: any[]): "critical" | "warning" | "noise" {
+    // OTP diagnostic logs (informational) → noise
+    if (log.source === "otp-diag" && !log.message?.includes("catch_error") && !log.message?.includes("jwt_failed")) return "noise";
+    // OTP failures → critical
+    if (log.source === "otp-diag" && (log.message?.includes("catch_error") || log.message?.includes("jwt_failed"))) return "critical";
+    // Backend 500 → critical
+    if (log.source === "backend" && log.status_code >= 500) return "critical";
+    // "Script error." without details → noise
+    if (log.message === "Script error." || log.message === "Script error") return "noise";
+    // 401 — check if repeated for same user
+    if (log.status_code === 401 && log.user_id) {
+      // Count 401s for this user within 5 minutes of this log
+      const logTime = new Date(log.created_at).getTime();
+      const sameUser401s = allLogs.filter(l =>
+        l.user_id === log.user_id && l.status_code === 401 &&
+        Math.abs(new Date(l.created_at).getTime() - logTime) < 5 * 60 * 1000
+      );
+      // 8+ in 5 min = probably stuck (two page loads with 4 each is normal)
+      if (sameUser401s.length >= 8) return "critical";
+      return "noise";
+    }
+    if (log.status_code === 401) return "noise";
+    // 403 → warning
+    if (log.status_code === 403) return "warning";
+    // 429 rate limit → warning
+    if (log.status_code === 429) return "warning";
+    // Frontend errors with status 500+ → warning
+    if (log.source === "frontend" && log.status_code >= 500) return "warning";
+    // Everything else → noise
+    return "noise";
+  }
+
   if (loading) return <p>Loading...</p>;
 
-  const filtered = sourceFilter === "all" ? logs : logs.filter(l => l.source === sourceFilter);
+  // Enrich logs with severity
+  const enriched = logs.map(l => ({ ...l, _severity: getSeverity(l, logs) }));
+  const criticalCount = enriched.filter(l => l._severity === "critical").length;
+  const warningCount = enriched.filter(l => l._severity === "warning").length;
+
+  let filtered = enriched;
+  if (sourceFilter !== "all") filtered = filtered.filter(l => l.source === sourceFilter);
+  if (severityFilter === "critical") filtered = filtered.filter(l => l._severity === "critical");
+  else if (severityFilter === "important") filtered = filtered.filter(l => l._severity !== "noise");
+
+  const severityColors: Record<string, { bg: string; border: string }> = {
+    critical: { bg: "#fef2f2", border: "#fca5a5" },
+    warning: { bg: "#fffbeb", border: "#fcd34d" },
+    noise: { bg: "transparent", border: "transparent" },
+  };
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
         <h3 style={{ margin: 0 }}>שגיאות ({logs.length})</h3>
+        {criticalCount > 0 && (
+          <span style={{ padding: "3px 10px", borderRadius: 8, fontSize: 12, fontWeight: 700, background: "#fef2f2", color: "#dc2626", border: "1px solid #fca5a5" }}>
+            {criticalCount} חמורות
+          </span>
+        )}
+        {warningCount > 0 && (
+          <span style={{ padding: "3px 10px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: "#fffbeb", color: "#d97706", border: "1px solid #fcd34d" }}>
+            {warningCount} בינוניות
+          </span>
+        )}
+        <select value={severityFilter} onChange={e => setSeverityFilter(e.target.value)} style={{ padding: "4px 8px", fontSize: 12 }}>
+          <option value="all">כל הרמות</option>
+          <option value="important">חמורות + בינוניות</option>
+          <option value="critical">חמורות בלבד</option>
+        </select>
         <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)} style={{ padding: "4px 8px", fontSize: 12 }}>
-          <option value="all">הכל</option>
+          <option value="all">כל המקורות</option>
           <option value="frontend">Frontend</option>
           <option value="backend">Backend</option>
+          <option value="otp-diag">OTP Diag</option>
         </select>
         <button onClick={loadLogs} style={{ padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>רענן</button>
         <button onClick={handleClear} style={{ padding: "4px 10px", fontSize: 12, cursor: "pointer", color: "#c00" }}>נקה ישנים</button>
@@ -4430,6 +4494,7 @@ function ErrorLogsTab() {
           <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#f5f5f5", position: "sticky", top: 0 }}>
+                <th style={{ padding: 6, textAlign: "right", width: 8 }}></th>
                 <th style={{ padding: 6, textAlign: "right" }}>זמן</th>
                 <th style={{ padding: 6, textAlign: "right" }}>מקור</th>
                 <th style={{ padding: 6, textAlign: "right" }}>משתמש</th>
@@ -4439,20 +4504,27 @@ function ErrorLogsTab() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(log => (
-                <tr key={log.id} style={{ borderBottom: "1px solid #eee" }}>
-                  <td style={{ padding: 6, whiteSpace: "nowrap" }}>{new Date(log.created_at).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>
-                  <td style={{ padding: 6 }}>
-                    <span style={{ padding: "2px 6px", borderRadius: 4, fontSize: 10, background: log.source === "backend" ? "#fee2e2" : "#e0e7ff", color: log.source === "backend" ? "#991b1b" : "#3730a3" }}>
-                      {log.source}
-                    </span>
-                  </td>
-                  <td style={{ padding: 6 }}>{log.user_id ? `${log.user_name || ""} (#${log.user_id})` : "-"}</td>
-                  <td style={{ padding: 6, fontFamily: "monospace", fontSize: 11 }}>{log.method ? `${log.method} ` : ""}{log.route || "-"}</td>
-                  <td style={{ padding: 6 }}>{log.status_code || "-"}</td>
-                  <td style={{ padding: 6, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={log.message}>{log.message}</td>
-                </tr>
-              ))}
+              {filtered.map(log => {
+                const sev = log._severity as string;
+                const colors = severityColors[sev] || severityColors.noise;
+                return (
+                  <tr key={log.id} style={{ borderBottom: "1px solid #eee", background: colors.bg, borderRight: sev !== "noise" ? `3px solid ${colors.border}` : "none" }}>
+                    <td style={{ padding: "6px 2px", textAlign: "center" }}>
+                      {sev === "critical" ? "🔴" : sev === "warning" ? "🟡" : ""}
+                    </td>
+                    <td style={{ padding: 6, whiteSpace: "nowrap" }}>{new Date(log.created_at).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>
+                    <td style={{ padding: 6 }}>
+                      <span style={{ padding: "2px 6px", borderRadius: 4, fontSize: 10, background: log.source === "backend" ? "#fee2e2" : log.source === "otp-diag" ? "#f0fdf4" : "#e0e7ff", color: log.source === "backend" ? "#991b1b" : log.source === "otp-diag" ? "#166534" : "#3730a3" }}>
+                        {log.source}
+                      </span>
+                    </td>
+                    <td style={{ padding: 6 }}>{log.user_id ? `${log.user_name || ""} (#${log.user_id})` : "-"}</td>
+                    <td style={{ padding: 6, fontFamily: "monospace", fontSize: 11 }}>{log.method ? `${log.method} ` : ""}{log.route || "-"}</td>
+                    <td style={{ padding: 6 }}>{log.status_code || "-"}</td>
+                    <td style={{ padding: 6, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={log.message}>{log.message}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
