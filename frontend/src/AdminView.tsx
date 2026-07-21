@@ -4410,6 +4410,12 @@ function ErrorLogsTab() {
     loadLogs();
   }
 
+  async function handleClearNoise() {
+    if (!confirm("למחוק שגיאות קלות בלבד? (חמורות ובינוניות יישארו)")) return;
+    await apiFetch("/admin/error-logs?noise_only=true", { method: "DELETE" });
+    loadLogs();
+  }
+
   // Classify severity for each log
   function getSeverity(log: any, allLogs: any[]): "critical" | "warning" | "noise" {
     // OTP diagnostic logs (informational) → noise
@@ -4487,7 +4493,8 @@ function ErrorLogsTab() {
           <option value="otp-diag">OTP Diag</option>
         </select>
         <button onClick={loadLogs} style={{ padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>רענן</button>
-        <button onClick={handleClear} style={{ padding: "4px 10px", fontSize: 12, cursor: "pointer", color: "#c00" }}>נקה ישנים</button>
+        <button onClick={handleClearNoise} style={{ padding: "4px 10px", fontSize: 12, cursor: "pointer", color: "#888" }}>נקה קלות</button>
+        <button onClick={handleClear} style={{ padding: "4px 10px", fontSize: 12, cursor: "pointer", color: "#c00" }}>נקה הכל</button>
       </div>
       {filtered.length === 0 ? <p style={{ color: "#888" }}>אין שגיאות</p> : (
         <div style={{ maxHeight: "70vh", overflowY: "auto" }}>

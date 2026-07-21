@@ -3953,11 +3953,20 @@ app.get("/admin/error-logs", async (req, res) => {
   return res.json(logs);
 });
 
-// DELETE /admin/error-logs — Clear logs (all or older than N days)
+// DELETE /admin/error-logs — Clear logs (all, noise-only, or older than N days)
 app.delete("/admin/error-logs", async (req, res) => {
   const all = req.query.all === "true";
+  const noiseOnly = req.query.noise_only === "true";
   if (all) {
     await pgQueryAll("DELETE FROM error_logs");
+  } else if (noiseOnly) {
+    // Delete noise: one-off 401s, Script error, otp-diag success logs
+    await pgQueryAll(`
+      DELETE FROM error_logs WHERE
+        (status_code = 401)
+        OR (message = 'Script error.' OR message = 'Script error')
+        OR (source = 'otp-diag' AND message NOT LIKE '%catch_error%' AND message NOT LIKE '%jwt_failed%')
+    `);
   } else {
     const beforeDays = parseInt(req.query.before_days as string) || 30;
     await pgQueryAll("DELETE FROM error_logs WHERE created_at < NOW() - $1::interval", [`${beforeDays} days`]);
