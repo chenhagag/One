@@ -238,12 +238,12 @@ class ErrorBoundary extends React.Component<
               חזרה למסך הראשי
             </button>
           </div>
-          <a
-            href="mailto:one-support@googlegroups.com?subject=תקלה באפליקציה"
-            style={{ display: "block", marginTop: 20, fontSize: 13, color: "#6366f1", textDecoration: "underline" }}
-          >
-            הבעיה חוזרת? כתבו לנו ונטפל
-          </a>
+          <p style={{ marginTop: 20, fontSize: 13, color: "#888" }}>
+            הבעיה חוזרת? דווחו לנו:{" "}
+            <a href="mailto:one-support@googlegroups.com?subject=תקלה באפליקציה" style={{ color: "#6366f1" }}>במייל</a>
+            {" / "}
+            <a href="https://wa.me/972549037400" target="_blank" rel="noopener noreferrer" style={{ color: "#25D366" }}>בווטסאפ</a>
+          </p>
         </div>
       );
     }
