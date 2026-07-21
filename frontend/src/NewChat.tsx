@@ -1663,9 +1663,24 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         {screen === "home" && (() => {
           return (
             <div style={{ padding: "8px 20px 16px", textAlign: "center", direction: "rtl" }}>
-              <p style={{ fontSize: 12, color: "#aaa", lineHeight: 1.6, margin: 0 }}>
-                המערכת נמצאת בגרסת הרצה ראשונית (MVP). הצ׳אט עדיין נמצא בשיפור, ולכן ייתכנו ניסוחים פחות מדויקים או טעויות נקודתיות. אם נתקלת בבעיה או אם יש לך כל משוב אחר בשבילנו, נשמח לשמוע <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => setScreen("bug_report")}>במסך המשוב</span>.
+              <p style={{ fontSize: 12, color: "#aaa", lineHeight: 1.6, margin: "0 0 10px" }}>
+                המערכת נמצאת בגרסת הרצה ראשונית (MVP). הצ׳אט עדיין נמצא בשיפור, ולכן ייתכנו ניסוחים פחות מדויקים או טעויות נקודתיות.
               </p>
+              <p style={{ fontSize: 12, color: "#999", margin: "0 0 8px" }}>מוזמנים לשתף אותנו ב:</p>
+              <div style={{ display: "flex", justifyContent: "center", gap: 20 }}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }} onClick={() => setScreen("bug_report")}>
+                  <span style={{ fontSize: 22 }}>💬</span>
+                  <span style={{ fontSize: 11, color: "#888" }}>משוב</span>
+                </div>
+                <a href="https://wa.me/972549037400" target="_blank" rel="noopener noreferrer" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, textDecoration: "none" }}>
+                  <span style={{ fontSize: 22 }}>📱</span>
+                  <span style={{ fontSize: 11, color: "#888" }}>ווטסאפ</span>
+                </a>
+                <a href="mailto:one-support@googlegroups.com" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, textDecoration: "none" }}>
+                  <span style={{ fontSize: 22 }}>✉️</span>
+                  <span style={{ fontSize: 11, color: "#888" }}>מייל</span>
+                </a>
+              </div>
             </div>
           );
         })()}
