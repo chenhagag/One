@@ -1663,9 +1663,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         {screen === "home" && (() => {
           return (
             <div style={{ padding: "4px 20px 10px", textAlign: "center", direction: "rtl" }}>
-              <p style={{ fontSize: 11, color: "#bbb", lineHeight: 1.5, margin: "0 0 6px" }}>
-                MVP — ייתכנו ניסוחים פחות מדויקים. מוזמנים לשתף אותנו:
+              <p style={{ fontSize: 11, color: "#bbb", lineHeight: 1.5, margin: "0 0 4px" }}>
+                המערכת נמצאת בגרסת הרצה ראשונית (MVP). הצ׳אט עדיין נמצא בשיפור, ולכן ייתכנו ניסוחים פחות מדויקים או טעויות נקודתיות.
               </p>
+              <p style={{ fontSize: 11, color: "#bbb", margin: "0 0 6px" }}>מוזמנים לשתף אותנו:</p>
               <div style={{ display: "flex", justifyContent: "center", gap: 18 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }} onClick={() => setScreen("bug_report")}>
                   <span style={{ fontSize: 16 }}>💬</span>
