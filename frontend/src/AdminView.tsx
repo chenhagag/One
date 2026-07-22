@@ -1795,6 +1795,21 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
             >
               {runningCognitiveTest ? "Running..." : "Cognitive Test"}
             </button>
+            <button
+              style={{ padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#d97706", color: "#fff", border: "none", borderRadius: 4 }}
+              onClick={async () => {
+                if (!confirm("להריץ ניתוח חיצוני (תמונות) למשתמש/ת?")) return;
+                try {
+                  const r = await apiFetch(`/admin/users/${userId}/run-photo-analysis`, { method: "POST" });
+                  const d = await r.json();
+                  if (d.error) { alert("שגיאה: " + d.error); return; }
+                  alert(`ניתוח חיצוני הושלם: ${d.result?.traits_saved ?? d.traits_saved ?? 0} traits saved` + (d.result?.skipped_reason ? ` (${d.result.skipped_reason})` : ""));
+                  loadUserData();
+                } catch (err: any) { alert("שגיאה: " + err.message); }
+              }}
+            >
+              ניתוח חיצוני
+            </button>
             {data?.user?.email_updates === false ? (
               <span style={{ fontSize: 12, color: "#dc2626", background: "#fef2f2", padding: "4px 10px", borderRadius: 4, border: "1px solid #fecaca" }}>
                 ✉️ המשתמש/ת לא אישר/ה קבלת מיילים
