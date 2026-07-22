@@ -1,6 +1,18 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-07-22 (Admin Improvements + Photo Verification + Pool Filters)
+## Latest Session: 2026-07-22 (Admin Improvements + Photo Verification + Pool Filters + Bulk Email)
+
+### Bulk Update Email
+- Sent to 20 users waiting 12+ days in matching pool (excluded couples, email-opt-out, Nadav #23, נטלי #16)
+- Subject: "עדכון קטן מ-One 💙"
+- Content: beta update, patience message, feedback request with WhatsApp + support email links
+- All logged to email_log table
+- Script: `backend/send_update_email.js` (one-time use)
+
+### Admin — Photo Analysis Button
+- "ניתוח חיצוני" button (orange) in admin user toolbar
+- Runs `analyzeUserPhotos` synchronously (was async job queue — showed 0 traits)
+- Returns actual result: traits_saved, photos_analyzed, skipped_reason
 
 ### Admin — Candidate Match Notes
 - New `admin_notes` column on `candidate_matches` table
