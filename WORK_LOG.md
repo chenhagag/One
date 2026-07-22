@@ -1,6 +1,54 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-07-22 (Match Screen Overhaul)
+## Latest Session: 2026-07-22 (Admin Improvements + Photo Verification + Pool Filters)
+
+### Admin — Candidate Match Notes
+- New `admin_notes` column on `candidate_matches` table
+- Editable inline textarea with save/cancel in admin candidate matches table
+- Endpoint: `PATCH /admin/candidate-matches/:id/notes`
+
+### Admin — New Email Templates
+- "הודעה חדשה במערכת" — notification that a message is waiting
+- "התאמה מחכה!" — celebratory match notification (🎉) with gender-aware text (מישהי/מישהו based on looking_for_gender)
+- All system emails (not OTP) now include footer: "לא ניתן להשיב למייל זה. מוזמנים לפנות אלינו בוואטסאפ או במייל התמיכה"
+- Email body alignment fixed: `margin:0 auto; text-align:right`
+
+### Admin — Send System Question from User Screen
+- Input field + "שלח שאלה" button directly in the system questions section of each user
+- Calls existing `POST /admin/users/:id/system-question` endpoint
+
+### Admin — Photo Analysis Button
+- "ניתוח חיצוני" button (orange) in admin user toolbar
+- Triggers `POST /admin/users/:id/run-photo-analysis` with result feedback
+
+### Profile — Empty Defaults with Placeholders
+- Removed pre-filled defaults (רווק/ה, אין ילדים, לא מעשן/ת)
+- All sensitive fields (marital status, children, religion, smoking) start empty with placeholder text
+- Existing users keep their current values
+
+### Match Without Photo Approval
+- "שלח ללא תמונות" button (orange) in candidate matches when both users have 0 photos
+- `/prepare` endpoint now accepts `waiting_first_rating` / `waiting_second_rating` status (skips rating step)
+
+### Fake Profile Detection in Photo Analysis
+- GPT-4o Vision prompt extended with 5 verification fields: `is_real_photo`, `is_adult`, `apparent_gender`, `is_ai_generated`, `verification_notes`
+- Results saved to `users.photo_flags` (JSONB column)
+- Admin alert box (🚨) with Hebrew descriptions on user detail page
+- 🚨 indicator next to flagged user names in users list
+- Flags auto-clear on clean re-analysis
+- Detects: not a real person, minor (<18), AI-generated, gender mismatch
+
+### Pool Filters in Admin
+- **Users tab**: new "מאגר התאמות" filter — הכל / סטרייט / נשים→נשים / גברים→גברים
+- **Candidate matches tab**: same pool filter with result counts per category
+- Backend: candidate-matches query now returns `user1_gender`, `user1_looking_for`, `user2_gender`, `user2_looking_for`
+- Display-only separation (no algorithm changes)
+
+### Deployed to production: all changes
+
+---
+
+## Previous Session: 2026-07-22 (Match Screen Overhaul)
 
 ### Match Hub Screen (replaces direct match card navigation)
 - New `match_hub` screen — central hub with partner photo/name/age/city header + action cards:
