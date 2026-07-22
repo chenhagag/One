@@ -1389,8 +1389,18 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 <div className="nc-sub-screen" style={{ maxWidth: 440, margin: "0 auto", padding: "28px 20px" }}>
                   <button onClick={() => { setSelectedPastMatch(null); setPartnerPhotoIndex(0); setScreen(backScreen as any); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#6366f1", fontSize: 14, fontWeight: 500, marginBottom: 20, fontFamily: "inherit" }}>→ חזרה</button>
 
-                  {/* Photo gallery — same style as PotentialMatchScreen */}
-                  <div style={{ position: "relative", borderRadius: 20, overflow: "hidden", background: "#f5f3ff", marginBottom: 20, boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
+                  {/* Name + age + city above photo */}
+                  <div style={{ textAlign: "center", marginBottom: 16 }}>
+                    <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", margin: "0 0 4px" }}>
+                      {m.name}{m.age ? `, ${m.age}` : ""}
+                    </h2>
+                    {m.city && (
+                      <p style={{ fontSize: 14, color: "#888", margin: 0 }}>{m.city}</p>
+                    )}
+                  </div>
+
+                  {/* Photo gallery */}
+                  <div style={{ position: "relative", borderRadius: 20, overflow: "hidden", background: "#f5f3ff", boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
                     {photos.length > 0 ? (
                       <>
                         <img
@@ -1401,35 +1411,34 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                         {photos.length > 1 && (
                           <>
                             {/* Photo indicator bar */}
-                            <div style={{ position: "absolute", top: 12, left: 16, right: 16, display: "flex", gap: 4 }}>
+                            <div style={{ position: "absolute", top: 12, left: 16, right: 16, display: "flex", gap: 4, zIndex: 2 }}>
                               {photos.map((_: any, i: number) => (
-                                <div key={i} onClick={() => setPartnerPhotoIndex(i)} style={{ flex: 1, height: 3, borderRadius: 2, background: i === partnerPhotoIndex ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.35)", cursor: "pointer", transition: "background 0.2s" }} />
+                                <div key={i} onClick={() => setPartnerPhotoIndex(i)} style={{ flex: 1, height: 4, borderRadius: 2, background: i === partnerPhotoIndex ? "#fff" : "rgba(255,255,255,0.4)", cursor: "pointer", transition: "background 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
                               ))}
                             </div>
-                            {/* Tap zones for navigation */}
+                            {/* Navigation arrows */}
                             {partnerPhotoIndex > 0 && (
-                              <div onClick={() => setPartnerPhotoIndex(i => i - 1)} style={{ position: "absolute", top: 0, right: 0, width: "40%", height: "100%", cursor: "pointer" }} />
+                              <button onClick={() => setPartnerPhotoIndex(i => i - 1)} style={{ position: "absolute", top: "50%", right: 8, transform: "translateY(-50%)", width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.7)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: "#333", zIndex: 2, backdropFilter: "blur(4px)" }}>›</button>
                             )}
                             {partnerPhotoIndex < photos.length - 1 && (
-                              <div onClick={() => setPartnerPhotoIndex(i => i + 1)} style={{ position: "absolute", top: 0, left: 0, width: "40%", height: "100%", cursor: "pointer" }} />
+                              <button onClick={() => setPartnerPhotoIndex(i => i + 1)} style={{ position: "absolute", top: "50%", left: 8, transform: "translateY(-50%)", width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.7)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: "#333", zIndex: 2, backdropFilter: "blur(4px)" }}>‹</button>
                             )}
+                            {/* Tap zones for mobile */}
+                            <div onClick={() => { if (partnerPhotoIndex > 0) setPartnerPhotoIndex(i => i - 1); }} style={{ position: "absolute", top: 0, right: 0, width: "35%", height: "100%", cursor: partnerPhotoIndex > 0 ? "pointer" : "default", zIndex: 1 }} />
+                            <div onClick={() => { if (partnerPhotoIndex < photos.length - 1) setPartnerPhotoIndex(i => i + 1); }} style={{ position: "absolute", top: 0, left: 0, width: "35%", height: "100%", cursor: partnerPhotoIndex < photos.length - 1 ? "pointer" : "default", zIndex: 1 }} />
                           </>
+                        )}
+                        {/* Photo counter */}
+                        {photos.length > 1 && (
+                          <div style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.5)", color: "#fff", fontSize: 12, fontWeight: 600, padding: "4px 12px", borderRadius: 12, zIndex: 2 }}>
+                            {partnerPhotoIndex + 1} / {photos.length}
+                          </div>
                         )}
                       </>
                     ) : (
                       <div style={{ width: "100%", aspectRatio: "4/5", display: "flex", alignItems: "center", justifyContent: "center", color: "#aaa", fontSize: 14 }}>
                         אין תמונות זמינות
                       </div>
-                    )}
-                  </div>
-
-                  {/* Name + age + city below photo */}
-                  <div style={{ textAlign: "center" }}>
-                    <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", margin: "0 0 4px" }}>
-                      {m.name}{m.age ? `, ${m.age}` : ""}
-                    </h2>
-                    {m.city && (
-                      <p style={{ fontSize: 14, color: "#888", margin: 0 }}>{m.city}</p>
                     )}
                   </div>
                 </div>
