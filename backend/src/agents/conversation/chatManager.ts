@@ -497,13 +497,12 @@ export async function buildChatPrompt(
 
       // Build phase-specific instructions
       const isDisagreeFlow = channel === "qa_insights";
-      const MAX_GENERAL_MSGS = 6;
       const MAX_CALIBRATION_QUESTIONS = 3;
 
       let phaseInstruction = "";
       const CLOSING_MSG = "תודה רבה על השיתוף, אני לוקח את כל מה שאמרת בחשבון ומריץ את הניתוח מחדש בהתאם למידע החדש. אם תרצה להוסיף עוד משהו בעתיד — תמיד אפשר לחזור לכאן.";
 
-      // State detection — all relative to current round
+      // State detection — only for calibration flow (topic-specific questions)
       const offeredQuestions = lastOfferIdx >= 0;
       const userAgreedToQuestions = offeredQuestions && currentRoundUserMsgs >= 3 &&
         /כן|בטח|יאללה|אשמח|בוא|סבבה|אוקי|ok|בסדר|מוכן|sure/i.test(message.trim());
@@ -538,15 +537,15 @@ export async function buildChatPrompt(
 
 **אסור:** לנתח, להסביר, לדון בתשובה באריכות, או לכתוב יותר מ-4 שורות.`;
       } else if (specificTopic && calibrationQuestionsAsked >= MAX_CALIBRATION_QUESTIONS) {
-        // Done with calibration — close
+        // Done with calibration — close this round
         phaseInstruction = `\n\n## מבנה ההודעה — חובה לעקוב בדיוק
 **ההודעה שלך חייבת להכיל אך ורק:**
 1. תגובה קצרה (משפט אחד) לתשובה האחרונה
 2. המשפט הבא (חובה להעתיק מילה במילה): "${CLOSING_MSG}"
 
 **אסור:** לנתח, לתת סיכום, להמשיך את השיחה, או לשאול שאלות נוספות.`;
-      } else if ((specificTopic && userDeclinedQuestions) || currentRoundUserMsgs >= MAX_GENERAL_MSGS) {
-        // User declined questions OR general flow reached limit — close
+      } else if (specificTopic && userDeclinedQuestions) {
+        // User explicitly declined calibration questions — close this round
         phaseInstruction = `\n\n## מבנה ההודעה — חובה לעקוב בדיוק
 **ההודעה שלך חייבת להכיל אך ורק:**
 1. תגובה קצרה (משפט אחד-שניים) למה שהמשתמש אמר
@@ -554,8 +553,21 @@ export async function buildChatPrompt(
 
 **אסור:** לשאול שאלות נוספות או להמשיך את השיחה.`;
       } else {
-        // General flow — ongoing
+        // General flow — no restrictions, respond naturally
         phaseInstruction = "";
+      }
+
+      // Detect ex/acquaintance concern in qa_about_me/qa_insights too
+      const qaExPattern = /אקס|אקסית|אקסים|קרוב משפחה|קרובי משפחה|מכיר אותו|מכירה אותו|מכיר אותה|מכירה אותה|ישדכו לי/i;
+      const recentQaAboutMeText = (Array.isArray(history) ? history.slice(-6) : [])
+        .filter((h: any) => h.role === "user").map((h: any) => h.content).join(" ") + " " + message;
+      let qaExNote = "";
+      if (qaExPattern.test(recentQaAboutMeText)) {
+        // Override phaseInstruction — this is not a topic-specific flow, answer freely
+        phaseInstruction = "";
+        qaExNote = qaExPattern.test(message)
+          ? `\n- המשתמש שואל על אקסים או היכרות מוקדמת. הסבר שלפני קבלת התאמה סופית, שני הצדדים מקבלים את התמונות של הצד השני ויכולים לדחות מכל סיבה — כולל היכרות מוקדמת. בנוסף, אם רוצים — אפשר לכתוב כאן בצ'אט פרטים על אנשים ספציפיים, והמערכת תנסה לזהות ולהימנע מלהציע אותם.`
+          : `\n- הנושא של אקסים/היכרות מוקדמת עלה קודם בשיחה. אם המשתמש משתף פרטים על אנשים שהוא לא רוצה להתאמה איתם — קבל את המידע בחום, הודה לו, והסבר שהמידע ייכנס לניתוח ושהמערכת תנסה לזהות ולהימנע מלהציע אותם, אבל לא ניתן להבטיח זיהוי מדויק של 100%.`;
       }
 
       parts.push(`\n\n## הנחיות${isDisagreeFlow ? " — המשתמש חולק על הניתוח" : ""}
@@ -566,8 +578,7 @@ export async function buildChatPrompt(
 - היה קצר וממוקד — שאל שאלה אחת טובה, תן למשתמש לדבר. אל תכתוב פסקאות ארוכות.
 - כשאתה מדבר על תכונות — השתמש בדוגמאות ממה שהמשתמש עצמו אמר בשיחות (יש לך ציטוטים למעלה).
 - אם המשתמש לא מסכים — אל תתגונן. שאל שאלות חכמות כדי להבין למה.
-- קרא לנוירוטיות "עוצמת תגובה רגשית" — זה מודד את עוצמת הוויסות הרגשי, לא את מידת הרגישות. תמיד הצג בכבוד ובאופן מעצים.
-- השיחה הזו צריכה להיות קצרה וממוקדת — לא שיחה אינסופית.${phaseInstruction}`);
+- קרא לנוירוטיות "עוצמת תגובה רגשית" — זה מודד את עוצמת הוויסות הרגשי, לא את מידת הרגישות. תמיד הצג בכבוד ובאופן מעצים.${qaExNote}${phaseInstruction}`);
 
       contextBlock = parts.join("");
     } else {
