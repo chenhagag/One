@@ -1978,7 +1978,8 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                 const g = (m: string, f: string) => isFemale ? f : m;
                 const btn = (text: string) => `<p style="margin:28px 0"><a href="https://joinone.io" style="display:inline-block;background-color:#7b5fa3;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold">${text}</a></p>`;
                 const footer = `<p style="margin-top:8px">נשמח ${g("לראות אותך", "לראות אותך")} בפנים,<br>צוות One</p>`;
-                const wrap = (inner: string) => `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#333;max-width:500px">${inner}</div>`;
+                const lookingFor = data?.user?.looking_for_gender === "woman" ? "מישהי" : data?.user?.looking_for_gender === "man" ? "מישהו" : "מישהו/י";
+                const wrap = (inner: string) => `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#333;max-width:500px;margin:0 auto;text-align:right">${inner}</div>`;
 
                 const templates: { label: string; subject: string; html: string }[] = [
                   {
@@ -2066,7 +2067,7 @@ ${footer}`)
                     html: wrap(`
 <h2 style="color:#1B1464">היי ${name},</h2>
 <p style="font-size:18px;font-weight:bold;color:#7b5fa3">🎉 מצאנו ${g("לך", "לך")} התאמה!</p>
-<p>אחרי ניתוח מעמיק של הפרופיל ${g("שלך", "שלך")} ושל כל המשתמשים במאגר, מצאנו מישהו/י שנראה שיש ביניכם חיבור מעניין ושווה בדיקה.</p>
+<p>אחרי ניתוח מעמיק של הפרופיל ${g("שלך", "שלך")} ושל כל המשתמשים במאגר, מצאנו ${lookingFor} שנראה שיש ביניכם חיבור מעניין ושווה בדיקה.</p>
 <p>כרטיס ההתאמה האישי ${g("שלך", "שלך")} מוכן ומחכה ${g("לך", "לך")} במערכת — ${g("מוזמן", "מוזמנת")} להיכנס ולראות למה חשבנו שכדאי שתכירו.</p>
 ${btn("לצפייה בהתאמה")}
 <p style="font-size:13px;color:#888">ב-One מעדיפים איכות על מהירות — וזו ההתאמה הכי מדויקת שמצאנו ${g("עבורך", "עבורך")}.</p>
