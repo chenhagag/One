@@ -51,6 +51,15 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 // Resend email client (for admin emails + future notifications)
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
+const EMAIL_FOOTER = `<div dir="rtl" style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#999;text-align:center;line-height:1.8">
+<p style="margin:0">לא ניתן להשיב למייל זה.</p>
+<p style="margin:4px 0 0">מוזמנים לפנות אלינו: <a href="mailto:one-support@googlegroups.com" style="color:#7b5fa3">one-support@googlegroups.com</a> · <a href="https://wa.me/972559431221" style="color:#25D366">WhatsApp</a></p>
+</div>`;
+
+function wrapEmailFooter(html: string): string {
+  return html + EMAIL_FOOTER;
+}
+
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
@@ -3333,7 +3342,7 @@ app.post("/admin/send-pool-emails", async (req, res) => {
             </div>
             <p style="font-size: 12px; color: #999; text-align: center;">צוות One</p>
           </div>
-        `,
+        ${EMAIL_FOOTER}`,
       });
       await pgQueryAll(
         "INSERT INTO email_log (user_id, subject, sent_at) VALUES ($1, $2, NOW())",
@@ -3440,7 +3449,7 @@ app.post("/admin/send-email", async (req, res) => {
       from: "One <noreply@joinone.io>",
       to: to.trim(),
       subject: subject.trim(),
-      html: html.trim(),
+      html: wrapEmailFooter(html.trim()),
     });
 
     if (error) {
@@ -3480,7 +3489,7 @@ app.post("/admin/users/:id/send-email", async (req, res) => {
       from: "One <noreply@joinone.io>",
       to: user.email,
       subject: subject.trim(),
-      html: html.trim(),
+      html: wrapEmailFooter(html.trim()),
     });
 
     if (error) {

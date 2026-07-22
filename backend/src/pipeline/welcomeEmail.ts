@@ -13,6 +13,11 @@ import {
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
+const EMAIL_FOOTER = `<div dir="rtl" style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#999;text-align:center;line-height:1.8">
+<p style="margin:0">לא ניתן להשיב למייל זה.</p>
+<p style="margin:4px 0 0">מוזמנים לפנות אלינו: <a href="mailto:one-support@googlegroups.com" style="color:#7b5fa3">one-support@googlegroups.com</a> · <a href="https://wa.me/972559431221" style="color:#25D366">WhatsApp</a></p>
+</div>`;
+
 export interface WelcomeEmailResult {
   sent: boolean;
   skipped_reason?: string;
@@ -67,7 +72,7 @@ export async function sendPoolWelcomeEmail(userId: number): Promise<WelcomeEmail
     from: "One <noreply@joinone.io>",
     to: user.email,
     subject,
-    html,
+    html: html + EMAIL_FOOTER,
   });
 
   // Log with email_type for dedup (unique index will prevent duplicates even under race)
