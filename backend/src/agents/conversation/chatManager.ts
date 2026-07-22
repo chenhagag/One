@@ -132,6 +132,11 @@ const SYSTEM_PATTERNS = [
   /מה (המטרה|הטעם)/i,
   /למה את שואל/i, /למה אתה שואל/i,
   /שואל (הרבה |מלא )שאלות/i, /קצת חופר/i,
+  // Match status questions
+  /מה הסטטוס שלי/i, /איפה אני (עומד|בתהליך)/i,
+  /מה קורה עם ההתאמה/i, /ההתאמה (שלי|בוטלה)/i,
+  /חזרתי למאגר/i, /למה ביטלו/i,
+  /מתי (אמצא|נמצא|אקבל) התאמה/i,
 ];
 
 export function detectIntent(message: string): ChatIntent {
@@ -876,6 +881,35 @@ export async function buildChatPrompt(
     const done = convState.current_topic_index;
     const pct = Math.round((done / total) * 100);
     systemPrompt += `\n\n(Internal note — do NOT mention unprompted: conversation progress ${done}/${total} topics (~${pct}%). If the user asks how much is left or says they're tired — tell them approximately how much is left, explain the importance of completing the conversation for accurate analysis, and say they can always continue later.)`;
+  }
+
+  // Inject match status context (only for general/system intent, keeps prompt light)
+  try {
+    const userRow = await pgQueryOne<{ user_status: string | null }>(
+      "SELECT user_status FROM users WHERE id = $1", [userId]
+    );
+    const userStatus = userRow?.user_status || "waiting_match";
+
+    if (userStatus === "in_match") {
+      systemPrompt += `\n\n(Internal note — do NOT mention unprompted: user currently has an active match. If they ask about their status, let them know they have an active match and can view it via the match screen in the sidebar.)`;
+    } else if (userStatus === "waiting_match") {
+      const lastMatch = await pgQueryOne<{ cancelled_by: number | null; updated_at: string }>(
+        `SELECT cancelled_by, updated_at FROM matches
+         WHERE (user1_id = $1 OR user2_id = $1) AND status = 'cancelled'
+         ORDER BY updated_at DESC LIMIT 1`,
+        [userId]
+      );
+      if (lastMatch && (Date.now() - new Date(lastMatch.updated_at).getTime()) < 30 * 24 * 60 * 60 * 1000) {
+        const wasInitiator = lastMatch.cancelled_by === userId;
+        systemPrompt += wasInitiator
+          ? `\n\n(Internal note — do NOT mention unprompted: user's previous match was cancelled by them. They're back in the matching pool and we're looking for a new match. If they mention it, be supportive — say we're taking their feedback into account for the next match.)`
+          : `\n\n(Internal note — do NOT mention unprompted: user's previous match was cancelled by the other side. They're back in the matching pool. If they mention it, be empathetic and encouraging — it's a normal part of the process, doesn't say anything about them, and we're searching for a better match.)`;
+      } else {
+        systemPrompt += `\n\n(Internal note — do NOT mention unprompted: user is in the matching pool, waiting for a match. If they ask about status, tell them we're searching for a compatible match and it may take some time because we prioritize quality.)`;
+      }
+    }
+  } catch (err) {
+    // Non-critical — don't fail the prompt if this query fails
   }
 
   return { systemPrompt, intent, phase, closingStage: convState.closing_stage };

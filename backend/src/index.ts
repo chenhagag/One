@@ -992,7 +992,8 @@ app.get("/users/:id/active-match-card", requireUserAuth, async (req, res) => {
     const match = await pgQueryOne<any>(
       `SELECT m.id, m.match_card_data, m.user1_id, m.user2_id, m.match_card_sent_at,
               u1.first_name AS user1_name, u2.first_name AS user2_name,
-              u1.age AS user1_age, u2.age AS user2_age
+              u1.age AS user1_age, u2.age AS user2_age,
+              u1.city AS user1_city, u2.city AS user2_city
        FROM matches m
        JOIN users u1 ON u1.id = m.user1_id
        JOIN users u2 ON u2.id = m.user2_id
@@ -1010,6 +1011,7 @@ app.get("/users/:id/active-match-card", requireUserAuth, async (req, res) => {
     const partnerName = match.user1_id === userId ? match.user2_name : match.user1_name;
     const myName = match.user1_id === userId ? match.user1_name : match.user2_name;
     const partnerAge = match.user1_id === userId ? match.user2_age : match.user1_age;
+    const partnerCity = match.user1_id === userId ? match.user2_city : match.user1_city;
 
     // Get partner photos
     const photos = await pgQueryAll<any>(
@@ -1027,6 +1029,7 @@ app.get("/users/:id/active-match-card", requireUserAuth, async (req, res) => {
         data: match.match_card_data,
         partner_name: partnerName,
         partner_age: partnerAge,
+        partner_city: partnerCity,
         my_name: myName,
         partner_photo: photos.length > 0 ? `/uploads/${photos[0].filename}` : null,
         my_photo: myPhotos.length > 0 ? `/uploads/${myPhotos[0].filename}` : null,
@@ -1307,6 +1310,183 @@ app.post("/users/:id/report-match", requireUserAuth, async (req, res) => {
   } catch (err) {
     console.error("[report-match] Error:", err);
     return res.status(500).json({ error: "Failed to process report" });
+  }
+});
+
+// POST /users/:id/cancel-match — User cancels their active match
+app.post("/users/:id/cancel-match", requireUserAuth, async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const { feedback } = req.body || {};
+
+  try {
+    const match = await pgQueryOne<any>(
+      `SELECT * FROM matches WHERE (user1_id = $1 OR user2_id = $1) AND status = 'in_match' LIMIT 1`,
+      [userId]
+    );
+    if (!match) return res.status(404).json({ error: "No active match found" });
+
+    const isUser1 = match.user1_id === userId;
+    const feedbackCol = isUser1 ? "cancellation_feedback_user1" : "cancellation_feedback_user2";
+
+    await withTransaction(async (client) => {
+      await client.query(
+        `UPDATE matches SET status = 'cancelled', cancelled_by = $1, ${feedbackCol} = $2, updated_at = NOW() WHERE id = $3`,
+        [userId, feedback || null, match.id]
+      );
+      await client.query(
+        `UPDATE users SET user_status = 'waiting_match', waiting_since = NOW(), updated_at = NOW() WHERE id IN ($1, $2)`,
+        [match.user1_id, match.user2_id]
+      );
+      // Unfreeze frozen matches for both users
+      const frozenMatches = await client.query<{ id: number; previous_status: string }>(
+        `SELECT id, previous_status FROM matches
+         WHERE status = 'frozen' AND previous_status IS NOT NULL
+           AND (user1_id = ANY($1::int[]) OR user2_id = ANY($1::int[]))`,
+        [[match.user1_id, match.user2_id]]
+      );
+      for (const fm of frozenMatches.rows) {
+        await client.query(
+          "UPDATE matches SET status = $1, previous_status = NULL, updated_at = NOW() WHERE id = $2",
+          [fm.previous_status, fm.id]
+        );
+      }
+      // Save feedback to conversation_messages so AI analysis can read it
+      if (feedback && feedback.trim()) {
+        await client.query(
+          "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES ($1, $2, $3, $4)",
+          [userId, "user", `[match:${match.id}] ${feedback.trim()}`, "match_feedback"]
+        );
+      }
+    });
+
+    return res.json({ success: true, match_id: match.id });
+  } catch (err) {
+    console.error("[cancel-match] Error:", err);
+    return res.status(500).json({ error: "Failed to cancel match" });
+  }
+});
+
+// GET /users/:id/match-history — Past cancelled matches for a user
+app.get("/users/:id/match-history", requireUserAuth, async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  try {
+    const matches = await pgQueryAll<any>(
+      `SELECT m.id, m.match_card_data, m.user1_id, m.user2_id, m.cancelled_by,
+              m.cancellation_feedback_user1, m.cancellation_feedback_user2, m.updated_at,
+              u1.first_name AS user1_name, u2.first_name AS user2_name,
+              u1.age AS user1_age, u2.age AS user2_age,
+              u1.city AS user1_city, u2.city AS user2_city
+       FROM matches m
+       JOIN users u1 ON u1.id = m.user1_id
+       JOIN users u2 ON u2.id = m.user2_id
+       WHERE (m.user1_id = $1 OR m.user2_id = $1) AND m.status = 'cancelled'
+       ORDER BY m.updated_at DESC`,
+      [userId]
+    );
+
+    const result = [];
+    for (const m of matches) {
+      const isUser1 = m.user1_id === userId;
+      const partnerId = isUser1 ? m.user2_id : m.user1_id;
+      // Get partner's first photo
+      const photo = await pgQueryOne<any>(
+        "SELECT filename FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1",
+        [partnerId]
+      );
+      result.push({
+        match_id: m.id,
+        partner_name: isUser1 ? m.user2_name : m.user1_name,
+        partner_age: isUser1 ? m.user2_age : m.user1_age,
+        partner_city: isUser1 ? m.user2_city : m.user1_city,
+        partner_photo: photo ? `/uploads/${photo.filename}` : null,
+        cancelled_by: m.cancelled_by,
+        my_feedback: isUser1 ? m.cancellation_feedback_user1 : m.cancellation_feedback_user2,
+        match_card_data: m.match_card_data,
+        updated_at: m.updated_at,
+      });
+    }
+
+    return res.json({ matches: result });
+  } catch (err) {
+    console.error("[match-history] Error:", err);
+    return res.status(500).json({ error: "Failed to load match history" });
+  }
+});
+
+// GET /users/:id/match-partner-profile — Partner's public info for a specific match
+app.get("/users/:id/match-partner-profile", requireUserAuth, async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const matchId = parseInt(req.query.match_id as string, 10);
+  if (!matchId) return res.status(400).json({ error: "match_id required" });
+
+  try {
+    const match = await pgQueryOne<any>(
+      "SELECT user1_id, user2_id FROM matches WHERE id = $1 AND (user1_id = $2 OR user2_id = $2)",
+      [matchId, userId]
+    );
+    if (!match) return res.status(404).json({ error: "Match not found" });
+
+    const partnerId = match.user1_id === userId ? match.user2_id : match.user1_id;
+    const partner = await pgQueryOne<any>(
+      "SELECT first_name, age, city FROM users WHERE id = $1",
+      [partnerId]
+    );
+    if (!partner) return res.status(404).json({ error: "Partner not found" });
+
+    const photos = await pgQueryAll<any>(
+      "SELECT id, filename FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC",
+      [partnerId]
+    );
+
+    return res.json({
+      name: partner.first_name,
+      age: partner.age,
+      city: partner.city,
+      photos: photos.map((p: any) => ({ id: p.id, url: `/uploads/${p.filename}` })),
+    });
+  } catch (err) {
+    console.error("[match-partner-profile] Error:", err);
+    return res.status(500).json({ error: "Failed to load partner profile" });
+  }
+});
+
+// POST /users/:id/match-feedback — Save/update feedback for a cancelled match
+app.post("/users/:id/match-feedback", requireUserAuth, async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const { match_id, feedback } = req.body || {};
+  if (!match_id || !feedback) return res.status(400).json({ error: "match_id and feedback required" });
+
+  try {
+    const match = await pgQueryOne<any>(
+      "SELECT * FROM matches WHERE id = $1 AND (user1_id = $2 OR user2_id = $2) AND status = 'cancelled'",
+      [match_id, userId]
+    );
+    if (!match) return res.status(404).json({ error: "Cancelled match not found" });
+
+    const isUser1 = match.user1_id === userId;
+    const feedbackCol = isUser1 ? "cancellation_feedback_user1" : "cancellation_feedback_user2";
+
+    // Update feedback on match record
+    await pgQueryOne(
+      `UPDATE matches SET ${feedbackCol} = $1, updated_at = NOW() WHERE id = $2`,
+      [feedback.trim(), match.id]
+    );
+
+    // Upsert conversation_messages: delete old match_feedback for this user+match, insert new
+    await pgQueryOne(
+      `DELETE FROM conversation_messages WHERE user_id = $1 AND guide = 'match_feedback'
+       AND content LIKE $2`,
+      [userId, `[match:${match.id}]%`]
+    );
+    await pgQueryOne(
+      "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES ($1, $2, $3, $4)",
+      [userId, "user", `[match:${match.id}] ${feedback.trim()}`, "match_feedback"]
+    );
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("[match-feedback] Error:", err);
+    return res.status(500).json({ error: "Failed to save feedback" });
   }
 });
 
@@ -4136,6 +4316,13 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       [userId]
     );
 
+    // Check for past cancelled matches
+    const pastMatchRow = await pgQueryOne<{ c: number }>(
+      `SELECT COUNT(*)::int AS c FROM matches WHERE (user1_id = $1 OR user2_id = $1) AND status = 'cancelled'`,
+      [userId]
+    );
+    const hasPastMatches = (pastMatchRow?.c ?? 0) > 0;
+
     return res.json({
       has_cognitive: cogClosed,
       cognitive_count: cognitiveCount,
@@ -4154,6 +4341,7 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       pending_rating: !!pendingMatch,
       in_matching_pool: profileRow?.in_matching_pool ?? false,
       match_card_consent: profileRow?.match_card_consent ?? null,
+      has_past_matches: hasPastMatches,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

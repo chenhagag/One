@@ -346,20 +346,30 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [sending, setSending] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [channel, setChannel] = useState<string>("new_chat");
-  const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "insights" | "couple_insights" | "bug_report" | "settings" | "how_it_works" | "potential_matches" | "match_card_consent" | "match_card" | "match_chat">("home");
+  const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "insights" | "couple_insights" | "bug_report" | "settings" | "how_it_works" | "potential_matches" | "match_card_consent" | "match_card" | "match_chat" | "match_hub" | "cancel_match" | "past_matches" | "past_match_detail">("home");
   const [unreadMatchMessages, setUnreadMatchMessages] = useState(0);
   const [matchChatStarted, setMatchChatStarted] = useState(false);
+  const [hasPastMatches, setHasPastMatches] = useState(false);
+  const [pastMatches, setPastMatches] = useState<any[]>([]);
+  const [selectedPastMatch, setSelectedPastMatch] = useState<any>(null);
+  const [cancelFeedback, setCancelFeedback] = useState("");
+  const [cancelConfirm, setCancelConfirm] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [pastMatchFeedback, setPastMatchFeedback] = useState("");
+  const [savingFeedback, setSavingFeedback] = useState(false);
+  const [feedbackSaved, setFeedbackSaved] = useState(false);
+  const [pastMatchesLoading, setPastMatchesLoading] = useState(false);
   const [coupleInsights, setCoupleInsights] = useState<string | null>(null);
   const [analysisCompleted, setAnalysisCompleted] = useState(false);
   const [bugText, setBugText] = useState("");
   const [bugSent, setBugSent] = useState(false);
   const [feedbackCategory, setFeedbackCategory] = useState<string>("");
-  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, pending_rating: false, in_matching_pool: false, match_card_consent: null });
+  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null; has_past_matches: boolean }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, pending_rating: false, in_matching_pool: false, match_card_consent: null, has_past_matches: false });
   const [systemQuestion, setSystemQuestion] = useState<{ id: number; question_text: string } | null>(null);
   const [answeredQuestion, setAnsweredQuestion] = useState<{ question_text: string; answer: string } | null>(null);
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
   const [matchingProgress, setMatchingProgress] = useState<{ total_pool_profiles: number; scanned_profiles: number; status_text: string } | null>(null);
-  const [activeMatchCard, setActiveMatchCard] = useState<{ match_id: number; data: any; partner_name: string; partner_age: number | null; my_name: string; partner_photo: string | null; my_photo: string | null } | null>(null);
+  const [activeMatchCard, setActiveMatchCard] = useState<{ match_id: number; data: any; partner_name: string; partner_age: number | null; partner_city: string | null; my_name: string; partner_photo: string | null; my_photo: string | null } | null>(null);
   const [matchCardViewed, setMatchCardViewed] = useState<boolean>(() => localStorage.getItem(`match_card_viewed_${user.id}`) === "true");
   const [insightCard, setInsightCard] = useState<{ mbti: { type: string | null; description: string | null }; allValues: { name: string; he: string; score: number; description: string }[]; allBigFive: { name: string; he: string; score: number; description: string }[] } | null>(null);
   const [fineTuneAnswered, setFineTuneAnswered] = useState<boolean>(() => localStorage.getItem(`fine_tune_${user.id}`) === "true");
@@ -407,7 +417,9 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             pending_rating: !!data.pending_rating,
             in_matching_pool: !!data.in_matching_pool,
             match_card_consent: data.match_card_consent || null,
+            has_past_matches: !!data.has_past_matches,
           });
+          setHasPastMatches(!!data.has_past_matches);
           setSystemQuestion(data.system_question || null);
           if (data.chat_closed) setClosedChannels(prev => ({ ...prev, "new_chat": true }));
           if (data.cognitive_closed) setClosedChannels(prev => ({ ...prev, "new_chat_cognitive": true }));
@@ -449,6 +461,15 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
   useEffect(() => { loadRecommendations(); }, [user.id]);
   useEffect(() => { if (screen === "home") loadRecommendations(); }, [screen]);
+  useEffect(() => {
+    if (screen === "past_matches") {
+      setPastMatchesLoading(true);
+      apiFetch(`/users/${user.id}/match-history`)
+        .then(r => r.json())
+        .then(data => { setPastMatches(data.matches || []); setPastMatchesLoading(false); })
+        .catch(() => setPastMatchesLoading(false));
+    }
+  }, [screen]);
   // Mark match card as viewed when user enters card screen
   const prevScreenRef = useRef(screen);
   useEffect(() => {
@@ -754,12 +775,12 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               <span>תצוגת אדמין</span>
             </button>
           )}
-          {/* Match card — shown when user has an active match */}
+          {/* Match hub — shown when user has an active match */}
           {activeMatchCard && (
             <button
-              style={(screen === "match_card" || screen === "match_chat") ? styles.sidebarItemActive : styles.sidebarItem}
+              style={(screen === "match_hub" || screen === "match_card" || screen === "match_chat" || screen === "cancel_match") ? styles.sidebarItemActive : styles.sidebarItem}
               onClick={() => {
-                setScreen("match_card");
+                setScreen("match_hub");
                 setMenuOpen(false);
               }}
             >
@@ -769,6 +790,16 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 <span style={{ background: "#ef4444", color: "#fff", fontSize: 10, fontWeight: 700, width: 18, height: 18, borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center", marginRight: 4 }}>{unreadMatchMessages}</span>
               )}
               <span style={{ fontSize: 14, color: "#aaa", marginRight: 4 }}>&#9825;</span>
+            </button>
+          )}
+          {/* Past matches — shown when user has cancelled matches and no active match */}
+          {hasPastMatches && !activeMatchCard && (
+            <button
+              style={(screen === "past_matches" || screen === "past_match_detail") ? styles.sidebarItemActive : styles.sidebarItem}
+              onClick={() => { setScreen("past_matches"); setMenuOpen(false); }}
+            >
+              <IconImg src="/icons/accurateMatch.png" />
+              <span>התאמות קודמות</span>
             </button>
           )}
           {/* Couple insights — only for couple testers with insights */}
@@ -814,8 +845,12 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
              screen === "profile_edit" ? "הפרטים שלי" :
              screen === "insights" ? "תובנות על עצמי" :
              screen === "match_chat" ? "שיחה" :
+             screen === "match_hub" ? "ההתאמה שלי" :
              screen === "match_card" ? "כרטיס התאמה" :
              screen === "match_card_consent" ? "כרטיס התאמה" :
+             screen === "cancel_match" ? "ביטול התאמה" :
+             screen === "past_matches" ? "התאמות קודמות" :
+             screen === "past_match_detail" ? "התאמה קודמת" :
              screen === "couple_insights" ? "ניתוח זוגיות" :
              screen === "how_it_works" ? "איך המערכת עובדת?" :
              screen === "bug_report" ? "עזרו לנו להשתפר" :
@@ -965,11 +1000,165 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           </div>
         )}
 
+        {/* ── Match Hub ── */}
+        {screen === "match_hub" && activeMatchCard && (
+          <div className="nc-screen-fade" key="match_hub" style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
+            <div className="nc-sub-screen" style={{ maxWidth: 500, margin: "0 auto", padding: "32px 24px" }}>
+              {/* Partner header */}
+              <div style={{ textAlign: "center", marginBottom: 28 }}>
+                <div style={{
+                  width: 90, height: 90, borderRadius: "50%", overflow: "hidden",
+                  border: "3px solid #e0ddf5", margin: "0 auto 12px",
+                  background: "#f0eef8",
+                }}>
+                  {activeMatchCard.partner_photo ? (
+                    <img src={activeMatchCard.partner_photo} alt={activeMatchCard.partner_name}
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#6366f1", fontWeight: 700, fontSize: 28 }}>
+                      {activeMatchCard.partner_name.charAt(0)}
+                    </div>
+                  )}
+                </div>
+                <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", margin: "0 0 4px" }}>
+                  {activeMatchCard.partner_name}
+                </h2>
+                <p style={{ fontSize: 14, color: "#888", margin: 0 }}>
+                  {[activeMatchCard.partner_age && `${activeMatchCard.partner_age}`, activeMatchCard.partner_city].filter(Boolean).join(" · ")}
+                </p>
+              </div>
+
+              {/* Action cards */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 32 }}>
+                {/* Chat button */}
+                <button
+                  onClick={() => { setScreen("match_chat"); setUnreadMatchMessages(0); }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 14, padding: "16px 20px",
+                    background: unreadMatchMessages > 0 ? "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)" : "#fff",
+                    color: unreadMatchMessages > 0 ? "#fff" : "#1a1a2e",
+                    border: unreadMatchMessages > 0 ? "none" : "1px solid #e0ddf5",
+                    borderRadius: 14, cursor: "pointer", fontFamily: "inherit",
+                    boxShadow: unreadMatchMessages > 0 ? "0 4px 14px rgba(99,102,241,0.25)" : "0 1px 4px rgba(0,0,0,0.06)",
+                    direction: "rtl", width: "100%", textAlign: "right",
+                  }}
+                >
+                  <div style={{
+                    width: 44, height: 44, borderRadius: "50%",
+                    background: unreadMatchMessages > 0 ? "rgba(255,255,255,0.2)" : "#f0eef8",
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, position: "relative",
+                  }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={unreadMatchMessages > 0 ? "#fff" : "#6366f1"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                    {unreadMatchMessages > 0 && (
+                      <span style={{
+                        position: "absolute", top: -4, right: -4,
+                        background: "#ef4444", color: "#fff", fontSize: 10, fontWeight: 700,
+                        width: 18, height: 18, borderRadius: "50%",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>{unreadMatchMessages}</span>
+                    )}
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 15, fontWeight: 600, margin: "0 0 2px" }}>
+                      {matchChatStarted ? "המשך שיחה" : "התחלת שיחה"}
+                    </p>
+                    {unreadMatchMessages > 0 && (
+                      <p style={{ fontSize: 12, margin: 0, opacity: 0.85 }}>
+                        {unreadMatchMessages === 1 ? "הודעה חדשה" : `${unreadMatchMessages} הודעות חדשות`}
+                      </p>
+                    )}
+                  </div>
+                </button>
+
+                {/* Match card button */}
+                <button
+                  onClick={() => setScreen("match_card")}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 14, padding: "16px 20px",
+                    background: "#fff", color: "#1a1a2e",
+                    border: "1px solid #e0ddf5", borderRadius: 14,
+                    cursor: "pointer", fontFamily: "inherit",
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+                    direction: "rtl", width: "100%", textAlign: "right",
+                  }}
+                >
+                  <div style={{
+                    width: 44, height: 44, borderRadius: "50%", background: "#f0eef8",
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                  }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                      <line x1="9" y1="9" x2="15" y2="9" />
+                      <line x1="9" y1="13" x2="15" y2="13" />
+                      <line x1="9" y1="17" x2="12" y2="17" />
+                    </svg>
+                  </div>
+                  <p style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>כרטיס ההתאמה</p>
+                </button>
+
+                {/* Partner profile button */}
+                <button
+                  onClick={() => {
+                    apiFetch(`/users/${user.id}/match-partner-profile?match_id=${activeMatchCard.match_id}`)
+                      .then(r => r.json())
+                      .then(data => {
+                        if (data.photos) {
+                          setSelectedPastMatch({ ...data, _isPartnerProfile: true, _backTo: "match_hub" });
+                          setScreen("past_match_detail");
+                        }
+                      });
+                  }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 14, padding: "16px 20px",
+                    background: "#fff", color: "#1a1a2e",
+                    border: "1px solid #e0ddf5", borderRadius: 14,
+                    cursor: "pointer", fontFamily: "inherit",
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+                    direction: "rtl", width: "100%", textAlign: "right",
+                  }}
+                >
+                  <div style={{
+                    width: 44, height: 44, borderRadius: "50%", background: "#f0eef8",
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                  }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 15, fontWeight: 600, margin: "0 0 2px" }}>פרופיל</p>
+                    <p style={{ fontSize: 12, color: "#888", margin: 0 }}>
+                      {[activeMatchCard.partner_name, activeMatchCard.partner_age && `${activeMatchCard.partner_age}`, activeMatchCard.partner_city].filter(Boolean).join(", ")}
+                    </p>
+                  </div>
+                </button>
+              </div>
+
+              {/* Cancel match — subtle at the bottom */}
+              <div style={{ textAlign: "center", paddingTop: 16, borderTop: "1px solid #f0eef8" }}>
+                <button
+                  onClick={() => setScreen("cancel_match")}
+                  style={{
+                    background: "none", border: "none", cursor: "pointer",
+                    color: "#999", fontSize: 13, fontFamily: "inherit",
+                    padding: "8px 16px",
+                  }}
+                >
+                  ביטול התאמה וחזרה למאגר
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {screen === "match_card" && (
           activeMatchCard ? (
             <MatchCard
               user={user}
-              onBack={() => setScreen("home")}
+              onBack={() => setScreen("match_hub")}
               matchData={{
                 person1: { name: activeMatchCard.my_name, photo: activeMatchCard.my_photo || "" },
                 person2: { name: activeMatchCard.partner_name, photo: activeMatchCard.partner_photo || "" },
@@ -990,7 +1179,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             partnerName={activeMatchCard.partner_name}
             partnerPhoto={activeMatchCard.partner_photo}
             myPhoto={activeMatchCard.my_photo}
-            onBack={() => setScreen("match_card")}
+            onBack={() => setScreen("match_hub")}
           />
         )}
 
@@ -1006,6 +1195,334 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             alreadyApproved={recommendations.match_card_consent === "approved"}
           />
         )}
+
+        {/* ── Cancel Match ── */}
+        {screen === "cancel_match" && activeMatchCard && (
+          <div className="nc-screen-fade" key="cancel_match" style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
+            <div className="nc-sub-screen" style={{ maxWidth: 500, margin: "0 auto", padding: "32px 24px" }}>
+              <button onClick={() => { setScreen("match_hub"); setCancelFeedback(""); setCancelConfirm(false); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#6366f1", fontSize: 14, fontWeight: 500, marginBottom: 20, fontFamily: "inherit" }}>→ חזרה</button>
+
+              <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", marginBottom: 16 }}>ביטול התאמה וחזרה למאגר</h2>
+
+              <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 12, padding: "14px 18px", marginBottom: 20 }}>
+                <p style={{ fontSize: 14, color: "#92400e", margin: 0, lineHeight: 1.7 }}>
+                  שימו לב — ביטול ההתאמה ישפיע על שני הצדדים. שניכם תחזרו למאגר ההתאמות.
+                  <br />ההתאמה תעבור לסטטוס "בוטלה" אצל שני הצדדים.
+                </p>
+              </div>
+
+              <div style={{ background: "#f8f7fc", borderRadius: 12, padding: "16px 18px", marginBottom: 20 }}>
+                <p style={{ fontSize: 14, color: "#555", margin: "0 0 4px", lineHeight: 1.7 }}>
+                  אנחנו משתפרים ולומדים מהתאמה להתאמה. המשוב שלך יעזור לנו לדייק את ההתאמה הבאה שלך.
+                </p>
+              </div>
+
+              <label style={{ fontSize: 14, fontWeight: 600, color: "#333", display: "block", marginBottom: 8 }}>
+                למה ההתאמה לא הרגישה מתאימה? (אופציונלי)
+              </label>
+              <textarea
+                value={cancelFeedback}
+                onChange={(e) => setCancelFeedback(e.target.value)}
+                placeholder="שתפו אותנו — מה לא עבד? מה נקח בחשבון להתאמה הבאה?"
+                style={{
+                  width: "100%", minHeight: 100, padding: "12px 14px",
+                  borderRadius: 10, border: "1px solid #d4d0e8",
+                  fontSize: 14, fontFamily: "inherit", resize: "vertical",
+                  direction: "rtl", boxSizing: "border-box",
+                }}
+              />
+
+              <button
+                onClick={() => setCancelConfirm(true)}
+                style={{
+                  marginTop: 20, width: "100%", padding: "14px",
+                  background: "#ef4444", color: "#fff", border: "none",
+                  borderRadius: 12, fontSize: 15, fontWeight: 600,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                ביטול ההתאמה
+              </button>
+
+              {/* Confirmation dialog */}
+              {cancelConfirm && (
+                <div style={{
+                  position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+                  background: "rgba(0,0,0,0.5)", display: "flex",
+                  alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20,
+                }}>
+                  <div style={{
+                    background: "#fff", borderRadius: 16, padding: "28px 24px",
+                    maxWidth: 380, width: "100%", textAlign: "center", direction: "rtl",
+                  }}>
+                    <p style={{ fontSize: 16, fontWeight: 700, color: "#1a1a2e", margin: "0 0 12px" }}>
+                      בטוח/ה?
+                    </p>
+                    <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, margin: "0 0 20px" }}>
+                      ההתאמה תבוטל לשני הצדדים ושניכם תחזרו למאגר.
+                    </p>
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <button
+                        onClick={async () => {
+                          setCancelling(true);
+                          try {
+                            const r = await apiFetch(`/users/${user.id}/cancel-match`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ feedback: cancelFeedback }),
+                            });
+                            const data = await r.json();
+                            if (data.success) {
+                              setActiveMatchCard(null);
+                              setHasPastMatches(true);
+                              setCancelFeedback("");
+                              setCancelConfirm(false);
+                              setScreen("home");
+                              loadRecommendations();
+                            }
+                          } catch (err) {
+                            console.error("Cancel match error:", err);
+                          }
+                          setCancelling(false);
+                        }}
+                        disabled={cancelling}
+                        style={{
+                          flex: 1, padding: "12px", background: "#ef4444",
+                          color: "#fff", border: "none", borderRadius: 10,
+                          fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                        }}
+                      >
+                        {cancelling ? "מבטל..." : "כן, בטל/י התאמה"}
+                      </button>
+                      <button
+                        onClick={() => setCancelConfirm(false)}
+                        style={{
+                          flex: 1, padding: "12px", background: "#f3f4f6",
+                          color: "#333", border: "none", borderRadius: 10,
+                          fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                        }}
+                      >
+                        חזרה
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Past Matches List ── */}
+        {screen === "past_matches" && (
+          <div className="nc-screen-fade" key="past_matches" style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
+            <div className="nc-sub-screen" style={{ maxWidth: 500, margin: "0 auto", padding: "32px 24px" }}>
+              <button onClick={() => setScreen("home")} style={{ background: "none", border: "none", cursor: "pointer", color: "#6366f1", fontSize: 14, fontWeight: 500, marginBottom: 20, fontFamily: "inherit" }}>→ חזרה</button>
+              <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", marginBottom: 20 }}>התאמות קודמות</h2>
+
+              {pastMatchesLoading ? (
+                <p style={{ color: "#888", textAlign: "center" }}>טוען...</p>
+              ) : pastMatches.length === 0 ? (
+                <p style={{ color: "#888", textAlign: "center" }}>אין התאמות קודמות</p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {pastMatches.map((m: any) => (
+                    <button
+                      key={m.match_id}
+                      onClick={() => {
+                        setSelectedPastMatch(m);
+                        setPastMatchFeedback(m.my_feedback || "");
+                        setFeedbackSaved(false);
+                        setScreen("past_match_detail");
+                      }}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 14, padding: "14px 18px",
+                        background: "#fff", border: "1px solid #e0ddf5", borderRadius: 14,
+                        cursor: "pointer", fontFamily: "inherit", width: "100%", textAlign: "right", direction: "rtl",
+                      }}
+                    >
+                      <div style={{
+                        width: 48, height: 48, borderRadius: "50%", overflow: "hidden",
+                        border: "2px solid #e0ddf5", flexShrink: 0, background: "#f0eef8",
+                      }}>
+                        {m.partner_photo ? (
+                          <img src={m.partner_photo} alt={m.partner_name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        ) : (
+                          <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#6366f1", fontWeight: 700, fontSize: 18 }}>
+                            {m.partner_name?.charAt(0)}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 15, fontWeight: 600, color: "#1a1a2e", margin: "0 0 2px" }}>
+                          {m.partner_name}{m.partner_age ? `, ${m.partner_age}` : ""}
+                        </p>
+                        <p style={{ fontSize: 12, color: "#999", margin: 0 }}>
+                          {m.cancelled_by === user.id ? "בוטלה על ידך" : "בוטלה על ידי הצד השני"}
+                        </p>
+                      </div>
+                      <span style={{
+                        fontSize: 11, fontWeight: 600, color: "#ef4444",
+                        background: "#fef2f2", padding: "4px 10px", borderRadius: 8,
+                      }}>בוטלה</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Past Match Detail / Partner Profile ── */}
+        {screen === "past_match_detail" && selectedPastMatch && (() => {
+          const m = selectedPastMatch;
+          const isPartnerProfile = m._isPartnerProfile;
+          const isCancelledByMe = m.cancelled_by === user.id;
+          const backScreen = m._backTo || "past_matches";
+
+          // Partner profile view (from active match hub)
+          if (isPartnerProfile) {
+            return (
+              <div className="nc-screen-fade" key="partner_profile" style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
+                <div className="nc-sub-screen" style={{ maxWidth: 500, margin: "0 auto", padding: "32px 24px" }}>
+                  <button onClick={() => { setSelectedPastMatch(null); setScreen(backScreen as any); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#6366f1", fontSize: 14, fontWeight: 500, marginBottom: 20, fontFamily: "inherit" }}>→ חזרה</button>
+
+                  <div style={{ textAlign: "center", marginBottom: 24 }}>
+                    <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", margin: "0 0 4px" }}>{m.name}</h2>
+                    <p style={{ fontSize: 14, color: "#888", margin: 0 }}>
+                      {[m.age && `${m.age}`, m.city].filter(Boolean).join(" · ")}
+                    </p>
+                  </div>
+
+                  {/* Photos */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {(m.photos || []).map((p: any, i: number) => (
+                      <div key={p.id || i} style={{ borderRadius: 14, overflow: "hidden", background: "#f0eef8" }}>
+                        <img src={p.url} alt={`${m.name} ${i + 1}`} style={{ width: "100%", display: "block" }} />
+                      </div>
+                    ))}
+                    {(!m.photos || m.photos.length === 0) && (
+                      <div style={{ textAlign: "center", padding: 40, color: "#999" }}>אין תמונות</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          // Past match detail view
+          return (
+            <div className="nc-screen-fade" key="past_match_detail" style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
+              <div className="nc-sub-screen" style={{ maxWidth: 500, margin: "0 auto", padding: "32px 24px" }}>
+                <button onClick={() => { setSelectedPastMatch(null); setScreen("past_matches"); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#6366f1", fontSize: 14, fontWeight: 500, marginBottom: 20, fontFamily: "inherit" }}>→ חזרה</button>
+
+                {/* Partner info */}
+                <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20, direction: "rtl" }}>
+                  <div style={{
+                    width: 56, height: 56, borderRadius: "50%", overflow: "hidden",
+                    border: "2px solid #e0ddf5", flexShrink: 0, background: "#f0eef8",
+                  }}>
+                    {m.partner_photo ? (
+                      <img src={m.partner_photo} alt={m.partner_name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : (
+                      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#6366f1", fontWeight: 700, fontSize: 20 }}>
+                        {m.partner_name?.charAt(0)}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 17, fontWeight: 700, color: "#1a1a2e", margin: "0 0 2px" }}>
+                      {m.partner_name}{m.partner_age ? `, ${m.partner_age}` : ""}
+                    </p>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "#ef4444", background: "#fef2f2", padding: "3px 8px", borderRadius: 6 }}>בוטלה</span>
+                  </div>
+                </div>
+
+                {/* Cancellation explanation */}
+                {!isCancelledByMe && (
+                  <div style={{ background: "#f8f7fc", borderRadius: 12, padding: "16px 18px", marginBottom: 20 }}>
+                    <p style={{ fontSize: 14, color: "#555", margin: 0, lineHeight: 1.7 }}>
+                      ההתאמה בוטלה על ידי הצד השני. חזרת למאגר ואנחנו ממשיכים לחפש לך התאמה חדשה עם התובנות החדשות שלנו.
+                    </p>
+                  </div>
+                )}
+
+                {/* Feedback section */}
+                <div style={{ background: "#fff", border: "1px solid #e0ddf5", borderRadius: 12, padding: "16px 18px", marginBottom: 20 }}>
+                  <label style={{ fontSize: 14, fontWeight: 600, color: "#333", display: "block", marginBottom: 8 }}>
+                    {isCancelledByMe
+                      ? "המשוב שלך (ניתן לעדכן)"
+                      : "מה היה חשוב לך בהתאמה הזו? מה נקח בחשבון בהתאמה הבאה?"}
+                  </label>
+                  <textarea
+                    value={pastMatchFeedback}
+                    onChange={(e) => setPastMatchFeedback(e.target.value)}
+                    placeholder="כל מה שתשתפו יעזור לנו לדייק את ההתאמה הבאה שלכם"
+                    style={{
+                      width: "100%", minHeight: 80, padding: "10px 12px",
+                      borderRadius: 8, border: "1px solid #d4d0e8",
+                      fontSize: 14, fontFamily: "inherit", resize: "vertical",
+                      direction: "rtl", boxSizing: "border-box",
+                    }}
+                  />
+                  <button
+                    onClick={async () => {
+                      if (!pastMatchFeedback.trim()) return;
+                      setSavingFeedback(true);
+                      try {
+                        await apiFetch(`/users/${user.id}/match-feedback`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ match_id: m.match_id, feedback: pastMatchFeedback.trim() }),
+                        });
+                        setFeedbackSaved(true);
+                        setTimeout(() => setFeedbackSaved(false), 2000);
+                      } catch (err) {
+                        console.error("Save feedback error:", err);
+                      }
+                      setSavingFeedback(false);
+                    }}
+                    disabled={savingFeedback || !pastMatchFeedback.trim()}
+                    style={{
+                      marginTop: 10, padding: "10px 20px",
+                      background: feedbackSaved ? "#10b981" : "#6366f1",
+                      color: "#fff", border: "none", borderRadius: 8,
+                      fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                    }}
+                  >
+                    {savingFeedback ? "שומר..." : feedbackSaved ? "נשמר!" : "שמירת משוב"}
+                  </button>
+                </div>
+
+                {/* Match card link */}
+                {m.match_card_data && (
+                  <button
+                    onClick={() => {
+                      setActiveMatchCard({
+                        match_id: m.match_id,
+                        data: m.match_card_data,
+                        partner_name: m.partner_name,
+                        partner_age: m.partner_age,
+                        partner_city: m.partner_city || null,
+                        my_name: user.first_name,
+                        partner_photo: m.partner_photo,
+                        my_photo: null,
+                      });
+                      setScreen("match_card");
+                    }}
+                    style={{
+                      width: "100%", padding: "12px 16px",
+                      background: "#f8f7fc", color: "#6366f1",
+                      border: "1px solid #e0ddf5", borderRadius: 10,
+                      fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                    }}
+                  >
+                    צפייה בכרטיס ההתאמה
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {screen === "couple_insights" && coupleInsights && (
           <div className="nc-screen-fade" key="couple_insights" style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
@@ -1198,7 +1715,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     )}
                     <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
                       <button
-                        onClick={() => setScreen("match_card")}
+                        onClick={() => setScreen("match_hub")}
                         style={{
                           padding: "12px 28px", fontSize: 15, fontWeight: 600,
                           background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
@@ -1207,7 +1724,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           boxShadow: "0 4px 14px rgba(99,102,241,0.35)",
                         }}
                       >
-                        צפייה בכרטיס ההתאמה
+                        לצפייה בהתאמה
                       </button>
                       {unreadMatchMessages > 0 && (
                         <button
@@ -1294,13 +1811,13 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                         )}
                       </button>
                       <button
-                        onClick={() => setScreen("match_card")}
+                        onClick={() => setScreen("match_hub")}
                         style={{
                           width: 40, height: 40, borderRadius: "50%",
                           background: "#f0eef8", border: "none", cursor: "pointer",
                           display: "flex", alignItems: "center", justifyContent: "center",
                         }}
-                        title="כרטיס התאמה"
+                        title="ההתאמה שלי"
                       >
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />

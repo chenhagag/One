@@ -892,6 +892,23 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       END IF;
     END $$;
 
+    -- Match cancellation tracking
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'matches' AND column_name = 'cancelled_by') THEN
+        ALTER TABLE matches ADD COLUMN cancelled_by INTEGER REFERENCES users(id) DEFAULT NULL;
+      END IF;
+    END $$;
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'matches' AND column_name = 'cancellation_feedback_user1') THEN
+        ALTER TABLE matches ADD COLUMN cancellation_feedback_user1 TEXT DEFAULT NULL;
+      END IF;
+    END $$;
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'matches' AND column_name = 'cancellation_feedback_user2') THEN
+        ALTER TABLE matches ADD COLUMN cancellation_feedback_user2 TEXT DEFAULT NULL;
+      END IF;
+    END $$;
+
     CREATE TABLE IF NOT EXISTS deleted_users (
       id                SERIAL PRIMARY KEY,
       original_user_id  INTEGER NOT NULL,

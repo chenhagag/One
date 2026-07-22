@@ -32,6 +32,7 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
   const [reportSent, setReportSent] = useState(false);
   const [blockConfirmOpen, setBlockConfirmOpen] = useState(false);
   const [blockAction, setBlockAction] = useState<"report_block" | "block_only">("report_block");
+  const [matchCancelled, setMatchCancelled] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -108,6 +109,13 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
           : `/users/${user.id}/direct-messages`;
         const res = await apiFetch(url);
         const data = await res.json();
+
+        // Detect match cancellation (other side cancelled)
+        if (data.match_id === null && messages.length > 0) {
+          setMatchCancelled(true);
+          if (pollRef.current) clearInterval(pollRef.current);
+          return;
+        }
 
         // Mark as read only if there are unread messages from partner
         if (data.unread_count > 0) {
@@ -500,7 +508,24 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
       </div>
 
       {/* Input area */}
-      {isBlocked ? (
+      {matchCancelled ? (
+        <div style={styles.inputArea}>
+          <div style={{ textAlign: "center", padding: "12px 16px" }}>
+            <p style={{ fontSize: 14, color: "#ef4444", fontWeight: 600, margin: "0 0 6px" }}>
+              ההתאמה בוטלה
+            </p>
+            <p style={{ fontSize: 13, color: "#888", margin: "0 0 12px" }}>
+              חזרת למאגר ואנחנו מחפשים לך התאמה חדשה
+            </p>
+            <button
+              onClick={onBack}
+              style={{ background: "#6366f1", color: "#fff", border: "none", borderRadius: 8, padding: "8px 20px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}
+            >
+              חזרה
+            </button>
+          </div>
+        </div>
+      ) : isBlocked ? (
         <div style={styles.inputArea}>
           <p style={{ fontSize: 13, color: "#999", textAlign: "center", margin: "0 0 8px" }}>
             השיחה נחסמה. לא ניתן לשלוח הודעות.
