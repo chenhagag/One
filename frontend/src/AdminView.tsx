@@ -1812,7 +1812,11 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                   const r = await apiFetch(`/admin/users/${userId}/run-photo-analysis`, { method: "POST" });
                   const d = await r.json();
                   if (d.error) { alert("שגיאה: " + d.error); return; }
-                  alert(`ניתוח חיצוני הושלם: ${d.result?.traits_saved ?? d.traits_saved ?? 0} traits saved` + (d.result?.skipped_reason ? ` (${d.result.skipped_reason})` : ""));
+                  if (d.skipped_reason) {
+                    alert(`ניתוח חיצוני לא רץ: ${d.skipped_reason}`);
+                  } else {
+                    alert(`ניתוח חיצוני הושלם: ${d.traits_saved ?? 0} traits saved, ${d.photos_analyzed?.length ?? 0} photos analyzed`);
+                  }
                   loadUserData();
                 } catch (err: any) { alert("שגיאה: " + err.message); }
               }}

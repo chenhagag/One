@@ -3964,7 +3964,7 @@ app.post("/admin/users/:id/run-pipeline", async (req, res) => {
   }
 });
 
-// POST /admin/users/:id/run-photo-analysis — Manually trigger photo analysis
+// POST /admin/users/:id/run-photo-analysis — Manually trigger photo analysis (synchronous)
 app.post("/admin/users/:id/run-photo-analysis", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   if (!userId) return res.status(400).json({ error: "invalid id" });
@@ -3973,13 +3973,10 @@ app.post("/admin/users/:id/run-photo-analysis", async (req, res) => {
     const user = await pgQueryOne<{ id: number }>("SELECT id FROM users WHERE id = $1", [userId]);
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    const jobId = await requeueOrCreateJobFn(userId, "photo_analysis");
+    const { analyzeUserPhotos } = await import("./pipeline/photoAnalysis");
+    const result = await analyzeUserPhotos(userId);
 
-    processPendingJobsFn().catch(err => {
-      console.error("[run-photo-analysis] processing error:", err.message);
-    });
-
-    return res.json({ ok: true, job_id: jobId, message: "Photo analysis job created/re-queued" });
+    return res.json({ ok: true, ...result });
   } catch (err: any) {
     console.error("[run-photo-analysis]", err.message);
     return res.status(500).json({ error: err.message });
