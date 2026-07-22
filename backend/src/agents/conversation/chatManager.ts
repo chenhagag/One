@@ -451,16 +451,31 @@ export async function buildChatPrompt(
         : (history || []);
       const currentRoundUserMsgs = currentRoundHistory.filter((h: any) => h.role === "user").length;
 
-      // Detect specific topic from CURRENT ROUND only (not entire history)
+      // Detect specific topic — check current message first, fall back to round history
+      // only if we're mid-calibration (user already agreed to questions)
       const currentRoundUserText = currentRoundHistory
         .filter((h: any) => h.role === "user")
         .map((h: any) => h.content).join(" ") + " " + message;
       let specificTopic: string | null = null;
-      if (/אניאגרם|אניגרם|enneagram/i.test(currentRoundUserText)) specificTopic = "enneagram";
-      else if (/mbti|אינטרוורט|אקסטרוורט|E\/I|S\/N|T\/F|J\/P/i.test(currentRoundUserText)) specificTopic = "mbti";
-      else if (/ביג פייב|big five|נוירוט|רגישות רגשית|עוצמת תגובה רגשית|מוחצנות|פתיחות|יסודיות|conscientiousness/i.test(currentRoundUserText)) specificTopic = "bigfive";
-      else if (/ערכ|שוורץ|schwartz/i.test(currentRoundUserText)) specificTopic = "values";
-      else if (/התקשרות|attachment|נמנע|חרד|סגנון היקשרות/i.test(currentRoundUserText)) specificTopic = "attachment";
+      // Try current message first
+      if (/אניאגרם|אניגרם|enneagram/i.test(message)) specificTopic = "enneagram";
+      else if (/mbti|אינטרוורט|אקסטרוורט|E\/I|S\/N|T\/F|J\/P/i.test(message)) specificTopic = "mbti";
+      else if (/ביג פייב|big five|נוירוט|רגישות רגשית|עוצמת תגובה רגשית|מוחצנות|פתיחות|יסודיות|conscientiousness/i.test(message)) specificTopic = "bigfive";
+      else if (/ערכ|שוורץ|schwartz/i.test(message)) specificTopic = "values";
+      else if (/התקשרות|attachment|נמנע|חרד|סגנון היקשרות/i.test(message)) specificTopic = "attachment";
+
+      // If no topic in current message but we're mid-calibration, recover from round history
+      if (!specificTopic) {
+        // Check if there's an active calibration (offer was made) before searching history
+        const hasOffer = currentRoundHistory.some((h: any) => h.role === "assistant" && offerPattern.test(h.content));
+        if (hasOffer) {
+          if (/אניאגרם|אניגרם|enneagram/i.test(currentRoundUserText)) specificTopic = "enneagram";
+          else if (/mbti|אינטרוורט|אקסטרוורט|E\/I|S\/N|T\/F|J\/P/i.test(currentRoundUserText)) specificTopic = "mbti";
+          else if (/ביג פייב|big five|נוירוט|רגישות רגשית|עוצמת תגובה רגשית|מוחצנות|פתיחות|יסודיות|conscientiousness/i.test(currentRoundUserText)) specificTopic = "bigfive";
+          else if (/ערכ|שוורץ|schwartz/i.test(currentRoundUserText)) specificTopic = "values";
+          else if (/התקשרות|attachment|נמנע|חרד|סגנון היקשרות/i.test(currentRoundUserText)) specificTopic = "attachment";
+        }
+      }
 
       // Find last offer in current round
       let lastOfferIdx = -1;
@@ -482,7 +497,7 @@ export async function buildChatPrompt(
 
       // Build phase-specific instructions
       const isDisagreeFlow = channel === "qa_insights";
-      const MAX_GENERAL_MSGS = 4;
+      const MAX_GENERAL_MSGS = 6;
       const MAX_CALIBRATION_QUESTIONS = 3;
 
       let phaseInstruction = "";
@@ -558,9 +573,14 @@ export async function buildChatPrompt(
     } else {
       // qa_system or qa_general — system info context with explicit instruction
       const exAcquaintancePattern = /אקס|אקסית|אקסים|קרוב משפחה|קרובי משפחה|מכיר אותו|מכירה אותו|מכיר אותה|מכירה אותה|מישהו שאני מכיר|מישהי שאני מכיר|ישדכו לי את|יכירו לי את|אח שלי|אחות שלי|בן דוד|בת דודה|שכן|שכנה|חבר שלי|חברה שלי|אנשים שאני מכיר/i;
+      // Check current message AND recent history (user may be following up with details)
+      const recentQaText = (Array.isArray(history) ? history.slice(-6) : [])
+        .filter((h: any) => h.role === "user").map((h: any) => h.content).join(" ") + " " + message;
       let exAcquaintanceNote = "";
-      if (exAcquaintancePattern.test(message)) {
-        exAcquaintanceNote = `\n- המשתמש מודאג מהתאמה עם מישהו שהוא כבר מכיר. הסבר שלפני קבלת התאמה סופית, שני הצדדים מקבלים את התמונות של הצד השני ויכולים לדחות מכל סיבה — כולל היכרות מוקדמת. בנוסף, אם רוצים — אפשר לכתוב כאן בצ'אט פרטים על אנשים ספציפיים (למשל שם של אקס), והמערכת תנסה לזהות ולהימנע מלהציע אותם.`;
+      if (exAcquaintancePattern.test(recentQaText)) {
+        exAcquaintanceNote = exAcquaintancePattern.test(message)
+          ? `\n- המשתמש מודאג מהתאמה עם מישהו שהוא כבר מכיר. הסבר שלפני קבלת התאמה סופית, שני הצדדים מקבלים את התמונות של הצד השני ויכולים לדחות מכל סיבה — כולל היכרות מוקדמת. בנוסף, אם רוצים — אפשר לכתוב כאן בצ'אט פרטים על אנשים ספציפיים (למשל שם של אקס), והמערכת תנסה לזהות ולהימנע מלהציע אותם.`
+          : `\n- הנושא של אקסים/היכרות מוקדמת עלה קודם בשיחה. אם המשתמש משתף עכשיו פרטים על אנשים שהוא לא רוצה להתאמה איתם — קבל את המידע בחום, הודה לו, והסבר שהמידע ייכנס לניתוח ושהמערכת תנסה לזהות ולהימנע מלהציע אותם, אבל לא ניתן להבטיח זיהוי מדויק של 100%.`;
       }
       contextBlock = SYSTEM_CONTEXT + `\n\n## הנחיות נוספות
 המשתמש שואל שאלה על התהליך או המערכת. ענה על בסיס המידע שלמעלה.
