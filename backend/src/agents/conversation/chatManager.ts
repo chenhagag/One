@@ -458,7 +458,7 @@ export async function buildChatPrompt(
       let specificTopic: string | null = null;
       if (/אניאגרם|אניגרם|enneagram/i.test(currentRoundUserText)) specificTopic = "enneagram";
       else if (/mbti|אינטרוורט|אקסטרוורט|E\/I|S\/N|T\/F|J\/P/i.test(currentRoundUserText)) specificTopic = "mbti";
-      else if (/ביג פייב|big five|נוירוט|רגישות רגשית|מוחצנות|פתיחות|יסודיות|conscientiousness/i.test(currentRoundUserText)) specificTopic = "bigfive";
+      else if (/ביג פייב|big five|נוירוט|רגישות רגשית|עוצמת תגובה רגשית|מוחצנות|פתיחות|יסודיות|conscientiousness/i.test(currentRoundUserText)) specificTopic = "bigfive";
       else if (/ערכ|שוורץ|schwartz/i.test(currentRoundUserText)) specificTopic = "values";
       else if (/התקשרות|attachment|נמנע|חרד|סגנון היקשרות/i.test(currentRoundUserText)) specificTopic = "attachment";
 
@@ -551,17 +551,22 @@ export async function buildChatPrompt(
 - היה קצר וממוקד — שאל שאלה אחת טובה, תן למשתמש לדבר. אל תכתוב פסקאות ארוכות.
 - כשאתה מדבר על תכונות — השתמש בדוגמאות ממה שהמשתמש עצמו אמר בשיחות (יש לך ציטוטים למעלה).
 - אם המשתמש לא מסכים — אל תתגונן. שאל שאלות חכמות כדי להבין למה.
-- קרא לנוירוטיות "רגישות רגשית" — תמיד הצג את זה כחוזק.
+- קרא לנוירוטיות "עוצמת תגובה רגשית" — זה מודד את עוצמת הוויסות הרגשי, לא את מידת הרגישות. תמיד הצג בכבוד ובאופן מעצים.
 - השיחה הזו צריכה להיות קצרה וממוקדת — לא שיחה אינסופית.${phaseInstruction}`);
 
       contextBlock = parts.join("");
     } else {
       // qa_system or qa_general — system info context with explicit instruction
+      const exAcquaintancePattern = /אקס|אקסית|אקסים|קרוב משפחה|קרובי משפחה|מכיר אותו|מכירה אותו|מכיר אותה|מכירה אותה|מישהו שאני מכיר|מישהי שאני מכיר|ישדכו לי את|יכירו לי את|אח שלי|אחות שלי|בן דוד|בת דודה|שכן|שכנה|חבר שלי|חברה שלי|אנשים שאני מכיר/i;
+      let exAcquaintanceNote = "";
+      if (exAcquaintancePattern.test(message)) {
+        exAcquaintanceNote = `\n- המשתמש מודאג מהתאמה עם מישהו שהוא כבר מכיר. הסבר שלפני קבלת התאמה סופית, שני הצדדים מקבלים את התמונות של הצד השני ויכולים לדחות מכל סיבה — כולל היכרות מוקדמת. בנוסף, אם רוצים — אפשר לכתוב כאן בצ'אט פרטים על אנשים ספציפיים (למשל שם של אקס), והמערכת תנסה לזהות ולהימנע מלהציע אותם.`;
+      }
       contextBlock = SYSTEM_CONTEXT + `\n\n## הנחיות נוספות
 המשתמש שואל שאלה על התהליך או המערכת. ענה על בסיס המידע שלמעלה.
 - השתמש במידע שמופיע בהנחיות למעלה כדי לענות — אל תאמר "אני לא יודע" אם התשובה נמצאת שם.
 - אם שואלים על זמני המתנה — הדגש שאנחנו לא מתפשרים על התאמות בינוניות, שככל שהמאגר גדל הזמן מתקצר, ושלא ניתן להתחייב לזמן ספציפי.
-- ענה בצורה חמה, מקצועית ובגובה העיניים.`;
+- ענה בצורה חמה, מקצועית ובגובה העיניים.${exAcquaintanceNote}`;
     }
     const systemPrompt = contextBlock + "\n\n" + genderInstruction + coupleInstruction;
     return { systemPrompt, intent: "general" as ChatIntent, phase: detectPhase(messageCount), closingStage: 0 };
