@@ -840,6 +840,13 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       END IF;
     END $$;
 
+    -- admin notes on candidate_matches
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'candidate_matches' AND column_name = 'admin_notes') THEN
+        ALTER TABLE candidate_matches ADD COLUMN admin_notes TEXT DEFAULT NULL;
+      END IF;
+    END $$;
+
     -- match card consent on users
     DO $$ BEGIN
       IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'match_card_consent') THEN

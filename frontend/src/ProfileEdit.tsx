@@ -21,10 +21,10 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
   const [heightFlex, setHeightFlex] = useState(user.height_flexibility || "slightly_flexible");
   const [locationRange, setLocationRange] = useState(user.desired_location_range || "bit_further");
   // Sensitive details
-  const [maritalStatus, setMaritalStatus] = useState((user as any).marital_status || "single");
-  const [hasChildren, setHasChildren] = useState((user as any).has_children || false);
+  const [maritalStatus, setMaritalStatus] = useState((user as any).marital_status || "");
+  const [hasChildren, setHasChildren] = useState<boolean | null>((user as any).has_children != null ? !!(user as any).has_children : null);
   const [religion, setReligion] = useState((user as any).religion || "");
-  const [smoker, setSmoker] = useState((user as any).smoker || false);
+  const [smoker, setSmoker] = useState<boolean | null>((user as any).smoker != null ? !!(user as any).smoker : null);
 
   // Couple partner
   const [partnerName, setPartnerName] = useState((user as any).partner_name || "");
@@ -397,7 +397,8 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             <div style={{ flex: "1 1 45%", minWidth: 120 }}>
               <label style={{ fontSize: 11, color: "#888", marginBottom: 3, display: "block" }}>מצב משפחתי</label>
-              <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0 }} value={maritalStatus} onChange={(e) => setMaritalStatus(e.target.value)}>
+              <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0, color: maritalStatus ? undefined : "#aaa" }} value={maritalStatus} onChange={(e) => setMaritalStatus(e.target.value)}>
+                <option value="" disabled>בחר/י מצב משפחתי</option>
                 <option value="single">רווק/ה</option>
                 <option value="divorced">גרוש/ה</option>
                 <option value="married">נשוי/נשואה</option>
@@ -405,15 +406,16 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
             </div>
             <div style={{ flex: "1 1 45%", minWidth: 120 }}>
               <label style={{ fontSize: 11, color: "#888", marginBottom: 3, display: "block" }}>ילדים</label>
-              <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0 }} value={hasChildren ? "yes" : "no"} onChange={(e) => setHasChildren(e.target.value === "yes")}>
+              <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0, color: hasChildren === null ? "#aaa" : undefined }} value={hasChildren === null ? "" : hasChildren ? "yes" : "no"} onChange={(e) => setHasChildren(e.target.value === "yes")}>
+                <option value="" disabled>יש לך ילדים?</option>
                 <option value="no">אין לי ילדים</option>
                 <option value="yes">יש לי ילדים</option>
               </select>
             </div>
             <div style={{ flex: "1 1 45%", minWidth: 120 }}>
               <label style={{ fontSize: 11, color: "#888", marginBottom: 3, display: "block" }}>דת</label>
-              <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0 }} value={religion} onChange={(e) => setReligion(e.target.value)}>
-                <option value="">לא צוין</option>
+              <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0, color: religion ? undefined : "#aaa" }} value={religion} onChange={(e) => setReligion(e.target.value)}>
+                <option value="" disabled>בחר/י דת</option>
                 <option value="jewish">יהודי/ה</option>
                 <option value="muslim">מוסלמי/ת</option>
                 <option value="christian">נוצרי/ה</option>
@@ -422,7 +424,8 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
             </div>
             <div style={{ flex: "1 1 45%", minWidth: 120 }}>
               <label style={{ fontSize: 11, color: "#888", marginBottom: 3, display: "block" }}>עישון</label>
-              <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0 }} value={smoker ? "yes" : "no"} onChange={(e) => setSmoker(e.target.value === "yes")}>
+              <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0, color: smoker === null ? "#aaa" : undefined }} value={smoker === null ? "" : smoker ? "yes" : "no"} onChange={(e) => setSmoker(e.target.value === "yes")}>
+                <option value="" disabled>מעשן/ת?</option>
                 <option value="no">לא מעשן/ת</option>
                 <option value="yes">מעשן/ת</option>
               </select>

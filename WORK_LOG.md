@@ -1,6 +1,263 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-07-20 (OTP Auth Fix + Error Handling + Insights Prompt)
+## Latest Session: 2026-07-22 (Match Screen Overhaul)
+
+### Match Hub Screen (replaces direct match card navigation)
+- New `match_hub` screen — central hub with partner photo/name/age/city header + action cards:
+  - **שיחה** — chat button with unread badge
+  - **כרטיס התאמה** — view match card
+  - **פרופיל** — partner profile with swipeable photo gallery (4/5 aspect, indicator bar, nav arrows, tap zones, photo counter)
+  - **ביטול התאמה וחזרה למאגר** — subtle cancel button at bottom
+- Sidebar "ההתאמה שלי" now navigates to hub (not directly to card)
+- Home screen banners also navigate to hub
+- MatchChat back button goes to hub
+
+### Match Cancellation Flow (User-Initiated)
+- Cancel screen with yellow warning box ("ישפיע על שני הצדדים")
+- Feedback textarea (optional) + double confirmation dialog
+- On cancel: both users → `waiting_match`, feedback saved to `conversation_messages` with `guide='match_feedback'`
+- Schema: `cancelled_by`, `cancellation_feedback_user1`, `cancellation_feedback_user2` columns on matches
+- Endpoint: `POST /users/:id/cancel-match` (reuses admin cancel logic for unfreezing)
+
+### Past Matches ("התאמות קודמות")
+- Sidebar item shown when user has cancelled matches and no active match
+- List screen: partner photo + name + status "בוטלה" + who cancelled
+- Detail screen with two variants:
+  - **Canceller**: editable feedback textarea
+  - **Cancelled-by**: encouraging message ("הצד השני בחר שלא להמשיך... אנחנו ממשיכים לחפש... עד שנמצא את ה-One שלך") + feedback textarea
+- Feedback editable at any time via `POST /users/:id/match-feedback`
+- Feedback saved to both matches table and conversation_messages (for AI analysis)
+
+### Partner Profile View
+- Swipeable photo gallery matching PotentialMatchScreen style
+- Name + age above photo, city below name
+- Visible circular arrow buttons + tap zones + indicator bar + photo counter
+- Header title shows "פרופיל" (not "התאמה קודמת")
+
+### Chat AI Match Awareness
+- chatManager injects match status as internal note (not visible to user):
+  - `in_match` → "user has active match"
+  - `waiting_match` + recent cancel → empathetic context about cancellation
+  - `waiting_match` → "in pool, waiting"
+- 7 new regex patterns in SYSTEM_PATTERNS for match status questions
+- Minimal addition to `context-system-info.txt` (3 lines about match status sensitivity)
+
+### MatchChat Cancellation Detection
+- Polling detects when match is cancelled by other side (match_id returns null)
+- Shows inline notice: "ההתאמה בוטלה" + "חזרת למאגר" + back button
+
+### Backend Endpoints Added/Modified
+- `POST /users/:id/cancel-match` — user-initiated cancellation
+- `GET /users/:id/match-history` — past cancelled matches
+- `GET /users/:id/match-partner-profile` — partner's public info (name, age, city, photos)
+- `POST /users/:id/match-feedback` — save/update feedback on cancelled match
+- `GET /users/:id/active-match-card` — now includes `partner_city`
+- `GET /new-chat/status/:id` — now includes `has_past_matches`
+
+### Deployed to production: all changes
+
+---
+
+## Previous Session: 2026-07-22 (Prompt Refinements + QA Chat Fixes)
+
+### Big Five Naming
+- Renamed "רגישות רגשית" → "עוצמת תגובה רגשית" across 5 files (safeOutputLayer, Insights.tsx, chatManager, context-profile, bigfive-schwartz prompt)
+- Clarified: measures emotional reactivity/volatility, NOT sensitivity or empathy
+- AI instructed to gently correct when users say "אני רגיש/ה"
+
+### Profile Prompt — "What did you learn about me"
+- Changed: start from deep summary (personal_insights_full), not MBTI. MBTI is secondary tool
+- Added Big Five theory context ("תיאוריית חמשת הגורמים") and Schwartz theory context for when users ask "how do you know this"
+
+### System Info Prompt — Matching Explanation
+- Restructured from model-based listing (Big Five, Schwartz, MBTI) to dimension-based:
+  1. Cognitive profile 2. Cultural style 3. Emotional style 4. Schwartz values 5. Big Five 6. User preferences
+- MBTI removed as standalone item
+- Added note about additional dimensions (attachment, regulation mechanisms, etc.)
+
+### QA Chat Fixes (chatManager.ts)
+- **Topic stickiness fix**: topic detection now checks current message first, falls back to round history only during active calibration. Previously unrelated questions got stuck in topic-specific phase instructions
+- **Removed forced closure**: no more MAX_GENERAL_MSGS limit. Closure only after calibration completion or explicit user decline
+- **Removed "שיחה קצרה וממוקדת"**: was causing AI to try closing conversation and adding "אם יש לך עוד שאלות" on every response
+
+### Ex/Acquaintance Handling
+- Keyword detection (אקס, קרוב משפחה, מכיר אותו, etc.) in both qa_system AND qa_about_me channels
+- Checks last 6 messages for follow-up context (not just current message)
+- First mention: explain photo verification + option to share names for exclusion
+- Follow-up details: accept warmly, explain system will try to identify but **can't guarantee 100%**
+
+### Deployed to production: all prompt changes
+
+---
+
+## Previous Session: 2026-07-21–22 (Automated User Pipeline)
+
+### Automated Completion Pipeline (Phase A) — deployed to staging
+- **Pipeline orchestrator**: When user finishes all chat channels → auto-analysis run #2 → creates DB-backed job → generates insights → marks analysis_completed → enters matching pool (atomic) → sends welcome email
+- **Job system**: `pipeline_jobs` table with status/attempts/last_error/step_reached. Polls every 2 min. Retry with backoff (3 attempts, 5/10/15 min). Survives server restart.
+- **Insights extraction**: Moved 160-line insights generation from index.ts admin endpoint into `pipeline/generateInsights.ts`. Idempotency: skips if final insights exist, regenerates if `insights_pre_completion = true`
+- **Welcome email**: Uses exact same template as admin panel's `buildPoolEmail()` — subject "הניתוח שלך ב-One הושלם", includes כרטיס התאמה CTA
+- **Schema**: New `pipeline_jobs` table, `email_type` column on `email_log` with unique index for dedup
+
+### Photo Analysis Pipeline (Phase B) — deployed to staging
+- **GPT-4o Vision**: Analyzes up to 4 user photos, extracts 11 look traits (8 numeric 0-100, 3 categorical)
+- **Traits**: appeal, fitness_aesthetic, femininity_masculinity, warmth_visual, glamour, naturalness, style_polish, skin_tone_range, hair_color, eye_color, hair_type
+- **Guards**: Only with `photo_ai_consent = true`. SQL-level `WHERE source != 'manual'` prevents overwriting manual traits
+- **Triggers**: Photo upload creates job (if analysis done + consent), daily reconciliation catches missed photos
+- **Job metadata**: Stores which photos analyzed, timestamp, model version, raw AI output
+
+### Admin Endpoints Added
+- `POST /admin/users/:id/run-pipeline` — manual completion pipeline trigger
+- `POST /admin/users/:id/run-photo-analysis` — manual photo analysis trigger
+- `GET /admin/pipeline-jobs?user_id=X&status=Y` — view all jobs with status
+- `POST /admin/users/:id/generate-insights?force=true` — force regenerate insights
+
+### Bug Fix
+- `PATCH /users/:id` was missing `test_user_type` in destructuring — new users from ProfileSetup had null test_user_type. Fixed.
+
+### Files Created
+- `backend/src/pipeline/generateInsights.ts`
+- `backend/src/pipeline/completionPipeline.ts`
+- `backend/src/pipeline/jobRunner.ts`
+- `backend/src/pipeline/welcomeEmail.ts`
+- `backend/src/pipeline/photoAnalysis.ts`
+
+### Testing Status
+- Initial staging tests by Chen: completion pipeline + photo analysis both working
+- Still needs: more edge case testing, test with real user completing all channels end-to-end
+
+---
+
+## Previous Session: 2026-07-21 (OTP Stabilization + UX Improvements + Error Monitoring)
+
+### OTP Investigation & Fix Verification
+- Confirmed OTP UUID fix working: הגר (#18), רוני (#208), טל (#168) all successfully logged in
+- Root cause confirmed: `supabase_uid` column is UUID type, `"otp-{id}"` was invalid → fixed with `crypto.randomUUID()`
+- Investigated user #250 (אולי) photo upload 500 — new Google user, unrelated to OTP bug
+- Added multer error handler: catches upload failures, logs to error_logs, returns 400 instead of silent 500
+
+### Error Monitoring Improvements
+- Error logs now show **user name** alongside ID (backend JOIN with users table)
+- Fallback: extracts user ID from route path for older logs without user_id
+- Frontend error reports now include `user_id` from localStorage
+- **Severity classification** added to admin error logs:
+  - 🔴 Red = critical (500 backend, OTP failure, 8+ repeated 401s for same user)
+  - 🟡 Yellow = warning (403, 429, frontend 500)
+  - No color = noise (one-time 401, Script error, OTP diag success)
+- Filter dropdown: all / important only / critical only
+- Badge counts for critical + warning at top
+
+### Auth Screen Updates
+- Removed yellow "תקלה זמנית" warning boxes
+- Replaced with subtle gray text: "חווים בעיות בחיבור? נסו דרך גוגל / דווחו לנו במייל / בווטסאפ"
+- Google login remains primary on all browsers (including in-app)
+
+### Home Screen Footer
+- Replaced old feedback link with compact icon row: 💬 feedback + WhatsApp logo + ✉️ email
+- Icons only (no labels), styled in One purple (#8b7ba8) + WhatsApp green
+- Text: "מוזמנים לשתף אותנו בתקלות, שאלות או כל דבר אחר:"
+
+### ErrorBoundary
+- Added WhatsApp link alongside email support link on crash screen
+
+### Landing Page
+- Added support contact links (email + WhatsApp) below "צוות One"
+
+### OTP Fix Email
+- Sent email to 21 affected OTP users about the fix
+- Template: centered One logo, "עדכון ממערכת One" header, WhatsApp + email contact links
+
+### 401 Error Analysis
+- Confirmed most 401s are noise: old token → session-expired → re-login → works
+- User #130 (Gal Ella), #150 (חן), #17 (אנה) — all normal token refresh patterns
+- `/admin/auth-alerts` endpoint available for detecting repeated 401 patterns
+
+### Photo Upload Investigation
+- User #250 (אולי) — new Google user, got 500 on photo upload (unrelated to OTP)
+- Root cause unknown — multer error wasn't logged
+- Fix: wrapped multer in error handler, now logs upload failures to error_logs + returns 400
+
+### Error Logs: "Clear Noise" Button
+- Backend: `DELETE /admin/error-logs?noise_only=true` removes 401s, Script errors, OTP diag success
+- Frontend: "נקה קלות" button keeps critical + warning, clears noise
+- Renamed old button to "נקה הכל"
+
+### ErrorBoundary Verification
+- 0 React crash errors in logs — no user has hit the crash screen
+- If triggered: logged as "React crash: ..." with 🔴 severity
+
+### OTP Fix Email Sent
+- 21 affected users notified via email about the fix
+- Template: One-branded, centered logo, "עדכון ממערכת One" header, WhatsApp + email contact
+
+### Open Security Items (not urgent, for future staging work)
+1. Revert Google-first login in in-app browsers when OTP stable
+2. Remove otp-diag logging
+3. Filter fields in /register, POST /users, PATCH /users/:id responses
+4. Signed URLs for /uploads (currently origin/referer check)
+5. XSS review (dangerouslySetInnerHTML, messages, filenames)
+6. Per-user rate limit on messaging endpoints
+7. Separate APP_JWT_SECRET for OTP tokens
+8. Shorten OTP token expiry (currently 7 days, no refresh)
+9. Review /auth/exchange-code — no rate limit
+
+---
+
+## Previous Session: 2026-07-20 (Security Hardening + OTP UUID Fix)
+
+### Security Session (Claude session 1)
+
+#### Security Audit
+- Full 11-area security audit → report at `reports/security-audit-2026-07-19.md`
+- Endpoint audit table → `reports/endpoint-audit-table.md`
+
+#### Security Fixes Applied (merged to production):
+1. CORS restricted to allowlist (joinone.io, staging, localhost, Capacitor)
+2. Helmet.js with CSP headers
+3. `/login` returns safe fields only (not SELECT *)
+4. `/analyze` + `/analyze-profile` IDOR fixed (JWT owner verification)
+5. `/system-question/answer` ownership check
+6. `GET /users/:id` explicit safe fields (no admin_notes, devices_seen)
+7. `/auth/sync` + `/auth/verify-otp` safe fields (not SELECT *)
+8. Photo files deleted from disk on account deletion (user + admin)
+9. Auth rate limiting: 30/10min/IP + OTP send 5/hour/email
+10. OTP verify lockout after 5 failed attempts per email
+11. Open redirect fixed (redirectTo validated against allowlist)
+12. PII removed from logs (emails, transcript content)
+13. File upload hardening (extension whitelist + MIME check)
+14. `/uploads` origin/referer middleware
+15. `express.json` 1mb limit
+
+#### OTP UUID Fix (ROOT CAUSE of Hagar/Hadar failures)
+- **Bug:** `supabase_uid` column is UUID type, but code generated `"otp-{id}"` string
+- **Error:** `invalid input syntax for type uuid: "otp-163"`
+- **Fix:** Changed to `crypto.randomUUID()` → proper UUID generated
+- **Commit:** 87e3d7a
+
+#### OTP Atomic Login
+- verify-otp now returns 500/503 if JWT signing fails (not 200 without token)
+- Frontend rejects verify-otp responses without access_token
+
+#### Temporary UX (still active):
+- Google login primary on all browsers (including in-app browsers)
+- Yellow notice on OTP screens about temp issue + links to Google/email/WhatsApp support
+- Landing page: support contact links added
+- **TODO:** Revert in-app browser order when OTP confirmed stable
+
+#### New Files:
+- `backend/src/audit-orphan-photos.ts` — orphan photo file detector
+- `reports/security-audit-2026-07-19.md`
+- `reports/endpoint-audit-table.md`
+
+#### New Admin Endpoint:
+- `GET /admin/auth-alerts` — detects repeated 401s and OTP-then-401 patterns
+
+#### Schema Change:
+- `otp_codes.failed_attempts INTEGER DEFAULT 0`
+
+---
+
+## Previous Session: 2026-07-20 (OTP Auth Fix + Error Handling + Insights Prompt)
 
 ### What We Did
 Fixed critical auth issues affecting OTP users after security hardening broke OTP login (no JWT was generated). Multiple iterations required due to incorrect initial approach. Also improved error handling and updated insights prompt.

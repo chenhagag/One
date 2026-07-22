@@ -3112,6 +3112,19 @@ app.get("/admin/candidate-matches", async (_req, res) => {
   return res.json(rows);
 });
 
+// PATCH /admin/candidate-matches/:id/notes — Update admin notes on a candidate match
+app.patch("/admin/candidate-matches/:id/notes", async (req, res) => {
+  const cmId = parseInt(req.params.id, 10);
+  const { admin_notes } = req.body;
+  try {
+    await pgQueryOne("UPDATE candidate_matches SET admin_notes = $1, updated_at = NOW() WHERE id = $2", [admin_notes ?? null, cmId]);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("[candidate-match-notes] Error:", err);
+    return res.status(500).json({ error: "Failed to update notes" });
+  }
+});
+
 // ════════════════════════════════════════════════════════════════
 // MATCH LIFECYCLE — Send / Cancel final matches
 // ════════════════════════════════════════════════════════════════

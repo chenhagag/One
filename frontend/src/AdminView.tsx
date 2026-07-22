@@ -314,6 +314,24 @@ function PartnerCell({ userId, value }: { userId: number; value: string }) {
   return <span>{val || "-"} <span style={{ cursor: "pointer", fontSize: 10, opacity: 0.5 }} onClick={() => setEditing(true)}>✏️</span></span>;
 }
 
+function EditableNote({ value, onSave }: { value: string; onSave: (val: string) => Promise<void> }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(value);
+  const [saving, setSaving] = useState(false);
+  if (editing) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <textarea autoFocus value={val} onChange={e => setVal(e.target.value)} style={{ border: "1px solid #6366f1", borderRadius: 4, padding: "4px 6px", fontSize: 11, width: 130, minHeight: 40, resize: "vertical", fontFamily: "inherit" }} />
+        <div style={{ display: "flex", gap: 4 }}>
+          <button disabled={saving} onClick={async () => { setSaving(true); await onSave(val.trim()); setSaving(false); setEditing(false); }} style={{ fontSize: 10, padding: "2px 8px", background: "#6366f1", color: "#fff", border: "none", borderRadius: 3, cursor: "pointer" }}>{saving ? "..." : "שמור"}</button>
+          <button onClick={() => { setVal(value); setEditing(false); }} style={{ fontSize: 10, padding: "2px 8px", background: "#f3f4f6", color: "#333", border: "none", borderRadius: 3, cursor: "pointer" }}>ביטול</button>
+        </div>
+      </div>
+    );
+  }
+  return <span style={{ fontSize: 11, whiteSpace: "pre-wrap" }}>{val || <span style={{ color: "#ccc" }}>—</span>} <span style={{ cursor: "pointer", fontSize: 10, opacity: 0.5 }} onClick={() => setEditing(true)}>✏️</span></span>;
+}
+
 export default function AdminView({ onBack, onStartChat, onViewDashboard, onViewNewChat }: { onBack: () => void; onStartChat?: (user: { id: number; first_name: string; email: string }) => void; onViewDashboard?: (user: { id: number; first_name: string; email: string }) => void; onViewNewChat?: (user: { id: number; first_name: string; email: string }) => void }) {
   const [tab, setTab] = useState<Tab>("overview");
   const [newBugCount, setNewBugCount] = useState(0);
@@ -667,6 +685,8 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   const [adminMsgSaving, setAdminMsgSaving] = useState(false);
   const [systemQuestions, setSystemQuestions] = useState<any[]>([]);
   const [showSystemQuestions, setShowSystemQuestions] = useState(false);
+  const [newQuestionText, setNewQuestionText] = useState("");
+  const [sendingQuestion, setSendingQuestion] = useState(false);
 
   // Sync admin_message from loaded data
   useEffect(() => { if (data?.user?.admin_message != null) setAdminMsg(data.user.admin_message); }, [data?.user?.admin_message]);
@@ -1904,6 +1924,38 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
             {systemQuestions.length === 0 && (
               <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>לא נשלחו שאלות למשתמש/ת זו</div>
             )}
+            {/* Send new question */}
+            <div style={{ marginTop: 10, display: "flex", gap: 6, alignItems: "flex-start" }}>
+              <input
+                type="text"
+                placeholder="שאלה חדשה למשתמש/ת..."
+                value={newQuestionText}
+                onChange={e => setNewQuestionText(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && newQuestionText.trim()) (document.getElementById("send-q-btn") as HTMLButtonElement)?.click(); }}
+                style={{ flex: 1, padding: "6px 10px", fontSize: 12, border: "1px solid #d1d5db", borderRadius: 6, direction: "rtl" }}
+              />
+              <button
+                id="send-q-btn"
+                disabled={sendingQuestion || !newQuestionText.trim()}
+                onClick={async () => {
+                  setSendingQuestion(true);
+                  try {
+                    await apiFetch(`/admin/users/${userId}/system-question`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ question_text: newQuestionText.trim() }),
+                    });
+                    setNewQuestionText("");
+                    loadSystemQuestions();
+                    setShowSystemQuestions(true);
+                  } catch {}
+                  setSendingQuestion(false);
+                }}
+                style={{ padding: "6px 14px", fontSize: 11, fontWeight: 600, background: "#6366f1", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", whiteSpace: "nowrap" }}
+              >
+                {sendingQuestion ? "שולח..." : "שלח שאלה"}
+              </button>
+            </div>
           </div>
 
           {/* Email Composer */}
@@ -1996,6 +2048,28 @@ ${footer}`)
 <p>${g("מוזמן", "מוזמנת")} להיכנס למערכת ולצפות בניתוח האישי המלא — כולל תובנות על הפרופיל הפסיכולוגי ${g("שלך", "שלך")}.</p>
 <p>נעדכן ${g("אותך", "אותך")} ברגע שתעלה התאמה. ב-One מעדיפים איכות על מהירות 🖤</p>
 ${btn("לצפייה בניתוח המלא")}
+${footer}`)
+                  },
+                  {
+                    label: "הודעה חדשה במערכת",
+                    subject: `ממתינה ${g("לך", "לך")} הודעה חדשה ב-One`,
+                    html: wrap(`
+<h2 style="color:#1B1464">היי ${name},</h2>
+<p>רצינו לעדכן ${g("אותך", "אותך")} שיש ${g("לך", "לך")} הודעה חדשה במערכת One.</p>
+<p>${g("מוזמן", "מוזמנת")} להיכנס ולצפות בה.</p>
+${btn("כניסה למערכת")}
+${footer}`)
+                  },
+                  {
+                    label: "התאמה מחכה!",
+                    subject: `🎉 יש ${g("לך", "לך")} התאמה חדשה ב-One!`,
+                    html: wrap(`
+<h2 style="color:#1B1464">היי ${name},</h2>
+<p style="font-size:18px;font-weight:bold;color:#7b5fa3">🎉 מצאנו ${g("לך", "לך")} התאמה!</p>
+<p>אחרי ניתוח מעמיק של הפרופיל ${g("שלך", "שלך")} ושל כל המשתמשים במאגר, מצאנו מישהו/י שנראה שיש ביניכם חיבור מעניין ושווה בדיקה.</p>
+<p>כרטיס ההתאמה האישי ${g("שלך", "שלך")} מוכן ומחכה ${g("לך", "לך")} במערכת — ${g("מוזמן", "מוזמנת")} להיכנס ולראות למה חשבנו שכדאי שתכירו.</p>
+${btn("לצפייה בהתאמה")}
+<p style="font-size:13px;color:#888">ב-One מעדיפים איכות על מהירות — וזו ההתאמה הכי מדויקת שמצאנו ${g("עבורך", "עבורך")}.</p>
 ${footer}`)
                   },
                 ];
@@ -3628,6 +3702,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                 <th style={s.th}>Status</th>
                 <th style={s.th}>Ratings</th>
                 <th style={s.th}>Actions</th>
+                <th style={{ ...s.th, minWidth: 140 }}>הערות</th>
                 <th style={s.th}>Shared Priority</th>
                 <th style={s.th}>Match Priority</th>
                 <th style={s.th}>Internal</th>
@@ -3706,6 +3781,19 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                     {cm.match_status === "in_match" && cm.match_card_sent_at && (
                       <span style={{ fontSize: 11, color: "#28a745", fontWeight: 600 }}>&#10003; כרטיס נשלח</span>
                     )}
+                  </td>
+                  <td style={s.td}>
+                    <EditableNote
+                      value={cm.admin_notes || ""}
+                      onSave={async (val: string) => {
+                        await apiFetch(`/admin/candidate-matches/${cm.id}/notes`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ admin_notes: val }),
+                        });
+                        cm.admin_notes = val;
+                      }}
+                    />
                   </td>
                   <td style={s.td}>{cm.pair_priority != null ? cm.pair_priority : "-"}</td>
                   <td style={s.td}>{cm.final_match_priority != null ? <strong>{cm.final_match_priority}</strong> : "-"}</td>
