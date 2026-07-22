@@ -359,6 +359,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [savingFeedback, setSavingFeedback] = useState(false);
   const [feedbackSaved, setFeedbackSaved] = useState(false);
   const [pastMatchesLoading, setPastMatchesLoading] = useState(false);
+  const [partnerPhotoIndex, setPartnerPhotoIndex] = useState(0);
   const [coupleInsights, setCoupleInsights] = useState<string | null>(null);
   const [analysisCompleted, setAnalysisCompleted] = useState(false);
   const [bugText, setBugText] = useState("");
@@ -1106,6 +1107,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       .then(data => {
                         if (data.photos) {
                           setSelectedPastMatch({ ...data, _isPartnerProfile: true, _backTo: "match_hub" });
+                          setPartnerPhotoIndex(0);
                           setScreen("past_match_detail");
                         }
                       });
@@ -1381,27 +1383,53 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
           // Partner profile view (from active match hub)
           if (isPartnerProfile) {
+            const photos = m.photos || [];
             return (
               <div className="nc-screen-fade" key="partner_profile" style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
-                <div className="nc-sub-screen" style={{ maxWidth: 500, margin: "0 auto", padding: "32px 24px" }}>
-                  <button onClick={() => { setSelectedPastMatch(null); setScreen(backScreen as any); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#6366f1", fontSize: 14, fontWeight: 500, marginBottom: 20, fontFamily: "inherit" }}>→ חזרה</button>
+                <div className="nc-sub-screen" style={{ maxWidth: 440, margin: "0 auto", padding: "28px 20px" }}>
+                  <button onClick={() => { setSelectedPastMatch(null); setPartnerPhotoIndex(0); setScreen(backScreen as any); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#6366f1", fontSize: 14, fontWeight: 500, marginBottom: 20, fontFamily: "inherit" }}>→ חזרה</button>
 
-                  <div style={{ textAlign: "center", marginBottom: 24 }}>
-                    <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", margin: "0 0 4px" }}>{m.name}</h2>
-                    <p style={{ fontSize: 14, color: "#888", margin: 0 }}>
-                      {[m.age && `${m.age}`, m.city].filter(Boolean).join(" · ")}
-                    </p>
+                  {/* Photo gallery — same style as PotentialMatchScreen */}
+                  <div style={{ position: "relative", borderRadius: 20, overflow: "hidden", background: "#f5f3ff", marginBottom: 20, boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
+                    {photos.length > 0 ? (
+                      <>
+                        <img
+                          src={photos[partnerPhotoIndex]?.url}
+                          alt={m.name}
+                          style={{ width: "100%", aspectRatio: "4/5", objectFit: "cover", display: "block" }}
+                        />
+                        {photos.length > 1 && (
+                          <>
+                            {/* Photo indicator bar */}
+                            <div style={{ position: "absolute", top: 12, left: 16, right: 16, display: "flex", gap: 4 }}>
+                              {photos.map((_: any, i: number) => (
+                                <div key={i} onClick={() => setPartnerPhotoIndex(i)} style={{ flex: 1, height: 3, borderRadius: 2, background: i === partnerPhotoIndex ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.35)", cursor: "pointer", transition: "background 0.2s" }} />
+                              ))}
+                            </div>
+                            {/* Tap zones for navigation */}
+                            {partnerPhotoIndex > 0 && (
+                              <div onClick={() => setPartnerPhotoIndex(i => i - 1)} style={{ position: "absolute", top: 0, right: 0, width: "40%", height: "100%", cursor: "pointer" }} />
+                            )}
+                            {partnerPhotoIndex < photos.length - 1 && (
+                              <div onClick={() => setPartnerPhotoIndex(i => i + 1)} style={{ position: "absolute", top: 0, left: 0, width: "40%", height: "100%", cursor: "pointer" }} />
+                            )}
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      <div style={{ width: "100%", aspectRatio: "4/5", display: "flex", alignItems: "center", justifyContent: "center", color: "#aaa", fontSize: 14 }}>
+                        אין תמונות זמינות
+                      </div>
+                    )}
                   </div>
 
-                  {/* Photos */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    {(m.photos || []).map((p: any, i: number) => (
-                      <div key={p.id || i} style={{ borderRadius: 14, overflow: "hidden", background: "#f0eef8" }}>
-                        <img src={p.url} alt={`${m.name} ${i + 1}`} style={{ width: "100%", display: "block" }} />
-                      </div>
-                    ))}
-                    {(!m.photos || m.photos.length === 0) && (
-                      <div style={{ textAlign: "center", padding: 40, color: "#999" }}>אין תמונות</div>
+                  {/* Name + age + city below photo */}
+                  <div style={{ textAlign: "center" }}>
+                    <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", margin: "0 0 4px" }}>
+                      {m.name}{m.age ? `, ${m.age}` : ""}
+                    </h2>
+                    {m.city && (
+                      <p style={{ fontSize: 14, color: "#888", margin: 0 }}>{m.city}</p>
                     )}
                   </div>
                 </div>
