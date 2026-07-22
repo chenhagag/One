@@ -851,7 +851,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
              screen === "match_card_consent" ? "כרטיס התאמה" :
              screen === "cancel_match" ? "ביטול התאמה" :
              screen === "past_matches" ? "התאמות קודמות" :
-             screen === "past_match_detail" ? "התאמה קודמת" :
+             screen === "past_match_detail" ? (selectedPastMatch?._isPartnerProfile ? "פרופיל" : "התאמה קודמת") :
              screen === "couple_insights" ? "ניתוח זוגיות" :
              screen === "how_it_works" ? "איך המערכת עובדת?" :
              screen === "bug_report" ? "עזרו לנו להשתפר" :
