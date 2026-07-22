@@ -49,30 +49,19 @@ export async function sendPoolWelcomeEmail(userId: number): Promise<WelcomeEmail
   const isFemale = user.gender === "woman";
   const gn = (m: string, f: string) => isFemale ? f : m;
 
-  const subject = "One — ברוכים הבאים למאגר ההתאמות! 🎉";
-  const html = `
-    <div dir="rtl" style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; color: #1a1a2e;">
-      <h2 style="color: #6366f1;">היי ${user.first_name || ""} 👋</h2>
-      <p style="line-height: 1.8; font-size: 15px;">
-        ${gn("סיימת", "סיימת")} את כל שלבי ההיכרות, ואנחנו ${gn("שמחים", "שמחות")} לעדכן ${gn("אותך", "אותך")} — ${gn("נכנסת", "נכנסת")} למאגר ההתאמות של One! 🎉
-      </p>
-      <p style="line-height: 1.8; font-size: 15px;">
-        מהרגע הזה המערכת תחפש ${gn("עבורך", "עבורך")} התאמות על בסיס הניתוח המעמיק שביצענו — ציוני אישיות, ערכים, סגנון תקשורת, טעם ועוד.
-      </p>
-      <p style="line-height: 1.8; font-size: 15px;">
-        כשנמצא התאמה שאנחנו ${gn("מרגיש", "מרגישה")} ${gn("בטוח", "בטוחה")} לגביה — ${gn("תקבל", "תקבלי")} עדכון.
-      </p>
-      <p style="line-height: 1.8; font-size: 15px;">
-        בינתיים, ${gn("מוזמן", "מוזמנת")} ${gn("להיכנס", "להיכנס")} למערכת, ${gn("להוסיף", "להוסיפי")} תמונות ולקרוא את התובנות האישיות ${gn("שלך", "שלך")}.
-      </p>
-      <div style="text-align: center; margin: 28px 0;">
-        <a href="https://joinone.io" style="display: inline-block; padding: 12px 28px; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: #fff; text-decoration: none; border-radius: 10px; font-weight: 600; font-size: 15px;">
-          ${gn("כנס", "כנסי")} למערכת
-        </a>
-      </div>
-      <p style="font-size: 12px; color: #999; text-align: center;">צוות One</p>
-    </div>
-  `;
+  const subject = `הניתוח ${gn("שלך", "שלך")} ב-One הושלם`;
+  const html = `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#333;max-width:500px">
+<p>היי,</p>
+<p>${gn("ברוך הבא", "ברוכה הבאה")} ל-One, ${gn("שמחים שהצטרפת", "שמחים שהצטרפת")} אלינו.</p>
+<p>הניתוח האישי ${gn("שלך", "שלך")} הושלם, והוא זמין ${gn("עבורך", "עבורך")} כעת בתוך המערכת.</p>
+<p>הניתוח מבוסס על השיחה ש${gn("קיימת", "קיימת")} עם One, ונועד לשקף תובנות ראשוניות על סגנון הקשר ${gn("שלך", "שלך")}, ההעדפות המרכזיות ${gn("שלך", "שלך")}, והמאפיינים שעשויים להיות משמעותיים ${gn("עבורך", "עבורך")} בהתאמה זוגית.</p>
+<p>בשלב זה ${gn("נכנסת", "נכנסת")} למאגר ההתאמות שלנו.<br>One נמצאת כעת בתהליך התרחבות ואיסוף משתמשים נוספים, וככל שהמאגר יגדל — נוכל לאתר התאמות מדויקות ורלוונטיות יותר.</p>
+<p>כדי שנוכל להציג ${gn("לך", "לך")} ולצד השני הסבר אישי על ההתאמה כשנמצא אותה, יש לאשר את בניית <strong>כרטיס ההתאמה</strong> ${gn("שלך", "שלך")} במערכת. הסבר מלא ואפשרות אישור מחכים ${gn("לך", "לך")} בתוך האפליקציה.</p>
+<p style="margin:28px 0"><a href="https://joinone.io" style="display:inline-block;background-color:#7b5fa3;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold">${gn("כנס", "כנסי")} למערכת לאישור</a></p>
+<p>מקווים למצוא ${gn("לך", "לך")} את ה-One ${gn("שלך", "שלך")} בקרוב.</p>
+<p>בברכה,<br>צוות One</p>
+<p style="margin-top:16px;font-size:13px;color:#888">לנוחותך, ניתן להיכנס למערכת גם דרך:<br><a href="https://joinone.io" style="color:#7b5fa3">joinone.io</a></p>
+</div>`;
 
   await resend.emails.send({
     from: "One <noreply@joinone.io>",
