@@ -1478,7 +1478,9 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 {!isCancelledByMe && (
                   <div style={{ background: "#f8f7fc", borderRadius: 12, padding: "16px 18px", marginBottom: 20 }}>
                     <p style={{ fontSize: 14, color: "#555", margin: 0, lineHeight: 1.7 }}>
-                      ההתאמה בוטלה על ידי הצד השני. חזרת למאגר ואנחנו ממשיכים לחפש לך התאמה חדשה עם התובנות החדשות שלנו.
+                      הצד השני בחר שלא להמשיך עם ההתאמה הזו — וזה חלק טבעי מהתהליך.
+                      <br /><br />
+                      חזרת למאגר, ואנחנו ממשיכים לחפש עבורך את החיבור הנכון. כל התאמה עוזרת לנו ללמוד יותר, לדייק את התובנות שלנו ולהשתפר לקראת ההתאמה הבאה. גם הפידבק שלך יעזור לנו להבין אותך טוב יותר ולהמשיך לדייק — עד שנמצא את ה-One שלך.
                     </p>
                   </div>
                 )}
@@ -1488,7 +1490,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   <label style={{ fontSize: 14, fontWeight: 600, color: "#333", display: "block", marginBottom: 8 }}>
                     {isCancelledByMe
                       ? "המשוב שלך (ניתן לעדכן)"
-                      : "מה היה חשוב לך בהתאמה הזו? מה נקח בחשבון בהתאמה הבאה?"}
+                      : "איך הייתה החוויה שלך בהתאמה הזו? מה נקח בחשבון בהתאמה הבאה?"}
                   </label>
                   <textarea
                     value={pastMatchFeedback}
@@ -1530,32 +1532,6 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   </button>
                 </div>
 
-                {/* Match card link */}
-                {m.match_card_data && (
-                  <button
-                    onClick={() => {
-                      setActiveMatchCard({
-                        match_id: m.match_id,
-                        data: m.match_card_data,
-                        partner_name: m.partner_name,
-                        partner_age: m.partner_age,
-                        partner_city: m.partner_city || null,
-                        my_name: user.first_name,
-                        partner_photo: m.partner_photo,
-                        my_photo: null,
-                      });
-                      setScreen("match_card");
-                    }}
-                    style={{
-                      width: "100%", padding: "12px 16px",
-                      background: "#f8f7fc", color: "#6366f1",
-                      border: "1px solid #e0ddf5", borderRadius: 10,
-                      fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-                    }}
-                  >
-                    צפייה בכרטיס ההתאמה
-                  </button>
-                )}
               </div>
             </div>
           );
