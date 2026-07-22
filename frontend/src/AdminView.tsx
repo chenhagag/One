@@ -530,7 +530,7 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
         onMouseLeave={(e) => (e.currentTarget.style.background = u.user_status === "frozen" ? "#fff0f0" : "")}
       >
         <td style={s.td}>{u.id}</td>
-        <td style={{ ...s.td, cursor: "pointer" }} onClick={() => setSelectedUserId(u.id)}><strong style={{ color: "#6366f1" }}>{u.first_name}</strong></td>
+        <td style={{ ...s.td, cursor: "pointer" }} onClick={() => setSelectedUserId(u.id)}><strong style={{ color: "#6366f1" }}>{u.first_name}</strong>{u.photo_flags && <span title="התראת תמונות" style={{ marginRight: 4 }}>🚨</span>}</td>
         <td style={s.td}>{u.email}</td>
         <td style={s.td}>{u.age || "-"}</td>
         <td style={s.td}><span style={s.badge}>{u.gender || "-"}</span></td>
@@ -2227,6 +2227,23 @@ ${footer}`)
               : <span style={{ color: "#999" }}>Not analyzed</span>}
           </div>
 
+          {/* Photo Flags Alert */}
+          {user.photo_flags && (
+            <div style={{ marginBottom: 12, padding: "12px 16px", background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <span style={{ fontSize: 16 }}>🚨</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#dc2626" }}>התראת אימות תמונות</span>
+              </div>
+              <div style={{ fontSize: 12, color: "#991b1b", lineHeight: 1.8 }}>
+                {user.photo_flags.not_real_photo && <div>• לא נראה כתמונה אמיתית של אדם</div>}
+                {user.photo_flags.appears_minor && <div>• נראה כקטין/ה (מתחת ל-18)</div>}
+                {user.photo_flags.ai_generated && <div>• חשד לתמונה שנוצרה על ידי AI</div>}
+                {user.photo_flags.gender_mismatch && <div>• אי-התאמה מגדרית: נרשם/ה כ-{user.photo_flags.registered_gender === "man" ? "גבר" : "אישה"}, בתמונה נראה/ית כ-{user.photo_flags.apparent_gender === "male" ? "גבר" : "אישה"}</div>}
+                {user.photo_flags.notes && <div>• הערות: {user.photo_flags.notes}</div>}
+              </div>
+            </div>
+          )}
+
           {/* User Photos — View & Download */}
           <UserPhotosGallery userId={userId} userName={user.first_name || "user"} photoAiConsent={!!user.photo_ai_consent} />
 
@@ -3781,6 +3798,18 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                     )}
                     {cm.match_status === "in_match" && cm.match_card_sent_at && (
                       <span style={{ fontSize: 11, color: "#28a745", fontWeight: 600 }}>&#10003; כרטיס נשלח</span>
+                    )}
+                    {(cm.match_status === "waiting_first_rating" || cm.match_status === "waiting_second_rating") && cm.user1_photo_count === 0 && cm.user2_photo_count === 0 && (
+                      <button
+                        style={{ padding: "3px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#d97706", color: "#fff", marginTop: 4 }}
+                        onClick={async () => {
+                          if (!confirm(`לשלוח את ${cm.user1_name} ו-${cm.user2_name} ללא אישור תמונות?`)) return;
+                          await apiFetch(`/admin/matches/${cm.match_id}/prepare`, { method: "POST" });
+                          load();
+                        }}
+                      >
+                        שלח ללא תמונות
+                      </button>
                     )}
                   </td>
                   <td style={s.td}>

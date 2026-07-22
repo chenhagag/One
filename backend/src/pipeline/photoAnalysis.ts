@@ -127,10 +127,18 @@ ${numericDesc}
 ## Categorical traits (string):
 ${categoricalDesc}
 
+## Verification fields (CRITICAL — answer honestly):
+"is_real_photo": boolean — true if these appear to be real photos of a real person (not stock photos, memes, objects, landscapes, or other non-personal content).
+"is_adult": boolean — true if the person appears to be 18+ years old. false if they appear to be a child or young teenager.
+"apparent_gender": "male" | "female" | "unclear" — the apparent gender of the person in the photos.
+"is_ai_generated": boolean — true if the photos appear to be AI-generated (look for telltale signs: uncanny smoothness, weird hands/fingers, asymmetric earrings, distorted backgrounds, unnatural skin texture).
+"verification_notes": string — brief note if anything seems off (e.g. "photos show different people", "stock photo watermark visible", "cartoon/avatar"). Empty string if everything looks normal.
+
 Important:
 - Assess based on ALL provided photos together (they show the same person).
 - If a trait cannot be determined from the photos, use your best estimate.
 - For femininity_masculinity, calibrate based on the person's apparent gender expression.
+- The verification fields are critical for safety — be strict and honest.
 - Return ONLY valid JSON. No markdown, no explanation, no wrapping.`;
 
   // ── Call GPT-4o Vision ─────────────────────────────────────────
@@ -163,6 +171,49 @@ Important:
     parsed = JSON.parse(raw);
   } catch {
     throw new Error(`Failed to parse photo analysis response: ${raw.slice(0, 200)}`);
+  }
+
+  // ── Check verification flags ───────────────────────────────────
+  const photoFlags: Record<string, any> = {};
+  let hasConcerns = false;
+
+  if (parsed.is_real_photo === false) {
+    photoFlags.not_real_photo = true;
+    hasConcerns = true;
+  }
+  if (parsed.is_adult === false) {
+    photoFlags.appears_minor = true;
+    hasConcerns = true;
+  }
+  if (parsed.is_ai_generated === true) {
+    photoFlags.ai_generated = true;
+    hasConcerns = true;
+  }
+  if (parsed.apparent_gender && user.gender) {
+    const genderMap: Record<string, string> = { man: "male", woman: "female" };
+    if (parsed.apparent_gender !== "unclear" && genderMap[user.gender] && parsed.apparent_gender !== genderMap[user.gender]) {
+      photoFlags.gender_mismatch = true;
+      photoFlags.apparent_gender = parsed.apparent_gender;
+      photoFlags.registered_gender = user.gender;
+      hasConcerns = true;
+    }
+  }
+  if (parsed.verification_notes && parsed.verification_notes.trim()) {
+    photoFlags.notes = parsed.verification_notes.trim();
+  }
+
+  if (hasConcerns || Object.keys(photoFlags).length > 0) {
+    await pgQueryOne(
+      "UPDATE users SET photo_flags = $1, updated_at = NOW() WHERE id = $2",
+      [JSON.stringify(photoFlags), userId]
+    );
+    console.warn(`[photoAnalysis] User ${userId}: ⚠️ Photo concerns detected:`, photoFlags);
+  } else {
+    // Clear old flags if any
+    await pgQueryOne(
+      "UPDATE users SET photo_flags = NULL, updated_at = NOW() WHERE id = $1",
+      [userId]
+    );
   }
 
   // ── Load trait definitions ─────────────────────────────────────

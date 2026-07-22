@@ -840,6 +840,13 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       END IF;
     END $$;
 
+    -- photo verification flags on users
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'photo_flags') THEN
+        ALTER TABLE users ADD COLUMN photo_flags JSONB DEFAULT NULL;
+      END IF;
+    END $$;
+
     -- admin notes on candidate_matches
     DO $$ BEGIN
       IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'candidate_matches' AND column_name = 'admin_notes') THEN

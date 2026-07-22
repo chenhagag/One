@@ -3130,10 +3130,16 @@ app.patch("/admin/candidate-matches/:id/notes", async (req, res) => {
 // ════════════════════════════════════════════════════════════════
 
 // POST /admin/matches/:id/prepare — Move match to pre_match (waiting for card creation)
+// Accepts: approved_by_both (normal flow) or waiting_first/second_rating (skip rating, e.g. no photos)
 app.post("/admin/matches/:id/prepare", async (req, res) => {
   const matchId = parseInt(req.params.id, 10);
   const match = await pgQueryOne<any>("SELECT * FROM matches WHERE id = $1", [matchId]);
   if (!match) return res.status(404).json({ error: "Match not found" });
+
+  const allowedStatuses = ["approved_by_both", "waiting_first_rating", "waiting_second_rating"];
+  if (!allowedStatuses.includes(match.status)) {
+    return res.status(400).json({ error: `Cannot prepare match in status '${match.status}'` });
+  }
 
   await withTransaction(async (client) => {
     await client.query(
