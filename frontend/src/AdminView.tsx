@@ -462,6 +462,7 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [filterPool, setFilterPool] = useState<"all" | "in" | "out">("all");
   const [filterGender, setFilterGender] = useState<"all" | "man" | "woman">("all");
+  const [filterOrientation, setFilterOrientation] = useState<"all" | "straight" | "ww" | "mm">("all");
 
   useEffect(() => {
     apiFetch("/admin/users")
@@ -488,6 +489,9 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
     if (filterPool === "out" && u.in_matching_pool) return false;
     if (filterGender === "man" && u.gender !== "man") return false;
     if (filterGender === "woman" && u.gender !== "woman") return false;
+    if (filterOrientation === "straight" && !((u.gender === "man" && u.looking_for_gender === "woman") || (u.gender === "woman" && u.looking_for_gender === "man"))) return false;
+    if (filterOrientation === "ww" && !(u.gender === "woman" && u.looking_for_gender === "woman")) return false;
+    if (filterOrientation === "mm" && !(u.gender === "man" && u.looking_for_gender === "man")) return false;
     return true;
   });
 
@@ -618,6 +622,11 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
         <button style={filterBtnStyle(filterGender === "all")} onClick={() => setFilterGender("all")}>הכל</button>
         <button style={filterBtnStyle(filterGender === "woman")} onClick={() => setFilterGender("woman")}>נשים</button>
         <button style={filterBtnStyle(filterGender === "man")} onClick={() => setFilterGender("man")}>גברים</button>
+        <span style={{ fontSize: 12, color: "#6b7280", marginRight: 12, marginLeft: 4 }}>מאגר התאמות:</span>
+        <button style={filterBtnStyle(filterOrientation === "all")} onClick={() => setFilterOrientation("all")}>הכל</button>
+        <button style={filterBtnStyle(filterOrientation === "straight")} onClick={() => setFilterOrientation("straight")}>סטרייט</button>
+        <button style={filterBtnStyle(filterOrientation === "ww")} onClick={() => setFilterOrientation("ww")}>נשים→נשים</button>
+        <button style={filterBtnStyle(filterOrientation === "mm")} onClick={() => setFilterOrientation("mm")}>גברים→גברים</button>
       </div>
 
       {/* Flagged sections at top */}
@@ -3502,6 +3511,13 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
   const [cardSending, setCardSending] = useState(false);
   const [cardEditing, setCardEditing] = useState(false);
   const [editData, setEditData] = useState<any>(null);
+  const [filterCmPool, setFilterCmPool] = useState<"all" | "straight" | "ww" | "mm">("all");
+
+  const filterBtnStyle = (active: boolean): React.CSSProperties => ({
+    padding: "4px 12px", fontSize: 12, fontWeight: active ? 700 : 400, borderRadius: 6,
+    border: active ? "1.5px solid #6366f1" : "1px solid #d1d5db", cursor: "pointer",
+    background: active ? "#ede9fe" : "#fff", color: active ? "#6366f1" : "#6b7280",
+  });
 
   function load() {
     setLoading(true);
@@ -3717,6 +3733,15 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
         )}
       </div>
 
+      {/* Pool filter */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 12, alignItems: "center" }}>
+        <span style={{ fontSize: 12, color: "#6b7280" }}>מאגר:</span>
+        <button style={filterBtnStyle(filterCmPool === "all")} onClick={() => setFilterCmPool("all")}>הכל ({data.length})</button>
+        <button style={filterBtnStyle(filterCmPool === "straight")} onClick={() => setFilterCmPool("straight")}>סטרייט ({data.filter((cm: any) => (cm.user1_gender === "man" && cm.user1_looking_for === "woman") || (cm.user1_gender === "woman" && cm.user1_looking_for === "man")).length})</button>
+        <button style={filterBtnStyle(filterCmPool === "ww")} onClick={() => setFilterCmPool("ww")}>נשים→נשים ({data.filter((cm: any) => cm.user1_gender === "woman" && cm.user1_looking_for === "woman").length})</button>
+        <button style={filterBtnStyle(filterCmPool === "mm")} onClick={() => setFilterCmPool("mm")}>גברים→גברים ({data.filter((cm: any) => cm.user1_gender === "man" && cm.user1_looking_for === "man").length})</button>
+      </div>
+
       {loading ? (
         <p style={s.loading}>Loading...</p>
       ) : data.length === 0 ? (
@@ -3755,7 +3780,12 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
               </tr>
             </thead>
             <tbody>
-              {[...data].sort((a: any, b: any) => (b[sortBy] ?? -1) - (a[sortBy] ?? -1)).map((cm: any) => (
+              {[...data].filter((cm: any) => {
+                if (filterCmPool === "straight") return (cm.user1_gender === "man" && cm.user1_looking_for === "woman") || (cm.user1_gender === "woman" && cm.user1_looking_for === "man");
+                if (filterCmPool === "ww") return cm.user1_gender === "woman" && cm.user1_looking_for === "woman";
+                if (filterCmPool === "mm") return cm.user1_gender === "man" && cm.user1_looking_for === "man";
+                return true;
+              }).sort((a: any, b: any) => (b[sortBy] ?? -1) - (a[sortBy] ?? -1)).map((cm: any) => (
                 <tr key={cm.id}>
                   <td style={s.td}>
                     <button style={s.expandBtn} onClick={() => setSelectedUserId(cm.user_id)}>{cm.user1_name}</button> ({cm.user1_age}, {cm.user1_city})

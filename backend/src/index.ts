@@ -53,7 +53,7 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 
 const EMAIL_FOOTER = `<div dir="rtl" style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#999;text-align:center;line-height:1.8">
 <p style="margin:0">לא ניתן להשיב למייל זה.</p>
-<p style="margin:4px 0 0">מוזמנים לפנות אלינו: <a href="mailto:one-support@googlegroups.com" style="color:#7b5fa3">one-support@googlegroups.com</a> · <a href="https://wa.me/972559431221" style="color:#25D366">WhatsApp</a></p>
+<p style="margin:4px 0 0">מוזמנים לפנות אלינו ב<a href="https://wa.me/972559431221" style="color:#25D366">וואטסאפ</a> או ב<a href="mailto:one-support@googlegroups.com" style="color:#7b5fa3">מייל התמיכה</a></p>
 </div>`;
 
 function wrapEmailFooter(html: string): string {
@@ -3088,12 +3088,12 @@ app.get("/admin/candidate-matches", async (_req, res) => {
   const rows = await pgQueryAll(`
     SELECT cm.*,
       u1.first_name as user1_name, u1.age as user1_age, u1.city as user1_city,
-      u1.system_match_priority as user1_priority,
+      u1.system_match_priority as user1_priority, u1.gender as user1_gender, u1.looking_for_gender as user1_looking_for,
       (SELECT COUNT(*) FROM user_photos WHERE user_id = u1.id)::int as user1_photo_count,
       (SELECT COUNT(*) FROM conversation_messages WHERE user_id = u1.id AND role = 'user' AND guide = 'new_chat_cognitive')::int as user1_cog_count,
       (SELECT COUNT(*) FROM conversation_messages WHERE user_id = u1.id AND role = 'user' AND guide = 'new_chat_taste')::int as user1_taste_count,
       u2.first_name as user2_name, u2.age as user2_age, u2.city as user2_city,
-      u2.system_match_priority as user2_priority,
+      u2.system_match_priority as user2_priority, u2.gender as user2_gender, u2.looking_for_gender as user2_looking_for,
       (SELECT COUNT(*) FROM user_photos WHERE user_id = u2.id)::int as user2_photo_count,
       (SELECT COUNT(*) FROM conversation_messages WHERE user_id = u2.id AND role = 'user' AND guide = 'new_chat_cognitive')::int as user2_cog_count,
       (SELECT COUNT(*) FROM conversation_messages WHERE user_id = u2.id AND role = 'user' AND guide = 'new_chat_taste')::int as user2_taste_count,
