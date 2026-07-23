@@ -3134,6 +3134,29 @@ app.patch("/admin/candidate-matches/:id/notes", async (req, res) => {
   }
 });
 
+// PATCH /admin/matches/:id/status — Manually change match status
+app.patch("/admin/matches/:id/status", async (req, res) => {
+  const matchId = parseInt(req.params.id, 10);
+  const { status } = req.body;
+  const validStatuses = [
+    "waiting_first_rating", "waiting_second_rating", "approved_by_both",
+    "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users",
+    "approved_acquaintance"
+  ];
+  if (!status || !validStatuses.includes(status)) {
+    return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` });
+  }
+  try {
+    const result = await pgQueryOne("UPDATE matches SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING id, status", [status, matchId]);
+    if (!result) return res.status(404).json({ error: "Match not found" });
+    console.log(`[admin] Match ${matchId} status manually changed to: ${status}`);
+    return res.json({ success: true, match: result });
+  } catch (err) {
+    console.error("[admin-match-status] Error:", err);
+    return res.status(500).json({ error: "Failed to update match status" });
+  }
+});
+
 // ════════════════════════════════════════════════════════════════
 // MATCH LIFECYCLE — Send / Cancel final matches
 // ════════════════════════════════════════════════════════════════

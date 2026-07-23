@@ -3829,7 +3829,28 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                   <td style={s.td}>{cm.final_score != null ? <strong style={{ color: cm.final_score >= 70 ? "#28a745" : cm.final_score >= 50 ? "#856404" : "#dc3545" }}>{cm.final_score}</strong> : "-"}{cm.location_expanded && <span title="התאמה מחוץ לטווח מיקום מקורי" style={{ marginRight: 4, color: "#d97706" }}>📍</span>}{cm.age_expanded && <span title="התאמה מחוץ לטווח גיל מקורי" style={{ marginRight: 4, color: "#d97706" }}>🔞</span>}</td>
                   <td style={s.td}>{cm.profile_score != null ? <strong style={{ color: cm.profile_score >= 70 ? "#28a745" : cm.profile_score >= 50 ? "#856404" : "#dc3545" }}>{cm.profile_score}</strong> : "-"}</td>
                   <td style={s.td}>{cm.internal_profile_score != null ? <strong style={{ color: cm.internal_profile_score >= 70 ? "#28a745" : cm.internal_profile_score >= 50 ? "#856404" : "#dc3545" }}>{cm.internal_profile_score}</strong> : "-"}</td>
-                  <td style={s.td}>{cm.match_status ? <span style={matchStatusColor(cm.match_status)}>{cm.match_status}</span> : <span style={s.badge}>{cm.status}</span>}</td>
+                  <td style={s.td}>{cm.match_id ? (
+                    <select
+                      value={cm.match_status || ""}
+                      style={{ ...matchStatusColor(cm.match_status), border: "1px solid #ccc", borderRadius: 4, padding: "2px 4px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}
+                      onChange={async (e) => {
+                        const newStatus = e.target.value;
+                        if (!confirm(`לשנות סטטוס ל-${newStatus}?`)) { e.target.value = cm.match_status || ""; return; }
+                        try {
+                          await apiFetch(`/admin/matches/${cm.match_id}/status`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ status: newStatus }),
+                          });
+                          load();
+                        } catch (err: any) { alert("שגיאה: " + err.message); }
+                      }}
+                    >
+                      {["waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
+                        <option key={st} value={st}>{st}</option>
+                      ))}
+                    </select>
+                  ) : <span style={s.badge}>{cm.status}</span>}</td>
                   <td style={s.td}>
                     {(cm.user1_rating || cm.user2_rating) ? (() => {
                       const rl = (r: string | null) => r === "bullseye" ? "✅ בול" : r === "possible" ? "🟡 אפשרי" : r === "miss" ? "❌ לא" : r === "known_person" ? "👤 מכיר/ה" : "—";
