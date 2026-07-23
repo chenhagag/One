@@ -1823,6 +1823,25 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
             >
               ניתוח חיצוני
             </button>
+            <button
+              style={{ padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#059669", color: "#fff", border: "none", borderRadius: 4 }}
+              onClick={async () => {
+                if (!confirm("להפיק תובנות אישיות למשתמש/ת?")) return;
+                try {
+                  const r = await apiFetch(`/admin/users/${userId}/generate-insights?force=true`, { method: "POST" });
+                  const d = await r.json();
+                  if (d.error) { alert("שגיאה: " + d.error); return; }
+                  if (d.skipped) {
+                    alert(`תובנות לא הופקו: ${d.skipped_reason}`);
+                  } else {
+                    alert("תובנות הופקו בהצלחה ✓");
+                  }
+                  loadUserData();
+                } catch (err: any) { alert("שגיאה: " + err.message); }
+              }}
+            >
+              הפק תובנות
+            </button>
             {data?.user?.email_updates === false ? (
               <span style={{ fontSize: 12, color: "#dc2626", background: "#fef2f2", padding: "4px 10px", borderRadius: 4, border: "1px solid #fecaca" }}>
                 ✉️ המשתמש/ת לא אישר/ה קבלת מיילים
