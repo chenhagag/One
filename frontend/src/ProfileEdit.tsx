@@ -113,6 +113,11 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
   }
 
   function handleFileSelect(file: File) {
+    const MAX_SIZE_MB = 10;
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+      alert(`התמונה גדולה מדי (${(file.size / 1024 / 1024).toFixed(1)}MB).\nהגודל המקסימלי להעלאה הוא ${MAX_SIZE_MB}MB.\nנסו לכווץ את התמונה או לבחור תמונה אחרת.`);
+      return;
+    }
     if (photoConsentGiven) {
       uploadFile(file);
     } else {
