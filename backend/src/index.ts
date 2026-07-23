@@ -3009,8 +3009,8 @@ app.post("/matches/:id/rate", requireAuth, async (req, res) => {
   const { rating } = req.body;
   let { user_id } = req.body;
 
-  // Resolve user_id from JWT token (prevents ID spoofing)
-  if (req.auth?.sub) {
+  // Resolve user_id from JWT if not explicitly provided in body
+  if (!user_id && req.auth?.sub) {
     const authUser = await pgQueryOne<any>("SELECT id FROM users WHERE supabase_uid = $1", [req.auth.sub]);
     if (!authUser) return res.status(401).json({ error: "User not found" });
     user_id = authUser.id;
@@ -3382,11 +3382,15 @@ app.post("/admin/send-pool-emails", async (req, res) => {
 
 // GET /matches/pending-rating — Get pending match for user to rate (user-facing)
 app.get("/matches/pending-rating", requireAuth, async (req, res) => {
-  let userId = req.query.user_id ? parseInt(req.query.user_id as string, 10) : null;
-
+  // Resolve user ID: prefer auth (JWT) but fall back to query param
+  let userId: number | null = null;
   if (req.auth?.sub) {
     const authUser = await pgQueryOne<any>("SELECT id FROM users WHERE supabase_uid = $1", [req.auth.sub]);
     if (authUser) userId = authUser.id;
+  }
+  // Allow query param override (needed when admin views a user's screen)
+  if (req.query.user_id) {
+    userId = parseInt(req.query.user_id as string, 10);
   }
 
   if (!userId) return res.status(400).json({ error: "user_id required" });
