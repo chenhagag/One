@@ -60,6 +60,10 @@ function PersonalInsightsEditor({ userId, shortText, fullText, analysisCompleted
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  useEffect(() => { setShort(shortText); }, [shortText]);
+  useEffect(() => { setFull(fullText); }, [fullText]);
+  useEffect(() => { setCompleted(analysisCompleted); }, [analysisCompleted]);
+
   async function handleSave() {
     setSaving(true);
     try {
