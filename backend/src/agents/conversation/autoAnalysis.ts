@@ -93,6 +93,9 @@ export async function maybeAutoAnalyzeAfterChat(userId: number): Promise<void> {
 /**
  * Trigger analysis after all channels are complete (run 2).
  * Requirements: cognitive done + taste done + run count = 1.
+ * Uses same thresholds as pipeline dashboard:
+ *   cognitive: closing_stage >= 3 OR message count >= 7
+ *   taste: closing_stage >= 3 OR message count >= 10
  */
 export async function maybeAutoAnalyzeAfterAll(userId: number): Promise<void> {
   const user = await pgQueryOne<{ analysis_run_count: number }>(
@@ -101,7 +104,16 @@ export async function maybeAutoAnalyzeAfterAll(userId: number): Promise<void> {
   );
   if (!user || user.analysis_run_count >= 2) return;
 
-  // Check that cognitive and taste are done
+  // Check closing stages from saved state
+  const summary = await pgQueryOne<{ topic_injection_counts: any }>(
+    "SELECT topic_injection_counts FROM user_chat_summaries WHERE user_id = $1",
+    [userId]
+  );
+  const state = summary?.topic_injection_counts || {};
+  const cogClosingStage = state.cognitive_closing_stage || 0;
+  const tasteClosingStage = state.taste_closing_stage || 0;
+
+  // Check message counts (fallback thresholds matching pipeline dashboard)
   const result = await pgQueryOne<{ cog: string; taste: string }>(
     `SELECT
        COUNT(*) FILTER (WHERE guide = 'new_chat_cognitive') as cog,
@@ -113,9 +125,12 @@ export async function maybeAutoAnalyzeAfterAll(userId: number): Promise<void> {
   const cogCount = parseInt(result?.cog || "0", 10);
   const tasteCount = parseInt(result?.taste || "0", 10);
 
-  if (cogCount < 5 || tasteCount < 5) return;
+  const cogDone = cogClosingStage >= 3 || cogCount >= 7;
+  const tasteDone = tasteClosingStage >= 3 || tasteCount >= 10;
 
-  console.log(`[auto-analysis] User ${userId}: all channels complete, triggering run #2`);
+  if (!cogDone || !tasteDone) return;
+
+  console.log(`[auto-analysis] User ${userId}: all channels complete (cog=${cogCount}/closing=${cogClosingStage}, taste=${tasteCount}/closing=${tasteClosingStage}), triggering run #2`);
   runAnalysis(userId, 2).catch(() => {});
 }
 
