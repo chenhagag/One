@@ -3045,12 +3045,19 @@ app.post("/matches/:id/rate", requireAuth, async (req, res) => {
     return res.json({ match_id: match.id, new_status: "rejected_acquaintance", rated_by: user_id });
   }
 
-  // Determine first and second rater based on pickiness_score.
-  const u1 = await pgQueryOne<any>("SELECT id, pickiness_score FROM users WHERE id = $1", [match.user1_id]);
-  const u2 = await pgQueryOne<any>("SELECT id, pickiness_score FROM users WHERE id = $1", [match.user2_id]);
-  const p1 = u1?.pickiness_score ?? 0;
-  const p2 = u2?.pickiness_score ?? 0;
-  const firstRaterId = p2 > p1 ? match.user2_id : match.user1_id;
+  // Determine first and second rater:
+  // If admin sent rating to a specific user (sent_for_rating_to), that user rates first.
+  // Otherwise, fall back to pickiness_score ordering.
+  let firstRaterId: number;
+  if (match.sent_for_rating_to) {
+    firstRaterId = match.sent_for_rating_to;
+  } else {
+    const u1 = await pgQueryOne<any>("SELECT id, pickiness_score FROM users WHERE id = $1", [match.user1_id]);
+    const u2 = await pgQueryOne<any>("SELECT id, pickiness_score FROM users WHERE id = $1", [match.user2_id]);
+    const p1 = u1?.pickiness_score ?? 0;
+    const p2 = u2?.pickiness_score ?? 0;
+    firstRaterId = p2 > p1 ? match.user2_id : match.user1_id;
+  }
   const secondRaterId = firstRaterId === match.user1_id ? match.user2_id : match.user1_id;
 
   const ratingCol = user_id === match.user1_id ? "user1_rating" : "user2_rating";
