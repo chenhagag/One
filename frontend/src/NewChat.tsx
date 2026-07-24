@@ -1743,7 +1743,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     )}
                     <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
                       <button
-                        onClick={() => setScreen("match_hub")}
+                        onClick={() => setScreen("match_card")}
                         style={{
                           padding: "12px 28px", fontSize: 15, fontWeight: 600,
                           background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
@@ -1752,7 +1752,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           boxShadow: "0 4px 14px rgba(99,102,241,0.35)",
                         }}
                       >
-                        לצפייה בהתאמה
+                        לצפייה בכרטיס ההתאמה
                       </button>
                       {unreadMatchMessages > 0 && (
                         <button
