@@ -221,12 +221,17 @@ function PotentialMatchScreen({ userId, userGender, onBack }: { userId: number; 
             {isPositive ? "✓" : "·"}
           </div>
           <p style={{ fontSize: 17, fontWeight: 600, color: "#1a1a2e", margin: "0 0 12px", lineHeight: 1.5 }}>תודה, קיבלנו.</p>
-          <p style={{ fontSize: 14, color: "#6b7280", lineHeight: 1.7, margin: "0 0 28px" }}>
+          <p style={{ fontSize: 14, color: "#6b7280", lineHeight: 1.7, margin: isPositive ? "0 0 12px" : "0 0 28px" }}>
             {isPositive
               ? "ניקח את זה בחשבון כחלק מתהליך ההתאמה ונמשיך לבדוק את הכיוון הזה יחד עם שאר הנתונים."
               : "לא נמשיך עם ההתאמה הזו. המשוב שלך עוזר לנו לדייק את ההתאמות הבאות."
             }
           </p>
+          {isPositive && (
+            <p style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.7, margin: "0 0 28px", textAlign: "right" }}>
+              חשוב לדעת: אישור ההתאמה בשלב הזה לא מבטיח שהיא אכן תצא לפועל. לפעמים התאמה אחרת מתקדמת קודם, אחד המשתמשים כבר אינו זמין, או שהתהליך נעצר מסיבה אחרת. לכן, אם ההתאמה לא המשיכה — אין להסיק מכך בהכרח משהו לגבי האישור של הצד השני.
+            </p>
+          )}
           <button
             onClick={onBack}
             style={{ background: "none", border: "none", color: "#9ca3af", fontSize: 13, fontWeight: 500, cursor: "pointer", padding: 0 }}
