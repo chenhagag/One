@@ -317,7 +317,7 @@ function PotentialMatchScreen({ userId, userGender, onBack }: { userId: number; 
         <button
           disabled={submitting}
           onClick={() => submitRating("miss")}
-          style={{ padding: "15px 16px", borderRadius: 12, border: "1px solid #e5e7eb", background: "#fff", color: "#6b7280", fontWeight: 500, fontSize: 14, cursor: submitting ? "wait" : "pointer", transition: "all 0.15s", textAlign: "center" }}
+          style={{ padding: "15px 16px", borderRadius: 12, border: "1px solid #e5e7eb", background: "#fff", color: "#1a1a2e", fontWeight: 500, fontSize: 14, cursor: submitting ? "wait" : "pointer", transition: "all 0.15s", textAlign: "center" }}
         >
           לא מרגיש לי מתאים
         </button>
