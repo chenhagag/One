@@ -1022,13 +1022,13 @@ app.get("/users/:id/active-match-card", requireUserAuth, async (req, res) => {
     const partnerAge = match.user1_id === userId ? match.user2_age : match.user1_age;
     const partnerCity = match.user1_id === userId ? match.user2_city : match.user1_city;
 
-    // Get partner photos
+    // Get partner photos (prefer 2nd photo, fallback to 1st)
     const photos = await pgQueryAll<any>(
-      "SELECT id, filename FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1",
+      "SELECT id, filename FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC LIMIT 2",
       [partnerId]
     );
     const myPhotos = await pgQueryAll<any>(
-      "SELECT id, filename FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1",
+      "SELECT id, filename FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC LIMIT 2",
       [userId]
     );
 
@@ -1040,8 +1040,8 @@ app.get("/users/:id/active-match-card", requireUserAuth, async (req, res) => {
         partner_age: partnerAge,
         partner_city: partnerCity,
         my_name: myName,
-        partner_photo: photos.length > 0 ? `/uploads/${photos[0].filename}` : null,
-        my_photo: myPhotos.length > 0 ? `/uploads/${myPhotos[0].filename}` : null,
+        partner_photo: photos.length > 1 ? `/uploads/${photos[1].filename}` : photos.length > 0 ? `/uploads/${photos[0].filename}` : null,
+        my_photo: myPhotos.length > 1 ? `/uploads/${myPhotos[1].filename}` : myPhotos.length > 0 ? `/uploads/${myPhotos[0].filename}` : null,
         sent_at: match.match_card_sent_at,
       },
     });
