@@ -1253,24 +1253,39 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
       { name: "mainstreamness", he: "מיינסטרימי" },
       { name: "oriental", he: "מזרחי" },
       { name: "broad_appeal", he: "נורמטיבי רחב" },
-      { name: "value_rigidity", he: "שמרן ערכית" },
       { name: "family_of_origin_closeness", he: "קרוב למשפחה" },
       { name: "childishness", he: "ילדותי" },
       { name: "humor", he: "הומוריסטי" },
-      { name: "right_wing", he: "ימני" },
-      { name: "left_wing", he: "שמאלני" },
-      { name: "social_activism", he: "אקטיביסט" },
       { name: "party_orientation", he: "מסיבתי" },
-      { name: "religiosity", he: "דתי" },
-      { name: "secularity", he: "חילוני" },
       { name: "hipsterishness", he: "היפסטר" },
       { name: "geekiness", he: "גיקי" },
       { name: "hippie_style", he: "היפי" },
       { name: "soviet_style", he: "סובייטי" },
       { name: "theatricality", he: "תיאטרלי" },
+      { name: "gender_conformity", he: "התאמה מגדרית" },
     ];
     const highlights: { label: string; score: number }[] = [];
     for (const t of styleTraits) {
+      const d = traitData(t.name);
+      if (!d || d.score < 65) continue;
+      highlights.push({ label: t.he, score: d.score });
+    }
+    highlights.sort((a, b) => b.score - a.score);
+    return highlights;
+  })();
+
+  // Attitudes highlights (score >= 65)
+  const attitudesHighlights = (() => {
+    const attTraits: { name: string; he: string }[] = [
+      { name: "right_wing", he: "ימני" },
+      { name: "left_wing", he: "שמאלני" },
+      { name: "social_activism", he: "אקטיביסט" },
+      { name: "religiosity", he: "דתי" },
+      { name: "secularity", he: "חילוני" },
+      { name: "value_rigidity", he: "שמרן ערכית" },
+    ];
+    const highlights: { label: string; score: number }[] = [];
+    for (const t of attTraits) {
       const d = traitData(t.name);
       if (!d || d.score < 65) continue;
       highlights.push({ label: t.he, score: d.score });
@@ -1637,6 +1652,21 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                       <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                         <span style={{ fontSize: 12, color: "#f97316" }}>{e.label}</span>
                         <span style={{ fontSize: 13, fontWeight: 700, color: "#f97316" }}>{e.score}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {attitudesHighlights.length > 0 && (
+                  <div style={{
+                    flex: "1 1 180px", padding: "14px 16px", borderRadius: 12,
+                    background: "#f8fafc", border: "2px solid #ef444440",
+                    minWidth: 180,
+                  }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#333", marginBottom: 8 }}>עמדות בולטות</div>
+                    {attitudesHighlights.map((e, i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                        <span style={{ fontSize: 12, color: "#ef4444" }}>{e.label}</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "#ef4444" }}>{e.score}</span>
                       </div>
                     ))}
                   </div>
@@ -3801,6 +3831,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                 <th style={s.th}>ביג פייב</th>
                 <th style={s.th}>שוורץ</th>
                 <th style={s.th}>סגנון</th>
+                <th style={s.th}>עמדות</th>
                 <th style={s.th}>כללי</th>
                 <th style={s.th}>MBTI</th>
                 <th style={s.th}>אניאגרם</th>
@@ -3922,7 +3953,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                   <td style={s.td}>{cm.final_match_priority != null ? <strong>{cm.final_match_priority}</strong> : "-"}</td>
                   {[cm.internal_score, cm.external_score, cm.score_cognitive, cm.score_emotional_social,
                     cm.score_emotionality, cm.score_communication, cm.score_vibe, cm.score_popularity,
-                    cm.score_big_five, cm.score_schwartz, cm.score_style, cm.score_general,
+                    cm.score_big_five, cm.score_schwartz, cm.score_style, cm.score_attitudes, cm.score_general,
                     cm.score_mbti, cm.score_enneagram].map((v: any, i: number) => (
                     <td key={i} style={s.td}>{v != null ? <strong style={{ color: v >= 70 ? "#28a745" : v >= 50 ? "#856404" : "#dc3545" }}>{v}</strong> : "-"}</td>
                   ))}

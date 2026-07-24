@@ -207,14 +207,18 @@ const MATCH_CATEGORIES: CategoryDef[] = [
     "security", "conformity", "tradition", "benevolence", "universalism", "spirituality",
   ]},
 
-  // סגנון אישי — Personal Style
-  // Traits: mainstreamness, oriental, broad_appeal, value_rigidity, family_of_origin_closeness,
-  //         childishness, humor, right_wing, left_wing, social_activism, party_orientation,
-  //         religiosity, secularity, hipsterishness, geekiness, hippie_style, soviet_style, theatricality
+  // סגנון אישי — Personal Style (13 traits)
   { key: "style", traitNames: [
-    "mainstreamness", "oriental", "broad_appeal", "value_rigidity", "family_of_origin_closeness",
-    "childishness", "humor", "right_wing", "left_wing", "social_activism", "party_orientation",
-    "religiosity", "secularity", "hipsterishness", "geekiness", "hippie_style", "soviet_style", "theatricality",
+    "mainstreamness", "oriental", "broad_appeal", "family_of_origin_closeness",
+    "childishness", "humor", "party_orientation",
+    "hipsterishness", "geekiness", "hippie_style", "theatricality", "soviet_style",
+    "gender_conformity",
+  ]},
+
+  // עמדות — Attitudes (6 traits)
+  { key: "attitudes", traitNames: [
+    "right_wing", "left_wing", "social_activism",
+    "religiosity", "secularity", "value_rigidity",
   ]},
 
   // כללי — General Info
@@ -306,6 +310,7 @@ interface CategoryScores {
   score_big_five: number | null;
   score_schwartz: number | null;
   score_style: number | null;
+  score_attitudes: number | null;
   score_general: number | null;
   score_mbti: number | null;
   score_enneagram: number | null;
@@ -389,6 +394,7 @@ function calculateProfileScore(categories: CategoryScores, externalScore: number
     ["score_big_five", 1],
     ["score_schwartz", 1],
     ["score_style", 1],
+    ["score_attitudes", 1],
     ["score_popularity", 0.25],
     ["score_vibe", 0.25],
     ["score_mbti", 0.5],
@@ -509,7 +515,7 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
   const emptyCategories: CategoryScores = {
     score_cognitive: null, score_emotional_social: null, score_emotionality: null,
     score_communication: null, score_vibe: null, score_popularity: null,
-    score_big_five: null, score_schwartz: null, score_style: null, score_general: null, score_mbti: null, score_enneagram: null,
+    score_big_five: null, score_schwartz: null, score_style: null, score_attitudes: null, score_general: null, score_mbti: null, score_enneagram: null,
   };
 
   for (const row of pending) {
@@ -563,8 +569,8 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
              score_cognitive = $5, score_emotional_social = $6, score_emotionality = $7,
              score_communication = $8, score_vibe = $9, score_popularity = $10,
              score_big_five = $11, score_schwartz = $12, score_style = $13,
-             score_general = $14, score_mbti = $15, score_enneagram = $16, profile_score = $17,
-             internal_profile_score = $18,
+             score_attitudes = $14, score_general = $15, score_mbti = $16, score_enneagram = $17,
+             profile_score = $18, internal_profile_score = $19,
              status = 'scored', last_evaluated_at = NOW(), updated_at = NOW()
          WHERE id = $4`,
         [u.internal, u.external, u.final, u.id,
@@ -572,8 +578,9 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
          u.categories.score_emotionality, u.categories.score_communication,
          u.categories.score_vibe, u.categories.score_popularity,
          u.categories.score_big_five, u.categories.score_schwartz,
-         u.categories.score_style, u.categories.score_general, u.categories.score_mbti,
-         u.categories.score_enneagram, u.profile_score, u.internal_profile_score]
+         u.categories.score_style, u.categories.score_attitudes, u.categories.score_general,
+         u.categories.score_mbti, u.categories.score_enneagram,
+         u.profile_score, u.internal_profile_score]
       );
     }
   });

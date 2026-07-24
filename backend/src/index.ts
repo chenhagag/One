@@ -2285,19 +2285,24 @@ app.get("/admin/user-profiles", async (_req, res) => {
       "security", "conformity", "tradition", "benevolence", "universalism", "spirituality",
     ]);
 
-    // סגנון אישי — תכונות: mainstreamness, oriental, broad_appeal, value_rigidity, family_of_origin_closeness,
-    // childishness, humor, right_wing, left_wing, social_activism, party_orientation,
-    // religiosity, secularity, hipsterishness, geekiness, hippie_style, soviet_style, theatricality
+    // סגנון אישי — 13 תכונות
     const style = weightedAvg(traits, [
-      "mainstreamness", "oriental", "broad_appeal", "value_rigidity", "family_of_origin_closeness",
-      "childishness", "humor", "right_wing", "left_wing", "social_activism", "party_orientation",
-      "religiosity", "secularity", "hipsterishness", "geekiness", "hippie_style", "soviet_style", "theatricality",
+      "mainstreamness", "oriental", "broad_appeal", "family_of_origin_closeness",
+      "childishness", "humor", "party_orientation",
+      "hipsterishness", "geekiness", "hippie_style", "theatricality", "soviet_style",
+      "gender_conformity",
+    ]);
+
+    // עמדות — 6 תכונות
+    const attitudes = weightedAvg(traits, [
+      "right_wing", "left_wing", "social_activism",
+      "religiosity", "secularity", "value_rigidity",
     ]);
 
     return {
       ...u,
       cognitive, emotional_social, emotionality, communication,
-      vibe, popularity, big_five, schwartz, style,
+      vibe, popularity, big_five, schwartz, style, attitudes,
     };
   });
 
