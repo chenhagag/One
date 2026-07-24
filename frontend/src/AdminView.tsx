@@ -1263,6 +1263,12 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
       { name: "soviet_style", he: "סובייטי" },
       { name: "theatricality", he: "תיאטרלי" },
       { name: "gender_conformity", he: "התאמה מגדרית" },
+      { name: "metropolitan_orientation", he: "אורבני" },
+      { name: "achievement_status_orientation", he: "מוטה הצלחה/סטטוס" },
+      { name: "cultural_currency", he: "רגיש לטרנדים" },
+      { name: "style_polish", he: "מוקפד סגנונית" },
+      { name: "high_culture_orientation", he: "תרבות גבוהה" },
+      { name: "rural_communal_style", he: "כפרי/קהילתי" },
     ];
     const highlights: { label: string; score: number }[] = [];
     for (const t of styleTraits) {
@@ -2039,6 +2045,43 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
             </div>
           </div>
 
+          {/* Match Rating Notifications */}
+          {(() => {
+            const ratedMatches = matches.filter((m: any) => {
+              const thisRating = userId === m.user1_id ? m.user1_rating : m.user2_rating;
+              return thisRating != null;
+            });
+            const pendingSent = matches.filter((m: any) => {
+              const thisRating = userId === m.user1_id ? m.user1_rating : m.user2_rating;
+              return m.sent_for_rating_to === userId && m.sent_for_rating_at && !thisRating;
+            });
+            if (ratedMatches.length === 0 && pendingSent.length === 0) return null;
+            const rl = (r: string | null) => r === "bullseye" ? "✅ בול" : r === "possible" ? "🟡 אפשרי" : r === "miss" ? "❌ לא" : r === "known_person" ? "👤 מכיר/ה" : "—";
+            return (
+              <div style={{ marginBottom: 16, padding: 12, border: "1px solid #e2e8f0", borderRadius: 8, background: "#fef9f0" }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "#92400e" }}>📊 דירוגי התאמות</span>
+                <div style={{ marginTop: 8 }}>
+                  {pendingSent.map((m: any) => (
+                    <div key={`p-${m.id}`} style={{ padding: "6px 0", borderBottom: "1px solid #f1f5f9", fontSize: 12, direction: "rtl" }}>
+                      <span style={{ color: "#94a3b8", fontStyle: "italic" }}>⏳ ממתין לתשובה — נשלח לדירוג מול {m.other_name}</span>
+                      <span style={{ fontSize: 10, color: "#94a3b8", marginRight: 8 }}>{new Date(m.sent_for_rating_at).toLocaleDateString("he-IL")}</span>
+                    </div>
+                  ))}
+                  {ratedMatches.map((m: any) => {
+                    const thisRating = userId === m.user1_id ? m.user1_rating : m.user2_rating;
+                    return (
+                      <div key={`r-${m.id}`} style={{ padding: "6px 0", borderBottom: "1px solid #f1f5f9", fontSize: 12, direction: "rtl" }}>
+                        <span style={{ color: "#374151", fontWeight: 500 }}>מול {m.other_name}: </span>
+                        <span style={{ fontWeight: 700, color: thisRating === "miss" ? "#dc2626" : thisRating === "possible" ? "#d97706" : "#16a34a" }}>{rl(thisRating)}</span>
+                        <span style={{ fontSize: 10, color: "#94a3b8", marginRight: 8 }}>סטטוס: {m.status}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Email Composer */}
           {showEmailComposer && (
             <div style={{ marginBottom: 16, padding: 16, border: "1px solid #e2e8f0", borderRadius: 8, background: "#f8fafc" }}>
@@ -2206,7 +2249,8 @@ ${footer}`)
               { key: "cognitive", label: "Cognitive", color: "#6366F1" },
               { key: "personality", label: "Big Five + Schwartz", color: "#3b82f6" },
               { key: "communication", label: "Comm. Tone", color: "#14b8a6" },
-              { key: "style", label: "Personal Style", color: "#f97316" },
+              { key: "style", label: "סגנון", color: "#f97316" },
+              { key: "attitudes", label: "עמדות", color: "#ef4444" },
               { key: "emotional", label: "Emotional", color: "#ec4899" },
               { key: "general", label: "General Info", color: "#6b7280" },
               { key: "mbti", label: "MBTI", color: "#0ea5e9" },
@@ -2774,7 +2818,7 @@ ${footer}`)
               const isRating = ratingInProgress === m.id;
 
               // Can send for user rating
-              const canSendForRating = (m.status === "waiting_first_rating" || m.status === "waiting_second_rating") && !m.sent_for_rating_at;
+              const canSendForRating = (m.status === "potential_match" || m.status === "waiting_first_rating" || m.status === "waiting_second_rating") && !m.sent_for_rating_at;
               const alreadySent = !!m.sent_for_rating_at;
 
               // Rating labels
@@ -3569,6 +3613,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
   const [cardEditing, setCardEditing] = useState(false);
   const [editData, setEditData] = useState<any>(null);
   const [filterCmPool, setFilterCmPool] = useState<"all" | "straight" | "ww" | "mm">("all");
+  const [filterCmStatus, setFilterCmStatus] = useState<string>("all");
 
   const filterBtnStyle = (active: boolean): React.CSSProperties => ({
     padding: "4px 12px", fontSize: 12, fontWeight: active ? 700 : 400, borderRadius: 6,
@@ -3684,6 +3729,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
   }
 
   const matchStatusColor = (status: string | null) => {
+    if (status === "potential_match") return { ...s.badge, background: "#fef3c7", color: "#92400e" };
     if (status === "pre_match") return { ...s.badge, background: "#d4edda", color: "#155724" };
     if (status === "in_match") return { ...s.badge, background: "#cce5ff", color: "#004085" };
     if (status === "frozen") return { ...s.badge, background: "#e2e3e5", color: "#383d41" };
@@ -3799,15 +3845,31 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
         <button style={filterBtnStyle(filterCmPool === "mm")} onClick={() => setFilterCmPool("mm")}>גברים→גברים ({data.filter((cm: any) => cm.user1_gender === "man" && cm.user1_looking_for === "man").length})</button>
       </div>
 
+      {/* Status filter */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12, color: "#6b7280" }}>סטטוס:</span>
+        {["all", "potential_match", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users", "no_match"].map(st => {
+          const count = st === "all" ? data.length
+            : st === "no_match" ? data.filter((cm: any) => !cm.match_status).length
+            : data.filter((cm: any) => cm.match_status === st).length;
+          const label = st === "all" ? "הכל" : st === "no_match" ? "ללא התאמה" : st;
+          return (
+            <button key={st} style={filterBtnStyle(filterCmStatus === st)} onClick={() => setFilterCmStatus(st)}>
+              {label} ({count})
+            </button>
+          );
+        })}
+      </div>
+
       {loading ? (
         <p style={s.loading}>Loading...</p>
       ) : data.length === 0 ? (
         <p style={s.none}>No candidate matches yet. Run the algorithm to generate them.</p>
       ) : (
-        <div style={s.scrollWrap}>
+        <div style={{ ...s.scrollWrap, maxHeight: "75vh", overflowY: "auto" }}>
           <p style={s.sub}>{data.length} candidate pairs (sorted by {sortBy})</p>
           <table style={s.table}>
-            <thead>
+            <thead style={{ position: "sticky", top: 0, zIndex: 2 }}>
               <tr>
                 <th style={s.th}>User</th>
                 <th style={s.th}>Candidate</th>
@@ -3839,9 +3901,13 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
             </thead>
             <tbody>
               {[...data].filter((cm: any) => {
-                if (filterCmPool === "straight") return (cm.user1_gender === "man" && cm.user1_looking_for === "woman") || (cm.user1_gender === "woman" && cm.user1_looking_for === "man");
-                if (filterCmPool === "ww") return cm.user1_gender === "woman" && cm.user1_looking_for === "woman";
-                if (filterCmPool === "mm") return cm.user1_gender === "man" && cm.user1_looking_for === "man";
+                if (filterCmPool === "straight") { if (!((cm.user1_gender === "man" && cm.user1_looking_for === "woman") || (cm.user1_gender === "woman" && cm.user1_looking_for === "man"))) return false; }
+                if (filterCmPool === "ww") { if (!(cm.user1_gender === "woman" && cm.user1_looking_for === "woman")) return false; }
+                if (filterCmPool === "mm") { if (!(cm.user1_gender === "man" && cm.user1_looking_for === "man")) return false; }
+                if (filterCmStatus !== "all") {
+                  if (filterCmStatus === "no_match") { if (cm.match_status) return false; }
+                  else { if (cm.match_status !== filterCmStatus) return false; }
+                }
                 return true;
               }).sort((a: any, b: any) => (b[sortBy] ?? -1) - (a[sortBy] ?? -1)).map((cm: any) => (
                 <tr key={cm.id}>
@@ -3877,7 +3943,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                         } catch (err: any) { alert("שגיאה: " + err.message); }
                       }}
                     >
-                      {["waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
+                      {["potential_match", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
                         <option key={st} value={st}>{st}</option>
                       ))}
                     </select>

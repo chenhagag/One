@@ -1008,4 +1008,11 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_email_log_type_user
       ON email_log (user_id, email_type) WHERE email_type IS NOT NULL;
   `);
+
+  // ── Migrate attitude traits from "Personal Style" to "Attitudes" group ──
+  await pool.query(`
+    UPDATE trait_definitions SET trait_group = 'Attitudes'
+    WHERE internal_name IN ('right_wing', 'left_wing', 'social_activism', 'religiosity', 'secularity', 'value_rigidity')
+      AND trait_group = 'Personal Style';
+  `);
 }

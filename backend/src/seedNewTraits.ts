@@ -78,25 +78,31 @@ const NEW_TRAITS: NewTrait[] = [
   { internal_name: "warmth", display_name_he: "חום", display_name_en: "Warmth", ai_description: null, trait_group: "Emotional Profile", sensitivity: "normal", calc_type: "normal" },
   { internal_name: "emotional_intensity", display_name_he: "עוצמה רגשית", display_name_en: "Emotional Intensity", ai_description: null, trait_group: "Emotional Profile", sensitivity: "normal", calc_type: "normal" },
 
-  // ── Personal Style (17) ──
+  // ── Personal Style (23) ──
   { internal_name: "mainstreamness", display_name_he: "מיינסטרימיות", display_name_en: "Mainstreamness", ai_description: null, trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
   { internal_name: "oriental", display_name_he: "מזרחיות", display_name_en: "Oriental", ai_description: null, trait_group: "Personal Style", sensitivity: "sensitive", calc_type: "normal" },
   { internal_name: "broad_appeal", display_name_he: "נורמטיביות רחבה", display_name_en: "Broad Appeal", ai_description: null, trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
-  { internal_name: "value_rigidity", display_name_he: "שמרנות ערכית", display_name_en: "Value Rigidity", ai_description: null, trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
+  { internal_name: "value_rigidity", display_name_he: "שמרנות ערכית", display_name_en: "Value Rigidity", ai_description: null, trait_group: "Attitudes", sensitivity: "normal", calc_type: "normal" },
   { internal_name: "family_of_origin_closeness", display_name_he: "קרבה למשפחת מוצא", display_name_en: "Family of Origin Closeness", ai_description: null, trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
   { internal_name: "childishness", display_name_he: "ילדותיות", display_name_en: "Childishness", ai_description: null, trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
   { internal_name: "humor", display_name_he: "הומור", display_name_en: "Humor", ai_description: null, trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
-  { internal_name: "right_wing", display_name_he: "ימניות", display_name_en: "Right Wing", ai_description: null, trait_group: "Personal Style", sensitivity: "sensitive", calc_type: "normal" },
-  { internal_name: "left_wing", display_name_he: "שמאלניות", display_name_en: "Left Wing", ai_description: null, trait_group: "Personal Style", sensitivity: "sensitive", calc_type: "normal" },
-  { internal_name: "social_activism", display_name_he: "אקטיביזם חברתי", display_name_en: "Social Activism", ai_description: null, trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
+  { internal_name: "right_wing", display_name_he: "ימניות", display_name_en: "Right Wing", ai_description: null, trait_group: "Attitudes", sensitivity: "sensitive", calc_type: "normal" },
+  { internal_name: "left_wing", display_name_he: "שמאלניות", display_name_en: "Left Wing", ai_description: null, trait_group: "Attitudes", sensitivity: "sensitive", calc_type: "normal" },
+  { internal_name: "social_activism", display_name_he: "אקטיביזם חברתי", display_name_en: "Social Activism", ai_description: null, trait_group: "Attitudes", sensitivity: "normal", calc_type: "normal" },
   { internal_name: "party_orientation", display_name_he: "נטיית מסיבות", display_name_en: "Party Orientation", ai_description: null, trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
-  { internal_name: "religiosity", display_name_he: "דתיות", display_name_en: "Religiosity", ai_description: null, trait_group: "Personal Style", sensitivity: "sensitive", calc_type: "normal" },
-  { internal_name: "secularity", display_name_he: "חילוניות", display_name_en: "Secularity", ai_description: null, trait_group: "Personal Style", sensitivity: "sensitive", calc_type: "normal" },
+  { internal_name: "religiosity", display_name_he: "דתיות", display_name_en: "Religiosity", ai_description: null, trait_group: "Attitudes", sensitivity: "sensitive", calc_type: "normal" },
+  { internal_name: "secularity", display_name_he: "חילוניות", display_name_en: "Secularity", ai_description: null, trait_group: "Attitudes", sensitivity: "sensitive", calc_type: "normal" },
   { internal_name: "hipsterishness", display_name_he: "היפסטריות", display_name_en: "Hipsterishness", ai_description: null, trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
   { internal_name: "geekiness", display_name_he: "גיקיות", display_name_en: "Geekiness", ai_description: null, trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
   { internal_name: "hippie_style", display_name_he: "היפיות", display_name_en: "Hippie Style", ai_description: null, trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
   { internal_name: "soviet_style", display_name_he: "סגנון סובייטי", display_name_en: "Soviet Style", ai_description: null, trait_group: "Personal Style", sensitivity: "sensitive", calc_type: "normal" },
   { internal_name: "theatricality", display_name_he: "תיאטרליות", display_name_en: "Theatricality", ai_description: "עד כמה המשתמש מעמיד הצגה — מפגין, מגזים, מספר סיפורים בצורה מבוימת.", trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
+  { internal_name: "metropolitan_orientation", display_name_he: "אוריינטציה אורבנית-מטרופולינית", display_name_en: "Metropolitan Orientation", ai_description: "עד כמה המשתמש מחובר לחיים בעיר הגדולה, לסביבה עירונית ולסצנה חברתית עדכנית.", trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
+  { internal_name: "achievement_status_orientation", display_name_he: "אוריינטציה להצלחה וסטטוס", display_name_en: "Achievement & Status Orientation", ai_description: "עד כמה הצלחה, קריירה, מעמד וסטטוס הם חלק מהזהות ומהטעם הזוגי.", trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
+  { internal_name: "cultural_currency", display_name_he: "רגישות לעדכניות ולמגניבות תרבותית", display_name_en: "Cultural Currency", ai_description: "עד כמה המשתמש רגיש לטרנדים, למקומות הנכונים, לאסתטיקה עכשווית ולקודים חברתיים.", trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
+  { internal_name: "style_polish", display_name_he: "ליטוש והקפדה סגנונית", display_name_en: "Style Polish", ai_description: "עד כמה המשתמש מוקפד ומסוגנן בנראות, בלבוש, באסתטיקה ובהצגה העצמית.", trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
+  { internal_name: "high_culture_orientation", display_name_he: "אוריינטציה לתרבות גבוהה", display_name_en: "High Culture Orientation", ai_description: "עד כמה המשתמש נמשך לספרות, קולנוע אמנותי, תיאטרון, מוזיאונים ותרבות מעודנת.", trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
+  { internal_name: "rural_communal_style", display_name_he: "סגנון כפרי-קהילתי", display_name_en: "Rural/Communal Style", ai_description: "עד כמה הסגנון קיבוצניקי/מושבניקי/כפרי — פשוט, קהילתי, מחובר לטבע.", trait_group: "Personal Style", sensitivity: "normal", calc_type: "normal" },
 
   // ── MBTI (6) ──
   // ציר E/I לא כלול — משתמשים ב-extraversion מ-Big Five

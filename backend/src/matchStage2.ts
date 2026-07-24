@@ -207,12 +207,14 @@ const MATCH_CATEGORIES: CategoryDef[] = [
     "security", "conformity", "tradition", "benevolence", "universalism", "spirituality",
   ]},
 
-  // סגנון אישי — Personal Style (13 traits)
+  // סגנון אישי — Personal Style (19 traits)
   { key: "style", traitNames: [
     "mainstreamness", "oriental", "broad_appeal", "family_of_origin_closeness",
     "childishness", "humor", "party_orientation",
     "hipsterishness", "geekiness", "hippie_style", "theatricality", "soviet_style",
     "gender_conformity",
+    "metropolitan_orientation", "achievement_status_orientation", "cultural_currency",
+    "style_polish", "high_culture_orientation", "rural_communal_style",
   ]},
 
   // עמדות — Attitudes (6 traits)
@@ -651,7 +653,7 @@ async function promoteToMatches(): Promise<number> {
       }
       await client.query(
         `INSERT INTO matches (user1_id, user2_id, match_score, status)
-         VALUES ($1, $2, $3, 'waiting_first_rating')`,
+         VALUES ($1, $2, $3, 'potential_match')`,
         [c.user_id, c.candidate_user_id, Math.round(c.final_score * 100) / 100]
       );
       await client.query(

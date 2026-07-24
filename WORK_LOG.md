@@ -1,6 +1,17 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-07-22 (Admin Improvements + Photo Verification + Pool Filters + Bulk Email)
+## Latest Session: 2026-07-23 (Insights Prompt Rewrite + Small Fixes)
+
+- **Insights prompt rewrite**: specificity test, internal tensions, facts-as-anchors (not banned), don't inflate depth, sensitive info handling, structured 9-section output, temperature 0.75→0.55
+- **Admin "הפק תובנות" button**: green button in user toolbar, always force=true, works for any user regardless of pipeline stage
+- **Fix**: PersonalInsightsEditor now syncs when props change (was showing stale data after generation)
+- **Fix**: Client-side 10MB photo size check with Hebrew error message
+- **Cleanup**: Deleted 34 one-time save_*.js / fix_*.js scripts from backend/
+- Deployed to production
+
+---
+
+## Previous Session: 2026-07-22 (Admin Improvements + Photo Verification + Pool Filters + Bulk Email)
 
 ### Bulk Update Email
 - Sent to 20 users waiting 12+ days in matching pool (excluded couples, email-opt-out, Nadav #23, נטלי #16)

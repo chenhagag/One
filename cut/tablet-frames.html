@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #eee; padding: 40px; font-family: sans-serif; direction: rtl; }
+  h2 { margin: 30px 0 10px; color: #333; }
+  .instructions { background: #fff3cd; padding: 12px 16px; border-radius: 8px; margin-bottom: 30px; font-size: 14px; color: #856404; }
+
+  /* 7-inch: 1200x1920 (portrait) */
+  .frame-7 {
+    width: 1200px;
+    height: 1920px;
+    background: #f9fafb;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 40px;
+    border: 2px solid #ccc;
+    position: relative;
+  }
+  .frame-7 img {
+    height: 100%;
+    width: auto;
+    object-fit: contain;
+  }
+  .frame-7 .label {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: rgba(0,0,0,0.6);
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+  }
+
+  /* 10-inch: 1600x2560 (portrait) */
+  .frame-10 {
+    width: 1600px;
+    height: 2560px;
+    background: #f9fafb;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 40px;
+    border: 2px solid #ccc;
+    position: relative;
+  }
+  .frame-10 img {
+    height: 100%;
+    width: auto;
+    object-fit: contain;
+  }
+  .frame-10 .label {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: rgba(0,0,0,0.6);
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+<div class="instructions">
+  <strong>הוראות:</strong> לכל תמונה — לחצי F12 → Ctrl+Shift+M → הגדירי את הגודל לפי ה-label (1200x1920 או 1600x2560) → צלמי screenshot (⋮ → Capture screenshot).
+  <br>או: לחצי ימני על התמונה → "Open image in new tab" → ומשם צלמי.
+</div>
+
+<h2>7 אינץ' (1200x1920)</h2>
+
+<div class="frame-7" id="s1-7"><div class="label">shot1 — 7" (1200x1920)</div><img src="screenShots/shot1.jpeg" /></div>
+<div class="frame-7" id="s2-7"><div class="label">shot2 — 7" (1200x1920)</div><img src="screenShots/shot2.jpeg" /></div>
+<div class="frame-7" id="s3-7"><div class="label">shot3 — 7" (1200x1920)</div><img src="screenShots/shot3.jpeg" /></div>
+<div class="frame-7" id="s4-7"><div class="label">shot4 — 7" (1200x1920)</div><img src="screenShots/shot4.jpeg" /></div>
+<div class="frame-7" id="s5-7"><div class="label">shot5 — 7" (1200x1920)</div><img src="screenShots/shot5.jpeg" /></div>
+<div class="frame-7" id="s6-7"><div class="label">shot6 — 7" (1200x1920)</div><img src="screenShots/shot6.jpeg" /></div>
+<div class="frame-7" id="s7-7"><div class="label">shot7 — 7" (1200x1920)</div><img src="screenShots/shot7.jpeg" /></div>
+<div class="frame-7" id="s8-7"><div class="label">shot8 — 7" (1200x1920)</div><img src="screenShots/shot8.jpeg" /></div>
+
+<h2>10 אינץ' (1600x2560)</h2>
+
+<div class="frame-10" id="s1-10"><div class="label">shot1 — 10" (1600x2560)</div><img src="screenShots/shot1.jpeg" /></div>
+<div class="frame-10" id="s2-10"><div class="label">shot2 — 10" (1600x2560)</div><img src="screenShots/shot2.jpeg" /></div>
+<div class="frame-10" id="s3-10"><div class="label">shot3 — 10" (1600x2560)</div><img src="screenShots/shot3.jpeg" /></div>
+<div class="frame-10" id="s4-10"><div class="label">shot4 — 10" (1600x2560)</div><img src="screenShots/shot4.jpeg" /></div>
+<div class="frame-10" id="s5-10"><div class="label">shot5 — 10" (1600x2560)</div><img src="screenShots/shot5.jpeg" /></div>
+<div class="frame-10" id="s6-10"><div class="label">shot6 — 10" (1600x2560)</div><img src="screenShots/shot6.jpeg" /></div>
+<div class="frame-10" id="s7-10"><div class="label">shot7 — 10" (1600x2560)</div><img src="screenShots/shot7.jpeg" /></div>
+<div class="frame-10" id="s8-10"><div class="label">shot8 — 10" (1600x2560)</div><img src="screenShots/shot8.jpeg" /></div>
+
+</body>
+</html>

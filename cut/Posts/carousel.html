@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700&family=Cormorant+Garamond:wght@400;500&family=JetBrains+Mono:wght@300;400&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#888;font-family:'Heebo',sans-serif;display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:10px}
+
+.wrap{
+  width:min(100vw, 1080px);
+  aspect-ratio:1/1;
+  overflow:hidden;
+}
+
+.frame{
+  width:1080px;height:1080px;
+  overflow:hidden;
+  position:relative;
+  display:flex;flex-direction:column;
+  justify-content:space-between;
+  direction:rtl;
+  transform-origin:top right;
+}
+
+/* Alternating backgrounds */
+.frame.light-a{background:#F4F4FC}
+.frame.light-b{background:#ECEBFA}
+.frame.cover-bg{background:#FFFFFF}
+.frame.dark{background:#0E0A4D}
+
+.grain{position:absolute;inset:0;opacity:1;mix-blend-mode:multiply;pointer-events:none;z-index:1;background-size:510px 510px}
+.frame.dark .grain{mix-blend-mode:screen;opacity:0.5}
+
+/* Icon ornament */
+.icon-orb{position:absolute;pointer-events:none;z-index:1;width:360px;height:360px;object-fit:cover;object-position:bottom left;opacity:0.78;border-radius:50%;transform:rotate(3deg);top:-150px;right:-135px}
+.frame.dark .icon-orb{opacity:0.5;width:400px;height:400px;top:-165px;right:-148px}
+
+/* Zones */
+.zone{position:relative;z-index:3;padding:64px 85px}
+.zone-top{padding-bottom:0;min-height:90px}
+.zone-mid{flex:1;display:flex;flex-direction:column;justify-content:center;padding-top:0;padding-bottom:0}
+.zone-bot{padding-top:28px;display:flex;align-items:center;justify-content:space-between;border-top:1.5px solid rgba(54,30,176,0.18)}
+
+/* Anchor line */
+.anchor-line{height:4px;background:linear-gradient(270deg,#15108B,rgba(21,16,139,0.06));width:170px;margin-bottom:32px;border-radius:2px}
+
+/* Headline */
+.headline{font-family:'Cormorant Garamond',serif;font-size:64px;font-weight:500;color:#15108B;line-height:1.28;margin-bottom:32px}
+.dot-accent{color:#2A1FA0;font-size:1.05em}
+
+/* Body */
+.body-text{font-size:32px;font-weight:300;color:#3A3568;line-height:1.55;letter-spacing:0.4px}
+.body-text strong{color:#15108B;font-weight:500;font-family:'Cormorant Garamond',serif;font-size:36px}
+.body-text .noa{color:#8B2E6A;font-weight:500}
+.body-text .ari{color:#1B4FA0;font-weight:500}
+.body-text .dim{color:rgba(58,53,104,0.5);font-size:28px}
+.explain{color:rgba(58,53,104,0.42);font-size:26px;font-style:italic;line-height:1.5;margin-bottom:20px;position:relative;z-index:2}
+.body-text .gap{display:block;height:20px}
+
+/* Match tag */
+.match-tag{font-family:'Heebo',sans-serif;font-size:28px;font-weight:500;margin-bottom:28px;display:inline-block;padding:8px 28px;border-radius:60px;letter-spacing:0.5px}
+.match-tag.good{color:#2D7A4A;background:rgba(45,122,74,0.1);border:1.5px solid rgba(45,122,74,0.2)}
+.match-tag.mid{color:#9A7B1A;background:rgba(154,123,26,0.1);border:1.5px solid rgba(154,123,26,0.2)}
+.match-tag.low{color:#B5443A;background:rgba(181,68,58,0.1);border:1.5px solid rgba(181,68,58,0.2)}
+.match-tag.high{color:#1B6B3A;background:rgba(27,107,58,0.1);border:1.5px solid rgba(27,107,58,0.2)}
+
+/* Footer */
+.footer-tag{font-family:'JetBrains Mono',monospace;font-size:24px;color:#8378D0;letter-spacing:2.8px;display:flex;align-items:center;direction:ltr}
+.footer-tag .tag-dot{color:#15108B;margin-right:6px}
+.footer-mark{font-family:'JetBrains Mono',monospace;font-size:25px;color:#361EB0;letter-spacing:7px;font-weight:400}
+
+/* Dark overrides */
+.frame.dark .headline{color:#E8E6FF}
+.frame.dark .anchor-line{background:linear-gradient(270deg,#9890D8,rgba(152,144,216,0.06))}
+.frame.dark .body-text{color:#9890D8}
+.frame.dark .body-text strong{color:#D4D0F5}
+.frame.dark .zone-bot{border-top-color:rgba(107,95,208,0.25)}
+.frame.dark .footer-tag{color:#6B5FD0}
+.frame.dark .footer-tag .tag-dot{color:#9890D8}
+.frame.dark .footer-mark{color:#9890D8}
+
+/* Cover photo */
+.cover-photo{position:absolute;top:40px;left:50%;transform:translateX(-50%);width:680px;height:520px;object-fit:cover;object-position:center 15%;opacity:0.5;border-radius:16px;z-index:1}
+.cover-fade{position:absolute;top:0;left:0;right:0;height:580px;background:linear-gradient(to bottom,transparent 25%,rgba(255,255,255,0.6) 60%,#FFFFFF 100%);z-index:2;pointer-events:none}
+
+/* Disclaimer */
+.disclaimer{font-size:24px;color:rgba(58,53,104,0.4);line-height:1.65}
+</style>
+</head>
+<body>
+
+<!-- 1. COVER -->
+<div class="wrap"><div class="frame cover-bg" id="frame-1">
+  <div class="grain"></div>
+  <img class="cover-photo" src="coupleOneDesign.png" alt="">
+  <div class="cover-fade"></div>
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(-0.3deg)">האם האלגוריתם של One<br>היה נותן להם התאמה<span class="dot-accent">?</span></div>
+    <div class="anchor-line"></div>
+    <div class="disclaimer">🧪 הניתוח הבא מבוסס על רושם חיצוני והתנהגותי בלבד, כפי שהם משתקפים על המסך — ולא על שאלון המערכת.</div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div></div>
+
+<!-- 2. COGNITIVE -->
+<div class="wrap"><div class="frame light-b" id="frame-2">
+  <div class="grain"></div>
+  <img class="icon-orb" src="icon_only.png" alt="">
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(0.4deg)">סגנון קוגניטיבי<span class="dot-accent">.</span></div>
+    <div class="explain">הדרך שבה אדם מעבד מידע, פותר בעיות ומקבל החלטות — אחד המדדים המשפיעים ביותר על תקשורת זוגית.</div>
+    <div class="anchor-line"></div>
+    <div class="match-tag good">התאמה טובה.</div>
+    <div class="body-text">
+      שניהם חושבים בסגנון<br>
+      <strong>פרקטי-מעשי</strong> ו<strong>אינטואיטיבי-חברתי</strong>.
+      <span class="gap"></span>
+      מקבלים החלטות מאותו מקום.<br>
+      חושבים בצורה דומה.
+    </div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div></div>
+
+<!-- 3. CULTURE -->
+<div class="wrap"><div class="frame light-a" id="frame-3">
+  <div class="grain"></div>
+  <img class="icon-orb" src="icon_only.png" alt="">
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(-0.4deg)">תרבות ועולם תוכן<span class="dot-accent">.</span></div>
+    <div class="explain">הרקע, עולם התוכן, ההשפעות והשפה החברתית — כמה שני אנשים ״מדברים באותה שפה״ מעבר למילים.</div>
+    <div class="anchor-line"></div>
+    <div class="match-tag good">התאמה טובה יחסית.</div>
+    <div class="body-text">
+      שניהם מצליחנים, אורבנים,<br>
+      בעולם היזמות, הקואצ'ינג והסטטוס.
+      <span class="gap"></span>
+      <span class="noa">נועה</span> — חברה גבוהה, תל אביבית.<br>
+      <span class="ari">אריאל</span> — מבית דתי, תרבות מקור שונה.
+      <span class="gap"></span>
+      <span class="dim">הבסיס דומה. הניואנסים שונים.</span>
+    </div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div></div>
+
+<!-- 4. TEMPERAMENT -->
+<div class="wrap"><div class="frame light-b" id="frame-4">
+  <div class="grain"></div>
+  <img class="icon-orb" src="icon_only.png" alt="">
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(0.3deg)">טמפרמנט<span class="dot-accent">.</span></div>
+    <div class="explain">הטון האנרגטי, רמת העוררות וכמות ה״רעש״ שכל צד צריך — פער כאן מורגש מהר מאוד ביומיום.</div>
+    <div class="anchor-line"></div>
+    <div class="match-tag low">התאמה נמוכה.</div>
+    <div class="body-text">
+      <span class="noa">נועה</span> — תוססת, מוחצנת, משחקית.<br>
+      <span class="ari">אריאל</span> — מאופק, סולידי, מדוד.
+      <span class="gap"></span>
+      <span class="dim">פער משמעותי ברמה האנרגטית ובטון התקשורת.</span>
+    </div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div></div>
+
+<!-- 5. EMOTIONAL -->
+<div class="wrap"><div class="frame light-a" id="frame-5">
+  <div class="grain"></div>
+  <img class="icon-orb" src="icon_only.png" alt="">
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(-0.4deg)">סגנון ועיבוד רגשי<span class="dot-accent">.</span></div>
+    <div class="explain">היכולת לזהות, לעבד ולהביע רגשות — ומידת היציבות הרגשית מול לחץ ומצבי קצה.</div>
+    <div class="anchor-line"></div>
+    <div class="match-tag mid">התאמה נמוכה-בינונית.</div>
+    <div class="body-text">
+      שניהם מציגים תדמית מוחצנת<br>
+      אך מתקשים בחשיפה רגשית אותנטית.
+      <span class="gap"></span>
+      <span class="noa">נועה</span> — פחות יציבה רגשית, נוטה למצבי קצה.<br>
+      <span class="ari">אריאל</span> — מאופק, מרצה ומודע יותר.
+    </div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div></div>
+
+<!-- 6. ATTACHMENT -->
+<div class="wrap"><div class="frame light-b" id="frame-6">
+  <div class="grain"></div>
+  <img class="icon-orb" src="icon_only.png" alt="">
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(0.3deg)">סגנון היקשרות<span class="dot-accent">.</span></div>
+    <div class="explain">הדפוס שבו אדם יוצר קרבה ומגיב לאיום על הקשר — בטוח, חרד או נמנע. משפיע ישירות על דינמיקה זוגית.</div>
+    <div class="anchor-line"></div>
+    <div class="body-text">
+      <span class="noa">נועה</span> — נעה בין <strong>חרד</strong> ל<strong>נמנע</strong>.<br>
+      קשה לזהות סגנון אחיד וברור.
+      <span class="gap"></span>
+      <span class="ari">אריאל</span> — מצטייר כ<strong>בטוח</strong><br>
+      עם נגיעות של נמנע,<br>
+      ייתכן שבהקשר הספציפי.
+    </div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div></div>
+
+<!-- 7. VALUES -->
+<div class="wrap"><div class="frame light-a" id="frame-7">
+  <div class="grain"></div>
+  <img class="icon-orb" src="icon_only.png" alt="">
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(-0.3deg)">ערכי בסיס<span class="dot-accent">.</span><br><span style="font-size:48px">מודל שוורץ</span></div>
+    <div class="explain">10 ערכי יסוד אוניברסליים שמניעים התנהגות ובחירות. התאמה ערכית נחשבת לבסיס היציב ביותר לקשר ארוך טווח.</div>
+    <div class="anchor-line"></div>
+    <div class="match-tag high">התאמה טובה מאוד.</div>
+    <div class="body-text">
+      שניהם גבוהים ב<strong>הישגיות</strong>, <strong>כוח</strong>,<br>
+      <strong>ריגוש</strong>, <strong>נהנתנות</strong> ו<strong>פתיחות לחוויה</strong>.
+      <span class="gap"></span>
+      שניהם נמוכים יחסית<br>
+      בביטחון וקונפורמיות.
+      <span class="gap"></span>
+      <span class="dim">התשתית הערכית — חזקה ומשותפת.</span>
+    </div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div></div>
+
+<!-- 8. BIG FIVE -->
+<div class="wrap"><div class="frame light-b" id="frame-8">
+  <div class="grain"></div>
+  <img class="icon-orb" src="icon_only.png" alt="">
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(0.4deg)">Big Five<span class="dot-accent">.</span></div>
+    <div class="explain">המודל הפסיכולוגי המבוסס ביותר מחקרית למיפוי אישיות — חמישה ממדים שמנבאים דפוסי התנהגות לאורך זמן.</div>
+    <div class="anchor-line"></div>
+    <div class="match-tag good">התאמה טובה-בינונית.</div>
+    <div class="body-text">
+      <strong>מצפוניות</strong> — שניהם גבוהים מאוד.<br>
+      <strong>פתיחות לחוויה</strong> — שניהם גבוהים.<br>
+      <strong>מוחצנות</strong> — <span class="noa">נועה</span> גבוהה, <span class="ari">אריאל</span> בינוני.
+      <span class="gap"></span>
+      <strong>נעימות</strong> — <span class="noa">נועה</span> בינונית, <span class="ari">אריאל</span> גבוה.<br>
+      <strong>תנודתיות רגשית</strong> — <span class="noa">נועה</span> גבוהה, <span class="ari">אריאל</span> נמוך.
+      <span class="gap"></span>
+      <span class="dim">הפער המשמעותי: יציבות רגשית.</span>
+    </div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div></div>
+
+<!-- 9. ENNEAGRAM -->
+<div class="wrap"><div class="frame light-a" id="frame-9">
+  <div class="grain"></div>
+  <img class="icon-orb" src="icon_only.png" alt="">
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(-0.4deg)">אניאגרם<span class="dot-accent">.</span></div>
+    <div class="explain">9 טיפוסי אישיות לפי המוטיבציה הפנימית. הכנף (w4/w2) מגדירה את הגוון — לכיוון ייחודיות או לכיוון חיבור לאחר.</div>
+    <div class="anchor-line"></div>
+    <div class="body-text">
+      שניהם זוהו כ<strong>טיפוס 3</strong> — ההישגי.<br>
+      מונע מהצלחה, תדמית וסטטוס.
+      <span class="gap"></span>
+      <span class="noa">נועה</span> — <strong>3w4</strong>.<br>
+      כנף דרמטית. צורך בייחודיות ובולטות.
+      <span class="gap"></span>
+      <span class="ari">אריאל</span> — <strong>3w2</strong>.<br>
+      כנף מרצה. צורך בהכרה מהסביבה.
+      <span class="gap"></span>
+      <span class="dim">אותו מנוע. ביטוי שונה.</span>
+      <span class="gap"></span>
+      <span class="dim">📒 אניאגרם אינו כלי מבוסס מחקרית להתאמת זוגיות. הוא משמש אותנו בעיקר להיכרות מלאה יותר עם המשתמש ודיוק ההתאמה.</span>
+    </div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div></div>
+
+<!-- 10. MBTI -->
+<div class="wrap"><div class="frame light-b" id="frame-10">
+  <div class="grain"></div>
+  <img class="icon-orb" src="icon_only.png" alt="">
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(0.3deg)">MBTI<span class="dot-accent">.</span></div>
+    <div class="explain">סיווג אישיות לפי 4 צירים: מוחצנות/מופנמות, חישה/אינטואיציה, חשיבה/רגש, שיפוט/תפיסה. כלי עזר לזיהוי שפה התנהגותית.</div>
+    <div class="anchor-line"></div>
+    <div class="body-text">
+      <span class="noa">נועה</span> — <strong>ESFJ</strong>.<br>
+      ״הקונסולית״ — מוחצנת, חברתית,<br>
+      אוהבת סדר והרמוניה.
+      <span class="gap"></span>
+      <span class="ari">אריאל</span> — <strong>ESFJ / ESTJ</strong>.<br>
+      בין ״הקונסול״ ל״המנהל״ — מובנה ומתוכנן.
+      <span class="gap"></span>
+      <span class="dim">📒 ה-MBTI אינו כלי מבוסס מחקרית לניבוי הצלחה זוגית. הוא משמש אותנו לזיהוי השפה ההתנהגותית ודיוק הניואנסים האישיים.</span>
+    </div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div></div>
+
+<!-- 11. VERDICT -->
+<div class="wrap"><div class="frame light-a" id="frame-11">
+  <div class="grain"></div>
+  <img class="icon-orb" src="icon_only.png" alt="">
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(-0.3deg)">פסק הדין<br>של האלגוריתם<span class="dot-accent">.</span></div>
+    <div class="anchor-line"></div>
+    <div class="body-text">
+      ציון ההתאמה המשוער:
+      <span class="gap"></span>
+      <strong style="font-size:52px">בינוני-גבוה. 📈</strong>
+      <span class="gap"></span>
+      התשתית העמוקה חזקה —<br>
+      קוגניציה זהה, ערכים משותפים.
+      <span class="gap"></span>
+      אבל פער מהותי בטמפרמנט<br>
+      ובתקשורת הרגשית.
+      <span class="gap"></span>
+      <span class="dim">האלגוריתם היה מייצר התאמה — אך מציף התרעת סיכון לגבי ניהול קונפליקטים.</span>
+    </div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div></div>
+
+<!-- 12. CTA -->
+<div class="wrap"><div class="frame dark" id="frame-12">
+  <div class="grain"></div>
+  <img class="icon-orb" src="icon_only.png" alt="">
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(-0.3deg)">רוצים לדעת<br>את המפה שלכם<span class="dot-accent">?</span></div>
+    <div class="anchor-line"></div>
+    <div class="body-text">
+      <strong>רוצים לבנות את פרופיל העומק שלכם</strong><br>
+      ולראות מה הדאטה שלכם אומר?
+      <span class="gap"></span>
+      הלינק להרשמה ל-One<br>
+      מחכה לכם בביו.
+    </div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div></div>
+
+<script>
+const grainSVG = `<svg xmlns='http://www.w3.org/2000/svg' width='510' height='510' viewBox='0 0 510 510'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.3' numOctaves='3' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/><feComponentTransfer><feFuncA type='linear' slope='0.65'/></feComponentTransfer></filter><rect width='510' height='510' filter='url(%23n)'/></svg>`;
+const grainBg = `data:image/svg+xml,${encodeURIComponent(grainSVG)}`;
+document.querySelectorAll('.grain').forEach(el => {
+  el.style.backgroundImage = `url('${grainBg}')`;
+});
+
+function scaleSlides() {
+  document.querySelectorAll('.wrap').forEach(wrap => {
+    const frame = wrap.querySelector('.frame');
+    const scale = wrap.offsetWidth / 1080;
+    frame.style.transform = `scale(${scale})`;
+    frame.style.transformOrigin = 'top right';
+  });
+}
+scaleSlides();
+window.addEventListener('resize', scaleSlides);
+</script>
+
+</body>
+</html>

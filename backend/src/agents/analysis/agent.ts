@@ -456,6 +456,7 @@ export async function runAnalysisAgent(
   const personalitySystemPrompt = loadPrompt("bigfive-schwartz-system.txt");
   const communicationTonePrompt = loadPrompt("communication-tone-system.txt");
   const personalStylePrompt = loadPrompt("personal-style-system.txt");
+  const attitudesPrompt = loadPrompt("attitudes-system.txt");
   const emotionalProfilePrompt = loadPrompt("emotional-profile-system.txt");
   const generalInfoPrompt = loadPrompt("general-info-system.txt");
   const mbtiPrompt = loadPrompt("mbti-system.txt");
@@ -509,6 +510,7 @@ export async function runAnalysisAgent(
       : g.name === "Personality" ? personalitySystemPrompt
       : g.name === "Communication Tone" ? communicationTonePrompt
       : g.name === "Personal Style" ? personalStylePrompt
+      : g.name === "Attitudes" ? attitudesPrompt
       : g.name === "Emotional Profile" ? emotionalProfilePrompt
       : g.name === "General Info" ? generalInfoPrompt
       : g.name === "MBTI" || g.name === "MBTI Test" ? mbtiPrompt
@@ -625,6 +627,7 @@ const GROUP_PROMPT_MAP: Record<string, { promptFile: string; traitGroups: string
   "personality": { promptFile: "bigfive-schwartz-system.txt", traitGroups: ["Big Five", "Schwartz Values"] },
   "communication": { promptFile: "communication-tone-system.txt", traitGroups: ["Communication Tone"] },
   "style": { promptFile: "personal-style-system.txt", traitGroups: ["Personal Style"] },
+  "attitudes": { promptFile: "attitudes-system.txt", traitGroups: ["Attitudes"] },
   "emotional": { promptFile: "emotional-profile-system.txt", traitGroups: ["Emotional Profile"] },
   "general": { promptFile: "general-info-system.txt", traitGroups: ["General Info"] },
   "mbti": { promptFile: "mbti-system.txt", traitGroups: ["MBTI", "MBTI Test", "Enneagram"] },

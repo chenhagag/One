@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700&family=Cormorant+Garamond:wght@400;500&family=JetBrains+Mono:wght@300;400&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#888;font-family:'Heebo',sans-serif;display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:10px}
+
+.wrap{
+  width:min(100vw, 1080px);
+  aspect-ratio:1/1;
+  overflow:hidden;
+}
+
+.frame{
+  width:1080px;height:1080px;
+  overflow:hidden;
+  position:relative;
+  display:flex;flex-direction:column;
+  justify-content:space-between;
+  direction:rtl;
+  transform-origin:top right;
+}
+
+/* Indigo-blue backgrounds */
+.frame.light-a{background:#EAECF8}
+.frame.light-b{background:#E0E3F4}
+.frame.cover-bg{background:#F0F1FA}
+.frame.dark{background:#0A0D3D}
+
+.grain{position:absolute;inset:0;opacity:1;mix-blend-mode:multiply;pointer-events:none;z-index:1;background-size:510px 510px}
+.frame.dark .grain{mix-blend-mode:screen;opacity:0.5}
+
+/* Icon ornament */
+.icon-orb{position:absolute;pointer-events:none;z-index:1;width:360px;height:360px;object-fit:cover;object-position:bottom left;opacity:0.78;border-radius:50%;transform:rotate(3deg);top:-150px;right:-135px}
+.frame.dark .icon-orb{opacity:0.5;width:400px;height:400px;top:-165px;right:-148px}
+
+/* Zones */
+.zone{position:relative;z-index:3;padding:50px 80px}
+.zone-top{padding-bottom:0;min-height:70px}
+.zone-mid{flex:1;display:flex;flex-direction:column;justify-content:center;padding-top:0;padding-bottom:0}
+.zone-bot{padding-top:28px;display:flex;align-items:center;justify-content:space-between;border-top:1.5px solid rgba(20,30,120,0.18)}
+
+/* Anchor line */
+.anchor-line{height:4px;background:linear-gradient(270deg,#1A2B8C,rgba(26,43,140,0.06));width:170px;margin-bottom:22px;border-radius:2px}
+
+/* Headline */
+.headline{font-family:'Cormorant Garamond',serif;font-size:56px;font-weight:500;color:#141E78;line-height:1.24;margin-bottom:24px}
+.dot-accent{color:#1E2FA0;font-size:1.05em}
+
+/* Body */
+.body-text{font-size:27px;font-weight:300;color:#2E3460;line-height:1.48;letter-spacing:0.3px}
+.body-text strong{color:#141E78;font-weight:500;font-family:'Cormorant Garamond',serif;font-size:31px}
+.body-text .dim{color:rgba(46,52,96,0.5);font-size:24px}
+.explain{color:rgba(46,52,96,0.42);font-size:24px;font-style:italic;line-height:1.45;margin-bottom:16px;position:relative;z-index:2}
+.body-text .gap{display:block;height:14px}
+
+/* Number tag */
+.num-tag{font-family:'JetBrains Mono',monospace;font-size:100px;font-weight:400;color:rgba(20,30,120,0.07);position:absolute;top:50px;left:70px;z-index:2;line-height:1}
+
+/* Footer */
+.footer-tag{font-family:'JetBrains Mono',monospace;font-size:24px;color:#6878C0;letter-spacing:2.8px;display:flex;align-items:center;direction:ltr}
+.footer-tag .tag-dot{color:#141E78;margin-right:6px}
+.footer-mark{font-family:'JetBrains Mono',monospace;font-size:25px;color:#2A3AB0;letter-spacing:7px;font-weight:400}
+
+/* Dark overrides */
+.frame.dark .headline{color:#D8DCFF}
+.frame.dark .anchor-line{background:linear-gradient(270deg,#7080D8,rgba(112,128,216,0.06))}
+.frame.dark .body-text{color:#8890D0}
+.frame.dark .body-text strong{color:#C8D0F5}
+.frame.dark .zone-bot{border-top-color:rgba(80,95,208,0.25)}
+.frame.dark .footer-tag{color:#5060C0}
+.frame.dark .footer-tag .tag-dot{color:#8890D0}
+.frame.dark .footer-mark{color:#8890D0}
+
+/* Cover decorative */
+.cover-icon{position:absolute;top:60px;left:50%;transform:translateX(-50%);width:320px;height:320px;object-fit:cover;opacity:0.12;border-radius:50%;z-index:1}
+.cover-fade{position:absolute;top:0;left:0;right:0;height:400px;background:linear-gradient(to bottom,transparent 25%,rgba(240,241,250,0.6) 60%,#F0F1FA 100%);z-index:2;pointer-events:none}
+
+/* Disclaimer */
+.disclaimer{font-size:24px;color:rgba(46,52,96,0.4);line-height:1.65}
+</style>
+</head>
+<body>
+
+<!-- 1. COVER -->
+<div class="wrap"><div class="frame cover-bg" id="frame-1">
+  <div class="grain"></div>
+  <img class="cover-icon" src="../icon_only.png" alt="">
+  <div class="cover-fade"></div>
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(-0.3deg);font-size:58px">מה למדנו על התאמות נכונות<br>מדאטה אמיתי של זוגות<span class="dot-accent">?</span></div>
+    <div class="anchor-line"></div>
+    <div class="disclaimer">🔬 ממצאים מבוססי דאטה מתוך פרופילי עומק של זוגות אמיתיים במערכת One.</div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div></div>
+
+<!-- 2. INSIGHT 01 -->
+<div class="wrap"><div class="frame light-b" id="frame-2">
+  <div class="grain"></div>
+  <img class="icon-orb" src="../icon_only.png" alt="">
+  <span class="num-tag">01</span>
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(0.4deg)">רוב הזוגות דומים<br>בעיקר בדברים העמוקים<span class="dot-accent">.</span></div>
+    <div class="anchor-line"></div>
+    <div class="body-text">
+      הנטייה הטבעית היא להתמקד בפערים.
+      <span class="gap"></span>
+      אבל מחקרי זוגיות מראים שוב ושוב<br>
+      שבני זוג נוטים להיות דומים יותר מאשר שונים  -<br>
+      בעיקר בדברים כמו ערכים, רקע, השכלה,<br>
+      עמדות ואורח חיים.
+      <span class="gap"></span>
+      גם בדאטה שלנו ראינו את אותו דפוס:<br>
+      ברוב הזוגות היה בסיס משותף רחב,<br>
+      גם כשההבדלים ביניהם היו מאוד בולטים.
+      <span class="gap"></span>
+      <span class="dim">כלומר, ״הפכים שנמשכים״ הוא הרבה פעמים<br>לא באמת הפכים  - אלא דמיון עמוק, עם ניואנסים שונים.</span>
+    </div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div></div>
+
+<!-- 3. INSIGHT 02 -->
+<div class="wrap"><div class="frame light-a" id="frame-3">
+  <div class="grain"></div>
+  <img class="icon-orb" src="../icon_only.png" alt="">
+  <span class="num-tag">02</span>
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(-0.4deg)">קוגניציה וסגנון תרבותי<br>היו האזורים הכי דומים<span class="dot-accent">.</span></div>
+    <div class="anchor-line"></div>
+    <div class="explain">סגנון קוגניטיבי הוא האופן שבו אנחנו מעבדים מידע, שואלים שאלות ומקבלים החלטות.<br>סגנון תרבותי הוא העולם שממנו באנו: השפה החברתית, הרקע, הערכים, ההומור והמרחב שבו אנחנו מרגישים בבית.</div>
+    <div class="body-text">
+      בדאטה שלנו, אלה היו מהמאפיינים<br>
+      הדומים ביותר בין בני זוג.
+      <span class="gap"></span>
+      צורת החשיבה, העולם האינטלקטואלי,<br>
+      הרקע החברתי והשפה התרבותית  -<br>
+      נטו להופיע בתאימות גבוהה.
+      <span class="gap"></span>
+      <span class="dim">זה מתכתב גם עם מחקרי זוגיות רחבים:<br>בני זוג נוטים להידמות במיוחד בהשכלה,<br>ערכים, עמדות, אורח חיים ורקע חברתי.</span>
+    </div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div></div>
+
+<!-- 4. INSIGHT 03 -->
+<div class="wrap"><div class="frame light-b" id="frame-4">
+  <div class="grain"></div>
+  <img class="icon-orb" src="../icon_only.png" alt="">
+  <span class="num-tag">03</span>
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(0.3deg)">טמפרמנט  -<br>דומה, אבל לא תמיד זהה<span class="dot-accent">.</span></div>
+    <div class="anchor-line"></div>
+    <div class="explain">טמפרמנט הוא הסגנון האנרגטי של האדם: רמת האנרגיה, הטון התקשורתי, עוצמת התגובה והקצב בתוך אינטראקציה.</div>
+    <div class="body-text">
+      בדאטה שלנו, זוגות נטו להיות<br>
+      דומים גם בטמפרמנט  -<br>
+      אבל פחות באופן מוחלט מקוגניציה ותרבות.
+      <span class="gap"></span>
+      <strong>הממצא המעניין:</strong><br>
+      כשמצאנו פערים גדולים יותר<br>
+      בערכים או בתכונות ליבה,<br>
+      ראינו בדרך כלל דמיון גבוה יותר בטמפרמנט.
+      <span class="gap"></span>
+      <span class="dim">כלומר, קצב אנרגטי דומה<br>יכול להחזיק הבדלים אחרים.</span>
+    </div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div></div>
+
+<!-- 5. INSIGHT 04 -->
+<div class="wrap"><div class="frame light-a" id="frame-5">
+  <div class="grain"></div>
+  <img class="icon-orb" src="../icon_only.png" alt="">
+  <span class="num-tag">04</span>
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(-0.4deg)">אינטליגנציה חברתית  -<br>נטייה לדמיון גבוה<span class="dot-accent">.</span></div>
+    <div class="anchor-line"></div>
+    <div class="explain">אינטליגנציה חברתית היא היכולת לקרוא סיטואציות, להבין דינמיקות ולהרגיש מה קורה בין השורות.</div>
+    <div class="body-text">
+      בדאטה שלנו, אנשים עם אינטליגנציה<br>
+      חברתית גבוהה נטו להיות<br>
+      עם בני זוג ברמה דומה.
+      <span class="gap"></span>
+      בניגוד לסוגים אחרים של אינטליגנציה  -<br>
+      למשל <strong>אנליטית</strong>, <strong>אינטלקטואלית</strong> או <strong>מופשטת</strong>  -<br>
+      כאן ראינו פחות מקום לפערים גדולים.
+    </div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div></div>
+
+<!-- 6. INSIGHT 05 -->
+<div class="wrap"><div class="frame light-b" id="frame-6">
+  <div class="grain"></div>
+  <img class="icon-orb" src="../icon_only.png" alt="">
+  <span class="num-tag">05</span>
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(0.3deg)">עיבוד רגשי  -<br>הפער העקבי ביותר<span class="dot-accent">.</span></div>
+    <div class="anchor-line"></div>
+    <div class="explain">עיבוד רגשי הוא האופן שבו אדם מזהה רגשות, נותן להם מקום, מגיב אליהם ומבין מה קורה מתחת לפני השטח.</div>
+    <div class="body-text">
+      בדאטה שלנו, זה היה אחד האזורים<br>
+      שבהם ראינו את הפערים העקביים ביותר<br>
+      בין בני זוג, עם ציונים מעט גבוהים יותר אצל נשים.
+      <span class="gap"></span>
+      <span class="dim">ממצא מעניין:<br>אצל זוגות צעירים יותר, הפער הזה הצטמצם משמעותית.</span>
+      <span class="gap"></span>
+      לכן, מבחינתנו, השאלה היא לא רק כמה כל אחד ״רגיש״,<br>
+      אלא איך כל אחד מזהה רגשות, מבטא אותם ומפרש אותם  -<br>
+      ואיך הפער הזה בא לידי ביטוי בתוך קשר.
+    </div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div></div>
+
+<!-- 7. SUMMARY -->
+<div class="wrap"><div class="frame dark" id="frame-7">
+  <div class="grain"></div>
+  <img class="icon-orb" src="../icon_only.png" alt="">
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(-0.3deg)">אז מה למדנו<span class="dot-accent">?</span></div>
+    <div class="anchor-line"></div>
+    <div class="body-text">
+      התאמה טובה היא לא דמיון מוחלט,<br>
+      אבל היא גם לא אוסף מקרי של הבדלים.
+      <span class="gap"></span>
+      בזוגות שבדקנו ראינו בסיס עמוק של דמיון  -<br>
+      בערכים, ברקע, בסגנון החשיבה ובעולם התרבותי.
+      <span class="gap"></span>
+      הפערים כן קיימים, אבל הם לא כולם שווים:
+      <span class="gap"></span>
+      יש פערים שמייצרים חיכוך<br>
+      או מקשים על החיבור הראשוני,<br>
+      ויש פערים שמוסיפים לקשר איזון, תנועה ועניין.
+      <span class="gap"></span>
+      <strong>לכן ב-One אנחנו לא שואלים רק<br>כמה שני אנשים דומים  -</strong><br>
+      אלא איפה הדמיון חשוב,<br>
+      ואילו פערים הקשר יכול להכיל,<br>
+      ואולי אפילו להפוך ליתרון.
+    </div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div></div>
+
+<script>
+const grainSVG = `<svg xmlns='http://www.w3.org/2000/svg' width='510' height='510' viewBox='0 0 510 510'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.3' numOctaves='3' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/><feComponentTransfer><feFuncA type='linear' slope='0.65'/></feComponentTransfer></filter><rect width='510' height='510' filter='url(%23n)'/></svg>`;
+const grainBg = `data:image/svg+xml,${encodeURIComponent(grainSVG)}`;
+document.querySelectorAll('.grain').forEach(el => {
+  el.style.backgroundImage = `url('${grainBg}')`;
+});
+
+function scaleSlides() {
+  document.querySelectorAll('.wrap').forEach(wrap => {
+    const frame = wrap.querySelector('.frame');
+    const scale = wrap.offsetWidth / 1080;
+    frame.style.transform = `scale(${scale})`;
+    frame.style.transformOrigin = 'top right';
+  });
+}
+scaleSlides();
+window.addEventListener('resize', scaleSlides);
+</script>
+
+</body>
+</html>

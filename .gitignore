@@ -18,3 +18,15 @@ build/
 # Spreadsheets (may contain secrets)
 *.xlsx
 ~$*
+
+# User data (photos, conversations) — never commit
+uploads/
+user-photos/
+conversations/
+Picture Examples/
+
+# Temp files
+tmp_*
+
+# Claude Code local settings
+.claude/

@@ -2285,12 +2285,14 @@ app.get("/admin/user-profiles", async (_req, res) => {
       "security", "conformity", "tradition", "benevolence", "universalism", "spirituality",
     ]);
 
-    // סגנון אישי — 13 תכונות
+    // סגנון אישי — 19 תכונות
     const style = weightedAvg(traits, [
       "mainstreamness", "oriental", "broad_appeal", "family_of_origin_closeness",
       "childishness", "humor", "party_orientation",
       "hipsterishness", "geekiness", "hippie_style", "theatricality", "soviet_style",
       "gender_conformity",
+      "metropolitan_orientation", "achievement_status_orientation", "cultural_currency",
+      "style_polish", "high_culture_orientation", "rural_communal_style",
     ]);
 
     // עמדות — 6 תכונות
@@ -3151,7 +3153,7 @@ app.patch("/admin/matches/:id/status", async (req, res) => {
   const matchId = parseInt(req.params.id, 10);
   const { status } = req.body;
   const validStatuses = [
-    "waiting_first_rating", "waiting_second_rating", "approved_by_both",
+    "potential_match", "waiting_first_rating", "waiting_second_rating", "approved_by_both",
     "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users",
     "approved_acquaintance"
   ];
@@ -3284,7 +3286,7 @@ app.post("/admin/matches/:id/send-for-rating", async (req, res) => {
   const match = await pgQueryOne<any>("SELECT * FROM matches WHERE id = $1", [matchId]);
   if (!match) return res.status(404).json({ error: "Match not found" });
 
-  if (match.status !== "waiting_first_rating" && match.status !== "waiting_second_rating") {
+  if (!["potential_match", "waiting_first_rating", "waiting_second_rating"].includes(match.status)) {
     return res.status(400).json({ error: `Cannot send for rating in status '${match.status}'` });
   }
 
@@ -3295,9 +3297,11 @@ app.post("/admin/matches/:id/send-for-rating", async (req, res) => {
     return res.status(400).json({ error: "user_id must be part of the match" });
   }
 
+  // Move from potential_match to waiting_first_rating when first sent
+  const newStatus = match.status === "potential_match" ? "waiting_first_rating" : match.status;
   await pgQueryAll(
-    "UPDATE matches SET sent_for_rating_at = NOW(), sent_for_rating_to = $2, updated_at = NOW() WHERE id = $1",
-    [matchId, targetUserId]
+    "UPDATE matches SET status = $1, sent_for_rating_at = NOW(), sent_for_rating_to = $2, updated_at = NOW() WHERE id = $3",
+    [newStatus, targetUserId, matchId]
   );
 
   return res.json({ success: true, match_id: matchId, sent_to: targetUserId, status: match.status });

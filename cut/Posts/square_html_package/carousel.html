@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700&family=Cormorant+Garamond:wght@400;500&family=JetBrains+Mono:wght@300;400&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#888;font-family:'Heebo',sans-serif}
+
+.frame{
+  width:1080px;height:1080px;
+  overflow:hidden;
+  position:relative;
+  display:flex;flex-direction:column;
+  justify-content:space-between;
+  direction:rtl;
+  margin-bottom: 20px;
+}
+
+.frame.t1{background:#F4F4FC}
+.frame.t2{background:#ECEBFA}
+.frame.t3{background:#F4F4FC}
+.frame.t4{background:#ECEBFA}
+.frame.t5{background:#E7E6F9}
+.frame.t6{background:#F4F4FC}
+.frame.t7{background:#0E0A4D}
+
+.grain{position:absolute;inset:0;opacity:1;mix-blend-mode:multiply;pointer-events:none;z-index:1;background-size:510px 510px}
+.frame.t7 .grain{mix-blend-mode:screen;opacity:0.5}
+
+.zone{position:relative;z-index:3;padding:64px 85px}
+.zone-top{padding-bottom:0;min-height:90px}
+.zone-mid{flex:1;display:flex;flex-direction:column;justify-content:center;padding-top:0;padding-bottom:0}
+.zone-bot{padding-top:28px;display:flex;align-items:center;justify-content:space-between;border-top:1.5px solid rgba(54,30,176,0.18)}
+
+.anchor-line{height:4px;background:linear-gradient(270deg,#15108B,rgba(21,16,139,0.06));width:170px;margin-bottom:32px;border-radius:2px}
+
+.headline{font-family:'Cormorant Garamond',serif;font-size:64px;font-weight:500;color:#15108B;line-height:1.28;margin-bottom:32px}
+.body-text{font-size:32px;font-weight:300;color:#3A3568;line-height:1.5;letter-spacing:0.4px}
+.body-text strong{color:#15108B;font-weight:500;font-family:'Cormorant Garamond',serif;font-size:36px}
+
+.footer-tag{font-family:'JetBrains Mono',monospace;font-size:24px;color:#8378D0;letter-spacing:2.8px;display:flex;align-items:center;direction:ltr}
+.footer-tag .tag-dot{color:#15108B;margin-right:6px}
+.footer-mark{font-family:'JetBrains Mono',monospace;font-size:25px;color:#361EB0;letter-spacing:7px;font-weight:400}
+
+.frame.t7 .headline{color:#E8E6FF}
+.frame.t7 .anchor-line{background:linear-gradient(270deg,#9890D8,rgba(152,144,216,0.06))}
+.frame.t7 .body-text{color:#9890D8}
+.frame.t7 .body-text strong{color:#D4D0F5}
+.frame.t7 .zone-bot{border-top-color:rgba(107,95,208,0.25)}
+.frame.t7 .footer-tag{color:#6B5FD0}
+.frame.t7 .footer-tag .tag-dot{color:#9890D8}
+.frame.t7 .footer-mark{color:#9890D8}
+
+.beta-pill{display:inline-flex;align-items:center;gap:14px;border:1.5px solid rgba(107,95,208,0.4);border-radius:60px;padding:10px 28px 10px 24px;font-family:'JetBrains Mono',monospace;font-size:20px;color:#9890D8;letter-spacing:2.8px;margin-bottom:32px;width:fit-content}
+.beta-dot{width:12px;height:12px;border-radius:50%;background:#6B5FD0}
+
+.dot-accent{color:#2A1FA0;font-size:1.05em}
+
+.headline-speed{font-family:'Cormorant Garamond',serif;color:#15108B;line-height:1.4;margin-bottom:32px;font-size:58px;font-weight:500;letter-spacing:14px}
+.hs-line{display:block}
+.hs-dot{display:inline-block;width:14px;height:14px;border-radius:50%;background:#2A1FA0;margin-right:18px;vertical-align:middle}
+</style>
+</head>
+<body>
+
+<div class="frame t1" id="frame-1">
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline-speed">
+      <span class="hs-line">התרגלנו לבחור אנשים מהר<span class="hs-dot"></span></span>
+    </div>
+    <div class="anchor-line"></div>
+    <div class="body-text">כמה תמונות.<br>כמה מילים.<br>אבל מה באמת אפשר ללמוד על מישהו בכמה שניות?</div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div>
+
+<div class="frame t2" id="frame-2">
+  <div class="grain"></div>
+  <img src="icon_only.png" style="position:absolute;pointer-events:none;z-index:1;width:360px;height:360px;object-fit:cover;object-position:bottom left;opacity:0.8;border-radius:50%;transform:rotate(3deg);top:-150px;right:-135px;" alt="">
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(-0.5deg)">ב<span style="font-size:0.7em;vertical-align:0.15em">-</span>One מתחילים<br>ממקום אחר<span class="dot-accent">.</span></div>
+    <div class="anchor-line"></div>
+    <div class="body-text">בלי לנסות לשווק את עצמך.<br>בלי להציג גרסה מושלמת.<br><br>לפני שמכירים מישהו חדש,<br>One לומד להכיר אותך.<br>בשיחה טבעית,<br>בקצב שלך.</div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div>
+
+<div class="frame t3" id="frame-3">
+  <div class="grain"></div>
+  <img src="icon_only.png" style="position:absolute;pointer-events:none;z-index:1;width:360px;height:360px;object-fit:cover;object-position:bottom left;opacity:0.78;border-radius:50%;transform:rotate(3deg);top:-150px;right:-135px;" alt="">
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(0.4deg)">מתוך השיחה נוצרת<br>מפת האישיות שלך<span class="dot-accent">.</span></div>
+    <div class="anchor-line"></div>
+    <div class="body-text">מה גורם לך להרגיש חיבור.<br>מה מניע אותך.<br>מה חשוב לך באדם שלצידך.<br><br><strong>כל הדברים שקשה לסכם בפרופיל.</strong></div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div>
+
+<div class="frame t4" id="frame-4">
+  <div class="grain"></div>
+  <img src="icon_only.png" style="position:absolute;pointer-events:none;z-index:1;width:360px;height:360px;object-fit:cover;object-position:bottom left;opacity:0.78;border-radius:50%;transform:rotate(3deg);top:-150px;right:-135px;" alt="">
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(0.5deg)">One מתחיל לחפש<br>בשבילך<span class="dot-accent">.</span></div>
+    <div class="anchor-line"></div>
+    <div class="body-text">ולא מתפשר על עוד ״כמעט״.<br><br>רק אנשים שיש סיבה אמיתית להכיר.<br><strong>גם אם לפעמים צריך קצת לחכות.</strong></div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div>
+
+<div class="frame t5" id="frame-5">
+  <div class="grain"></div>
+  <img src="icon_only.png" style="position:absolute;pointer-events:none;z-index:1;width:360px;height:360px;object-fit:cover;object-position:bottom left;opacity:0.8;border-radius:50%;transform:rotate(3deg);top:-150px;right:-135px;" alt="">
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(-0.4deg)">כשנמצא מישהו שכדאי<br>להכיר <span style="unicode-bidi:isolate">–</span> בודקים שגם<br>יש ניצוץ<span class="dot-accent">.</span></div>
+    <div class="anchor-line"></div>
+    <div class="body-text">לפני שמתחילים לדבר,<br>שניכם רואים את התמונה.<br><br>כן, ברור שגם משיכה חשובה <span style="unicode-bidi:isolate;direction:ltr">:)</span></div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div>
+
+<div class="frame t6" id="frame-6">
+  <div class="grain"></div>
+  <img src="icon_only.png" style="position:absolute;pointer-events:none;z-index:1;width:360px;height:360px;object-fit:cover;object-position:bottom left;opacity:0.8;border-radius:50%;transform:rotate(3deg);top:-150px;right:-135px;" alt="">
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="headline" style="transform:rotate(0.3deg)">ואז פשוט מכירים<span class="dot-accent">.</span></div>
+    <div class="anchor-line"></div>
+    <div class="body-text">בלי אינסוף שיחות במקביל.<br>בלי רעש מסביב.<br><br>כל עוד אתם מדברים,<br>One לא מחפש לכם עוד התאמות.<br><br><strong>מגיע לכם צ׳אנס אמיתי.</strong></div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div>
+
+<div class="frame t7" id="frame-7">
+  <div class="grain"></div>
+  <img src="icon_only.png" style="position:absolute;pointer-events:none;z-index:1;width:400px;height:400px;object-fit:cover;object-position:bottom left;opacity:0.5;border-radius:50%;transform:rotate(3deg);top:-165px;right:-148px;" alt="">
+  <div class="zone zone-top"></div>
+  <div class="zone zone-mid">
+    <div class="beta-pill"><span class="beta-dot"></span>beta</div>
+    <div class="headline" style="transform:rotate(-0.3deg)">One עדיין בבטא<span class="dot-accent">.</span></div>
+    <div class="anchor-line"></div>
+    <div class="body-text">הקהילה גדלה בכל יום ואנחנו נציג התאמה רק כשנמצא מישהו שבאמת שווה להכיר.</div>
+  </div>
+  <div class="zone zone-bot">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="footer-mark">One</span>
+  </div>
+</div>
+
+<script>
+const grainSVG = `<svg xmlns='http://www.w3.org/2000/svg' width='510' height='510' viewBox='0 0 510 510'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.3' numOctaves='3' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/><feComponentTransfer><feFuncA type='linear' slope='0.65'/></feComponentTransfer></filter><rect width='510' height='510' filter='url(%23n)'/></svg>`;
+const grainBg = `data:image/svg+xml,${encodeURIComponent(grainSVG)}`;
+document.querySelectorAll('.grain').forEach(el => {
+  el.style.backgroundImage = `url('${grainBg}')`;
+});
+</script>
+
+</body>
+</html>
