@@ -183,9 +183,12 @@ function PotentialMatchScreen({ userId, userGender, onBack }: { userId: number; 
       .catch(() => setLoading(false));
   }, [userId]);
 
+  const [ratingError, setRatingError] = useState<string | null>(null);
+
   async function submitRating(rating: string) {
     if (!matchData || submitting) return;
     setSubmitting(true);
+    setRatingError(null);
     try {
       const r = await apiFetch(`/matches/${matchData.match_id}/rate`, {
         method: "POST",
@@ -193,8 +196,11 @@ function PotentialMatchScreen({ userId, userGender, onBack }: { userId: number; 
       });
       if (r.ok) {
         setSubmitted(rating);
+      } else {
+        const d = await r.json().catch(() => ({}));
+        setRatingError(d.error || "משהו השתבש, נסו שוב מאוחר יותר");
       }
-    } catch { /* ignore */ }
+    } catch { setRatingError("שגיאת תקשורת, נסו שוב"); }
     setSubmitting(false);
   }
 
@@ -316,6 +322,10 @@ function PotentialMatchScreen({ userId, userGender, onBack }: { userId: number; 
           לא מרגיש לי מתאים
         </button>
       </div>
+
+      {ratingError && (
+        <p style={{ color: "#dc3545", fontSize: 13, textAlign: "center", margin: "0 0 12px" }}>{ratingError}</p>
+      )}
 
       {/* Known person option — subtle link */}
       <div style={{ textAlign: "center", padding: "12px 16px" }}>
