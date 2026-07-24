@@ -198,7 +198,7 @@ function PotentialMatchScreen({ userId, userGender, onBack }: { userId: number; 
         setSubmitted(rating);
       } else {
         const d = await r.json().catch(() => ({}));
-        setRatingError(d.error || "משהו השתבש, נסו שוב מאוחר יותר");
+        setRatingError("משהו השתבש. אם הבעיה חוזרת, כתבו לנו במסך ״עזרו לנו להשתפר״");
       }
     } catch { setRatingError("שגיאת תקשורת, נסו שוב"); }
     setSubmitting(false);
