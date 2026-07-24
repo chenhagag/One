@@ -740,7 +740,7 @@ export async function buildChatPrompt(
 
     const systemPrompt = TASTE_TEST_PROMPT + genderInstruction + coupleInstruction + phaseInstruction + profileBlock + reentryInstruction + navigationInstruction;
     // Taste is "closed" only when all profiles done, OR user said "enough" after mid-summary
-    const wantsToStop = reachedMinimum && /מספיק|לא|סיימתי|די|נסגור|לא צריך/i.test(message.trim());
+    const wantsToStop = reachedMinimum && /מספיק|לא|סיימתי|די|נסגור|לא צריך|תודה|סיימנו|זהו|יאללה|בסדר/i.test(message.trim());
     const closingStage = ((allProfilesDone || wantsToStop) && tasteUserMsgCount > 1) ? 3 : 0;
     return { systemPrompt, intent: "general", phase: detectPhase(messageCount), closingStage };
   }
