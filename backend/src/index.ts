@@ -3052,48 +3052,28 @@ app.post("/matches/:id/rate", requireAuth, async (req, res) => {
     return res.json({ match_id: match.id, new_status: "rejected_acquaintance", rated_by: user_id });
   }
 
-  // Determine first and second rater:
-  // If admin sent rating to a specific user (sent_for_rating_to), that user rates first.
-  // Otherwise, fall back to pickiness_score ordering.
-  let firstRaterId: number;
-  if (match.sent_for_rating_to) {
-    firstRaterId = match.sent_for_rating_to;
-  } else {
-    const u1 = await pgQueryOne<any>("SELECT id, pickiness_score FROM users WHERE id = $1", [match.user1_id]);
-    const u2 = await pgQueryOne<any>("SELECT id, pickiness_score FROM users WHERE id = $1", [match.user2_id]);
-    const p1 = u1?.pickiness_score ?? 0;
-    const p2 = u2?.pickiness_score ?? 0;
-    firstRaterId = p2 > p1 ? match.user2_id : match.user1_id;
-  }
-  const secondRaterId = firstRaterId === match.user1_id ? match.user2_id : match.user1_id;
-
   const ratingCol = user_id === match.user1_id ? "user1_rating" : "user2_rating";
+  const existingRating = user_id === match.user1_id ? match.user1_rating : match.user2_rating;
+
+  if (existingRating) {
+    return res.status(400).json({ error: "כבר דירגת התאמה זו" });
+  }
 
   if (match.status === "waiting_first_rating") {
-    if (user_id !== firstRaterId) {
-      return res.status(400).json({ error: "Waiting for the other user to rate first (higher pickiness)" });
-    }
-
     const newStatus = rating === "miss" ? "rejected_by_users" : "waiting_second_rating";
     await pgQueryAll(
       `UPDATE matches SET status = $1, ${ratingCol} = $2, sent_for_rating_at = NULL, sent_for_rating_to = NULL, updated_at = NOW() WHERE id = $3`,
       [newStatus, rating, match.id]
     );
-
     return res.json({ match_id: match.id, new_status: newStatus, rated_by: user_id });
   }
 
-  // waiting_second_rating
-  if (user_id !== secondRaterId) {
-    return res.status(400).json({ error: "Waiting for the other user to rate" });
-  }
-
+  // waiting_second_rating — whoever hasn't rated yet can rate
   const newStatus = rating === "miss" ? "rejected_by_users" : "approved_by_both";
   await pgQueryAll(
     `UPDATE matches SET status = $1, ${ratingCol} = $2, sent_for_rating_at = NULL, sent_for_rating_to = NULL, updated_at = NOW() WHERE id = $3`,
     [newStatus, rating, match.id]
   );
-
   return res.json({ match_id: match.id, new_status: newStatus, rated_by: user_id });
 });
 
