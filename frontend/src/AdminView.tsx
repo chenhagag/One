@@ -3698,21 +3698,6 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
     }
   }
 
-  async function resetMatches() {
-    setRunning("reset");
-    setResult(null);
-    try {
-      const r = await apiFetch("/admin/reset-matches", { method: "POST" });
-      const json = await r.json();
-      setResult({ reset: true, ...json });
-      load();
-    } catch (e: any) {
-      setResult({ error: e.message });
-    } finally {
-      setRunning(null);
-    }
-  }
-
   async function approveAllRatings() {
     setRunning("approve");
     setResult(null);
@@ -3786,13 +3771,6 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
           style={{ padding: "8px 16px", fontSize: 14, background: "#6f42c1", color: "#fff", border: "none", borderRadius: 6, cursor: running ? "wait" : "pointer", fontWeight: 600 }}
         >
           {running === "approve" ? "Approving..." : "Approve All Ratings"}
-        </button>
-        <button
-          onClick={resetMatches}
-          disabled={running !== null}
-          style={{ padding: "8px 16px", fontSize: 14, background: "#dc3545", color: "#fff", border: "none", borderRadius: 6, cursor: running ? "wait" : "pointer", fontWeight: 600 }}
-        >
-          {running === "reset" ? "Clearing..." : "Reset All"}
         </button>
         <button
           onClick={async () => {

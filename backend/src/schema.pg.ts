@@ -891,7 +891,7 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
 
     CREATE TABLE IF NOT EXISTS direct_messages (
       id          SERIAL PRIMARY KEY,
-      match_id    INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+      match_id    INTEGER NOT NULL REFERENCES matches(id) ON DELETE RESTRICT,
       sender_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       content     TEXT NOT NULL,
       read_at     TIMESTAMPTZ,
@@ -900,7 +900,7 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_direct_messages_match ON direct_messages(match_id, created_at);
 
     CREATE TABLE IF NOT EXISTS typing_status (
-      match_id    INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+      match_id    INTEGER NOT NULL REFERENCES matches(id) ON DELETE RESTRICT,
       user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       is_typing   BOOLEAN DEFAULT FALSE,
       updated_at  TIMESTAMPTZ DEFAULT NOW(),
@@ -1007,6 +1007,42 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
   await pool.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_email_log_type_user
       ON email_log (user_id, email_type) WHERE email_type IS NOT NULL;
+  `);
+
+  // ── Change ON DELETE CASCADE → RESTRICT for direct_messages and typing_status ──
+  await pool.query(`
+    DO $$
+    DECLARE fk_name TEXT;
+    BEGIN
+      -- direct_messages.match_id: CASCADE → RESTRICT
+      SELECT tc.constraint_name INTO fk_name
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.key_column_usage kcu ON kcu.constraint_name = tc.constraint_name
+      JOIN information_schema.referential_constraints rc ON rc.constraint_name = tc.constraint_name
+      WHERE tc.table_name = 'direct_messages' AND tc.constraint_type = 'FOREIGN KEY'
+        AND kcu.column_name = 'match_id' AND rc.delete_rule = 'CASCADE'
+      LIMIT 1;
+      IF fk_name IS NOT NULL THEN
+        EXECUTE 'ALTER TABLE direct_messages DROP CONSTRAINT ' || fk_name;
+        ALTER TABLE direct_messages ADD CONSTRAINT direct_messages_match_id_fkey
+          FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE RESTRICT;
+      END IF;
+
+      -- typing_status.match_id: CASCADE → RESTRICT
+      fk_name := NULL;
+      SELECT tc.constraint_name INTO fk_name
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.key_column_usage kcu ON kcu.constraint_name = tc.constraint_name
+      JOIN information_schema.referential_constraints rc ON rc.constraint_name = tc.constraint_name
+      WHERE tc.table_name = 'typing_status' AND tc.constraint_type = 'FOREIGN KEY'
+        AND kcu.column_name = 'match_id' AND rc.delete_rule = 'CASCADE'
+      LIMIT 1;
+      IF fk_name IS NOT NULL THEN
+        EXECUTE 'ALTER TABLE typing_status DROP CONSTRAINT ' || fk_name;
+        ALTER TABLE typing_status ADD CONSTRAINT typing_status_match_id_fkey
+          FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE RESTRICT;
+      END IF;
+    END $$;
   `);
 
   // ── Migrate attitude traits from "Personal Style" to "Attitudes" group ──

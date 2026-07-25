@@ -2706,26 +2706,6 @@ app.post("/admin/approve-all-ratings", async (_req, res) => {
   }
 });
 
-// POST /admin/reset-matches — Full reset of all matching data
-app.post("/admin/reset-matches", async (_req, res) => {
-  try {
-    const deletedCandidates = (await pgQueryAll("DELETE FROM candidate_matches RETURNING id")).length;
-    const deletedMatches = (await pgQueryAll("DELETE FROM matches RETURNING id")).length;
-    await pgQueryAll(`
-      UPDATE users SET
-        user_status = 'waiting_match',
-        waiting_since = COALESCE(waiting_since, created_at),
-        total_matches = 0,
-        good_matches = 0,
-        system_match_priority = 0
-    `);
-    return res.json({ deleted_candidates: deletedCandidates, deleted_matches: deletedMatches });
-  } catch (err: any) {
-    console.error(err);
-    return res.status(500).json({ error: err.message });
-  }
-});
-
 // POST /admin/users/:id/reanalyze — Re-run the analysis agent for a user
 // Rebuilds the cumulative transcript from ALL saved answers (profiles.raw_answer),
 // runs the CURRENT analysis agent (latest prompts, reloaded each call),
