@@ -1,6 +1,150 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-07-23 (Insights Prompt Rewrite + Small Fixes)
+## Latest Session: 2026-07-25 (Match Card + Incident Recovery + Look Traits)
+
+### ✅ עלה לפרודקשן
+
+#### כרטיס התאמה — נדב (#23) ודנית (#207)
+- כתיבת כרטיס התאמה מלא (5 נקודות חיבור) על סמך שיחות, traits וציונים
+- גרסה ראשונה תוקנה ע"י חן — כללים חדשים לכרטיסים (נוספו ל-CLAUDE.md):
+  - שמות ולא הוא/היא
+  - הצגה אישית של כל אחד בהתחלה
+  - לא לחשוף פרטים ממערכות יחסים קודמות
+- הגרסה המתוקנת נשמרה בקובץ `Docs/הנחיות לקלוד.txt` כרפרנס
+
+#### Fix — כפתור "לצפייה בכרטיס ההתאמה" במסך הבית
+- הכפתור בבאנר החגיגי ניווט ל-`match_hub` במקום `match_card`
+- תוקן: `setScreen("match_card")` + טקסט כפתור עודכן
+- **קומיט**: `87c02b6`
+
+#### Fix — תמונה בכרטיס התאמה
+- כרטיס ההתאמה הציג את התמונה הראשונה — שונה לתמונה השנייה (עם fallback לראשונה)
+- Backend: `LIMIT 2` + בחירת `photos[1]` אם קיימת
+- **קומיט**: `b319c52`
+
+#### Look traits — ניתוח חיצוני ידני
+- דנה (#263): 11 look traits (appeal 50, fitness 30, femininity 25, warmth 70, glamour 45, naturalness 65, style_polish 60, skin_tone 35, hair light_brown, eyes green, hair straight)
+- רותם (#256): 11 look traits (appeal 48, fitness 30, femininity 25, warmth 72, glamour 50, naturalness 60, style_polish 60, skin_tone 30, hair light_brown, eyes green, hair straight)
+- **אבדו בשחזור DB — צריך להזין מחדש**
+
+### 🚨 תקרית — Reset All מחק matches + DMs
+
+#### מה קרה
+- הופעל `POST /admin/reset-matches` בטעות — מחק את כל טבלאות `matches` ו-`candidate_matches`
+- `direct_messages` נמחקו אוטומטית בגלל **`ON DELETE CASCADE`** על `match_id` FK
+- 96 matches, 268 candidate_matches, 15+ direct messages — הכל נמחק
+
+#### שחזור
+- Railway DB backup מלפני ~4 שעות — restore מלא
+- שוחזרו: matches, candidate_matches, direct_messages, ההערות על התאמות
+- **2 הודעות אבדו** — הודעות שדנית שלחה בין זמן הגיבוי לריסט. חן שלחה לה הודעה מהמערכת על התקלה.
+- Sequences נבדקו — תקינים, אין סיכון ל-conflicts
+
+#### שורש הבעיה
+- `direct_messages.match_id` מוגדר `ON DELETE CASCADE` — מחיקת match מוחקת את כל ההודעות
+- `typing_status.match_id` — אותו דבר (פחות חמור)
+
+### TODO לסשן הבא
+- **דחוף**: לשנות `ON DELETE CASCADE` ל-`ON DELETE RESTRICT` על `direct_messages.match_id`
+- **דחוף**: להוסיף confirmation/guard על `/admin/reset-matches` (או להסיר לגמרי)
+- להזין מחדש look traits לדנה (#263) ורותם (#256)
+- להמשיך עבודה מהסשן הקודם: thresholds fix לפרוד, שינויי סגנון לפרוד
+
+---
+
+## Previous Session: 2026-07-24 (Style/Attitudes Split + Match Flow Fixes + Auto-Analysis Fix)
+
+### ✅ עלה לפרודקשן
+
+#### Admin — שינוי סטטוס התאמה ידנית
+- Dropdown בעמודת Status בטבלת candidate matches (במקום טקסט סטטי)
+- Backend: `PATCH /admin/matches/:id/status` עם validation
+
+#### Fix — pending-rating endpoint
+- `/matches/pending-rating` תמיד דרס user_id עם JWT → נכשל כשאדמין צופה במשתמש אחר
+- עכשיו query param `user_id` מקבל עדיפות על JWT
+
+#### Fix — rating endpoint פשוט יותר
+- הוסר לוגיקת pickiness ordering לחלוטין — מי שלא דירג עדיין יכול לדרג, נקודה
+- הודעת שגיאה ידידותית בעברית (לא חושפת backend errors למשתמשים)
+
+#### Fix — taste test closing
+- "תודה", "סיימנו", "זהו", "יאללה", "בסדר" נוספו לרשימת מילות סגירה
+- בלעדיהן: taste test לא "נסגר" → auto-analysis run 2 לא רץ → אין תובנות
+
+#### Match flow — potential_match
+- סטטוס התחלתי של התאמות חדשות: `potential_match` (במקום `waiting_first_rating`)
+- `send-for-rating` מעביר `potential_match` → `waiting_first_rating`
+- צבע צהוב ב-admin, dropdown כולל את הסטטוס החדש
+
+#### הודעת disclaimer אחרי דירוג חיובי
+- טקסט שמסביר שאישור לא מבטיח שההתאמה תצא לפועל
+- מוצג רק אחרי bullseye/possible
+
+#### כפתור "לא מרגיש לי מתאים"
+- צבע טקסט שונה מאפור (#6b7280) לכהה (#1a1a2e) כדי שלא ייראה disabled
+
+#### .gitignore
+- הוספת: uploads/, user-photos/, conversations/, Picture Examples/, tmp_*, .claude/
+- הסרת קבצים פרטיים שנכנסו בטעות מה-git tracking
+
+#### קבצים שעלו לrepo
+- Docs/ (הנחיות לקלוד, הנחיות לרון, הפקת תובנות, תשובות capacitor)
+- reports/ (chat review, endpoint audit, security audit)
+- cut/ (לוגואים, אייקונים, פוסטים, screenshots)
+
+### ⏳ עלה לסטייג'ינג בלבד — ממתין לבדיקה (ניתוח סגנון)
+
+#### פיצול סגנון/עמדות — שינוי משמעותי, טרם נבדק
+- **סגנון (style)**: 19 תכונות — 12 ישנות + gender_conformity + 6 חדשות:
+  - `metropolitan_orientation` — אוריינטציה אורבנית-מטרופולינית
+  - `achievement_status_orientation` — אוריינטציה להצלחה וסטטוס
+  - `cultural_currency` — רגישות לעדכניות ולמגניבות תרבותית
+  - `style_polish` — ליטוש והקפדה סגנונית
+  - `high_culture_orientation` — אוריינטציה לתרבות גבוהה
+  - `rural_communal_style` — סגנון כפרי-קהילתי
+- **עמדות (attitudes)**: 6 תכונות בקבוצה נפרדת — right_wing, left_wing, social_activism, religiosity, secularity, value_rigidity
+- פרומפט נפרד: `attitudes-system.txt`
+- trait_group חדש `Attitudes` ב-DB (migration אוטומטית)
+- `score_attitudes` — עמודה חדשה ב-candidate_matches
+- שני הקטגוריות במשקל ×1 ב-profile score (סה"כ ×2 במקום ×1 לפני)
+- Admin: כרטיסי "סגנון בולט" (כתום) + "עמדות בולטות" (אדום) בפרופיל משתמש
+- Admin: כפתורי reanalyze נפרדים — "סגנון" + "עמדות"
+- Admin: עמודה "עמדות" בטבלת candidate matches
+- **Seed הורץ** בסטייג'ינג ובפרוד (6 תכונות חדשות + trait_group migration)
+
+#### פרומפט סגנון — שיפורים
+- הסרת אזכורי עמדות (ימניות, דתיות) מהפתיח, הקשר ישראלי, חוקי ברזל
+- `geekiness`: הבהרה שמתכנת ≠ גיקי, רק תרבות גיקית (גיימינג, SF, פנטזיה)
+- `broad_appeal`: הרחבה — גם תחומי עניין נישתיים מורידים ציון
+- `hipsterishness`: הבחנה מ-mainstreamness נמוך — בחירה אקטיבית באלטרנטיבי
+- הנחיות כלליות: ניתוח מכלול השיחה, לא להסיק מדמוגרפיה, הבחנות בין תכונות
+
+#### Admin candidate matches — שיפורי UI
+- טבלה עם גלילה (maxHeight 75vh) + sticky header
+- סינון לפי סטטוס התאמה (potential_match, waiting_first_rating, וכו')
+
+#### Admin user detail — דירוגי התאמות
+- סקשן "📊 דירוגי התאמות" — מראה ממתינים + תשובות שהתקבלו
+
+### ⏳ עלה לסטייג'ינג בלבד — ממתין כי יש פעילות במערכת
+
+#### Auto-analysis thresholds
+- `maybeAutoAnalyzeAfterAll` משתמשת עכשיו באותם thresholds כמו pipeline dashboard:
+  - cognitive: closing_stage ≥ 3 **או** message count ≥ 7
+  - taste: closing_stage ≥ 3 **או** message count ≥ 10
+- לפני: הסתמכה רק על closingStage = 3 (שנכשל אם מילת סגירה לא זוהתה)
+
+### TODO לסשן הבא
+- להעלות thresholds fix לפרוד (אחרי שהפעילות נרגעת)
+- להעלות את כל שינויי הסגנון לפרוד (אחרי בדיקה בסטייג'ינג)
+- לבנות סוכן יומי שמזהה משתמשים שנפלו בין הכיסאות (run_count=1 + channels done)
+- לנתח מחדש משתמשים עם הפרומפט החדש ולבדוק תוצאות
+- להמשיך עבודה על ניתוח סגנון — לחזור למסמך "הנחיות לקלוד" סעיף 4 (sanity check)
+
+---
+
+## Previous Session: 2026-07-23 (Insights Prompt Rewrite + Small Fixes)
 
 - **Insights prompt rewrite**: specificity test, internal tensions, facts-as-anchors (not banned), don't inflate depth, sensitive info handling, structured 9-section output, temperature 0.75→0.55
 - **Admin "הפק תובנות" button**: green button in user toolbar, always force=true, works for any user regardless of pipeline stage
