@@ -594,6 +594,158 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
   return { scored, skipped, promoted_to_matches };
 }
 
+// ── Rescore all existing candidates (scores only, no status change) ──
+
+export async function rescoreExistingCandidates(): Promise<{ rescored: number; skipped: number }> {
+
+  // Resolve appearance_sensitivity trait ID dynamically
+  const asTrait = await queryOne<{ id: number }>(
+    "SELECT id FROM trait_definitions WHERE internal_name = 'appearance_sensitivity'"
+  );
+  APPEARANCE_SENSITIVITY_TRAIT_ID = asTrait?.id ?? -1;
+
+  // Load trait definitions
+  const traitDefRows = await queryAll<TraitDef>(
+    "SELECT id, internal_name, calc_type, weight FROM trait_definitions"
+  );
+  const traitDefs = new Map<number, TraitDef>();
+  for (const td of traitDefRows) traitDefs.set(td.id, td);
+
+  buildCategoryTraitIds(traitDefs);
+
+  // Get ALL candidate_matches (regardless of status)
+  const allCandidates = await queryAll<{ id: number; user_id: number; candidate_user_id: number }>(
+    "SELECT id, user_id, candidate_user_id FROM candidate_matches"
+  );
+
+  if (allCandidates.length === 0) {
+    return { rescored: 0, skipped: 0 };
+  }
+
+  // Pre-load traits + look traits + genders
+  const involvedUserIds = new Set<number>();
+  for (const p of allCandidates) { involvedUserIds.add(p.user_id); involvedUserIds.add(p.candidate_user_id); }
+  const involvedIds = Array.from(involvedUserIds);
+
+  const allTraits = await queryAll<{ user_id: number } & TraitRow>(
+    `SELECT user_id, trait_definition_id, score, confidence, weight_for_match
+     FROM user_traits WHERE user_id = ANY($1::int[])`,
+    [involvedIds]
+  );
+  const traitCache = new Map<number, Map<number, TraitRow>>();
+  for (const r of allTraits) {
+    if (!traitCache.has(r.user_id)) traitCache.set(r.user_id, new Map());
+    traitCache.get(r.user_id)!.set(r.trait_definition_id, {
+      trait_definition_id: r.trait_definition_id,
+      score: r.score, confidence: r.confidence, weight_for_match: r.weight_for_match,
+    });
+  }
+  const getUserTraits = (uid: number): Map<number, TraitRow> => traitCache.get(uid) ?? new Map();
+
+  const allLookTraits = await queryAll<{ user_id: number; internal_name: string; personal_value: string | null }>(
+    `SELECT ult.user_id, ltd.internal_name, ult.personal_value
+     FROM user_look_traits ult
+     JOIN look_trait_definitions ltd ON ltd.id = ult.look_trait_definition_id
+     WHERE ult.user_id = ANY($1::int[]) AND ult.personal_value IS NOT NULL`,
+    [involvedIds]
+  );
+  const lookTraitCache = new Map<number, Map<string, number>>();
+  for (const r of allLookTraits) {
+    const numVal = parseFloat(r.personal_value ?? "");
+    if (isNaN(numVal)) continue;
+    if (!lookTraitCache.has(r.user_id)) lookTraitCache.set(r.user_id, new Map());
+    lookTraitCache.get(r.user_id)!.set(r.internal_name, numVal);
+  }
+  const getUserLookTraits = (uid: number): Map<string, number> => lookTraitCache.get(uid) ?? new Map();
+
+  const genderRows = await queryAll<{ id: number; gender: string | null }>(
+    `SELECT id, gender FROM users WHERE id = ANY($1::int[])`,
+    [involvedIds]
+  );
+  const genderCache = new Map<number, string | null>();
+  for (const r of genderRows) genderCache.set(r.id, r.gender);
+
+  // Compute scores
+  type ScoreUpdate = {
+    id: number; internal: number | null; external: number | null; final: number | null;
+    categories: CategoryScores; profile_score: number | null; internal_profile_score: number | null;
+  };
+  const updates: ScoreUpdate[] = [];
+  let rescored = 0;
+  let skipped = 0;
+
+  for (const row of allCandidates) {
+    const u1Traits = getUserTraits(row.user_id);
+    const u2Traits = getUserTraits(row.candidate_user_id);
+
+    const internalScore = calculateInternalScore(u1Traits, u2Traits, traitDefs);
+
+    if (internalScore == null) {
+      skipped++;
+      continue;
+    }
+
+    const externalScore = calculateExternalScore(
+      getUserLookTraits(row.user_id),
+      getUserLookTraits(row.candidate_user_id),
+    ) ?? 0;
+    const sensitive = isAppearanceSensitive(u1Traits) || isAppearanceSensitive(u2Traits);
+    const iRatio = sensitive ? SENSITIVE_INTERNAL_RATIO : DEFAULT_INTERNAL_RATIO;
+    const eRatio = sensitive ? SENSITIVE_EXTERNAL_RATIO : DEFAULT_EXTERNAL_RATIO;
+    const finalScore = internalScore * iRatio + externalScore * eRatio;
+
+    const categories = calculateAllCategoryScores(
+      u1Traits, u2Traits, traitDefs,
+      genderCache.get(row.user_id) ?? null,
+      genderCache.get(row.candidate_user_id) ?? null,
+    );
+
+    const profileScore = calculateProfileScore(categories, externalScore);
+    const internalProfileScore = calculateProfileScore(categories, null);
+
+    updates.push({
+      id: row.id,
+      internal: Math.round(internalScore * 100) / 100,
+      external: Math.round(externalScore * 100) / 100,
+      final: Math.round(finalScore * 100) / 100,
+      categories,
+      profile_score: profileScore,
+      internal_profile_score: internalProfileScore,
+    });
+    rescored++;
+  }
+
+  // Batch-write ONLY score fields — no status, no admin_notes, no other fields
+  await withTransaction(async (client) => {
+    for (const u of updates) {
+      await client.query(
+        `UPDATE candidate_matches
+         SET internal_score = $1, external_score = $2, final_score = $3,
+             score_cognitive = $5, score_emotional_social = $6, score_emotionality = $7,
+             score_communication = $8, score_vibe = $9, score_popularity = $10,
+             score_big_five = $11, score_schwartz = $12, score_style = $13,
+             score_attitudes = $14, score_general = $15, score_mbti = $16, score_enneagram = $17,
+             profile_score = $18, internal_profile_score = $19,
+             updated_at = NOW()
+         WHERE id = $4`,
+        [u.internal, u.external, u.final, u.id,
+         u.categories.score_cognitive, u.categories.score_emotional_social,
+         u.categories.score_emotionality, u.categories.score_communication,
+         u.categories.score_vibe, u.categories.score_popularity,
+         u.categories.score_big_five, u.categories.score_schwartz,
+         u.categories.score_style, u.categories.score_attitudes, u.categories.score_general,
+         u.categories.score_mbti, u.categories.score_enneagram,
+         u.profile_score, u.internal_profile_score]
+      );
+    }
+  });
+
+  // Update match counts (good_matches etc.) since scores changed
+  await updateMatchCounts();
+
+  return { rescored, skipped };
+}
+
 // ── Update total_matches and good_matches on users table ─────────
 
 async function updateMatchCounts(): Promise<void> {

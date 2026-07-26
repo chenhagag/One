@@ -29,7 +29,7 @@ import {
 import { analyzeAnswer } from "./openai";
 import { runStage1 } from "./matchStage1";
 import { updateCognitiveScore } from "./cognitiveScore";
-import { runStage2, runMatchmaking } from "./matchStage2";
+import { runStage2, runMatchmaking, rescoreExistingCandidates } from "./matchStage2";
 import { runAnalysisAgent, runSingleGroupAnalysis, getAvailableGroups, buildAnalysisInput, saveAnalysisToDb, saveAnalysisRun, getLatestAnalysisRun } from "./agents/analysis";
 import { computeCoverage, buildAnalysisTranscript } from "./agents/conversation";
 import { buildChatPrompt } from "./agents/conversation/chatManager";
@@ -2684,6 +2684,17 @@ app.post("/admin/run-matching-force", async (_req, res) => {
 app.post("/admin/run-matchmaking", async (_req, res) => {
   try {
     const result = await runMatchmaking(db);
+    return res.json(result);
+  } catch (err: any) {
+    console.error(err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /admin/rescore-all — Recalculate scores for ALL candidate_matches without changing status/notes
+app.post("/admin/rescore-all", async (_req, res) => {
+  try {
+    const result = await rescoreExistingCandidates();
     return res.json(result);
   } catch (err: any) {
     console.error(err);

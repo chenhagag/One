@@ -3681,6 +3681,23 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
     }
   }
 
+  // Rescore All = recalculate scores for ALL existing candidates without changing status/notes
+  async function rescoreAll() {
+    if (!confirm("לחשב מחדש ציונים לכל ההתאמות הקיימות? (לא משנה סטטוסים או הערות)")) return;
+    setRunning("rescore");
+    setResult(null);
+    try {
+      const r = await apiFetch("/admin/rescore-all", { method: "POST" });
+      const json = await r.json();
+      setResult(json);
+      load();
+    } catch (e: any) {
+      setResult({ error: e.message });
+    } finally {
+      setRunning(null);
+    }
+  }
+
   // Run Matchmaking = prioritize + select + freeze on existing approved matches.
   // Does NOT regenerate candidates or re-score.
   async function runMatchmaking() {
@@ -3757,6 +3774,13 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
           style={{ padding: "8px 16px", fontSize: 14, background: "#fd7e14", color: "#fff", border: "none", borderRadius: 6, cursor: running ? "wait" : "pointer", fontWeight: 600 }}
         >
           {running === "algorithm-force" ? "Running..." : "Run Algorithm (Force All)"}
+        </button>
+        <button
+          onClick={rescoreAll}
+          disabled={running !== null}
+          style={{ padding: "8px 16px", fontSize: 14, background: "#dc3545", color: "#fff", border: "none", borderRadius: 6, cursor: running ? "wait" : "pointer", fontWeight: 600 }}
+        >
+          {running === "rescore" ? "מחשב..." : "עדכון ציונים"}
         </button>
         <button
           onClick={runMatchmaking}
