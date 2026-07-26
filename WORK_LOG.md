@@ -1,6 +1,30 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-07-25 (Match Card + Incident Recovery + Look Traits)
+## Latest Session: 2026-07-26 (Safety Hardening — Reset + Cascade)
+
+### ✅ עלה לפרודקשן
+
+#### הסרת כפתור Reset All
+- הוסר endpoint `/admin/reset-matches` מה-backend
+- הוסרו פונקציית `resetMatches` וכפתור "Reset All" מהאדמין
+- מונע מחיקה בטעות של כל ה-matches במערכת
+- **קומיט**: `7b8b850`
+
+#### ON DELETE CASCADE → RESTRICT
+- `direct_messages.match_id` ו-`typing_status.match_id` שונו מ-CASCADE ל-RESTRICT
+- Migration אוטומטית מזהה FK קיים עם CASCADE ומחליפה ל-RESTRICT
+- מונע מחיקת הודעות DM כתוצאה ממחיקת match
+
+#### סנכרון staging ↔ production
+- staging היה מפגר 2 קומיטים אחרי main — סונכרן
+- שני הענפים זהים עכשיו
+
+### TODO לסשן הבא
+- להזין מחדש look traits לדנה (#263) ורותם (#256)
+
+---
+
+## Previous Session: 2026-07-25 (Match Card + Incident Recovery + Look Traits)
 
 ### ✅ עלה לפרודקשן
 
