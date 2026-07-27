@@ -2285,7 +2285,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
       const res = await apiFetch(`/users/${user.id}/reset-data`, { method: "POST" });
       if (res.ok) {
         alert("הנתונים נמחקו בהצלחה. החשבון שלך נשמר.");
-        setResetConfirm(false);
+        window.location.reload();
       } else {
         alert("משהו השתבש, נסו שוב");
       }
