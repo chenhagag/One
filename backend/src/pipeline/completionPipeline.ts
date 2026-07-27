@@ -17,7 +17,6 @@ import {
 } from "../db.pg";
 import { computeCoverage, updateUserReadiness } from "../agents/conversation";
 import { generateInsights } from "./generateInsights";
-import { sendPoolWelcomeEmail } from "./welcomeEmail";
 
 export interface CompletionResult {
   insights: { generated: boolean; skipped?: boolean; skipped_reason?: string };
@@ -76,19 +75,14 @@ export async function runCompletionPipeline(
     await updateJobStep(jobId, "pool_entered");
     console.log(`[pipeline] User ${userId}: entered matching pool`);
 
-    // ── Step 4: Send welcome email (non-blocking) ─────────────
-    try {
-      const emailResult = await sendPoolWelcomeEmail(userId);
-      result.email = emailResult;
-      if (emailResult.sent) {
-        await updateJobStep(jobId, "email_sent");
-      }
-      console.log(`[pipeline] User ${userId}: email result: sent=${emailResult.sent} ${emailResult.skipped_reason || ""}`);
-    } catch (err: any) {
-      // Email failure is non-blocking — user stays in pool
-      console.error(`[pipeline] User ${userId}: email failed (non-blocking):`, err.message);
-      result.email = { sent: false, skipped_reason: `error: ${err.message}` };
-    }
+    // ── Step 4: Mark email pending (admin sends manually) ─────
+    await pgQueryAll(
+      "UPDATE users SET pool_email_pending = TRUE WHERE id = $1",
+      [userId]
+    );
+    await updateJobStep(jobId, "email_pending");
+    result.email = { sent: false, skipped_reason: "pending_admin" };
+    console.log(`[pipeline] User ${userId}: pool_email_pending = true (admin will send manually)`);
   } else {
     result.pool = { entered: false, already_in_pool: true };
     console.log(`[pipeline] User ${userId}: already in matching pool`);

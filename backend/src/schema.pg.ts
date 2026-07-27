@@ -873,6 +873,13 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       END IF;
     END $$;
 
+    -- pool_email_pending — set by completion pipeline, cleared when admin sends email
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'pool_email_pending') THEN
+        ALTER TABLE users ADD COLUMN pool_email_pending BOOLEAN DEFAULT FALSE;
+      END IF;
+    END $$;
+
     -- match card data on matches
     DO $$ BEGIN
       IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'matches' AND column_name = 'match_card_data') THEN

@@ -2091,7 +2091,7 @@ app.delete("/admin/users/:id", async (req, res) => {
 });
 
 // POST /api/users/:id/reset-data — Delete all user data but keep account
-app.post("/api/users/:id/reset-data", requireAdmin, async (req, res) => {
+app.post("/users/:id/reset-data", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id);
   if (isNaN(userId)) return res.status(400).json({ error: "Invalid user ID" });
 
@@ -3711,7 +3711,7 @@ app.get("/admin/user-management", async (_req, res) => {
     let pipelineMap: Record<number, any> = {};
     try {
       const pipelineRows = await pgQueryAll<any>(
-        `SELECT id, admin_contacted, admin_processing_done, admin_processing_done_at, admin_checklist, partner_in_system, couple_handled_at, admin_notes, admin_force_completed, admin_location_override FROM users`
+        `SELECT id, admin_contacted, admin_processing_done, admin_processing_done_at, admin_checklist, partner_in_system, couple_handled_at, admin_notes, admin_force_completed, admin_location_override, pool_email_pending FROM users`
       );
       for (const r of pipelineRows) pipelineMap[r.id] = r;
     } catch { /* columns not yet migrated — use defaults */ }
@@ -3856,6 +3856,7 @@ app.get("/admin/user-management", async (_req, res) => {
         couple_handled_at: pipe.couple_handled_at || null,
         admin_notes: pipe.admin_notes || "",
         admin_location_override: pipe.admin_location_override || null,
+        pool_email_pending: pipe.pool_email_pending ?? false,
         partner_name: u.partner_name || null,
         // Matching filter fields
         looking_for_gender: u.looking_for_gender || null,
@@ -3999,6 +4000,9 @@ app.post("/admin/users/:id/pipeline-action", async (req, res) => {
         break;
       case "toggle_partner":
         await pgQueryAll("UPDATE users SET partner_in_system = NOT COALESCE(partner_in_system, FALSE), updated_at = NOW() WHERE id = $1", [userId]);
+        break;
+      case "clear_pool_pending":
+        await pgQueryAll("UPDATE users SET pool_email_pending = FALSE, updated_at = NOW() WHERE id = $1", [userId]);
         break;
       default:
         return res.status(400).json({ error: `Unknown action: ${action}` });

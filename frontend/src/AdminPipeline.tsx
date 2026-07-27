@@ -59,6 +59,7 @@ interface PipelineUser {
   couple_handled_at: string | null;
   admin_notes: string;
   admin_location_override: string | null;
+  pool_email_pending: boolean;
   partner_name: string | null;
   photo_count: number;
   has_profile_details: boolean;
@@ -421,17 +422,27 @@ function PipelineStageSection({
         <div style={{ padding: "8px 0" }}>
           {users.length === 0 && <p style={{ padding: "8px 16px", color: "#94a3b8", fontSize: 13 }}>אין משתמשים בשלב זה</p>}
           {config.key === "pool" ? (() => {
-            const complete = users.filter(u => u.chat_closed && u.cog_closed && u.taste_closed && u.photo_count >= 1);
-            const incomplete = users.filter(u => !(u.chat_closed && u.cog_closed && u.taste_closed && u.photo_count >= 1));
+            const pending = users.filter(u => u.pool_email_pending);
+            const rest = users.filter(u => !u.pool_email_pending);
+            const complete = rest.filter(u => u.chat_closed && u.cog_closed && u.taste_closed && u.photo_count >= 1);
+            const incomplete = rest.filter(u => !(u.chat_closed && u.cog_closed && u.taste_closed && u.photo_count >= 1));
             const renderCards = (list: PipelineUser[]) => list.map(u => (
               <PipelineUserCard key={u.id} user={u} stage={config.key} stageColor={config.color}
                 onPipelineAction={onPipelineAction} onChecklistUpdate={onChecklistUpdate} onReload={onReload} onSelectUser={onSelectUser} />
             ));
             return (
               <>
+                {pending.length > 0 && (
+                  <>
+                    <div style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, color: "#7c3aed", borderBottom: "1px solid #e9d5ff", marginBottom: 4 }}>
+                      📬 נכנסו אוטומטית למאגר — ממתינים למייל ({pending.length})
+                    </div>
+                    {renderCards(pending)}
+                  </>
+                )}
                 {complete.length > 0 && (
                   <>
-                    <div style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, color: "#16a34a", borderBottom: "1px solid #dcfce7", marginBottom: 4 }}>
+                    <div style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, color: "#16a34a", borderBottom: "1px solid #dcfce7", marginTop: pending.length > 0 ? 12 : 0, marginBottom: 4 }}>
                       ✓ תהליך מלא ({complete.length})
                     </div>
                     {renderCards(complete)}
@@ -439,7 +450,7 @@ function PipelineStageSection({
                 )}
                 {incomplete.length > 0 && (
                   <>
-                    <div style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, color: "#d97706", borderBottom: "1px solid #fef3c7", marginTop: complete.length > 0 ? 12 : 0, marginBottom: 4 }}>
+                    <div style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, color: "#d97706", borderBottom: "1px solid #fef3c7", marginTop: (pending.length > 0 || complete.length > 0) ? 12 : 0, marginBottom: 4 }}>
                       ⚠ חלקי — חסרים ערוצים / תמונה ({incomplete.length})
                     </div>
                     {renderCards(incomplete)}
@@ -860,6 +871,18 @@ function PipelineUserCard({
             ) : (
               <button style={outlineBtnStyle("#7c3aed")} onClick={() => { setMsgText(buildPoolMessage(isFemale)); setShowMessage(true); }}>💬 כתוב הודעה</button>
             )}
+          </>
+        )}
+
+        {/* Pool — pending email: send pool email + mark done */}
+        {stage === "pool" && u.pool_email_pending && (
+          <>
+            {u.email_updates ? (
+              <button style={outlineBtnStyle("#0ea5e9")} onClick={() => { setShowEmail(true); loadTemplate(); }}>📧 שלח מייל כניסה למאגר</button>
+            ) : (
+              <button style={outlineBtnStyle("#7c3aed")} onClick={() => { setMsgText(buildPoolMessage(isFemale)); setShowMessage(true); }}>💬 הודעת כניסה למאגר</button>
+            )}
+            <button style={btnStyle("#16a34a")} onClick={() => onPipelineAction(u.id, "clear_pool_pending")}>✓ סיימתי טיפול</button>
           </>
         )}
 
