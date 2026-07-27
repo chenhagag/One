@@ -5155,9 +5155,22 @@ function UserPhotosGallery({ userId, userName, photoAiConsent }: { userId: numbe
       {expanded && (
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
           {photos.map((p: any) => (
-            <div key={p.id} style={{ cursor: "pointer" }} onClick={() => setViewPhoto(`/uploads/${p.filename}`)}>
-              <img src={`/uploads/${p.filename}`} alt={p.original_name}
-                style={{ width: 100, height: 100, objectFit: "cover", borderRadius: 8, border: "1px solid #e5e7eb" }} />
+            <div key={p.id} style={{ position: "relative" }}>
+              <div style={{ cursor: "pointer" }} onClick={() => setViewPhoto(`/uploads/${p.filename}`)}>
+                <img src={`/uploads/${p.filename}`} alt={p.original_name}
+                  style={{ width: 100, height: 100, objectFit: "cover", borderRadius: 8, border: p.is_primary ? "3px solid #6366f1" : "1px solid #e5e7eb" }} />
+              </div>
+              {p.is_primary ? (
+                <div style={{ position: "absolute", top: 2, right: 2, background: "#6366f1", color: "#fff", fontSize: 8, padding: "1px 4px", borderRadius: 3, fontWeight: 700 }}>ראשית</div>
+              ) : (
+                <button
+                  style={{ position: "absolute", top: 2, right: 2, background: "rgba(255,255,255,0.9)", fontSize: 8, padding: "1px 4px", borderRadius: 3, border: "1px solid #d1d5db", cursor: "pointer" }}
+                  onClick={async () => {
+                    await apiFetch(`/admin/users/${userId}/photos/${p.id}/set-primary`, { method: "POST" });
+                    setPhotos((prev: any[]) => prev.map((ph: any) => ({ ...ph, is_primary: ph.id === p.id })));
+                  }}
+                >קבע ראשית</button>
+              )}
             </div>
           ))}
         </div>

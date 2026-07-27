@@ -289,6 +289,7 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       original_name TEXT,
       mime_type     TEXT,
       size_bytes    INTEGER,
+      is_primary    BOOLEAN DEFAULT FALSE,
       created_at    TIMESTAMPTZ DEFAULT NOW()
     );
 
@@ -934,6 +935,12 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
     DO $$ BEGIN
       IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'matches' AND column_name = 'rating_admin_seen') THEN
         ALTER TABLE matches ADD COLUMN rating_admin_seen BOOLEAN DEFAULT FALSE;
+      END IF;
+    END $$;
+
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_photos' AND column_name = 'is_primary') THEN
+        ALTER TABLE user_photos ADD COLUMN is_primary BOOLEAN DEFAULT FALSE;
       END IF;
     END $$;
 

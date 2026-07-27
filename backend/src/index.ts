@@ -978,6 +978,17 @@ app.delete("/users/:id/photos/:photoId", requireUserAuth, async (req, res) => {
   return res.json({ deleted: true, photo_count: Number(countRow?.c ?? 0) });
 });
 
+// POST /admin/users/:id/photos/:photoId/set-primary — Set a photo as primary
+app.post("/admin/users/:id/photos/:photoId/set-primary", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const photoId = parseInt(req.params.photoId, 10);
+  await withTransaction(async (client) => {
+    await client.query("UPDATE user_photos SET is_primary = FALSE WHERE user_id = $1", [userId]);
+    await client.query("UPDATE user_photos SET is_primary = TRUE WHERE id = $1 AND user_id = $2", [photoId, userId]);
+  });
+  return res.json({ ok: true });
+});
+
 // POST /users/:id/match-card-consent — Save match card consent decision
 app.post("/users/:id/match-card-consent", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
@@ -1024,11 +1035,11 @@ app.get("/users/:id/active-match-card", requireUserAuth, async (req, res) => {
 
     // Get partner photos (prefer 2nd photo, fallback to 1st)
     const photos = await pgQueryAll<any>(
-      "SELECT id, filename FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC LIMIT 2",
+      "SELECT id, filename FROM user_photos WHERE user_id = $1 ORDER BY is_primary DESC, created_at ASC LIMIT 2",
       [partnerId]
     );
     const myPhotos = await pgQueryAll<any>(
-      "SELECT id, filename FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC LIMIT 2",
+      "SELECT id, filename FROM user_photos WHERE user_id = $1 ORDER BY is_primary DESC, created_at ASC LIMIT 2",
       [userId]
     );
 
@@ -1399,7 +1410,7 @@ app.get("/users/:id/match-history", requireUserAuth, async (req, res) => {
       const partnerId = isUser1 ? m.user2_id : m.user1_id;
       // Get partner's first photo
       const photo = await pgQueryOne<any>(
-        "SELECT filename FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1",
+        "SELECT filename FROM user_photos WHERE user_id = $1 ORDER BY is_primary DESC, created_at ASC LIMIT 1",
         [partnerId]
       );
       result.push({
@@ -1443,7 +1454,7 @@ app.get("/users/:id/match-partner-profile", requireUserAuth, async (req, res) =>
     if (!partner) return res.status(404).json({ error: "Partner not found" });
 
     const photos = await pgQueryAll<any>(
-      "SELECT id, filename FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC",
+      "SELECT id, filename, is_primary FROM user_photos WHERE user_id = $1 ORDER BY is_primary DESC, created_at ASC",
       [partnerId]
     );
 
@@ -3098,8 +3109,8 @@ app.get("/admin/candidate-matches", async (_req, res) => {
       u2.match_card_restrictions as user2_card_restrictions,
       u1.admin_notes as user1_admin_notes,
       u2.admin_notes as user2_admin_notes,
-      (SELECT filename FROM user_photos WHERE user_id = u1.id ORDER BY created_at ASC LIMIT 1) as user1_photo,
-      (SELECT filename FROM user_photos WHERE user_id = u2.id ORDER BY created_at ASC LIMIT 1) as user2_photo
+      (SELECT filename FROM user_photos WHERE user_id = u1.id ORDER BY is_primary DESC, created_at ASC LIMIT 1) as user1_photo,
+      (SELECT filename FROM user_photos WHERE user_id = u2.id ORDER BY is_primary DESC, created_at ASC LIMIT 1) as user2_photo
     FROM candidate_matches cm
     JOIN users u1 ON u1.id = cm.user_id
     JOIN users u2 ON u2.id = cm.candidate_user_id
@@ -3152,11 +3163,11 @@ app.get("/admin/candidate-matches/:id/detail", async (req, res) => {
 
   // Get photos for both users
   const user1Photos = await pgQueryAll<any>(
-    "SELECT id, filename FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC",
+    "SELECT id, filename, is_primary FROM user_photos WHERE user_id = $1 ORDER BY is_primary DESC, created_at ASC",
     [cm.user_id]
   );
   const user2Photos = await pgQueryAll<any>(
-    "SELECT id, filename FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC",
+    "SELECT id, filename, is_primary FROM user_photos WHERE user_id = $1 ORDER BY is_primary DESC, created_at ASC",
     [cm.candidate_user_id]
   );
 
@@ -3478,7 +3489,7 @@ app.get("/matches/pending-rating", requireAuth, async (req, res) => {
 
   // Get partner's photos
   const photos = await pgQueryAll(
-    "SELECT id, filename FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC",
+    "SELECT id, filename, is_primary FROM user_photos WHERE user_id = $1 ORDER BY is_primary DESC, created_at ASC",
     [partnerId]
   );
 
