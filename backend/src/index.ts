@@ -2955,7 +2955,7 @@ app.get("/admin/users/:id/matches", async (req, res) => {
   const uid = parseInt(req.params.id, 10);
   const rows = await pgQueryAll(`
     SELECT m.id, m.match_score, m.status, m.user1_id, m.user2_id,
-      m.user1_rating, m.user2_rating, m.sent_for_rating_at, m.sent_for_rating_to, m.rejection_reason,
+      m.user1_rating, m.user2_rating, m.sent_for_rating_at, m.sent_for_rating_to, m.rejection_reason, m.rating_admin_seen,
       u.id as other_id, u.first_name as other_name,
       u1.pickiness_score as user1_pickiness,
       u2.pickiness_score as user2_pickiness
@@ -3924,6 +3924,13 @@ app.get("/admin/system-questions/pending", async (_req, res) => {
 app.post("/admin/system-questions/:id/mark-seen", async (req, res) => {
   const id = parseInt(req.params.id, 10);
   await pgQueryOne("UPDATE system_questions SET admin_seen = TRUE, admin_seen_at = NOW() WHERE id = $1", [id]);
+  return res.json({ ok: true });
+});
+
+// POST /admin/matches/:id/mark-rating-seen — Admin marks rating as seen
+app.post("/admin/matches/:id/mark-rating-seen", async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  await pgQueryOne("UPDATE matches SET rating_admin_seen = TRUE, updated_at = NOW() WHERE id = $1", [id]);
   return res.json({ ok: true });
 });
 
