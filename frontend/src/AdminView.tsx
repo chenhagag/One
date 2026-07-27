@@ -4350,7 +4350,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, fontSize: 12 }}>
                 {[
                   { label: "פנימי", val: matchDetail.internal_score },
-                  { label: "חיצוני", val: matchDetail.external_score },
+                  { label: "פרופיל פנימי", val: matchDetail.internal_profile_score },
                   { label: "סופי", val: matchDetail.final_score },
                   { label: "פרופיל", val: matchDetail.profile_score },
                   { label: "קוגניטיבי", val: matchDetail.score_cognitive },
