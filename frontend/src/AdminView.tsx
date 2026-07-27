@@ -4004,25 +4004,6 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                         {(cm.user1_cog_count < 5 || cm.user1_taste_count < 5 || cm.user1_photo_count < 1) && (
                           <span title={[cm.user1_cog_count < 5 && "חסר קוגניטיבי", cm.user1_taste_count < 5 && "חסר טעם", cm.user1_photo_count < 1 && "ללא תמונה"].filter(Boolean).join(", ")} style={{ marginRight: 4, color: "#d97706", fontSize: 11, fontWeight: 700 }}>⚠</span>
                         )}
-                        {cm.user1_photo_count < 1 && (
-                          <button
-                            title="שלח הודעת בקשת תמונה"
-                            style={{ fontSize: 9, padding: "1px 5px", background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", borderRadius: 3, cursor: "pointer", marginRight: 2 }}
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              const isFemale = cm.user1_gender === "woman";
-                              const g = (m: string, f: string) => isFemale ? f : m;
-                              const otherHasPhoto = cm.user2_photo_count > 0;
-                              const otherGenderLabel = cm.user1_looking_for === "woman" ? "המשתמשת" : cm.user1_looking_for === "man" ? "המשתמש" : "המשתמש/ת";
-                              const msg = otherHasPhoto
-                                ? `הודעה ממערכת One: מצאנו ${g("עבורך", "עבורך")} כיוון להתאמה 😊\n\n${otherGenderLabel} שמצאנו כבר ${cm.user1_looking_for === "woman" ? "העלתה" : "העלה"} תמונה, ונשמח לאפשר ${g("לכם", "לכן")} לבדוק גם התאמה ראשונית מבחינת משיכה. כדי לשמור על הוגנות והדדיות, נוכל לשתף את התמונה ${cm.user1_looking_for === "woman" ? "שלה" : "שלו"} רק לאחר שתעל${g("ה", "י")} גם תמונה ${g("משלך", "משלך")}.\n\nבהצלחה מצוות One!`
-                                : `הודעה ממערכת One: מצאנו ${g("עבורך", "עבורך")} כיוון להתאמה 😊\n\nכדי לבדוק התאמה ראשונית מבחינת משיכה, חשוב שגם ${g("אתה וגם הצד השני תעלו", "את וגם הצד השני תעלו")} תמונות. כדי לשמור על הוגנות והדדיות — נשמח ${g("שתעלה", "שתעלי")} תמונה ${g("משלך", "משלך")}.\n\nבהצלחה מצוות One!`;
-                              if (!confirm(`לשלוח הודעת בקשת תמונה ל${cm.user1_name}?\n\n${msg}`)) return;
-                              await apiFetch(`/admin/users/${cm.user_id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin_message: msg }) });
-                              alert("ההודעה נשלחה!");
-                            }}
-                          >📷</button>
-                        )}
                         {cm.user1_admin_notes && <div style={{ fontSize: 10, color: "#6b7280", maxWidth: 180, whiteSpace: "pre-wrap", lineHeight: 1.3, marginTop: 2, direction: "rtl" }}>{cm.user1_admin_notes}</div>}
                       </div>
                     </div>
@@ -4034,25 +4015,6 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                         <button style={s.expandBtn} onClick={() => setSelectedUserId(cm.candidate_user_id)}>{cm.user2_name}</button> ({cm.user2_age}, {cm.user2_city})
                         {(cm.user2_cog_count < 5 || cm.user2_taste_count < 5 || cm.user2_photo_count < 1) && (
                           <span title={[cm.user2_cog_count < 5 && "חסר קוגניטיבי", cm.user2_taste_count < 5 && "חסר טעם", cm.user2_photo_count < 1 && "ללא תמונה"].filter(Boolean).join(", ")} style={{ marginRight: 4, color: "#d97706", fontSize: 11, fontWeight: 700 }}>⚠</span>
-                        )}
-                        {cm.user2_photo_count < 1 && (
-                          <button
-                            title="שלח הודעת בקשת תמונה"
-                            style={{ fontSize: 9, padding: "1px 5px", background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", borderRadius: 3, cursor: "pointer", marginRight: 2 }}
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              const isFemale = cm.user2_gender === "woman";
-                              const g = (m: string, f: string) => isFemale ? f : m;
-                              const otherHasPhoto = cm.user1_photo_count > 0;
-                              const otherGenderLabel = cm.user2_looking_for === "woman" ? "המשתמשת" : cm.user2_looking_for === "man" ? "המשתמש" : "המשתמש/ת";
-                              const msg = otherHasPhoto
-                                ? `הודעה ממערכת One: מצאנו ${g("עבורך", "עבורך")} כיוון להתאמה 😊\n\n${otherGenderLabel} שמצאנו כבר ${cm.user2_looking_for === "woman" ? "העלתה" : "העלה"} תמונה, ונשמח לאפשר ${g("לכם", "לכן")} לבדוק גם התאמה ראשונית מבחינת משיכה. כדי לשמור על הוגנות והדדיות, נוכל לשתף את התמונה ${cm.user2_looking_for === "woman" ? "שלה" : "שלו"} רק לאחר שתעל${g("ה", "י")} גם תמונה ${g("משלך", "משלך")}.\n\nבהצלחה מצוות One!`
-                                : `הודעה ממערכת One: מצאנו ${g("עבורך", "עבורך")} כיוון להתאמה 😊\n\nכדי לבדוק התאמה ראשונית מבחינת משיכה, חשוב שגם ${g("אתה וגם הצד השני תעלו", "את וגם הצד השני תעלו")} תמונות. כדי לשמור על הוגנות והדדיות — נשמח ${g("שתעלה", "שתעלי")} תמונה ${g("משלך", "משלך")}.\n\nבהצלחה מצוות One!`;
-                              if (!confirm(`לשלוח הודעת בקשת תמונה ל${cm.user2_name}?\n\n${msg}`)) return;
-                              await apiFetch(`/admin/users/${cm.candidate_user_id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin_message: msg }) });
-                              alert("ההודעה נשלחה!");
-                            }}
-                          >📷</button>
                         )}
                         {cm.user2_admin_notes && <div style={{ fontSize: 10, color: "#6b7280", maxWidth: 180, whiteSpace: "pre-wrap", lineHeight: 1.3, marginTop: 2, direction: "rtl" }}>{cm.user2_admin_notes}</div>}
                       </div>
@@ -4485,6 +4447,36 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                     }}
                   >שלח ללא תמונות</button>
                 )}
+              </div>
+            )}
+
+            {/* Photo request buttons */}
+            {(matchDetail.user1_photo_count < 1 || matchDetail.user2_photo_count < 1) && (
+              <div style={{ border: "1px solid #fde68a", borderRadius: 8, padding: 16, marginBottom: 16, background: "#fffbeb" }}>
+                <h4 style={{ margin: "0 0 8px", color: "#92400e" }}>📷 בקשת תמונה</h4>
+                {[
+                  { userId: matchDetail.user_id, name: matchDetail.user1_name, gender: matchDetail.user1_gender, lookingFor: matchDetail.user1_looking_for, photoCount: matchDetail.user1_photo_count, otherPhotoCount: matchDetail.user2_photo_count },
+                  { userId: matchDetail.candidate_user_id, name: matchDetail.user2_name, gender: matchDetail.user2_gender, lookingFor: matchDetail.user2_looking_for, photoCount: matchDetail.user2_photo_count, otherPhotoCount: matchDetail.user1_photo_count },
+                ].filter(u => u.photoCount < 1).map(u => {
+                  const isFemale = u.gender === "woman";
+                  const g = (m: string, f: string) => isFemale ? f : m;
+                  const otherHasPhoto = u.otherPhotoCount > 0;
+                  const otherGenderLabel = u.lookingFor === "woman" ? "המשתמשת" : u.lookingFor === "man" ? "המשתמש" : "המשתמש/ת";
+                  const msg = otherHasPhoto
+                    ? `הודעה ממערכת One: מצאנו ${g("עבורך", "עבורך")} כיוון להתאמה 😊\n\n${otherGenderLabel} שמצאנו כבר ${u.lookingFor === "woman" ? "העלתה" : "העלה"} תמונה, ונשמח לאפשר ${g("לכם", "לכן")} לבדוק גם התאמה ראשונית מבחינת משיכה. כדי לשמור על הוגנות והדדיות, נוכל לשתף את התמונה ${u.lookingFor === "woman" ? "שלה" : "שלו"} רק לאחר שתעל${g("ה", "י")} גם תמונה ${g("משלך", "משלך")}.\n\nבהצלחה מצוות One!`
+                    : `הודעה ממערכת One: מצאנו ${g("עבורך", "עבורך")} כיוון להתאמה 😊\n\nכדי לבדוק התאמה ראשונית מבחינת משיכה, חשוב שגם ${g("אתה וגם הצד השני תעלו", "את וגם הצד השני תעלו")} תמונות. כדי לשמור על הוגנות והדדיות — נשמח ${g("שתעלה", "שתעלי")} תמונה ${g("משלך", "משלך")}.\n\nבהצלחה מצוות One!`;
+                  return (
+                    <button
+                      key={u.userId}
+                      style={{ display: "block", marginBottom: 6, padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#f59e0b", color: "#fff" }}
+                      onClick={async () => {
+                        if (!confirm(`לשלוח הודעת בקשת תמונה ל${u.name}?\n\n${msg}`)) return;
+                        await apiFetch(`/admin/users/${u.userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin_message: msg }) });
+                        alert("ההודעה נשלחה!");
+                      }}
+                    >שלח הודעת תמונה ל{u.name}</button>
+                  );
+                })}
               </div>
             )}
 
