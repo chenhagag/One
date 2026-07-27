@@ -3095,7 +3095,11 @@ app.get("/admin/candidate-matches", async (_req, res) => {
       u1.match_card_consent as user1_card_consent,
       u1.match_card_restrictions as user1_card_restrictions,
       u2.match_card_consent as user2_card_consent,
-      u2.match_card_restrictions as user2_card_restrictions
+      u2.match_card_restrictions as user2_card_restrictions,
+      u1.admin_notes as user1_admin_notes,
+      u2.admin_notes as user2_admin_notes,
+      (SELECT filename FROM user_photos WHERE user_id = u1.id ORDER BY created_at ASC LIMIT 1) as user1_photo,
+      (SELECT filename FROM user_photos WHERE user_id = u2.id ORDER BY created_at ASC LIMIT 1) as user2_photo
     FROM candidate_matches cm
     JOIN users u1 ON u1.id = cm.user_id
     JOIN users u2 ON u2.id = cm.candidate_user_id
@@ -3117,6 +3121,73 @@ app.patch("/admin/candidate-matches/:id/notes", async (req, res) => {
     console.error("[candidate-match-notes] Error:", err);
     return res.status(500).json({ error: "Failed to update notes" });
   }
+});
+
+// GET /admin/candidate-matches/:id/detail — Detailed match view with user profiles
+app.get("/admin/candidate-matches/:id/detail", async (req, res) => {
+  const cmId = parseInt(req.params.id, 10);
+  if (!Number.isFinite(cmId)) return res.status(400).json({ error: "Invalid ID" });
+
+  const cm = await pgQueryOne<any>(`
+    SELECT cm.*,
+      u1.first_name as user1_name, u1.age as user1_age, u1.city as user1_city, u1.gender as user1_gender, u1.looking_for_gender as user1_looking_for, u1.admin_notes as user1_admin_notes, u1.cognitive_score as user1_cognitive_score,
+      u1.height as user1_height, u1.smoker as user1_smoker, u1.has_children as user1_has_children, u1.marital_status as user1_marital_status, u1.religion as user1_religion,
+      u1.desired_age_min as user1_desired_age_min, u1.desired_age_max as user1_desired_age_max, u1.desired_height_min as user1_desired_height_min, u1.desired_height_max as user1_desired_height_max, u1.desired_location_range as user1_desired_location_range,
+      u2.first_name as user2_name, u2.age as user2_age, u2.city as user2_city, u2.gender as user2_gender, u2.looking_for_gender as user2_looking_for, u2.admin_notes as user2_admin_notes, u2.cognitive_score as user2_cognitive_score,
+      u2.height as user2_height, u2.smoker as user2_smoker, u2.has_children as user2_has_children, u2.marital_status as user2_marital_status, u2.religion as user2_religion,
+      u2.desired_age_min as user2_desired_age_min, u2.desired_age_max as user2_desired_age_max, u2.desired_height_min as user2_desired_height_min, u2.desired_height_max as user2_desired_height_max, u2.desired_location_range as user2_desired_location_range,
+      m.status as match_status, m.id as match_id, m.user1_rating, m.user2_rating,
+      m.match_card_data, m.match_card_sent_at,
+      (SELECT COUNT(*) FROM user_photos WHERE user_id = u1.id)::int as user1_photo_count,
+      (SELECT COUNT(*) FROM user_photos WHERE user_id = u2.id)::int as user2_photo_count
+    FROM candidate_matches cm
+    JOIN users u1 ON u1.id = cm.user_id
+    JOIN users u2 ON u2.id = cm.candidate_user_id
+    LEFT JOIN matches m ON (m.user1_id = cm.user_id AND m.user2_id = cm.candidate_user_id)
+                        OR (m.user1_id = cm.candidate_user_id AND m.user2_id = cm.user_id)
+    WHERE cm.id = $1
+  `, [cmId]);
+
+  if (!cm) return res.status(404).json({ error: "Not found" });
+
+  // Get photos for both users
+  const user1Photos = await pgQueryAll<any>(
+    "SELECT id, filename FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC",
+    [cm.user_id]
+  );
+  const user2Photos = await pgQueryAll<any>(
+    "SELECT id, filename FROM user_photos WHERE user_id = $1 ORDER BY created_at ASC",
+    [cm.candidate_user_id]
+  );
+
+  // Get individual trait scores per user (grouped by trait_group)
+  const userTraits = async (userId: number) => {
+    const rows = await pgQueryAll<any>(`
+      SELECT td.trait_group, td.internal_name, td.calc_type, ut.score, ut.confidence
+      FROM user_traits ut
+      JOIN trait_definitions td ON td.id = ut.trait_definition_id
+      WHERE ut.user_id = $1 AND td.trait_group IS NOT NULL
+      ORDER BY td.trait_group, td.internal_name
+    `, [userId]);
+    // Group by trait_group
+    const grouped: Record<string, any[]> = {};
+    for (const r of rows) {
+      if (!grouped[r.trait_group]) grouped[r.trait_group] = [];
+      grouped[r.trait_group].push({ name: r.internal_name, score: r.score, confidence: r.confidence, calc_type: r.calc_type });
+    }
+    return grouped;
+  };
+
+  const user1Traits = await userTraits(cm.user_id);
+  const user2Traits = await userTraits(cm.candidate_user_id);
+
+  return res.json({
+    ...cm,
+    user1_photos: user1Photos.map((p: any) => `/uploads/${p.filename}`),
+    user2_photos: user2Photos.map((p: any) => `/uploads/${p.filename}`),
+    user1_traits: user1Traits,
+    user2_traits: user2Traits,
+  });
 });
 
 // PATCH /admin/matches/:id/status — Manually change match status
