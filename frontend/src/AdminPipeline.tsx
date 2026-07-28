@@ -280,7 +280,7 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
   }
 
   // Group users by stage
-  const grouped: Record<Stage, PipelineUser[]> = { new: [], couples: [], couples_done: [], in_process: [], completed_all: [], completed_partial: [], ready_pool: [], pool: [] };
+  const grouped: Record<Stage, PipelineUser[]> = { new: [], couples: [], couples_done: [], in_process: [], completed_all: [], completed_partial: [], ready_pool: [], auto_pool: [], pool: [] };
   for (const u of users) {
     const stage = getStage(u);
     grouped[stage].push(u);
