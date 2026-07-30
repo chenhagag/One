@@ -50,13 +50,10 @@ export async function runCompletionPipeline(
   await updateJobStep(jobId, "insights");
   console.log(`[pipeline] User ${userId}: insights done (generated=${!insightsResult.skipped})`);
 
-  // ── Step 2: Mark analysis_completed ───────────────────────────
-  await pgQueryAll(
-    "UPDATE users SET analysis_completed = TRUE, updated_at = NOW() WHERE id = $1",
-    [userId]
-  );
-  await updateJobStep(jobId, "analysis_completed");
-  console.log(`[pipeline] User ${userId}: analysis_completed = true`);
+  // ── Step 2: Skip marking analysis_completed — admin reviews first
+  // (analysis_completed stays FALSE until admin manually approves)
+  await updateJobStep(jobId, "analysis_completed_skipped");
+  console.log(`[pipeline] User ${userId}: analysis_completed NOT set (admin will review)`);
 
   // ── Step 2.5: Recompute coverage (for matchStage accuracy) ────
   const cov = await computeCoverage(db, userId);
