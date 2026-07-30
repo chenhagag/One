@@ -15,7 +15,7 @@ import AdminPipeline from "./AdminPipeline";
  * - Matches
  */
 
-type Tab = "overview" | "users" | "profiles" | "traits" | "look_traits" | "enums" | "config" | "matches" | "candidates" | "bugs" | "card_requests" | "errors" | "email" | "analytics" | "user_mgmt" | "deleted_users";
+type Tab = "overview" | "users" | "traits" | "look_traits" | "matches" | "candidates" | "bugs" | "card_requests" | "errors" | "email" | "analytics" | "user_mgmt" | "deleted_users";
 
 const s: Record<string, React.CSSProperties> = {
   heading: { marginTop: 0, marginBottom: 8, fontSize: 22 },
@@ -407,11 +407,8 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
         {([
           ["overview", "Overview"],
           ["users", "Users"],
-          ["profiles", "User Profiles"],
           ["traits", "Trait Defs"],
           ["look_traits", "Look Trait Defs"],
-          ["enums", "Enum Options"],
-          ["config", "Config"],
           ["candidates", "Candidate Matches"],
           ["matches", "Matched"],
           ["bugs", "משוב ודיווחים"],
@@ -440,11 +437,8 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
 
       {tab === "overview" && <OverviewTab />}
       {tab === "users" && <UsersTab onStartChat={onStartChat} onViewDashboard={onViewDashboard} onViewNewChat={onViewNewChat} />}
-      {tab === "profiles" && <UserProfilesTab />}
       {tab === "traits" && <TraitDefsTab />}
       {tab === "look_traits" && <LookTraitDefsTab />}
-      {tab === "enums" && <EnumsTab />}
-      {tab === "config" && <ConfigTab />}
       {tab === "matches" && <MatchesTab />}
       {tab === "candidates" && <CandidateMatchesTab onViewDashboard={onViewDashboard} onStartChat={onStartChat} onViewNewChat={onViewNewChat} />}
       {tab === "bugs" && <BugReportsTab />}
