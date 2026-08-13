@@ -122,7 +122,7 @@ app.use(express.json({ limit: "1mb" }));
 // ── Rate limiting ───────────────────────────────────────────────
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 300,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => req.path.startsWith("/admin") || req.path.startsWith("/api/admin")
@@ -3900,6 +3900,35 @@ app.post("/admin/users/:id/system-question", async (req, res) => {
     [userId, question_text]
   );
   return res.json(row);
+});
+
+// GET /admin/outreach-log — All ratings sent + all system questions (historical)
+app.get("/admin/outreach-log", async (_req, res) => {
+  try {
+    const ratings = await pgQueryAll(`
+      SELECT m.id, m.user1_id, m.user2_id, m.status, m.match_score,
+        m.user1_rating, m.user2_rating, m.rejection_reason,
+        m.sent_for_rating_at, m.sent_for_rating_to, m.rating_admin_seen,
+        m.updated_at,
+        u1.first_name as user1_name, u2.first_name as user2_name,
+        (SELECT MAX(viewed_at) FROM page_views WHERE user_id = m.sent_for_rating_to) as sent_to_last_visit
+      FROM matches m
+      JOIN users u1 ON u1.id = m.user1_id
+      JOIN users u2 ON u2.id = m.user2_id
+      WHERE m.sent_for_rating_at IS NOT NULL
+      ORDER BY m.sent_for_rating_at DESC
+    `);
+    const questions = await pgQueryAll(`
+      SELECT sq.*, u.first_name,
+        (SELECT MAX(viewed_at) FROM page_views WHERE user_id = sq.user_id) as user_last_visit
+      FROM system_questions sq
+      JOIN users u ON u.id = sq.user_id
+      ORDER BY sq.created_at DESC
+    `);
+    return res.json({ ratings, questions });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // GET /admin/match-ratings/pending — Matches with user ratings that admin hasn't seen/acted on

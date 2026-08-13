@@ -13,7 +13,7 @@ import AdminPipeline from "./AdminPipeline";
  * - Matches
  */
 
-type Tab = "overview" | "users" | "traits" | "look_traits" | "matches" | "candidates" | "bugs" | "card_requests" | "errors" | "email" | "analytics" | "user_mgmt" | "deleted_users";
+type Tab = "overview" | "users" | "traits" | "look_traits" | "matches" | "candidates" | "bugs" | "card_requests" | "errors" | "email" | "analytics" | "user_mgmt" | "outreach" | "deleted_users";
 
 const s: Record<string, React.CSSProperties> = {
   heading: { marginTop: 0, marginBottom: 8, fontSize: 22 },
@@ -415,6 +415,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
           ["analytics", "Analytics"],
           ["email", "Send Email"],
           ["user_mgmt", "ניהול משתמשים"],
+          ["outreach", "יומן פניות"],
           ["deleted_users", "משתמשים שנמחקו"],
         ] as [Tab, string][]).map(([key, label]) => (
           <button
@@ -445,6 +446,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
       {tab === "analytics" && <AnalyticsTab />}
       {tab === "email" && <SendEmailTab />}
       {tab === "user_mgmt" && <AdminPipeline onSelectUser={(userId) => { setTab("users"); setTimeout(() => window.dispatchEvent(new CustomEvent("admin-select-user", { detail: userId })), 100); }} />}
+      {tab === "outreach" && <OutreachLogTab />}
       {tab === "deleted_users" && <DeletedUsersTab />}
     </div>
   );
@@ -2000,9 +2002,15 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                 </button>
               )}
             </div>
-            {data?.user?.admin_message && (
-              <div style={{ marginTop: 6, fontSize: 11, color: "#92400e" }}>⚡ הודעה פעילה — מוצגת כרגע במסך הבית של המשתמש/ת</div>
-            )}
+            {data?.user?.admin_message && (() => {
+              const userLastVisit = pageViews?.summary?.reduce((max: string | null, p: any) => (!max || (p.last_visit && p.last_visit > max)) ? p.last_visit : max, null as string | null);
+              return (
+                <div style={{ marginTop: 6, fontSize: 11, color: "#92400e" }}>
+                  ⚡ הודעה פעילה — מוצגת כרגע במסך הבית של המשתמש/ת
+                  {userLastVisit && <span style={{ marginRight: 8, color: "#64748b" }}> · כניסה אחרונה: {new Date(userLastVisit).toLocaleDateString("he-IL")}</span>}
+                </div>
+              );
+            })()}
           </div>
 
           {/* System Questions History */}
@@ -2017,7 +2025,10 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
             </div>
             {showSystemQuestions && systemQuestions.length > 0 && (
               <div style={{ marginTop: 10 }}>
-                {systemQuestions.map((q: any) => (
+                {systemQuestions.map((q: any) => {
+                  const userLastVisit = pageViews?.summary?.reduce((max: string | null, p: any) => (!max || (p.last_visit && p.last_visit > max)) ? p.last_visit : max, null as string | null);
+                  const userSawIt = userLastVisit && q.created_at && new Date(userLastVisit) > new Date(q.created_at);
+                  return (
                   <div key={q.id} style={{ padding: "8px 0", borderBottom: "1px solid #f1f5f9", fontSize: 12, direction: "rtl" }}>
                     <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                       <span style={{ color: "#374151", fontWeight: 500 }}>"{q.question_text}"</span>
@@ -2027,13 +2038,15 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                         <span style={{ color: "#94a3b8", fontStyle: "italic" }}>ממתין לתשובה</span>
                       )}
                       {q.admin_seen && <span style={{ color: "#94a3b8", fontSize: 10 }}>✓ נצפה</span>}
+                      {userSawIt ? <span style={{ color: "#16a34a", fontSize: 10, fontWeight: 600 }}>נכנס/ה ✓</span> : <span style={{ color: "#ef4444", fontSize: 10 }}>לא נכנס/ה</span>}
                     </div>
                     <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>
                       נשלח: {new Date(q.created_at).toLocaleDateString("he-IL")}
                       {q.answered_at && ` · נענה: ${new Date(q.answered_at).toLocaleDateString("he-IL")}`}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
             {systemQuestions.length === 0 && (
@@ -5311,6 +5324,188 @@ function UserManagementTab() {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ── Outreach Log Tab ──────────────────────────────────────────────
+
+function OutreachLogTab() {
+  const [ratings, setRatings] = useState<any[]>([]);
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [ratingFilter, setRatingFilter] = useState<"all" | "pending">("all");
+  const [questionFilter, setQuestionFilter] = useState<"all" | "pending">("all");
+
+  useEffect(() => {
+    apiFetch("/admin/outreach-log")
+      .then(r => r.json())
+      .then(data => {
+        setRatings(Array.isArray(data.ratings) ? data.ratings : []);
+        setQuestions(Array.isArray(data.questions) ? data.questions : []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  function fmtDate(d: string | null) {
+    if (!d) return "—";
+    const dt = new Date(d);
+    return `${dt.getDate().toString().padStart(2, "0")}/${(dt.getMonth() + 1).toString().padStart(2, "0")}/${dt.getFullYear().toString().slice(2)} ${dt.getHours().toString().padStart(2, "0")}:${dt.getMinutes().toString().padStart(2, "0")}`;
+  }
+
+  function statusBadge(status: string) {
+    const map: Record<string, { label: string; bg: string; color: string }> = {
+      waiting_first_rating: { label: "ממתין לתשובה", bg: "#fef3c7", color: "#92400e" },
+      waiting_second_rating: { label: "ממתין לצד שני", bg: "#dbeafe", color: "#1e40af" },
+      approved_by_both: { label: "אושר ע\"י שניהם", bg: "#d1fae5", color: "#065f46" },
+      rejected_by_users: { label: "נדחה", bg: "#fee2e2", color: "#991b1b" },
+      rejected_acquaintance: { label: "מכירים", bg: "#ffedd5", color: "#9a3412" },
+      pre_match: { label: "לפני התאמה", bg: "#ede9fe", color: "#5b21b6" },
+      in_match: { label: "בהתאמה", bg: "#d1fae5", color: "#065f46" },
+    };
+    const info = map[status] || { label: status, bg: "#f3f4f6", color: "#374151" };
+    return <span style={{ background: info.bg, color: info.color, padding: "2px 8px", borderRadius: 4, fontSize: 12, fontWeight: 600 }}>{info.label}</span>;
+  }
+
+  function ratingBadge(rating: string | null, fallback: string) {
+    if (!rating) return <span style={{ color: "#9ca3af", fontSize: 12 }}>{fallback}</span>;
+    const map: Record<string, { bg: string; color: string }> = {
+      bullseye: { bg: "#d1fae5", color: "#065f46" },
+      possible: { bg: "#dbeafe", color: "#1e40af" },
+      miss: { bg: "#fee2e2", color: "#991b1b" },
+      known_person: { bg: "#ffedd5", color: "#9a3412" },
+    };
+    const info = map[rating] || { bg: "#f3f4f6", color: "#374151" };
+    return <span style={{ background: info.bg, color: info.color, padding: "2px 8px", borderRadius: 4, fontSize: 12, fontWeight: 600 }}>{rating}</span>;
+  }
+
+  function answerBadge(answer: string | null) {
+    if (!answer) return <span style={{ color: "#9ca3af", fontSize: 12 }}>טרם ענה/תה</span>;
+    const map: Record<string, { bg: string; color: string }> = {
+      "כן אין בעיה": { bg: "#d1fae5", color: "#065f46" },
+      "אפשרי": { bg: "#dbeafe", color: "#1e40af" },
+      "לא": { bg: "#fee2e2", color: "#991b1b" },
+    };
+    const info = map[answer] || { bg: "#f3f4f6", color: "#374151" };
+    return <span style={{ background: info.bg, color: info.color, padding: "2px 8px", borderRadius: 4, fontSize: 12, fontWeight: 600 }}>{answer}</span>;
+  }
+
+  if (loading) return <p style={s.loading}>Loading...</p>;
+
+  const filteredRatings = ratingFilter === "pending"
+    ? ratings.filter(r => r.status === "waiting_first_rating" || r.status === "waiting_second_rating")
+    : ratings;
+
+  const filteredQuestions = questionFilter === "pending"
+    ? questions.filter(q => !q.answer)
+    : questions;
+
+  return (
+    <div>
+      {/* Section 1: Match Ratings */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+          <h3 style={{ margin: 0 }}>דירוגי התאמות ({filteredRatings.length})</h3>
+          <button
+            style={{ ...s.tab, ...(ratingFilter === "all" ? s.tabActive : {}), padding: "4px 10px", fontSize: 12 }}
+            onClick={() => setRatingFilter("all")}
+          >הכל</button>
+          <button
+            style={{ ...s.tab, ...(ratingFilter === "pending" ? s.tabActive : {}), padding: "4px 10px", fontSize: 12 }}
+            onClick={() => setRatingFilter("pending")}
+          >ממתינים</button>
+        </div>
+        <div style={s.scrollWrap}>
+          <table style={s.table}>
+            <thead>
+              <tr>
+                <th style={s.th}>התאמה</th>
+                <th style={s.th}>נשלח ל</th>
+                <th style={s.th}>הצד השני</th>
+                <th style={s.th}>נשלח</th>
+                <th style={s.th}>סטטוס</th>
+                <th style={s.th}>תשובה</th>
+                <th style={s.th}>תשובת צד שני</th>
+                <th style={s.th}>נצפה</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredRatings.map((r: any) => {
+                const sentToUser1 = r.sent_for_rating_to === r.user1_id;
+                const sentToName = sentToUser1 ? r.user1_name : r.user2_name;
+                const otherName = sentToUser1 ? r.user2_name : r.user1_name;
+                const sentRating = sentToUser1 ? r.user1_rating : r.user2_rating;
+                const otherRating = sentToUser1 ? r.user2_rating : r.user1_rating;
+                const otherFallback = r.status === "waiting_first_rating" ? "—" : "טרם ענה";
+                const seen = r.sent_to_last_visit && r.sent_for_rating_at && new Date(r.sent_to_last_visit) > new Date(r.sent_for_rating_at);
+                return (
+                  <tr key={r.id}>
+                    <td style={s.td}>{r.id}</td>
+                    <td style={s.td}>{sentToName}</td>
+                    <td style={s.td}>{otherName}</td>
+                    <td style={{ ...s.td, whiteSpace: "nowrap" }}>{fmtDate(r.sent_for_rating_at)}</td>
+                    <td style={s.td}>{statusBadge(r.status)}</td>
+                    <td style={s.td}>{ratingBadge(sentRating, "טרם ענה")}</td>
+                    <td style={s.td}>{ratingBadge(otherRating, otherFallback)}</td>
+                    <td style={s.td}>{seen ? <span style={{ color: "#16a34a", fontWeight: 600, fontSize: 12 }}>נכנס/ה ✓</span> : <span style={{ color: "#9ca3af", fontSize: 12 }}>לא נכנס/ה</span>}</td>
+                  </tr>
+                );
+              })}
+              {filteredRatings.length === 0 && (
+                <tr><td colSpan={8} style={{ ...s.td, textAlign: "center", color: "#9ca3af" }}>אין דירוגים</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Section 2: System Questions */}
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+          <h3 style={{ margin: 0 }}>שאלות מערכת ({filteredQuestions.length})</h3>
+          <button
+            style={{ ...s.tab, ...(questionFilter === "all" ? s.tabActive : {}), padding: "4px 10px", fontSize: 12 }}
+            onClick={() => setQuestionFilter("all")}
+          >הכל</button>
+          <button
+            style={{ ...s.tab, ...(questionFilter === "pending" ? s.tabActive : {}), padding: "4px 10px", fontSize: 12 }}
+            onClick={() => setQuestionFilter("pending")}
+          >ממתינים</button>
+        </div>
+        <div style={s.scrollWrap}>
+          <table style={s.table}>
+            <thead>
+              <tr>
+                <th style={s.th}>משתמש/ת</th>
+                <th style={s.th}>שאלה</th>
+                <th style={s.th}>נשלחה</th>
+                <th style={s.th}>תשובה</th>
+                <th style={s.th}>ענתה</th>
+                <th style={s.th}>נצפה</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredQuestions.map((q: any) => {
+                const seen = q.user_last_visit && q.created_at && new Date(q.user_last_visit) > new Date(q.created_at);
+                return (
+                <tr key={q.id}>
+                  <td style={s.td}>{q.first_name} ({q.user_id})</td>
+                  <td style={{ ...s.td, maxWidth: 300, whiteSpace: "normal", wordBreak: "break-word" }}>{q.question_text}</td>
+                  <td style={{ ...s.td, whiteSpace: "nowrap" }}>{fmtDate(q.created_at)}</td>
+                  <td style={s.td}>{answerBadge(q.answer)}</td>
+                  <td style={{ ...s.td, whiteSpace: "nowrap" }}>{fmtDate(q.answered_at)}</td>
+                  <td style={s.td}>{seen ? <span style={{ color: "#16a34a", fontWeight: 600, fontSize: 12 }}>נכנס/ה ✓</span> : <span style={{ color: "#9ca3af", fontSize: 12 }}>לא נכנס/ה</span>}</td>
+                </tr>
+                );
+              })}
+              {filteredQuestions.length === 0 && (
+                <tr><td colSpan={6} style={{ ...s.td, textAlign: "center", color: "#9ca3af" }}>אין שאלות</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
