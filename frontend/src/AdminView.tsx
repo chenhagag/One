@@ -2253,7 +2253,7 @@ ${footer}`)
                     html: wrap(`
 <h2 style="color:#1B1464">היי ${name},</h2>
 <p>מצאנו ${g("עבורך", "עבורך")} כיוון להתאמה 😊</p>
-<p>נשמח לאפשר ${g("לך ולה", "לך ולו")} לבדוק גם התאמה ראשונית מבחינת משיכה. כדי לשמור על הוגנות והדדיות, ${g("נוכל", "נוכל")} להתקדם רק לאחר שתעל${g("ה", "י")} גם תמונה ${g("משלך", "משלך")}.</p>
+<p>נשמח לאפשר ${data?.user?.looking_for_gender === "woman" ? "לך ולה" : data?.user?.looking_for_gender === "man" ? "לך ולו" : "לשניכם"} לבדוק גם התאמה ראשונית מבחינת משיכה. כדי לשמור על הוגנות והדדיות, ${g("נוכל", "נוכל")} להתקדם רק לאחר שתעל${g("ה", "י")} גם תמונה ${g("משלך", "משלך")}.</p>
 ${btn("להעלאת תמונה")}
 <p>בהצלחה,<br>צוות One</p>`)
                   },
@@ -4235,26 +4235,56 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
               <div style={{ border: "1px solid #fde68a", borderRadius: 8, padding: 16, marginBottom: 16, background: "#fffbeb" }}>
                 <h4 style={{ margin: "0 0 8px", color: "#92400e" }}>📷 בקשת תמונה</h4>
                 {[
-                  { userId: matchDetail.user_id, name: matchDetail.user1_name, gender: matchDetail.user1_gender, lookingFor: matchDetail.user1_looking_for, photoCount: matchDetail.user1_photo_count, otherPhotoCount: matchDetail.user2_photo_count },
-                  { userId: matchDetail.candidate_user_id, name: matchDetail.user2_name, gender: matchDetail.user2_gender, lookingFor: matchDetail.user2_looking_for, photoCount: matchDetail.user2_photo_count, otherPhotoCount: matchDetail.user1_photo_count },
+                  { userId: matchDetail.user_id, name: matchDetail.user1_name, gender: matchDetail.user1_gender, lookingFor: matchDetail.user1_looking_for, photoCount: matchDetail.user1_photo_count, otherPhotoCount: matchDetail.user2_photo_count, photoRequestSentAt: matchDetail.user1_photo_request_sent_at, email: matchDetail.user1_email },
+                  { userId: matchDetail.candidate_user_id, name: matchDetail.user2_name, gender: matchDetail.user2_gender, lookingFor: matchDetail.user2_looking_for, photoCount: matchDetail.user2_photo_count, otherPhotoCount: matchDetail.user1_photo_count, photoRequestSentAt: matchDetail.user2_photo_request_sent_at, email: matchDetail.user2_email },
                 ].filter(u => u.photoCount < 1).map(u => {
                   const isFemale = u.gender === "woman";
                   const g = (m: string, f: string) => isFemale ? f : m;
                   const otherHasPhoto = u.otherPhotoCount > 0;
-                  const otherGenderLabel = u.lookingFor === "woman" ? "המשתמשת" : u.lookingFor === "man" ? "המשתמש" : "המשתמש/ת";
+                  const lookingForFemale = u.lookingFor === "woman";
+                  const otherGenderLabel = lookingForFemale ? "המשתמשת" : u.lookingFor === "man" ? "המשתמש" : "המשתמש/ת";
+                  const toYouAndThem = lookingForFemale ? "לך ולה" : u.lookingFor === "man" ? "לך ולו" : "לשניכם";
                   const msg = otherHasPhoto
-                    ? `הודעה ממערכת One: מצאנו ${g("עבורך", "עבורך")} כיוון להתאמה 😊\n\n${otherGenderLabel} שמצאנו כבר ${u.lookingFor === "woman" ? "העלתה" : "העלה"} תמונה, ונשמח לאפשר ${g("לכם", "לכן")} לבדוק גם התאמה ראשונית מבחינת משיכה. כדי לשמור על הוגנות והדדיות, נוכל לשתף את התמונה ${u.lookingFor === "woman" ? "שלה" : "שלו"} רק לאחר שתעל${g("ה", "י")} גם תמונה ${g("משלך", "משלך")}.\n\nבהצלחה מצוות One!`
+                    ? `הודעה ממערכת One: מצאנו ${g("עבורך", "עבורך")} כיוון להתאמה 😊\n\n${otherGenderLabel} שמצאנו כבר ${lookingForFemale ? "העלתה" : "העלה"} תמונה, ונשמח לאפשר ${toYouAndThem} לבדוק גם התאמה ראשונית מבחינת משיכה. כדי לשמור על הוגנות והדדיות, נוכל לשתף את התמונה ${lookingForFemale ? "שלה" : "שלו"} רק לאחר שתעל${g("ה", "י")} גם תמונה ${g("משלך", "משלך")}.\n\nבהצלחה מצוות One!`
                     : `הודעה ממערכת One: מצאנו ${g("עבורך", "עבורך")} כיוון להתאמה 😊\n\nכדי לבדוק התאמה ראשונית מבחינת משיכה, חשוב שגם ${g("אתה וגם הצד השני תעלו", "את וגם הצד השני תעלו")} תמונות. כדי לשמור על הוגנות והדדיות — נשמח ${g("שתעלה", "שתעלי")} תמונה ${g("משלך", "משלך")}.\n\nבהצלחה מצוות One!`;
+                  const emailSubject = `יש ${g("לך", "לך")} כיוון להתאמה ב-One 😊`;
+                  const emailHtml = `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#333;max-width:500px;margin:0 auto;text-align:right"><h2 style="color:#1B1464">היי ${u.name},</h2><p>מצאנו ${g("עבורך", "עבורך")} כיוון להתאמה 😊</p><p>נשמח לאפשר ${toYouAndThem} לבדוק גם התאמה ראשונית מבחינת משיכה. כדי לשמור על הוגנות והדדיות, ${g("נוכל", "נוכל")} להתקדם רק לאחר שתעל${g("ה", "י")} גם תמונה ${g("משלך", "משלך")}.</p><p style="margin:28px 0"><a href="https://joinone.io" style="display:inline-block;background-color:#7b5fa3;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold">להעלאת תמונה</a></p><p>בהצלחה,<br>צוות One</p></div>`;
+
+                  if (u.photoRequestSentAt) {
+                    const sentDate = new Date(u.photoRequestSentAt).toLocaleDateString("he-IL");
+                    return (
+                      <div key={u.userId} style={{ marginBottom: 8, padding: "6px 14px", fontSize: 12, color: "#92400e", background: "#fef3c7", borderRadius: 4 }}>
+                        נשלחה בקשת תמונה ל{u.name} ב-{sentDate}
+                      </div>
+                    );
+                  }
+
                   return (
-                    <button
-                      key={u.userId}
-                      style={{ display: "block", marginBottom: 6, padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#f59e0b", color: "#fff" }}
-                      onClick={async () => {
-                        if (!confirm(`לשלוח הודעת בקשת תמונה ל${u.name}?\n\n${msg}`)) return;
-                        await apiFetch(`/admin/users/${u.userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin_message: msg }) });
-                        alert("ההודעה נשלחה!");
-                      }}
-                    >שלח הודעת תמונה ל{u.name}</button>
+                    <div key={u.userId} style={{ marginBottom: 8 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "#92400e", marginLeft: 8 }}>{u.name}:</span>
+                      <button
+                        style={{ padding: "4px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#f59e0b", color: "#fff", marginLeft: 4 }}
+                        onClick={async () => {
+                          if (!confirm(`לשלוח הודעה במערכת ל${u.name}?\n\n${msg}`)) return;
+                          await apiFetch(`/admin/users/${u.userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin_message: msg, photo_request_sent_at: new Date().toISOString() }) });
+                          setMatchDetail((prev: any) => prev ? { ...prev, [`user${prev.user_id === u.userId ? "1" : "2"}_photo_request_sent_at`]: new Date().toISOString() } : prev);
+                          alert("ההודעה נשלחה!");
+                        }}
+                      >הודעה במערכת</button>
+                      {u.email && (
+                        <button
+                          style={{ padding: "4px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#7b5fa3", color: "#fff", marginLeft: 4 }}
+                          onClick={async () => {
+                            if (!confirm(`לשלוח מייל בקשת תמונה ל${u.name} (${u.email})?`)) return;
+                            const r = await apiFetch(`/admin/users/${u.userId}/send-email`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subject: emailSubject, html: emailHtml }) });
+                            if (!r.ok) { alert("שגיאה בשליחת מייל"); return; }
+                            await apiFetch(`/admin/users/${u.userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ photo_request_sent_at: new Date().toISOString() }) });
+                            setMatchDetail((prev: any) => prev ? { ...prev, [`user${prev.user_id === u.userId ? "1" : "2"}_photo_request_sent_at`]: new Date().toISOString() } : prev);
+                            alert("המייל נשלח!");
+                          }}
+                        >שלח מייל</button>
+                      )}
+                    </div>
                   );
                 })}
               </div>

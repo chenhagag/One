@@ -265,22 +265,16 @@ function PotentialMatchScreen({ userId, userGender, onBack }: { userId: number; 
       </div>
 
       {/* Photo gallery — softened frame */}
-      <div style={{ position: "relative", borderRadius: 20, overflow: "hidden", background: "#f5f3ff", marginBottom: 28, boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
+      <div style={{ position: "relative", borderRadius: 20, overflow: "hidden", background: "#f5f3ff", marginBottom: 16, boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
         {photos.length > 0 ? (
           <>
             <img
               src={photos[photoIndex]?.url}
               alt=""
-              style={{ width: "100%", aspectRatio: "4/5", objectFit: "cover", display: "block" }}
+              style={{ width: "100%", maxHeight: "70vh", objectFit: "contain", display: "block", background: "#f5f3ff" }}
             />
             {photos.length > 1 && (
               <>
-                {/* Photo indicator bar */}
-                <div style={{ position: "absolute", top: 12, left: 16, right: 16, display: "flex", gap: 4 }}>
-                  {photos.map((_, i) => (
-                    <div key={i} onClick={() => setPhotoIndex(i)} style={{ flex: 1, height: 3, borderRadius: 2, background: i === photoIndex ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.35)", cursor: "pointer", transition: "background 0.2s" }} />
-                  ))}
-                </div>
                 {/* Tap zones for navigation */}
                 {photoIndex > 0 && (
                   <div onClick={() => setPhotoIndex(i => i - 1)} style={{ position: "absolute", top: 0, right: 0, width: "40%", height: "100%", cursor: "pointer" }} />
@@ -297,6 +291,19 @@ function PotentialMatchScreen({ userId, userGender, onBack }: { userId: number; 
           </div>
         )}
       </div>
+
+      {/* Photo navigation dots */}
+      {photos.length > 1 && (
+        <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 20 }}>
+          {photos.map((_, i) => (
+            <div
+              key={i}
+              onClick={() => setPhotoIndex(i)}
+              style={{ width: 8, height: 8, borderRadius: "50%", background: i === photoIndex ? "#8b7ba8" : "#d1d5db", cursor: "pointer", transition: "background 0.2s" }}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Rating buttons — elegant vertical stack */}
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>

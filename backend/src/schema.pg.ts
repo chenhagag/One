@@ -951,6 +951,13 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       END IF;
     END $$;
 
+    -- photo_request_sent_at — tracks when admin sent a photo request to a user
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'photo_request_sent_at') THEN
+        ALTER TABLE users ADD COLUMN photo_request_sent_at TIMESTAMPTZ DEFAULT NULL;
+      END IF;
+    END $$;
+
     CREATE TABLE IF NOT EXISTS deleted_users (
       id                SERIAL PRIMARY KEY,
       original_user_id  INTEGER NOT NULL,

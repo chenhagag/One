@@ -1949,7 +1949,7 @@ app.patch("/admin/users/:id", async (req, res) => {
     "desired_location_range", "profile_complete", "consent_accepted", "photo_ai_consent",
     "email_updates", "whatsapp_updates", "whatsapp_phone", "in_matching_pool",
     "marital_status", "has_children", "religion", "smoker", "admin_message", "admin_notes", "admin_location_override",
-    "match_card_consent", "match_card_restrictions",
+    "match_card_consent", "match_card_restrictions", "photo_request_sent_at",
   ];
   const updates: string[] = [];
   const values: any[] = [];
@@ -3145,9 +3145,11 @@ app.get("/admin/candidate-matches/:id/detail", async (req, res) => {
       u1.first_name as user1_name, u1.age as user1_age, u1.city as user1_city, u1.gender as user1_gender, u1.looking_for_gender as user1_looking_for, u1.admin_notes as user1_admin_notes, u1.cognitive_score as user1_cognitive_score,
       u1.height as user1_height, u1.smoker as user1_smoker, u1.has_children as user1_has_children, u1.marital_status as user1_marital_status, u1.religion as user1_religion,
       u1.desired_age_min as user1_desired_age_min, u1.desired_age_max as user1_desired_age_max, u1.desired_height_min as user1_desired_height_min, u1.desired_height_max as user1_desired_height_max, u1.desired_location_range as user1_desired_location_range,
+      u1.photo_request_sent_at as user1_photo_request_sent_at, u1.email as user1_email,
       u2.first_name as user2_name, u2.age as user2_age, u2.city as user2_city, u2.gender as user2_gender, u2.looking_for_gender as user2_looking_for, u2.admin_notes as user2_admin_notes, u2.cognitive_score as user2_cognitive_score,
       u2.height as user2_height, u2.smoker as user2_smoker, u2.has_children as user2_has_children, u2.marital_status as user2_marital_status, u2.religion as user2_religion,
       u2.desired_age_min as user2_desired_age_min, u2.desired_age_max as user2_desired_age_max, u2.desired_height_min as user2_desired_height_min, u2.desired_height_max as user2_desired_height_max, u2.desired_location_range as user2_desired_location_range,
+      u2.photo_request_sent_at as user2_photo_request_sent_at, u2.email as user2_email,
       m.status as match_status, m.id as match_id, m.user1_rating, m.user2_rating,
       m.match_card_data, m.match_card_sent_at,
       (SELECT COUNT(*) FROM user_photos WHERE user_id = u1.id)::int as user1_photo_count,
