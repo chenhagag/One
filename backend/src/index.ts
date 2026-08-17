@@ -1400,6 +1400,7 @@ app.get("/users/:id/match-history", requireUserAuth, async (req, res) => {
        JOIN users u1 ON u1.id = m.user1_id
        JOIN users u2 ON u2.id = m.user2_id
        WHERE (m.user1_id = $1 OR m.user2_id = $1) AND m.status = 'cancelled'
+         AND m.match_card_sent_at IS NOT NULL
        ORDER BY m.updated_at DESC`,
       [userId]
     );
@@ -3925,7 +3926,20 @@ app.get("/admin/outreach-log", async (_req, res) => {
       JOIN users u ON u.id = sq.user_id
       ORDER BY sq.created_at DESC
     `);
-    return res.json({ ratings, questions });
+    const cancellations = await pgQueryAll(`
+      SELECT m.id, m.user1_id, m.user2_id, m.cancelled_by, m.updated_at,
+        m.cancellation_feedback_user1, m.cancellation_feedback_user2,
+        m.match_card_sent_at,
+        u1.first_name as user1_name, u2.first_name as user2_name,
+        cb.first_name as cancelled_by_name
+      FROM matches m
+      JOIN users u1 ON u1.id = m.user1_id
+      JOIN users u2 ON u2.id = m.user2_id
+      LEFT JOIN users cb ON cb.id = m.cancelled_by
+      WHERE m.status = 'cancelled'
+      ORDER BY m.updated_at DESC
+    `);
+    return res.json({ ratings, questions, cancellations });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -4479,7 +4493,7 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
 
     // Check for past cancelled matches
     const pastMatchRow = await pgQueryOne<{ c: number }>(
-      `SELECT COUNT(*)::int AS c FROM matches WHERE (user1_id = $1 OR user2_id = $1) AND status = 'cancelled'`,
+      `SELECT COUNT(*)::int AS c FROM matches WHERE (user1_id = $1 OR user2_id = $1) AND status = 'cancelled' AND match_card_sent_at IS NOT NULL`,
       [userId]
     );
     const hasPastMatches = (pastMatchRow?.c ?? 0) > 0;

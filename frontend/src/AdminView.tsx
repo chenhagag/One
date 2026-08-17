@@ -5333,6 +5333,7 @@ function UserManagementTab() {
 function OutreachLogTab() {
   const [ratings, setRatings] = useState<any[]>([]);
   const [questions, setQuestions] = useState<any[]>([]);
+  const [cancellations, setCancellations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [ratingFilter, setRatingFilter] = useState<"all" | "pending">("all");
   const [questionFilter, setQuestionFilter] = useState<"all" | "pending">("all");
@@ -5343,6 +5344,7 @@ function OutreachLogTab() {
       .then(data => {
         setRatings(Array.isArray(data.ratings) ? data.ratings : []);
         setQuestions(Array.isArray(data.questions) ? data.questions : []);
+        setCancellations(Array.isArray(data.cancellations) ? data.cancellations : []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -5501,6 +5503,44 @@ function OutreachLogTab() {
               })}
               {filteredQuestions.length === 0 && (
                 <tr><td colSpan={6} style={{ ...s.td, textAlign: "center", color: "#9ca3af" }}>אין שאלות</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Section 3: Cancellations */}
+      <div style={{ marginTop: 32 }}>
+        <h3 style={{ margin: "0 0 12px" }}>ביטולי התאמות ({cancellations.length})</h3>
+        <div style={s.scrollWrap}>
+          <table style={s.table}>
+            <thead>
+              <tr>
+                <th style={s.th}>התאמה</th>
+                <th style={s.th}>צד א׳</th>
+                <th style={s.th}>צד ב׳</th>
+                <th style={s.th}>בוטל ע״י</th>
+                <th style={s.th}>תאריך ביטול</th>
+                <th style={s.th}>היתה התאמה אמיתית</th>
+                <th style={s.th}>פידבק צד א׳</th>
+                <th style={s.th}>פידבק צד ב׳</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cancellations.map((c: any) => (
+                <tr key={c.id}>
+                  <td style={s.td}>{c.id}</td>
+                  <td style={s.td}>{c.user1_name} ({c.user1_id})</td>
+                  <td style={s.td}>{c.user2_name} ({c.user2_id})</td>
+                  <td style={s.td}>{c.cancelled_by_name ? <span style={{ fontWeight: 600 }}>{c.cancelled_by_name} ({c.cancelled_by})</span> : <span style={{ color: "#9ca3af" }}>אדמין</span>}</td>
+                  <td style={{ ...s.td, whiteSpace: "nowrap" }}>{fmtDate(c.updated_at)}</td>
+                  <td style={s.td}>{c.match_card_sent_at ? <span style={{ color: "#16a34a", fontWeight: 600 }}>כן</span> : <span style={{ color: "#9ca3af" }}>לא</span>}</td>
+                  <td style={{ ...s.td, maxWidth: 200, whiteSpace: "normal", wordBreak: "break-word" }}>{c.cancellation_feedback_user1 || <span style={{ color: "#d1d5db" }}>—</span>}</td>
+                  <td style={{ ...s.td, maxWidth: 200, whiteSpace: "normal", wordBreak: "break-word" }}>{c.cancellation_feedback_user2 || <span style={{ color: "#d1d5db" }}>—</span>}</td>
+                </tr>
+              ))}
+              {cancellations.length === 0 && (
+                <tr><td colSpan={8} style={{ ...s.td, textAlign: "center", color: "#9ca3af" }}>אין ביטולים</td></tr>
               )}
             </tbody>
           </table>
