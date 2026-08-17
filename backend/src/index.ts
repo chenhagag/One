@@ -3917,7 +3917,9 @@ app.get("/admin/outreach-log", async (_req, res) => {
       JOIN users u1 ON u1.id = m.user1_id
       JOIN users u2 ON u2.id = m.user2_id
       WHERE m.sent_for_rating_at IS NOT NULL
-      ORDER BY m.sent_for_rating_at DESC
+         OR m.user1_rating IS NOT NULL OR m.user2_rating IS NOT NULL
+         OR m.status IN ('waiting_first_rating','waiting_second_rating','approved_by_both','rejected_by_users','rejected_acquaintance','pre_match','in_match')
+      ORDER BY COALESCE(m.sent_for_rating_at, m.updated_at) DESC
     `);
     const questions = await pgQueryAll(`
       SELECT sq.*, u.first_name,

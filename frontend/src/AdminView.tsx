@@ -2090,7 +2090,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
           {(() => {
             const ratedMatches = matches.filter((m: any) => {
               const thisRating = userId === m.user1_id ? m.user1_rating : m.user2_rating;
-              return thisRating != null;
+              return thisRating != null && !m.rating_admin_seen;
             });
             const pendingSent = matches.filter((m: any) => {
               const thisRating = userId === m.user1_id ? m.user1_rating : m.user2_rating;
@@ -2115,19 +2115,15 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                         <span style={{ color: "#374151", fontWeight: 500 }}>מול {m.other_name}: </span>
                         <span style={{ fontWeight: 700, color: thisRating === "miss" ? "#dc2626" : thisRating === "possible" ? "#d97706" : "#16a34a" }}>{rl(thisRating)}</span>
                         <span style={{ fontSize: 10, color: "#94a3b8" }}>סטטוס: {m.status}</span>
-                        {m.rating_admin_seen ? (
-                          <span style={{ color: "#94a3b8", fontSize: 10 }}>✓ נצפה</span>
-                        ) : (
-                          <button
-                            style={{ fontSize: 10, padding: "1px 8px", background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd", borderRadius: 3, cursor: "pointer" }}
-                            onClick={async (e) => {
-                              e.currentTarget.disabled = true;
-                              await apiFetch(`/admin/matches/${m.id}/mark-rating-seen`, { method: "POST" });
-                              m.rating_admin_seen = true;
-                              setData((prev: any) => ({ ...prev }));
-                            }}
-                          >ראיתי</button>
-                        )}
+                        <button
+                          style={{ fontSize: 10, padding: "1px 8px", background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd", borderRadius: 3, cursor: "pointer" }}
+                          onClick={async (e) => {
+                            e.currentTarget.disabled = true;
+                            await apiFetch(`/admin/matches/${m.id}/mark-rating-seen`, { method: "POST" });
+                            m.rating_admin_seen = true;
+                            setData((prev: any) => ({ ...prev }));
+                          }}
+                        >ראיתי</button>
                       </div>
                     );
                   })}
@@ -5427,16 +5423,17 @@ function OutreachLogTab() {
                 <th style={s.th}>הצד השני</th>
                 <th style={s.th}>נשלח</th>
                 <th style={s.th}>סטטוס</th>
-                <th style={s.th}>תשובה</th>
-                <th style={s.th}>תשובת צד שני</th>
+                <th style={s.th}>דירוג צד א׳</th>
+                <th style={s.th}>דירוג צד ב׳</th>
                 <th style={s.th}>נצפה</th>
               </tr>
             </thead>
             <tbody>
               {filteredRatings.map((r: any) => {
-                const sentToUser1 = r.sent_for_rating_to === r.user1_id;
-                const sentToName = sentToUser1 ? r.user1_name : r.user2_name;
-                const otherName = sentToUser1 ? r.user2_name : r.user1_name;
+                const hasSentTo = r.sent_for_rating_to != null;
+                const sentToUser1 = hasSentTo ? r.sent_for_rating_to === r.user1_id : true;
+                const sentToName = hasSentTo ? (sentToUser1 ? r.user1_name : r.user2_name) : null;
+                const otherName = hasSentTo ? (sentToUser1 ? r.user2_name : r.user1_name) : null;
                 const sentRating = sentToUser1 ? r.user1_rating : r.user2_rating;
                 const otherRating = sentToUser1 ? r.user2_rating : r.user1_rating;
                 const otherFallback = r.status === "waiting_first_rating" ? "—" : "טרם ענה";
@@ -5444,13 +5441,13 @@ function OutreachLogTab() {
                 return (
                   <tr key={r.id}>
                     <td style={s.td}>{r.id}</td>
-                    <td style={s.td}>{sentToName}</td>
-                    <td style={s.td}>{otherName}</td>
-                    <td style={{ ...s.td, whiteSpace: "nowrap" }}>{fmtDate(r.sent_for_rating_at)}</td>
+                    <td style={s.td}>{sentToName || <span style={{ color: "#d1d5db" }}>—</span>}</td>
+                    <td style={s.td}>{otherName || `${r.user1_name} ↔ ${r.user2_name}`}</td>
+                    <td style={{ ...s.td, whiteSpace: "nowrap" }}>{fmtDate(r.sent_for_rating_at || r.updated_at)}</td>
                     <td style={s.td}>{statusBadge(r.status)}</td>
-                    <td style={s.td}>{ratingBadge(sentRating, "טרם ענה")}</td>
-                    <td style={s.td}>{ratingBadge(otherRating, otherFallback)}</td>
-                    <td style={s.td}>{seen ? <span style={{ color: "#16a34a", fontWeight: 600, fontSize: 12 }}>נכנס/ה ✓</span> : <span style={{ color: "#9ca3af", fontSize: 12 }}>לא נכנס/ה</span>}</td>
+                    <td style={s.td}>{r.user1_rating ? ratingBadge(r.user1_rating, "") : <span style={{ color: "#d1d5db" }}>—</span>}{r.user1_rating && <span style={{ color: "#9ca3af", fontSize: 10, marginRight: 4 }}> {r.user1_name}</span>}</td>
+                    <td style={s.td}>{r.user2_rating ? ratingBadge(r.user2_rating, "") : <span style={{ color: "#d1d5db" }}>—</span>}{r.user2_rating && <span style={{ color: "#9ca3af", fontSize: 10, marginRight: 4 }}> {r.user2_name}</span>}</td>
+                    <td style={s.td}>{hasSentTo ? (seen ? <span style={{ color: "#16a34a", fontWeight: 600, fontSize: 12 }}>נכנס/ה ✓</span> : <span style={{ color: "#9ca3af", fontSize: 12 }}>לא נכנס/ה</span>) : <span style={{ color: "#d1d5db" }}>—</span>}</td>
                   </tr>
                 );
               })}
