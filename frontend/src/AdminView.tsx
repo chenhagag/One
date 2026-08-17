@@ -5364,6 +5364,7 @@ function OutreachLogTab() {
   const [ratings, setRatings] = useState<any[]>([]);
   const [questions, setQuestions] = useState<any[]>([]);
   const [cancellations, setCancellations] = useState<any[]>([]);
+  const [adminMessages, setAdminMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [ratingFilter, setRatingFilter] = useState<"all" | "pending">("all");
   const [questionFilter, setQuestionFilter] = useState<"all" | "pending">("all");
@@ -5375,6 +5376,7 @@ function OutreachLogTab() {
         setRatings(Array.isArray(data.ratings) ? data.ratings : []);
         setQuestions(Array.isArray(data.questions) ? data.questions : []);
         setCancellations(Array.isArray(data.cancellations) ? data.cancellations : []);
+        setAdminMessages(Array.isArray(data.adminMessages) ? data.adminMessages : []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -5540,7 +5542,42 @@ function OutreachLogTab() {
         </div>
       </div>
 
-      {/* Section 3: Cancellations */}
+      {/* Section 3: Admin Messages */}
+      <div style={{ marginTop: 32 }}>
+        <h3 style={{ margin: "0 0 12px" }}>הודעות מערכת למשתמשים ({adminMessages.length})</h3>
+        <div style={s.scrollWrap}>
+          <table style={s.table}>
+            <thead>
+              <tr>
+                <th style={s.th}>משתמש/ת</th>
+                <th style={s.th}>הודעה</th>
+                <th style={s.th}>נשלחה</th>
+                <th style={s.th}>סטטוס</th>
+                <th style={s.th}>נצפה</th>
+              </tr>
+            </thead>
+            <tbody>
+              {adminMessages.map((m: any) => {
+                const seen = m.user_last_visit && m.admin_message_sent_at && new Date(m.user_last_visit) > new Date(m.admin_message_sent_at);
+                return (
+                  <tr key={m.user_id}>
+                    <td style={s.td}>{m.first_name} ({m.user_id})</td>
+                    <td style={{ ...s.td, maxWidth: 350, whiteSpace: "normal", wordBreak: "break-word", fontSize: 11, lineHeight: "1.5" }}>{m.admin_message?.length > 80 ? m.admin_message.slice(0, 80) + "…" : m.admin_message}</td>
+                    <td style={{ ...s.td, whiteSpace: "nowrap" }}>{fmtDate(m.admin_message_sent_at)}</td>
+                    <td style={s.td}><span style={{ background: "#fef3c7", color: "#92400e", padding: "2px 8px", borderRadius: 4, fontSize: 12, fontWeight: 600 }}>פעילה</span></td>
+                    <td style={s.td}>{seen ? <span style={{ color: "#16a34a", fontWeight: 600, fontSize: 12 }}>נכנס/ה ✓</span> : <span style={{ color: "#9ca3af", fontSize: 12 }}>לא נכנס/ה</span>}</td>
+                  </tr>
+                );
+              })}
+              {adminMessages.length === 0 && (
+                <tr><td colSpan={5} style={{ ...s.td, textAlign: "center", color: "#9ca3af" }}>אין הודעות פעילות</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Section 4: Cancellations */}
       <div style={{ marginTop: 32 }}>
         <h3 style={{ margin: "0 0 12px" }}>ביטולי התאמות ({cancellations.length})</h3>
         <div style={s.scrollWrap}>

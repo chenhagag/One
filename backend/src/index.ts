@@ -3949,7 +3949,14 @@ app.get("/admin/outreach-log", async (_req, res) => {
       WHERE m.status = 'cancelled'
       ORDER BY m.updated_at DESC
     `);
-    return res.json({ ratings, questions, cancellations });
+    const adminMessages = await pgQueryAll(`
+      SELECT u.id as user_id, u.first_name, u.admin_message, u.admin_message_sent_at,
+        (SELECT MAX(viewed_at) FROM page_views WHERE user_id = u.id) as user_last_visit
+      FROM users u
+      WHERE u.admin_message IS NOT NULL AND u.admin_message_sent_at IS NOT NULL
+      ORDER BY u.admin_message_sent_at DESC
+    `);
+    return res.json({ ratings, questions, cancellations, adminMessages });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
