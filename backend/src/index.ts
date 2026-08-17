@@ -3959,6 +3959,7 @@ app.get("/admin/match-ratings/pending", async (_req, res) => {
     JOIN users u2 ON u2.id = m.user2_id
     WHERE (m.user1_rating IS NOT NULL OR m.user2_rating IS NOT NULL)
       AND m.status IN ('waiting_second_rating', 'rejected_by_users', 'rejected_acquaintance', 'approved_by_both')
+      AND (m.rating_admin_seen IS NULL OR m.rating_admin_seen = FALSE)
     ORDER BY m.updated_at DESC
     LIMIT 50
   `);
