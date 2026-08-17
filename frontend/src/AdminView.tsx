@@ -2004,10 +2004,14 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
             </div>
             {data?.user?.admin_message && (() => {
               const userLastVisit = pageViews?.summary?.reduce((max: string | null, p: any) => (!max || (p.last_visit && p.last_visit > max)) ? p.last_visit : max, null as string | null);
+              const fmtDate = (d: string) => new Date(d).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+              const sentAt = data?.user?.admin_message_sent_at;
+              const userSawMsg = sentAt && userLastVisit && new Date(userLastVisit) > new Date(sentAt);
               return (
                 <div style={{ marginTop: 6, fontSize: 11, color: "#92400e" }}>
                   ⚡ הודעה פעילה — מוצגת כרגע במסך הבית של המשתמש/ת
-                  {userLastVisit && <span style={{ marginRight: 8, color: "#64748b" }}> · כניסה אחרונה: {new Date(userLastVisit).toLocaleDateString("he-IL")}</span>}
+                  {sentAt && <span style={{ marginRight: 8, color: "#64748b" }}> · נשלחה: {fmtDate(sentAt)}</span>}
+                  {userLastVisit && <span style={{ marginRight: 8, color: userSawMsg ? "#16a34a" : "#64748b" }}> · כניסה אחרונה: {fmtDate(userLastVisit)}{userSawMsg ? " ✓" : ""}</span>}
                 </div>
               );
             })()}
@@ -2041,8 +2045,8 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                       {userSawIt ? <span style={{ color: "#16a34a", fontSize: 10, fontWeight: 600 }}>נכנס/ה ✓</span> : <span style={{ color: "#ef4444", fontSize: 10 }}>לא נכנס/ה</span>}
                     </div>
                     <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>
-                      נשלח: {new Date(q.created_at).toLocaleDateString("he-IL")}
-                      {q.answered_at && ` · נענה: ${new Date(q.answered_at).toLocaleDateString("he-IL")}`}
+                      נשלח: {new Date(q.created_at).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                      {q.answered_at && ` · נענה: ${new Date(q.answered_at).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}`}
                     </div>
                   </div>
                   );

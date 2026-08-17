@@ -1965,6 +1965,12 @@ app.patch("/admin/users/:id", async (req, res) => {
   }
   if (updates.length === 0) return res.status(400).json({ error: "No valid fields" });
 
+  // Auto-set admin_message_sent_at when admin_message is set (and clear when removed)
+  if ("admin_message" in req.body && !("admin_message_sent_at" in req.body)) {
+    updates.push(`admin_message_sent_at = $${i++}`);
+    values.push(req.body.admin_message ? new Date().toISOString() : null);
+  }
+
   // Auto-manage insights_pre_completion when personal_insights_full is updated
   if ("personal_insights_full" in req.body && req.body.personal_insights_full) {
     const counts = await pgQueryOne<any>(`
