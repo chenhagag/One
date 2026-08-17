@@ -349,6 +349,14 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
                   <span style={{ fontSize: 11, color: "#7c3aed" }}>📩 נשלח ל{m.sent_for_rating_to === m.user1_id ? m.user1_name : m.user2_name}</span>
                 )}
                 <span style={{ fontSize: 11, color: "#94a3b8" }}>{new Date(m.updated_at).toLocaleString("he-IL")}</span>
+                <button
+                  onClick={async (e) => {
+                    (e.target as HTMLButtonElement).disabled = true;
+                    await apiFetch(`/admin/matches/${m.id}/mark-rating-seen`, { method: "POST" });
+                    loadMatchRatings();
+                  }}
+                  style={{ padding: "2px 10px", borderRadius: 4, border: "1px solid #c4b5fd", background: "#fff", color: "#5b21b6", fontSize: 11, cursor: "pointer", fontWeight: 500 }}
+                >ראיתי</button>
               </div>
             );
           })}
