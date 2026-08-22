@@ -5552,20 +5552,37 @@ function OutreachLogTab() {
                 <th style={s.th}>משתמש/ת</th>
                 <th style={s.th}>הודעה</th>
                 <th style={s.th}>נשלחה</th>
-                <th style={s.th}>סטטוס</th>
                 <th style={s.th}>נצפה</th>
+                <th style={s.th}>פעולה</th>
               </tr>
             </thead>
             <tbody>
               {adminMessages.map((m: any) => {
                 const seen = m.user_last_visit && m.admin_message_sent_at && new Date(m.user_last_visit) > new Date(m.admin_message_sent_at);
+                const seenNoSentAt = !m.admin_message_sent_at && m.user_last_visit;
                 return (
                   <tr key={m.user_id}>
                     <td style={s.td}>{m.first_name} ({m.user_id})</td>
                     <td style={{ ...s.td, maxWidth: 350, whiteSpace: "normal", wordBreak: "break-word", fontSize: 11, lineHeight: "1.5" }}>{m.admin_message?.length > 80 ? m.admin_message.slice(0, 80) + "…" : m.admin_message}</td>
                     <td style={{ ...s.td, whiteSpace: "nowrap" }}>{fmtDate(m.admin_message_sent_at)}</td>
-                    <td style={s.td}><span style={{ background: "#fef3c7", color: "#92400e", padding: "2px 8px", borderRadius: 4, fontSize: 12, fontWeight: 600 }}>פעילה</span></td>
-                    <td style={s.td}>{seen ? <span style={{ color: "#16a34a", fontWeight: 600, fontSize: 12 }}>נכנס/ה ✓</span> : <span style={{ color: "#9ca3af", fontSize: 12 }}>לא נכנס/ה</span>}</td>
+                    <td style={s.td}>
+                      {seen
+                        ? <span style={{ color: "#16a34a", fontWeight: 600, fontSize: 12 }}>נכנס/ה ✓ · {fmtDate(m.user_last_visit)}</span>
+                        : seenNoSentAt
+                          ? <span style={{ color: "#d97706", fontSize: 12 }}>כניסה: {fmtDate(m.user_last_visit)}</span>
+                          : <span style={{ color: "#9ca3af", fontSize: 12 }}>לא נכנס/ה</span>
+                      }
+                    </td>
+                    <td style={s.td}>
+                      <button
+                        style={{ padding: "3px 10px", fontSize: 11, border: "1px solid #d1d5db", borderRadius: 4, cursor: "pointer", background: "#fff", color: "#6b7280" }}
+                        onClick={async () => {
+                          if (!confirm(`להסיר את ההודעה של ${m.first_name}?`)) return;
+                          await apiFetch(`/admin/users/${m.user_id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin_message: null }) });
+                          setAdminMessages(prev => prev.filter(x => x.user_id !== m.user_id));
+                        }}
+                      >הסר</button>
+                    </td>
                   </tr>
                 );
               })}
