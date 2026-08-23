@@ -3123,6 +3123,7 @@ app.get("/admin/candidate-matches", async (_req, res) => {
       m.match_card_data,
       m.match_card_approved_by_admin,
       m.match_card_sent_at,
+      m.cancelled_by,
       u1.match_card_consent as user1_card_consent,
       u1.match_card_restrictions as user1_card_restrictions,
       u2.match_card_consent as user2_card_consent,

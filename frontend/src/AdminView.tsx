@@ -3706,11 +3706,13 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
       {/* Status filter */}
       <div style={{ display: "flex", gap: 6, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, color: "#6b7280" }}>סטטוס:</span>
-        {["all", "potential_match", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users", "no_match"].map(st => {
+        {["all", "potential_match", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled_by_user", "cancelled_by_system", "rejected_by_users", "no_match"].map(st => {
           const count = st === "all" ? data.length
             : st === "no_match" ? data.filter((cm: any) => !cm.match_status).length
+            : st === "cancelled_by_user" ? data.filter((cm: any) => cm.match_status === "cancelled" && cm.cancelled_by).length
+            : st === "cancelled_by_system" ? data.filter((cm: any) => cm.match_status === "cancelled" && !cm.cancelled_by).length
             : data.filter((cm: any) => cm.match_status === st).length;
-          const label = st === "all" ? "הכל" : st === "no_match" ? "ללא התאמה" : st;
+          const label = st === "all" ? "הכל" : st === "no_match" ? "ללא התאמה" : st === "cancelled_by_user" ? "ביטול משתמש" : st === "cancelled_by_system" ? "ביטול מערכת" : st;
           return (
             <button key={st} style={filterBtnStyle(filterCmStatus === st)} onClick={() => setFilterCmStatus(st)}>
               {label} ({count})
@@ -3779,6 +3781,8 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                 if (filterCmPool === "mm") { if (!(cm.user1_gender === "man" && cm.user1_looking_for === "man")) return false; }
                 if (filterCmStatus !== "all") {
                   if (filterCmStatus === "no_match") { if (cm.match_status) return false; }
+                  else if (filterCmStatus === "cancelled_by_user") { if (!(cm.match_status === "cancelled" && cm.cancelled_by)) return false; }
+                  else if (filterCmStatus === "cancelled_by_system") { if (!(cm.match_status === "cancelled" && !cm.cancelled_by)) return false; }
                   else { if (cm.match_status !== filterCmStatus) return false; }
                 }
                 if (filterCmUser.trim()) {
