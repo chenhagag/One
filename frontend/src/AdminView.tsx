@@ -3467,6 +3467,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
   const [editData, setEditData] = useState<any>(null);
   const [filterCmPool, setFilterCmPool] = useState<"all" | "straight" | "ww" | "mm">("all");
   const [filterCmStatus, setFilterCmStatus] = useState<string>("all");
+  const [filterCmUser, setFilterCmUser] = useState<string>("");
   const [matchDetail, setMatchDetail] = useState<any>(null);
   const [matchDetailLoading, setMatchDetailLoading] = useState(false);
 
@@ -3718,6 +3719,21 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
         })}
       </div>
 
+      {/* User filter */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
+        <span style={{ fontSize: 12, color: "#6b7280" }}>משתמש/ת:</span>
+        <input
+          type="text"
+          value={filterCmUser}
+          onChange={e => setFilterCmUser(e.target.value)}
+          placeholder="שם או מספר ID..."
+          style={{ padding: "5px 10px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6, width: 200 }}
+        />
+        {filterCmUser && (
+          <button onClick={() => setFilterCmUser("")} style={{ padding: "4px 10px", fontSize: 11, border: "1px solid #d1d5db", borderRadius: 4, cursor: "pointer", background: "#fff", color: "#6b7280" }}>נקה</button>
+        )}
+      </div>
+
       {loading ? (
         <p style={s.loading}>Loading...</p>
       ) : data.length === 0 ? (
@@ -3764,6 +3780,12 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                 if (filterCmStatus !== "all") {
                   if (filterCmStatus === "no_match") { if (cm.match_status) return false; }
                   else { if (cm.match_status !== filterCmStatus) return false; }
+                }
+                if (filterCmUser.trim()) {
+                  const q = filterCmUser.trim().toLowerCase();
+                  const idMatch = q === String(cm.user_id) || q === String(cm.candidate_user_id);
+                  const nameMatch = (cm.user1_name || "").toLowerCase().includes(q) || (cm.user2_name || "").toLowerCase().includes(q);
+                  if (!idMatch && !nameMatch) return false;
                 }
                 return true;
               }).sort((a: any, b: any) => (b[sortBy] ?? -1) - (a[sortBy] ?? -1)).map((cm: any) => (
