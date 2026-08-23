@@ -3758,6 +3758,23 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
             </button>
           );
         })}
+        {data.some((cm: any) => cm.match_status === "frozen") && (
+          <button
+            style={{ padding: "4px 12px", fontSize: 11, fontWeight: 600, borderRadius: 6, border: "1px solid #28a745", cursor: "pointer", background: "#d1fae5", color: "#155724" }}
+            onClick={async () => {
+              const frozenCount = data.filter((cm: any) => cm.match_status === "frozen").length;
+              if (!confirm(`לשחרר ${frozenCount} התאמות מוקפאות?`)) return;
+              try {
+                const r = await apiFetch("/admin/unfreeze-all-matches", { method: "POST" });
+                const json = await r.json();
+                alert(`שוחררו ${json.unfrozen} התאמות`);
+                load();
+              } catch { alert("שגיאה"); }
+            }}
+          >
+            Unfreeze All
+          </button>
+        )}
       </div>
 
       {/* User filter */}

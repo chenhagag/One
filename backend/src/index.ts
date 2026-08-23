@@ -2780,6 +2780,22 @@ app.post("/admin/rescore-all", async (_req, res) => {
   }
 });
 
+// POST /admin/unfreeze-all-matches — Restore all frozen matches to their previous status
+app.post("/admin/unfreeze-all-matches", async (_req, res) => {
+  try {
+    const result = await pgQueryAll(
+      `UPDATE matches SET status = previous_status, previous_status = NULL, updated_at = NOW()
+       WHERE status = 'frozen' AND previous_status IS NOT NULL
+       RETURNING id`
+    );
+    console.log(`[admin] Unfroze all: ${result.length} matches`);
+    return res.json({ unfrozen: result.length });
+  } catch (err: any) {
+    console.error(err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /admin/approve-all-ratings — Testing shortcut: bulk-approve all pending ratings
 app.post("/admin/approve-all-ratings", async (_req, res) => {
   try {
@@ -3083,13 +3099,14 @@ async function freezeOtherMatches(activeMatchId: number, user1Id: number, user2I
   return result.length;
 }
 
-async function unfreezeMatches(user1Id: number, user2Id: number) {
-  // Only unfreeze if neither user has another active match
+async function unfreezeMatches(user1Id: number, user2Id: number, excludeMatchId?: number) {
+  // Only unfreeze if neither user has another active match (excluding the one that just ended)
   const otherActive = await pgQueryOne<{ c: number }>(
     `SELECT COUNT(*)::int AS c FROM matches
      WHERE status IN ('waiting_first_rating', 'waiting_second_rating', 'in_match')
-       AND (user1_id = ANY($1::int[]) OR user2_id = ANY($1::int[]))`,
-    [[user1Id, user2Id]]
+       AND (user1_id = ANY($1::int[]) OR user2_id = ANY($1::int[]))
+       AND ($2::int IS NULL OR id != $2)`,
+    [[user1Id, user2Id], excludeMatchId ?? null]
   );
   if ((otherActive?.c ?? 0) > 0) {
     console.log(`[auto-unfreeze] Skipped: users ${user1Id}, ${user2Id} still have ${otherActive?.c} active matches`);
@@ -3161,7 +3178,7 @@ app.post("/matches/:id/rate", requireAuth, async (req, res) => {
        rejection_reason = 'known_person', updated_at = NOW() WHERE id = $1`,
       [match.id]
     );
-    await unfreezeMatches(match.user1_id, match.user2_id);
+    await unfreezeMatches(match.user1_id, match.user2_id, match.id);
     return res.json({ match_id: match.id, new_status: "rejected_acquaintance", rated_by: user_id });
   }
 
@@ -3179,7 +3196,7 @@ app.post("/matches/:id/rate", requireAuth, async (req, res) => {
       [newStatus, rating, match.id]
     );
     if (newStatus === "rejected_by_users") {
-      await unfreezeMatches(match.user1_id, match.user2_id);
+      await unfreezeMatches(match.user1_id, match.user2_id, match.id);
     }
     return res.json({ match_id: match.id, new_status: newStatus, rated_by: user_id });
   }
@@ -3191,7 +3208,7 @@ app.post("/matches/:id/rate", requireAuth, async (req, res) => {
     [newStatus, rating, match.id]
   );
   if (newStatus === "rejected_by_users") {
-    await unfreezeMatches(match.user1_id, match.user2_id);
+    await unfreezeMatches(match.user1_id, match.user2_id, match.id);
   }
   return res.json({ match_id: match.id, new_status: newStatus, rated_by: user_id });
 });
