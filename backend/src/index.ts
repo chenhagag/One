@@ -3351,10 +3351,27 @@ app.patch("/admin/matches/:id/status", async (req, res) => {
     return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` });
   }
   try {
-    const result = await pgQueryOne("UPDATE matches SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING id, status", [status, matchId]);
-    if (!result) return res.status(404).json({ error: "Match not found" });
+    // Read current match before updating (for freeze/unfreeze logic)
+    const oldMatch = await pgQueryOne<any>("SELECT * FROM matches WHERE id = $1", [matchId]);
+    if (!oldMatch) return res.status(404).json({ error: "Match not found" });
+
+    await pgQueryAll("UPDATE matches SET status = $1, updated_at = NOW() WHERE id = $2", [status, matchId]);
     console.log(`[admin] Match ${matchId} status manually changed to: ${status}`);
-    return res.json({ success: true, match: result });
+
+    const activeStatuses = new Set(["waiting_first_rating", "waiting_second_rating", "in_match"]);
+    const wasActive = activeStatuses.has(oldMatch.status);
+    const isNowActive = activeStatuses.has(status);
+
+    // Entering active status → freeze other potential matches
+    if (!wasActive && isNowActive) {
+      await freezeOtherMatches(matchId, oldMatch.user1_id, oldMatch.user2_id);
+    }
+    // Leaving active status → unfreeze
+    if (wasActive && !isNowActive) {
+      await unfreezeMatches(oldMatch.user1_id, oldMatch.user2_id, matchId);
+    }
+
+    return res.json({ success: true, match: { id: matchId, status } });
   } catch (err) {
     console.error("[admin-match-status] Error:", err);
     return res.status(500).json({ error: "Failed to update match status" });
