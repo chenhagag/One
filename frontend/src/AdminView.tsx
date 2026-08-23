@@ -5560,13 +5560,16 @@ function OutreachLogTab() {
               {adminMessages.map((m: any) => {
                 const seen = m.user_last_visit && m.admin_message_sent_at && new Date(m.user_last_visit) > new Date(m.admin_message_sent_at);
                 const seenNoSentAt = !m.admin_message_sent_at && m.user_last_visit;
+                const dismissed = m.admin_message_dismissed;
                 return (
                   <tr key={m.user_id}>
                     <td style={s.td}>{m.first_name} ({m.user_id})</td>
                     <td style={{ ...s.td, maxWidth: 350, whiteSpace: "normal", wordBreak: "break-word", fontSize: 11, lineHeight: "1.5" }}>{m.admin_message?.length > 80 ? m.admin_message.slice(0, 80) + "…" : m.admin_message}</td>
                     <td style={{ ...s.td, whiteSpace: "nowrap" }}>{fmtDate(m.admin_message_sent_at)}</td>
                     <td style={s.td}>
-                      {seen
+                      {dismissed
+                        ? <span style={{ color: "#7c3aed", fontWeight: 600, fontSize: 12 }}>ראיתי ✓</span>
+                        : seen
                         ? <span style={{ color: "#16a34a", fontWeight: 600, fontSize: 12 }}>נכנס/ה ✓ · {fmtDate(m.user_last_visit)}</span>
                         : seenNoSentAt
                           ? <span style={{ color: "#d97706", fontSize: 12 }}>כניסה: {fmtDate(m.user_last_visit)}</span>

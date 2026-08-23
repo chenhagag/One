@@ -965,6 +965,13 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       END IF;
     END $$;
 
+    -- admin_message_dismissed — user clicked "ראיתי, תודה" to dismiss message
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'admin_message_dismissed') THEN
+        ALTER TABLE users ADD COLUMN admin_message_dismissed BOOLEAN DEFAULT FALSE;
+      END IF;
+    END $$;
+
     CREATE TABLE IF NOT EXISTS deleted_users (
       id                SERIAL PRIMARY KEY,
       original_user_id  INTEGER NOT NULL,

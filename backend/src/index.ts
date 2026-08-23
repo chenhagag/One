@@ -787,6 +787,16 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
   return res.json(updated);
 });
 
+// POST /users/:id/dismiss-admin-message — user dismisses admin message
+app.post("/users/:id/dismiss-admin-message", requireUserAuth, async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  await pgQueryOne(
+    "UPDATE users SET admin_message_dismissed = TRUE WHERE id = $1",
+    [userId]
+  );
+  return res.json({ ok: true });
+});
+
 // Keep old POST /users for backward compatibility
 app.post("/users", async (req, res) => {
   const { name, email } = req.body;
@@ -1966,9 +1976,12 @@ app.patch("/admin/users/:id", async (req, res) => {
   if (updates.length === 0) return res.status(400).json({ error: "No valid fields" });
 
   // Auto-set admin_message_sent_at when admin_message is set (and clear when removed)
+  // Reset dismissed flag so user sees the new message
   if ("admin_message" in req.body && !("admin_message_sent_at" in req.body)) {
     updates.push(`admin_message_sent_at = $${i++}`);
     values.push(req.body.admin_message ? new Date().toISOString() : null);
+    updates.push(`admin_message_dismissed = $${i++}`);
+    values.push(false);
   }
 
   // Auto-manage insights_pre_completion when personal_insights_full is updated
@@ -3951,6 +3964,7 @@ app.get("/admin/outreach-log", async (_req, res) => {
     `);
     const adminMessages = await pgQueryAll(`
       SELECT u.id as user_id, u.first_name, u.admin_message, u.admin_message_sent_at,
+        COALESCE(u.admin_message_dismissed, FALSE) as admin_message_dismissed,
         (SELECT MAX(viewed_at) FROM page_views WHERE user_id = u.id) as user_last_visit
       FROM users u
       WHERE u.admin_message IS NOT NULL
@@ -4428,12 +4442,14 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       partner_in_system: boolean | null; whatsapp_updates: boolean | null;
       partner_name: string | null;
       in_matching_pool: boolean | null; match_card_consent: string | null;
+      admin_message_dismissed: boolean | null;
     }>(
       `SELECT age, city, height, looking_for_gender,
               desired_age_min, desired_age_max, desired_height_min, desired_height_max,
               COALESCE(analysis_run_count, 0) as analysis_run_count, gender, admin_message,
               test_user_type, email_updates, COALESCE(partner_in_system, FALSE) as partner_in_system,
-              whatsapp_updates, partner_name, in_matching_pool, match_card_consent
+              whatsapp_updates, partner_name, in_matching_pool, match_card_consent,
+              COALESCE(admin_message_dismissed, FALSE) as admin_message_dismissed
        FROM users WHERE id = $1`, [userId]
     );
     const hasProfileDetails = !!(
@@ -4466,7 +4482,8 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
     const hasTasteInfo = tasteClosed || tasteCount >= 5;
 
     // Auto system messages (fallback when no manual admin_message)
-    let displayMessage = profileRow?.admin_message || null;
+    // Skip manual message if user dismissed it
+    let displayMessage = (profileRow?.admin_message && !profileRow?.admin_message_dismissed) ? profileRow.admin_message : null;
     if (!displayMessage) {
       const isCouple = profileRow?.test_user_type === "Couple Tester";
       const noEmail = profileRow?.email_updates === false;

@@ -1873,6 +1873,15 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     <p style={{ fontSize: 14, color: "#1a1a2e", lineHeight: 1.7, margin: 0, fontWeight: 500, whiteSpace: "pre-wrap" }}>
                       {recommendations.admin_message}
                     </p>
+                    <button
+                      onClick={() => {
+                        apiFetch(`/users/${user.id}/dismiss-admin-message`, { method: "POST" })
+                          .then(() => setRecommendations(prev => ({ ...prev, admin_message: null })));
+                      }}
+                      style={{ display: "block", margin: "12px auto 0", padding: "6px 20px", fontSize: 13, color: "#7c6fae", background: "none", border: "1px solid #e0ddf5", borderRadius: 8, cursor: "pointer", fontWeight: 500 }}
+                    >
+                      ראיתי, תודה ❤️
+                    </button>
                   </div>
                 </div>
               )}
