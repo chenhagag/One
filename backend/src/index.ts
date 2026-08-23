@@ -3017,6 +3017,49 @@ app.get("/admin/users/:id/candidate-matches", async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
+// AUTO-FREEZE / UNFREEZE — When a match enters an active status,
+// freeze all other potential_match matches for both users.
+// When it exits, unfreeze them back to potential_match.
+// ════════════════════════════════════════════════════════════════
+
+async function freezeOtherMatches(activeMatchId: number, user1Id: number, user2Id: number) {
+  const result = await pgQueryAll(
+    `UPDATE matches SET previous_status = status, status = 'frozen', updated_at = NOW()
+     WHERE id != $1
+       AND status = 'potential_match'
+       AND (user1_id = ANY($2::int[]) OR user2_id = ANY($2::int[]))
+     RETURNING id`,
+    [activeMatchId, [user1Id, user2Id]]
+  );
+  console.log(`[auto-freeze] Match #${activeMatchId}: froze ${result.length} other matches for users ${user1Id}, ${user2Id}`);
+  return result.length;
+}
+
+async function unfreezeMatches(user1Id: number, user2Id: number) {
+  // Only unfreeze if neither user has another active match
+  const otherActive = await pgQueryOne<{ c: number }>(
+    `SELECT COUNT(*)::int AS c FROM matches
+     WHERE status IN ('waiting_first_rating', 'waiting_second_rating', 'in_match')
+       AND (user1_id = ANY($1::int[]) OR user2_id = ANY($1::int[]))`,
+    [[user1Id, user2Id]]
+  );
+  if ((otherActive?.c ?? 0) > 0) {
+    console.log(`[auto-unfreeze] Skipped: users ${user1Id}, ${user2Id} still have ${otherActive?.c} active matches`);
+    return 0;
+  }
+  const result = await pgQueryAll(
+    `UPDATE matches SET status = previous_status, previous_status = NULL, updated_at = NOW()
+     WHERE status = 'frozen'
+       AND previous_status IS NOT NULL
+       AND (user1_id = ANY($1::int[]) OR user2_id = ANY($1::int[]))
+     RETURNING id`,
+    [[user1Id, user2Id]]
+  );
+  console.log(`[auto-unfreeze] Unfroze ${result.length} matches for users ${user1Id}, ${user2Id}`);
+  return result.length;
+}
+
 // MATCH RATING — User rates a match
 // ════════════════════════════════════════════════════════════════
 
@@ -3071,6 +3114,7 @@ app.post("/matches/:id/rate", requireAuth, async (req, res) => {
        rejection_reason = 'known_person', updated_at = NOW() WHERE id = $1`,
       [match.id]
     );
+    await unfreezeMatches(match.user1_id, match.user2_id);
     return res.json({ match_id: match.id, new_status: "rejected_acquaintance", rated_by: user_id });
   }
 
@@ -3087,6 +3131,9 @@ app.post("/matches/:id/rate", requireAuth, async (req, res) => {
       `UPDATE matches SET status = $1, ${ratingCol} = $2, sent_for_rating_at = NULL, sent_for_rating_to = NULL, updated_at = NOW() WHERE id = $3`,
       [newStatus, rating, match.id]
     );
+    if (newStatus === "rejected_by_users") {
+      await unfreezeMatches(match.user1_id, match.user2_id);
+    }
     return res.json({ match_id: match.id, new_status: newStatus, rated_by: user_id });
   }
 
@@ -3096,6 +3143,9 @@ app.post("/matches/:id/rate", requireAuth, async (req, res) => {
     `UPDATE matches SET status = $1, ${ratingCol} = $2, sent_for_rating_at = NULL, sent_for_rating_to = NULL, updated_at = NOW() WHERE id = $3`,
     [newStatus, rating, match.id]
   );
+  if (newStatus === "rejected_by_users") {
+    await unfreezeMatches(match.user1_id, match.user2_id);
+  }
   return res.json({ match_id: match.id, new_status: newStatus, rated_by: user_id });
 });
 
@@ -3301,6 +3351,9 @@ app.post("/admin/matches/:id/send", async (req, res) => {
     );
   });
 
+  // Auto-freeze other potential matches
+  await freezeOtherMatches(match.id, match.user1_id, match.user2_id);
+
   return res.json({ success: true, match_id: match.id, status: "in_match" });
 });
 
@@ -3380,7 +3433,12 @@ app.post("/admin/matches/:id/send-for-rating", async (req, res) => {
     [newStatus, targetUserId, matchId]
   );
 
-  return res.json({ success: true, match_id: matchId, sent_to: targetUserId, status: match.status });
+  // Auto-freeze other potential matches when entering active status
+  if (match.status === "potential_match") {
+    await freezeOtherMatches(matchId, match.user1_id, match.user2_id);
+  }
+
+  return res.json({ success: true, match_id: matchId, sent_to: targetUserId, status: newStatus });
 });
 
 // POST /admin/matches/:id/save-card — Save manually-entered match card content
