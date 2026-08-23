@@ -547,19 +547,28 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
     if (u.flag_toxic) flags.push("TOXIC");
     if (u.flag_troll) flags.push("TROLL");
     if (u.flag_identity) flags.push("IDENTITY");
+    const suspectedButActive = u.suspected_inactive && u.last_visit && (Date.now() - new Date(u.last_visit).getTime()) < 30 * 24 * 60 * 60 * 1000;
+    const rowBg = suspectedButActive ? "#fef2f2" : u.user_status === "frozen" ? "#fff0f0" : "";
     return (
       <tr
         key={u.id}
-        style={{ background: u.user_status === "frozen" ? "#fff0f0" : "" }}
+        style={{ background: rowBg }}
         onMouseEnter={(e) => (e.currentTarget.style.background = "#f0f4ff")}
-        onMouseLeave={(e) => (e.currentTarget.style.background = u.user_status === "frozen" ? "#fff0f0" : "")}
+        onMouseLeave={(e) => (e.currentTarget.style.background = rowBg)}
       >
         <td style={s.td}>{u.id}</td>
-        <td style={{ ...s.td, cursor: "pointer" }} onClick={() => setSelectedUserId(u.id)}><strong style={{ color: "#6366f1" }}>{u.first_name}</strong>{u.photo_flags && <span title="התראת תמונות" style={{ marginRight: 4 }}>🚨</span>}</td>
+        <td style={{ ...s.td, cursor: "pointer" }} onClick={() => setSelectedUserId(u.id)}>
+          <strong style={{ color: suspectedButActive ? "#dc2626" : "#6366f1" }}>{u.first_name}</strong>
+          {suspectedButActive && <span title="חשוד כלא פעיל — אבל נכנס/ה בחודש האחרון!" style={{ marginRight: 4, fontSize: 11 }}>🔴</span>}
+          {u.photo_flags && <span title="התראת תמונות" style={{ marginRight: 4 }}>🚨</span>}
+        </td>
         <td style={s.td}>{u.email}</td>
         <td style={s.td}>{u.age || "-"}</td>
         <td style={s.td}><span style={s.badge}>{u.gender || "-"}</span></td>
-        <td style={s.td}><span style={{ ...s.badge, background: u.user_status === "frozen" ? "#f8d7da" : "" }}>{u.user_status || "-"}</span></td>
+        <td style={s.td}>
+          <span style={{ ...s.badge, background: u.user_status === "frozen" ? "#f8d7da" : "" }}>{u.user_status || "-"}</span>
+          {u.suspected_inactive && <span style={{ ...s.badge, background: "#fef3c7", color: "#92400e", fontSize: 9, marginRight: 3 }}>לא פעיל</span>}
+        </td>
         <td style={s.td}>{u.is_matchable ? "Yes" : "No"}</td>
         <td style={s.td}><span style={{ color: u.in_matching_pool ? "#16a34a" : "#dc2626", fontWeight: 600 }}>{u.in_matching_pool ? "כן" : "לא"}</span></td>
         <td style={s.td}><span style={{ ...s.badge, fontSize: 10, background: u.test_user_type === "Couple Tester" ? "#d4edda" : u.test_user_type ? "#cfe2ff" : "" }}>{u.test_user_type || "-"}</span></td>
@@ -1380,6 +1389,29 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
             {user.user_status === "frozen" ? "Unfreeze User" : "Freeze User"}
           </button>
           <button
+            style={{
+              padding: "4px 12px", fontSize: 12, cursor: "pointer", border: "none", borderRadius: 4,
+              background: user.suspected_inactive ? "#28a745" : "#d97706", color: "#fff",
+            }}
+            onClick={async () => {
+              const action = user.suspected_inactive ? "unsuspect-inactive" : "suspect-inactive";
+              const msg = user.suspected_inactive
+                ? `להחזיר את ${user.first_name} לפעיל? ההתאמות המוקפאות ישוחררו.`
+                : `לסמן את ${user.first_name} כחשוד/ה כלא פעיל/ה? ההתאמות הפוטנציאליות יוקפאו.`;
+              if (!confirm(msg)) return;
+              try {
+                const r = await apiFetch(`/admin/users/${userId}/${action}`, { method: "POST" });
+                const json = await r.json();
+                if (!r.ok) { alert(json.error || "Failed"); return; }
+                const countMsg = json.frozen_matches != null ? ` (${json.frozen_matches} התאמות הוקפאו)` : json.unfrozen_matches != null ? ` (${json.unfrozen_matches} התאמות שוחררו)` : "";
+                alert((user.suspected_inactive ? "הוחזר לפעיל" : "סומן כחשוד כלא פעיל") + countMsg);
+                loadUserData();
+              } catch { alert("Network error"); }
+            }}
+          >
+            {user.suspected_inactive ? "החזר לפעיל" : "חשוד כלא פעיל"}
+          </button>
+          <button
             style={{ padding: "4px 12px", fontSize: 12, cursor: "pointer", background: "#dc3545", color: "#fff", border: "none", borderRadius: 4 }}
             onClick={handleDeleteUser}
           >
@@ -1392,6 +1424,13 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
       {user.user_status === "frozen" && (
         <div style={{ background: "#f8d7da", border: "1px solid #f5c6cb", borderRadius: 6, padding: "8px 14px", marginBottom: 8, fontSize: 13, color: "#721c24", fontWeight: 600 }}>
           This user is frozen and excluded from matching.
+        </div>
+      )}
+
+      {/* Suspected inactive banner */}
+      {user.suspected_inactive && (
+        <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 6, padding: "8px 14px", marginBottom: 8, fontSize: 13, color: "#92400e", fontWeight: 600 }}>
+          ⚠ חשוד כלא פעיל — ההתאמות הפוטנציאליות מוקפאות
         </div>
       )}
 

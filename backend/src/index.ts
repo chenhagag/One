@@ -2005,6 +2005,48 @@ app.patch("/admin/users/:id", async (req, res) => {
   return res.json(updated);
 });
 
+// POST /admin/users/:id/suspect-inactive — Mark user as suspected inactive + freeze their potential matches
+app.post("/admin/users/:id/suspect-inactive", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const user = await pgQueryOne<any>("SELECT id, suspected_inactive FROM users WHERE id = $1", [userId]);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  if (user.suspected_inactive) return res.status(400).json({ error: "User is already suspected inactive" });
+
+  await pgQueryAll("UPDATE users SET suspected_inactive = TRUE, updated_at = NOW() WHERE id = $1", [userId]);
+
+  // Freeze all potential_match matches involving this user
+  const frozen = await pgQueryAll(
+    `UPDATE matches SET previous_status = status, status = 'frozen', updated_at = NOW()
+     WHERE status = 'potential_match'
+       AND (user1_id = $1 OR user2_id = $1)
+     RETURNING id`,
+    [userId]
+  );
+  console.log(`[admin] Marked user ${userId} as suspected inactive, froze ${frozen.length} matches`);
+  return res.json({ suspected_inactive: true, user_id: userId, frozen_matches: frozen.length });
+});
+
+// POST /admin/users/:id/unsuspect-inactive — Remove suspected inactive status + unfreeze matches
+app.post("/admin/users/:id/unsuspect-inactive", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const user = await pgQueryOne<any>("SELECT id, suspected_inactive FROM users WHERE id = $1", [userId]);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  if (!user.suspected_inactive) return res.status(400).json({ error: "User is not suspected inactive" });
+
+  await pgQueryAll("UPDATE users SET suspected_inactive = FALSE, updated_at = NOW() WHERE id = $1", [userId]);
+
+  // Unfreeze matches that were frozen (only those with previous_status saved)
+  const unfrozen = await pgQueryAll(
+    `UPDATE matches SET status = previous_status, previous_status = NULL, updated_at = NOW()
+     WHERE status = 'frozen' AND previous_status IS NOT NULL
+       AND (user1_id = $1 OR user2_id = $1)
+     RETURNING id`,
+    [userId]
+  );
+  console.log(`[admin] Removed suspected inactive from user ${userId}, unfroze ${unfrozen.length} matches`);
+  return res.json({ suspected_inactive: false, user_id: userId, unfrozen_matches: unfrozen.length });
+});
+
 // POST /admin/users/:id/freeze — Freeze/suspend a user
 app.post("/admin/users/:id/freeze", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
@@ -2173,7 +2215,8 @@ app.get("/admin/users", async (_req, res) => {
       COALESCE(tu.total_tokens, 0) as total_tokens,
       COALESCE(tu.total_cost_usd, 0) as total_cost_usd,
       COALESCE(tu.conversation_cost_usd, 0) as conversation_cost_usd,
-      COALESCE(tu.analysis_cost_usd, 0) as analysis_cost_usd
+      COALESCE(tu.analysis_cost_usd, 0) as analysis_cost_usd,
+      pv_last.last_visit
     FROM users u
     LEFT JOIN LATERAL (
       SELECT raw_answer, analysis_json, created_at
@@ -2190,6 +2233,10 @@ app.get("/admin/users", async (_req, res) => {
         SUM(CASE WHEN action_type NOT LIKE 'analysis%' AND action_type NOT LIKE 'reanalyze%' THEN estimated_cost_usd ELSE 0 END) as conversation_cost_usd
       FROM token_usage GROUP BY user_id
     ) tu ON tu.user_id = u.id
+    LEFT JOIN (
+      SELECT user_id, MAX(viewed_at) as last_visit
+      FROM page_views GROUP BY user_id
+    ) pv_last ON pv_last.user_id = u.id
     ORDER BY u.created_at DESC
   `);
 
