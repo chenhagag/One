@@ -3091,34 +3091,43 @@ async function freezeOtherMatches(activeMatchId: number, user1Id: number, user2I
     `UPDATE matches SET previous_status = status, status = 'frozen', updated_at = NOW()
      WHERE id != $1
        AND status = 'potential_match'
-       AND (user1_id = ANY($2::int[]) OR user2_id = ANY($2::int[]))
+       AND (user1_id = $2 OR user2_id = $2 OR user1_id = $3 OR user2_id = $3)
      RETURNING id`,
-    [activeMatchId, [user1Id, user2Id]]
+    [activeMatchId, user1Id, user2Id]
   );
   console.log(`[auto-freeze] Match #${activeMatchId}: froze ${result.length} other matches for users ${user1Id}, ${user2Id}`);
   return result.length;
 }
 
 async function unfreezeMatches(user1Id: number, user2Id: number, excludeMatchId?: number) {
-  // Only unfreeze if neither user has another active match (excluding the one that just ended)
+  console.log(`[auto-unfreeze] Called for users ${user1Id}, ${user2Id}, excludeMatchId=${excludeMatchId}`);
+  // Check how many frozen matches exist for these users
+  const frozenCheck = await pgQueryOne<{ c: number }>(
+    `SELECT COUNT(*)::int AS c FROM matches
+     WHERE status = 'frozen' AND previous_status IS NOT NULL
+       AND (user1_id = $1 OR user2_id = $1 OR user1_id = $2 OR user2_id = $2)`,
+    [user1Id, user2Id]
+  );
+  console.log(`[auto-unfreeze] Found ${frozenCheck?.c ?? 0} frozen matches for users ${user1Id}, ${user2Id}`);
+  // Check for other active matches (not the one being rejected)
   const otherActive = await pgQueryOne<{ c: number }>(
     `SELECT COUNT(*)::int AS c FROM matches
      WHERE status IN ('waiting_first_rating', 'waiting_second_rating', 'in_match')
-       AND (user1_id = ANY($1::int[]) OR user2_id = ANY($1::int[]))
-       AND ($2::int IS NULL OR id != $2)`,
-    [[user1Id, user2Id], excludeMatchId ?? null]
+       AND (user1_id = $1 OR user2_id = $1 OR user1_id = $2 OR user2_id = $2)
+       AND id != $3`,
+    [user1Id, user2Id, excludeMatchId ?? -1]
   );
   if ((otherActive?.c ?? 0) > 0) {
-    console.log(`[auto-unfreeze] Skipped: users ${user1Id}, ${user2Id} still have ${otherActive?.c} active matches`);
+    console.log(`[auto-unfreeze] Skipped: users ${user1Id}, ${user2Id} still have ${otherActive?.c} active matches (excluding #${excludeMatchId})`);
     return 0;
   }
   const result = await pgQueryAll(
     `UPDATE matches SET status = previous_status, previous_status = NULL, updated_at = NOW()
      WHERE status = 'frozen'
        AND previous_status IS NOT NULL
-       AND (user1_id = ANY($1::int[]) OR user2_id = ANY($1::int[]))
+       AND (user1_id = $1 OR user2_id = $1 OR user1_id = $2 OR user2_id = $2)
      RETURNING id`,
-    [[user1Id, user2Id]]
+    [user1Id, user2Id]
   );
   console.log(`[auto-unfreeze] Unfroze ${result.length} matches for users ${user1Id}, ${user2Id}`);
   return result.length;
