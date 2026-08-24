@@ -5019,7 +5019,7 @@ app.post("/new-chat/message", aiLimiter, requireAuth, async (req, res) => {
 // ── Survey endpoints ────────────────────────────────────────────
 
 // GET /api/survey/my-response — Check if user already completed or has partial
-app.get("/api/survey/my-response", requireUserAuth, async (req, res) => {
+app.get("/survey/my-response", requireUserAuth, async (req, res) => {
   const userId = (req as any).userId;
   try {
     const row = await pgQueryOne<{ responses: any; completed: boolean }>(
@@ -5032,7 +5032,7 @@ app.get("/api/survey/my-response", requireUserAuth, async (req, res) => {
 });
 
 // POST /api/survey/response — Save (partial or complete) survey response
-app.post("/api/survey/response", requireUserAuth, async (req, res) => {
+app.post("/survey/response", requireUserAuth, async (req, res) => {
   const userId = (req as any).userId;
   const { responses, completed } = req.body;
   if (!responses || typeof responses !== "object") return res.status(400).json({ error: "responses object required" });
@@ -5057,7 +5057,7 @@ app.post("/api/survey/response", requireUserAuth, async (req, res) => {
 });
 
 // POST /api/survey/dismiss-banner — Dismiss survey banner on home screen
-app.post("/api/survey/dismiss-banner", requireUserAuth, async (req, res) => {
+app.post("/survey/dismiss-banner", requireUserAuth, async (req, res) => {
   const userId = (req as any).userId;
   try {
     await pgQueryAll("UPDATE users SET survey_banner_dismissed = TRUE WHERE id = $1", [userId]);
