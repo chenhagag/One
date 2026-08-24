@@ -1445,6 +1445,13 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
         {user.created_at && <span style={{ ...s.badge, fontSize: 11, background: "#e0f2fe", color: "#0369a1" }}>
           Joined {new Date(user.created_at).toLocaleDateString("he-IL")} {new Date(user.created_at).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
         </span>}
+        {(() => {
+          const lastVisit = pageViews?.summary?.reduce((max: string | null, p: any) => (!max || (p.last_visit && p.last_visit > max)) ? p.last_visit : max, null as string | null);
+          if (!lastVisit) return null;
+          return <span style={{ ...s.badge, fontSize: 11, background: "#f0fdf4", color: "#166534" }}>
+            כניסה אחרונה: {new Date(lastVisit).toLocaleDateString("he-IL")} {new Date(lastVisit).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
+          </span>;
+        })()}
       </div>
       <p style={{ ...s.sub, marginBottom: 8 }}>
         Status: <strong>{user.user_status}</strong> |
@@ -2177,24 +2184,24 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
 
           {/* Full Match Ratings History */}
           {(() => {
-            const allRated = matches.filter((m: any) => {
-              const thisRating = userId === m.user1_id ? m.user1_rating : m.user2_rating;
-              return thisRating != null;
-            });
-            if (allRated.length === 0) return null;
+            const allWithRatings = matches.filter((m: any) => m.user1_rating || m.user2_rating);
+            if (allWithRatings.length === 0) return null;
             const rl = (r: string | null) => r === "bullseye" ? "✅ בול" : r === "possible" ? "🟡 אפשרי" : r === "miss" ? "❌ לא" : r === "known_person" ? "👤 מכיר/ה" : "—";
             return (
               <div style={{ marginBottom: 16, padding: 12, border: "1px solid #e2e8f0", borderRadius: 8, background: "#f8fafc" }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>📋 כל הדירוגים ({allRated.length})</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>📋 כל הדירוגים ({allWithRatings.length})</span>
                 <div style={{ marginTop: 8 }}>
-                  {allRated.map((m: any) => {
+                  {allWithRatings.map((m: any) => {
                     const thisRating = userId === m.user1_id ? m.user1_rating : m.user2_rating;
                     const otherRating = userId === m.user1_id ? m.user2_rating : m.user1_rating;
                     return (
                       <div key={`all-${m.id}`} style={{ padding: "5px 0", borderBottom: "1px solid #f1f5f9", fontSize: 12, direction: "rtl" }}>
                         <span style={{ color: "#374151", fontWeight: 500 }}>מול {m.other_name}: </span>
-                        <span style={{ fontWeight: 700, color: thisRating === "miss" ? "#dc2626" : thisRating === "possible" ? "#d97706" : "#16a34a" }}>{rl(thisRating)}</span>
-                        {otherRating && <span style={{ marginRight: 8, color: "#6b7280" }}>(הצד השני: {rl(otherRating)})</span>}
+                        {thisRating
+                          ? <span style={{ fontWeight: 700, color: thisRating === "miss" ? "#dc2626" : thisRating === "possible" ? "#d97706" : "#16a34a" }}>{rl(thisRating)}</span>
+                          : <span style={{ color: "#94a3b8", fontStyle: "italic" }}>לא דירג/ה</span>
+                        }
+                        {otherRating && <span style={{ marginRight: 8, color: "#6b7280" }}>(דירוג הצד השני: {rl(otherRating)})</span>}
                         <span style={{ marginRight: 8, fontSize: 10, color: "#94a3b8" }}>סטטוס: {m.status}</span>
                       </div>
                     );
