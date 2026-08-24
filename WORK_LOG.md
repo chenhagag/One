@@ -1,6 +1,60 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-08-22 (Photo Request + Rating Photos Fix + Admin Messages)
+## Latest Session: 2026-08-23 (Auto-Freeze + Suspected Inactive + Admin Improvements)
+
+### ✅ עלה לפרודקשן
+
+#### כפתור "ראיתי, תודה" למשתמשים
+- כפתור dismiss מתחת להודעת מערכת בדף הבית
+- שדה חדש `admin_message_dismissed BOOLEAN` — נשמר ב-DB, מתאפס כשאדמין שולח הודעה חדשה
+- ביומן פניות: "ראיתי ✓" בסגול כשמשתמש סימן
+
+#### סינון לפי משתמש בטאב Candidates
+- שדה טקסט חופשי — חיפוש לפי שם (חלקי) או מספר ID בשני צדדי ה-pair
+- כפתור "נקה" כשיש טקסט
+
+#### פיצול סינון cancelled
+- "ביטול משתמש" — `cancelled_by` מלא (user cancelled)
+- "ביטול מערכת" — `cancelled_by` ריק (admin cancelled)
+
+#### Auto-freeze/unfreeze של התאמות פוטנציאליות
+- כשהתאמה נכנסת ל-`waiting_first_rating` / `in_match` → כל ה-`potential_match` של שני המשתמשים מוקפאות אוטומטית (`previous_status` נשמר)
+- כשהתאמה נדחית (`rejected_by_users`, `rejected_acquaintance`) או מבוטלת → frozen חוזרות ל-`potential_match`
+- **כל user מטופל בנפרד** — אם לצד אחד עוד התאמה פעילה, רק הצד השני משתחרר
+- עובד גם בשינוי סטטוס ידני באדמין (dropdown)
+- פונקציות: `freezeOtherMatches()`, `unfreezeMatches()`
+
+#### סטטוס "חשוד כלא פעיל" (suspected inactive)
+- שדה חדש `suspected_inactive BOOLEAN` על users
+- `POST /admin/users/:id/suspect-inactive` — מסמן + מקפיא כל potential_match
+- `POST /admin/users/:id/unsuspect-inactive` — מסיר + משחרר התאמות מוקפאות
+- כפתור כתום "חשוד כלא פעיל" / ירוק "החזר לפעיל" ב-UserDetail
+- באנר צהוב כשמשתמש מסומן
+- **בטבלת pipeline**: משתמש מסומן שנכנס בחודש האחרון → שם אדום + 🔴 + רקע ורדרד
+
+#### כפתור Unfreeze All
+- בטאב Candidates ליד פילטרי סטטוס (מופיע רק כשיש frozen)
+- `POST /admin/unfreeze-all-matches` — משחרר הכל לסטטוס הקודם
+
+#### סקשן דירוגים מלא במסך משתמש באדמין
+- "📋 כל הדירוגים" — מציג כל התאמה שבה דירג אחד הצדדים
+- מציג דירוג המשתמש + "דירוג הצד השני" + סטטוס
+- מראה "לא דירג/ה" כשהמשתמש עצמו לא דירג
+
+#### כניסה אחרונה במסך משתמש
+- תגית ירוקה ליד Joined — "כניסה אחרונה: DD/MM/YY HH:MM"
+- מבוסס על `page_views` (MAX viewed_at)
+- `last_visit` נוסף ל-query של `GET /admin/users`
+
+### סנכרון staging ↔ production
+- שני הענפים זהים
+
+### TODO לסשן הבא
+- להמשיך לעבור על פרומפט סגנון תכונה תכונה (17 תכונות נותרו)
+
+---
+
+## Previous Session: 2026-08-22 (Photo Request + Rating Photos Fix + Admin Messages)
 
 ### ✅ עלה לפרודקשן
 
