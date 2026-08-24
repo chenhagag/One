@@ -387,7 +387,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [bugText, setBugText] = useState("");
   const [bugSent, setBugSent] = useState(false);
   const [feedbackCategory, setFeedbackCategory] = useState<string>("");
-  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null; has_past_matches: boolean }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, pending_rating: false, in_matching_pool: false, match_card_consent: null, has_past_matches: false });
+  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null; has_past_matches: boolean; show_survey_banner: boolean }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, pending_rating: false, in_matching_pool: false, match_card_consent: null, has_past_matches: false, show_survey_banner: false });
   const [systemQuestion, setSystemQuestion] = useState<{ id: number; question_text: string } | null>(null);
   const [answeredQuestion, setAnsweredQuestion] = useState<{ question_text: string; answer: string } | null>(null);
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
@@ -441,6 +441,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             in_matching_pool: !!data.in_matching_pool,
             match_card_consent: data.match_card_consent || null,
             has_past_matches: !!data.has_past_matches,
+            show_survey_banner: !!data.show_survey_banner,
           });
           setHasPastMatches(!!data.has_past_matches);
           setSystemQuestion(data.system_question || null);
@@ -1881,6 +1882,39 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       style={{ display: "block", margin: "12px auto 0", padding: "6px 20px", fontSize: 13, color: "#7c6fae", background: "none", border: "1px solid #e0ddf5", borderRadius: 8, cursor: "pointer", fontWeight: 500 }}
                     >
                       ראיתי, תודה ❤️
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Survey banner — shown until user completes survey or dismisses */}
+              {screen === "home" && recommendations.show_survey_banner && (
+                <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
+                  <div style={{ background: "#f8f5ff", borderRadius: 14, padding: "16px 20px", border: "1px solid #e0ddf5", position: "relative" }}>
+                    <button
+                      onClick={() => {
+                        apiFetch("/survey/dismiss-banner", { method: "POST" })
+                          .then(() => setRecommendations(prev => ({ ...prev, show_survey_banner: false })));
+                      }}
+                      style={{ position: "absolute", top: 8, left: 8, background: "none", border: "none", fontSize: 18, color: "#bbb", cursor: "pointer", padding: 4, lineHeight: 1 }}
+                    >
+                      ✕
+                    </button>
+                    <p style={{ fontSize: 14, color: "#3a3660", lineHeight: 1.7, margin: "0 0 6px", fontWeight: 600 }}>
+                      🤍 עזרו לנו להשתפר
+                    </p>
+                    <p style={{ fontSize: 13, color: "#555", lineHeight: 1.7, margin: "0 0 12px" }}>
+                      הכנו סקר קצר שייקח כמה דקות — כל תשובה תעזור לנו לשפר ולדייק את המערכת.
+                    </p>
+                    <button
+                      onClick={() => { window.history.replaceState({}, "", "/survey"); onNavigate?.("survey"); }}
+                      style={{
+                        width: "100%", padding: "10px 20px", fontSize: 14, fontWeight: 600,
+                        background: "#7b5fa3", color: "#fff", border: "none", borderRadius: 10,
+                        cursor: "pointer", fontFamily: "inherit",
+                      }}
+                    >
+                      מלאו את הסקר
                     </button>
                   </div>
                 </div>

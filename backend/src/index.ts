@@ -4748,6 +4748,15 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
     );
     const hasPastMatches = (pastMatchRow?.c ?? 0) > 0;
 
+    // Survey status
+    const surveyRow = await pgQueryOne<{ completed: boolean }>(
+      "SELECT completed FROM survey_responses WHERE user_id = $1", [userId]
+    );
+    const surveyBannerDismissed = await pgQueryOne<{ survey_banner_dismissed: boolean }>(
+      "SELECT COALESCE(survey_banner_dismissed, FALSE) as survey_banner_dismissed FROM users WHERE id = $1", [userId]
+    );
+    const showSurveyBanner = !surveyRow?.completed && !surveyBannerDismissed?.survey_banner_dismissed;
+
     return res.json({
       has_cognitive: cogClosed,
       cognitive_count: cognitiveCount,
@@ -4767,6 +4776,7 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       in_matching_pool: profileRow?.in_matching_pool ?? false,
       match_card_consent: profileRow?.match_card_consent ?? null,
       has_past_matches: hasPastMatches,
+      show_survey_banner: showSurveyBanner,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -5002,6 +5012,182 @@ app.post("/new-chat/message", aiLimiter, requireAuth, async (req, res) => {
   } catch (err: any) {
     console.error("[new-chat] Error:", err.message, err.stack);
     return res.status(500).json({ error: "AI error" });
+  }
+});
+
+// ── Survey endpoints ────────────────────────────────────────────
+
+// GET /api/survey/my-response — Check if user already completed or has partial
+app.get("/api/survey/my-response", requireUserAuth, async (req, res) => {
+  const userId = (req as any).userId;
+  try {
+    const row = await pgQueryOne<{ responses: any; completed: boolean }>(
+      "SELECT responses, completed FROM survey_responses WHERE user_id = $1", [userId]
+    );
+    return res.json({ responses: row?.responses || {}, completed: row?.completed || false });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/survey/response — Save (partial or complete) survey response
+app.post("/api/survey/response", requireUserAuth, async (req, res) => {
+  const userId = (req as any).userId;
+  const { responses, completed } = req.body;
+  if (!responses || typeof responses !== "object") return res.status(400).json({ error: "responses object required" });
+
+  try {
+    // Check if already completed
+    const existing = await pgQueryOne<{ completed: boolean }>(
+      "SELECT completed FROM survey_responses WHERE user_id = $1", [userId]
+    );
+    if (existing?.completed) return res.json({ ok: true, already_completed: true });
+
+    await pgQueryAll(
+      `INSERT INTO survey_responses (user_id, responses, completed, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (user_id) DO UPDATE SET responses = $2, completed = $3, updated_at = NOW()`,
+      [userId, JSON.stringify(responses), completed || false]
+    );
+    return res.json({ ok: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/survey/dismiss-banner — Dismiss survey banner on home screen
+app.post("/api/survey/dismiss-banner", requireUserAuth, async (req, res) => {
+  const userId = (req as any).userId;
+  try {
+    await pgQueryAll("UPDATE users SET survey_banner_dismissed = TRUE WHERE id = $1", [userId]);
+    return res.json({ ok: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /admin/survey/stats — Survey overview stats
+app.get("/admin/survey/stats", requireAdmin, async (_req, res) => {
+  try {
+    const total = await pgQueryOne<{ c: number }>(
+      "SELECT COUNT(*)::int AS c FROM users WHERE (test_user_type IS NULL OR test_user_type != 'Couple Tester') AND email IS NOT NULL AND email != ''",
+      []
+    );
+    const emailed = await pgQueryOne<{ c: number }>(
+      "SELECT COUNT(*)::int AS c FROM users WHERE survey_email_sent_at IS NOT NULL", []
+    );
+    const completed = await pgQueryOne<{ c: number }>(
+      "SELECT COUNT(*)::int AS c FROM survey_responses WHERE completed = TRUE", []
+    );
+    const partial = await pgQueryOne<{ c: number }>(
+      "SELECT COUNT(*)::int AS c FROM survey_responses WHERE completed = FALSE", []
+    );
+    const dismissed = await pgQueryOne<{ c: number }>(
+      "SELECT COUNT(*)::int AS c FROM users WHERE survey_banner_dismissed = TRUE", []
+    );
+    return res.json({
+      total_eligible: total?.c ?? 0,
+      emails_sent: emailed?.c ?? 0,
+      completed: completed?.c ?? 0,
+      partial: partial?.c ?? 0,
+      dismissed: dismissed?.c ?? 0,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /admin/survey/responses — All survey responses with user info
+app.get("/admin/survey/responses", requireAdmin, async (_req, res) => {
+  try {
+    const rows = await pgQueryAll<any>(
+      `SELECT sr.user_id, sr.responses, sr.completed, sr.created_at, sr.updated_at,
+              u.first_name, u.email, u.gender, u.survey_email_sent_at
+       FROM survey_responses sr
+       JOIN users u ON u.id = sr.user_id
+       ORDER BY sr.updated_at DESC`
+    );
+    return res.json(rows);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /admin/survey/users — All eligible users with survey status
+app.get("/admin/survey/users", requireAdmin, async (_req, res) => {
+  try {
+    const rows = await pgQueryAll<any>(
+      `SELECT u.id, u.first_name, u.email, u.gender, u.survey_email_sent_at, u.survey_banner_dismissed,
+              sr.completed AS survey_completed, sr.updated_at AS survey_updated_at
+       FROM users u
+       LEFT JOIN survey_responses sr ON sr.user_id = u.id
+       WHERE (u.test_user_type IS NULL OR u.test_user_type != 'Couple Tester')
+         AND u.email IS NOT NULL AND u.email != ''
+       ORDER BY u.id`
+    );
+    return res.json(rows);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /admin/survey/send-emails — Send survey email to eligible users
+app.post("/admin/survey/send-emails", requireAdmin, async (req, res) => {
+  if (!resend) return res.status(500).json({ error: "Email service not configured (missing RESEND_API_KEY)" });
+
+  const { test_only_email } = req.body; // If set, only send to this email (for testing)
+
+  try {
+    // Get eligible users who haven't been emailed yet
+    let query = `SELECT id, first_name, email FROM users
+                 WHERE (test_user_type IS NULL OR test_user_type != 'Couple Tester')
+                   AND email IS NOT NULL AND email != ''
+                   AND survey_email_sent_at IS NULL`;
+    const params: any[] = [];
+
+    if (test_only_email) {
+      query += ` AND email = $1`;
+      params.push(test_only_email);
+    }
+
+    const users = await pgQueryAll<{ id: number; first_name: string; email: string }>(query, params);
+
+    const baseUrl = req.headers.host?.includes("localhost") ? `http://${req.headers.host}` : `https://${req.headers.host}`;
+
+    let sent = 0;
+    let failed = 0;
+    for (const u of users) {
+      const html = `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#333;max-width:500px;margin:0 auto;text-align:right;padding:20px">
+  <h2 style="color:#1B1464;margin-bottom:4px">היי 👋</h2>
+  <p>המערכת שלנו גדלה מיום ליום ואנחנו מתקרבים למעבר מגרסת הבטא לגרסה הרשמית — ולהתחיל בקמפיין רחב שיכניס משתמשים חדשים למערכת, מה שצפוי להגדיל משמעותית גם את מגוון ההתאמות האפשריות.</p>
+  <p>לפני שאנחנו גדלים, חשוב לנו לשמוע מכם, משתמשי הבטא הראשונים — מה עובד, מה פחות, ומה כדאי לשפר, להוסיף או לשנות.</p>
+  <p>הכנו סקר קצר שייקח כמה דקות. כל תשובה תעזור לנו לשפר ולדייק את המערכת 🤍</p>
+  <div style="text-align:center;margin:28px 0">
+    <a href="${baseUrl}/survey" style="background:#7b5fa3;color:#fff;padding:14px 36px;border-radius:8px;text-decoration:none;font-size:16px;font-weight:bold;display:inline-block">מלאו את הסקר</a>
+  </div>
+  <p style="font-size:13px;color:#888;text-align:center">הסקר לוקח כ-3 דקות.</p>
+</div>`;
+
+      try {
+        await resend.emails.send({
+          from: "One <noreply@joinone.io>",
+          to: u.email,
+          subject: "עזרו לנו לבנות את One טוב יותר 🤍",
+          html: wrapEmailFooter(html),
+        });
+        await pgQueryAll("UPDATE users SET survey_email_sent_at = NOW() WHERE id = $1", [u.id]);
+        await pgQueryAll("INSERT INTO email_log (user_id, subject, email_type) VALUES ($1, $2, $3)",
+          [u.id, "עזרו לנו לבנות את One טוב יותר 🤍", "survey"]);
+        sent++;
+      } catch (emailErr: any) {
+        console.error(`[survey-email] Failed to send to ${u.email}:`, emailErr.message);
+        failed++;
+      }
+    }
+
+    return res.json({ sent, failed, total_eligible: users.length });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 });
 

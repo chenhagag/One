@@ -13,7 +13,7 @@ import AdminPipeline from "./AdminPipeline";
  * - Matches
  */
 
-type Tab = "overview" | "users" | "traits" | "look_traits" | "matches" | "candidates" | "bugs" | "card_requests" | "errors" | "email" | "analytics" | "user_mgmt" | "outreach" | "deleted_users";
+type Tab = "overview" | "users" | "traits" | "look_traits" | "matches" | "candidates" | "bugs" | "card_requests" | "errors" | "email" | "analytics" | "user_mgmt" | "outreach" | "deleted_users" | "survey";
 
 const s: Record<string, React.CSSProperties> = {
   heading: { marginTop: 0, marginBottom: 8, fontSize: 22 },
@@ -417,6 +417,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
           ["user_mgmt", "ניהול משתמשים"],
           ["outreach", "יומן פניות"],
           ["deleted_users", "משתמשים שנמחקו"],
+          ["survey", "סקר"],
         ] as [Tab, string][]).map(([key, label]) => (
           <button
             key={key}
@@ -448,6 +449,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
       {tab === "user_mgmt" && <AdminPipeline onSelectUser={(userId) => { setTab("users"); setTimeout(() => window.dispatchEvent(new CustomEvent("admin-select-user", { detail: userId })), 100); }} />}
       {tab === "outreach" && <OutreachLogTab />}
       {tab === "deleted_users" && <DeletedUsersTab />}
+      {tab === "survey" && <SurveyAdminTab />}
     </div>
   );
 }
@@ -5867,6 +5869,310 @@ function DeletedUsersTab() {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+// ── Survey question labels (for admin display) ──
+const SURVEY_Q_LABELS: Record<string, string> = {
+  "1": "הבנת המערכת אתכם",
+  "2": "תהליך ההיכרות",
+  "3": "בזמן המתנה להתאמה",
+  "4": "בעיות בצ'אט",
+  "5": "מה עוד בצ'אט",
+  "6": "רלוונטיות ההתאמה",
+  "6_gaps": "פערים בהתאמה",
+  "7": "תקלות טכניות",
+  "8": "מה אוהבים ב-One",
+  "9": "שינוי/הוספה + פידבק כללי",
+};
+
+const SURVEY_Q_OPTIONS: Record<string, string[]> = {
+  "1": ["במידה רבה מאוד", "במידה רבה", "באופן חלקי", "לא כל כך", "בכלל לא"],
+  "2": ["נהניתי מהתהליך והאורך הרגיש לי נכון", "היה קצת ארוך, אבל הרגשתי שיש לזה ערך", "היה ארוך ומייגע מדי", "דווקא הייתי מוכן/ה להעמיק ולספר יותר", "משהו אחר"],
+  "3": ["יותר התאמות גם אם לא מדויקות", "עדכון שהחיפוש פעיל", "מה קורה מאחורי הקלעים", "עוד תובנות על עצמי", "שקט עד התאמה טובה", "אחר"],
+  "4": ["לא", "כן, פעם אחת", "כן, כמה פעמים", "לא בטוח/ה"],
+  "5": ["סטטוס וחיפוש", "מה מחפשת עבורי", "התייעצות על התאמה", "למה התאמה מסוימת", "עוד תובנות", "לא חסר", "אחר"],
+  "6": ["מאוד רלוונטית", "די רלוונטית", "דברים נכונים + פערים", "לא מתאימה", "עוד לא קיבלתי"],
+  "6_gaps": ["אופי/דינמיקה", "סגנון/וייב", "אורח חיים", "משיכה/טעם", "ערכים/תפיסה", "בקשה ספציפית", "נתונים בסיסיים", "אחר"],
+  "7": ["לא", "כן", "לא בטוח/ה"],
+  "8": ["מחפשת עבורי", "רק התאמות איכותיות", "אין אינטרס להשאיר", "שיחה טבעית", "תובנות", "היכרות לעומק", "הסבר מפורט להתאמה"],
+};
+
+function SurveyAdminTab() {
+  const [stats, setStats] = useState<any>(null);
+  const [responses, setResponses] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<string | null>(null);
+  const [selectedResponse, setSelectedResponse] = useState<any | null>(null);
+  const [viewMode, setViewMode] = useState<"stats" | "users" | "responses">("stats");
+
+  useEffect(() => {
+    Promise.all([
+      apiFetch("/admin/survey/stats").then(r => r.json()),
+      apiFetch("/admin/survey/responses").then(r => r.json()),
+      apiFetch("/admin/survey/users").then(r => r.json()),
+    ]).then(([st, resp, usr]) => {
+      setStats(st);
+      setResponses(resp);
+      setUsers(usr);
+    }).catch(() => {})
+    .finally(() => setLoading(false));
+  }, []);
+
+  const handleSendEmails = async (testOnly?: string) => {
+    setSending(true);
+    setSendResult(null);
+    try {
+      const res = await apiFetch("/admin/survey/send-emails", {
+        method: "POST",
+        body: JSON.stringify(testOnly ? { test_only_email: testOnly } : {}),
+      });
+      const data = await res.json();
+      setSendResult(`נשלחו ${data.sent} מיילים${data.failed ? `, נכשלו ${data.failed}` : ""}`);
+      // Refresh stats
+      const st = await apiFetch("/admin/survey/stats").then(r => r.json());
+      setStats(st);
+    } catch {
+      setSendResult("שגיאה בשליחה");
+    }
+    setSending(false);
+  };
+
+  if (loading) return <div style={{ padding: 24 }}><p style={{ color: "#999" }}>טוען...</p></div>;
+
+  return (
+    <div dir="rtl" style={{ padding: "16px 24px", maxWidth: 1000 }}>
+      <h2 style={{ fontSize: 18, margin: "0 0 16px", color: "#1a1a2e" }}>סקר משתמשי בטא</h2>
+
+      {/* Stats cards */}
+      {stats && (
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+          {[
+            { label: "זכאים", value: stats.total_eligible, color: "#6366f1" },
+            { label: "נשלח מייל", value: stats.emails_sent, color: "#3b82f6" },
+            { label: "השלימו", value: stats.completed, color: "#22c55e" },
+            { label: "חלקי", value: stats.partial, color: "#f59e0b" },
+            { label: "דחו באנר", value: stats.dismissed, color: "#ef4444" },
+          ].map((card) => (
+            <div key={card.label} style={{ background: "#fff", borderRadius: 10, padding: "12px 20px", border: "1px solid #eee", minWidth: 100, textAlign: "center" }}>
+              <div style={{ fontSize: 28, fontWeight: 700, color: card.color }}>{card.value}</div>
+              <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{card.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Send email controls */}
+      <div style={{ background: "#fff", borderRadius: 10, padding: 16, border: "1px solid #eee", marginBottom: 20 }}>
+        <h3 style={{ fontSize: 14, margin: "0 0 10px", color: "#333" }}>שליחת מיילים</h3>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <button
+            onClick={() => handleSendEmails("chen.hagag@gmail.com")}
+            disabled={sending}
+            style={{ padding: "8px 16px", fontSize: 13, background: "#f59e0b", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600 }}
+          >
+            שלח טסט (chen.hagag@gmail.com)
+          </button>
+          <button
+            onClick={() => { if (confirm("לשלוח מייל סקר לכל המשתמשים הזכאים?")) handleSendEmails(); }}
+            disabled={sending}
+            style={{ padding: "8px 16px", fontSize: 13, background: "#7b5fa3", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600 }}
+          >
+            שלח לכולם
+          </button>
+          {sending && <span style={{ fontSize: 13, color: "#999" }}>שולח...</span>}
+          {sendResult && <span style={{ fontSize: 13, color: "#22c55e", fontWeight: 600 }}>{sendResult}</span>}
+        </div>
+      </div>
+
+      {/* View toggle */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        {(["stats", "users", "responses"] as const).map(mode => (
+          <button
+            key={mode}
+            onClick={() => setViewMode(mode)}
+            style={{
+              padding: "6px 16px", fontSize: 13, borderRadius: 8, cursor: "pointer",
+              background: viewMode === mode ? "#7b5fa3" : "#fff",
+              color: viewMode === mode ? "#fff" : "#555",
+              border: viewMode === mode ? "none" : "1px solid #ddd",
+              fontWeight: viewMode === mode ? 600 : 400,
+            }}
+          >
+            {mode === "stats" ? "תוצאות מרוכזות" : mode === "users" ? "משתמשים" : "תשובות מלאות"}
+          </button>
+        ))}
+      </div>
+
+      {/* Aggregated stats view */}
+      {viewMode === "stats" && responses.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {Object.entries(SURVEY_Q_LABELS).map(([qId, label]) => {
+            const options = SURVEY_Q_OPTIONS[qId];
+            if (!options) {
+              // Open text question (Q9)
+              const texts = responses.filter(r => r.responses[qId]?.text).map(r => ({ name: r.first_name, text: r.responses[qId].text, extra: r.responses[qId].otherText }));
+              if (texts.length === 0) return null;
+              return (
+                <div key={qId} style={{ background: "#fff", borderRadius: 10, padding: 16, border: "1px solid #eee" }}>
+                  <h4 style={{ fontSize: 14, margin: "0 0 10px", color: "#333" }}>שאלה {qId}: {label}</h4>
+                  {texts.map((t, i) => (
+                    <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid #f5f5f5" }}>
+                      <span style={{ fontSize: 12, color: "#999", fontWeight: 600 }}>{t.name}: </span>
+                      <span style={{ fontSize: 13, color: "#333" }}>{t.text}</span>
+                      {t.extra && <div style={{ fontSize: 12, color: "#777", marginTop: 4 }}>{t.extra}</div>}
+                    </div>
+                  ))}
+                </div>
+              );
+            }
+            // Count per option
+            const counts = options.map((_, idx) => {
+              return responses.filter(r => r.responses[qId]?.selected?.includes(idx)).length;
+            });
+            const totalAnswered = responses.filter(r => r.responses[qId]?.selected?.length > 0).length;
+            const texts = responses.filter(r => r.responses[qId]?.text).map(r => ({ name: r.first_name, text: r.responses[qId].text }));
+            const otherTexts = responses.filter(r => r.responses[qId]?.otherText).map(r => ({ name: r.first_name, text: r.responses[qId].otherText }));
+
+            return (
+              <div key={qId} style={{ background: "#fff", borderRadius: 10, padding: 16, border: "1px solid #eee" }}>
+                <h4 style={{ fontSize: 14, margin: "0 0 10px", color: "#333" }}>שאלה {qId}: {label} <span style={{ color: "#aaa", fontWeight: 400 }}>({totalAnswered} ענו)</span></h4>
+                {options.map((opt, idx) => {
+                  const pct = totalAnswered > 0 ? Math.round((counts[idx] / totalAnswered) * 100) : 0;
+                  return (
+                    <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                      <div style={{ flex: 1, fontSize: 13, color: "#555" }}>{opt}</div>
+                      <div style={{ width: 120, height: 8, background: "#f0f0f0", borderRadius: 4, overflow: "hidden" }}>
+                        <div style={{ width: `${pct}%`, height: "100%", background: "#7b5fa3", borderRadius: 4 }} />
+                      </div>
+                      <span style={{ fontSize: 12, color: "#888", minWidth: 40, textAlign: "left" }}>{counts[idx]} ({pct}%)</span>
+                    </div>
+                  );
+                })}
+                {texts.length > 0 && (
+                  <div style={{ marginTop: 10, borderTop: "1px solid #f0f0f0", paddingTop: 8 }}>
+                    <span style={{ fontSize: 12, color: "#aaa", fontWeight: 600 }}>תשובות חופשיות:</span>
+                    {texts.map((t, i) => (
+                      <div key={i} style={{ fontSize: 12, color: "#555", margin: "4px 0" }}>
+                        <strong>{t.name}:</strong> {t.text}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {otherTexts.length > 0 && (
+                  <div style={{ marginTop: 6 }}>
+                    <span style={{ fontSize: 12, color: "#aaa", fontWeight: 600 }}>אחר:</span>
+                    {otherTexts.map((t, i) => (
+                      <div key={i} style={{ fontSize: 12, color: "#555", margin: "4px 0" }}>
+                        <strong>{t.name}:</strong> {t.text}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {viewMode === "stats" && responses.length === 0 && (
+        <p style={{ color: "#999", fontSize: 14 }}>אין תשובות עדיין.</p>
+      )}
+
+      {/* Users list */}
+      {viewMode === "users" && (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: "#f9f9f9" }}>
+                <th style={s.th}>ID</th>
+                <th style={s.th}>שם</th>
+                <th style={s.th}>מייל</th>
+                <th style={s.th}>נשלח מייל</th>
+                <th style={s.th}>דחה באנר</th>
+                <th style={s.th}>סטטוס סקר</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map(u => (
+                <tr key={u.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                  <td style={s.td}>{u.id}</td>
+                  <td style={s.td}>{u.first_name}</td>
+                  <td style={s.td}>{u.email}</td>
+                  <td style={s.td}>{u.survey_email_sent_at ? new Date(u.survey_email_sent_at).toLocaleDateString("he-IL") : "—"}</td>
+                  <td style={s.td}>{u.survey_banner_dismissed ? "כן" : "—"}</td>
+                  <td style={s.td}>
+                    <span style={{
+                      padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600,
+                      background: u.survey_completed ? "#dcfce7" : u.survey_updated_at ? "#fef3c7" : "#f3f4f6",
+                      color: u.survey_completed ? "#166534" : u.survey_updated_at ? "#92400e" : "#888",
+                    }}>
+                      {u.survey_completed ? "השלים" : u.survey_updated_at ? "חלקי" : "לא התחיל"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Full responses list */}
+      {viewMode === "responses" && (
+        <div>
+          {responses.length === 0 ? (
+            <p style={{ color: "#999", fontSize: 14 }}>אין תשובות עדיין.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {responses.map(r => (
+                <div
+                  key={r.user_id}
+                  onClick={() => setSelectedResponse(selectedResponse?.user_id === r.user_id ? null : r)}
+                  style={{ background: "#fff", borderRadius: 10, padding: "12px 16px", border: "1px solid #eee", cursor: "pointer" }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <strong style={{ fontSize: 14 }}>{r.first_name}</strong>
+                      <span style={{ fontSize: 12, color: "#999", marginRight: 8 }}>{r.email}</span>
+                    </div>
+                    <span style={{
+                      padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600,
+                      background: r.completed ? "#dcfce7" : "#fef3c7",
+                      color: r.completed ? "#166534" : "#92400e",
+                    }}>
+                      {r.completed ? "הושלם" : "חלקי"}
+                    </span>
+                  </div>
+
+                  {/* Expanded view */}
+                  {selectedResponse?.user_id === r.user_id && (
+                    <div style={{ marginTop: 12, borderTop: "1px solid #f0f0f0", paddingTop: 12 }}>
+                      {Object.entries(r.responses).map(([qId, resp]: [string, any]) => {
+                        const label = SURVEY_Q_LABELS[qId] || `שאלה ${qId}`;
+                        const options = SURVEY_Q_OPTIONS[qId];
+                        return (
+                          <div key={qId} style={{ marginBottom: 10 }}>
+                            <div style={{ fontSize: 12, color: "#999", fontWeight: 600 }}>{label}</div>
+                            {resp.selected && resp.selected.length > 0 && options && (
+                              <div style={{ fontSize: 13, color: "#333", margin: "2px 0" }}>
+                                {resp.selected.map((idx: number) => options[idx] || `אחר`).join(", ")}
+                              </div>
+                            )}
+                            {resp.text && <div style={{ fontSize: 13, color: "#555", fontStyle: "italic" }}>"{resp.text}"</div>}
+                            {resp.otherText && <div style={{ fontSize: 12, color: "#777" }}>אחר: "{resp.otherText}"</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

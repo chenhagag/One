@@ -10,6 +10,7 @@ import AuthScreen from "./AuthScreen";
 import AuthCallback from "./AuthCallback";
 import ProfileSetup from "./ProfileSetup";
 import ConsentScreen from "./ConsentScreen";
+import SurveyPage from "./SurveyPage";
 import { supabase } from "./lib/supabase";
 import { saveSupabaseTokens, clearSupabaseTokens, initErrorReporting } from "./lib/api";
 import { isNativeApp, getApiBaseUrl, getPlatform } from "./lib/platform";
@@ -30,7 +31,8 @@ type View =
   | "auth"
   | "auth_callback"
   | "profile_setup"
-  | "consent";
+  | "consent"
+  | "survey";
 
 // Full user type matching the expanded DB schema
 export interface User {
@@ -260,6 +262,7 @@ export default function App() {
   const [autoLoginDone, setAutoLoginDone] = useState(false);
   const [adminViewingUser, setAdminViewingUser] = useState(false);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
+  const [pendingSurvey] = useState(() => window.location.pathname === "/survey");
 
   // ── Initialize error reporting ────────────────
   useEffect(() => { initErrorReporting(); }, []);
@@ -322,6 +325,8 @@ export default function App() {
                   setView("profile_setup");
                 } else if (!data.consent_accepted) {
                   setView("consent");
+                } else if (pendingSurvey) {
+                  setView("survey");
                 } else {
                   setView("new_chat");
                 }
@@ -351,6 +356,8 @@ export default function App() {
             setUser(data);
             if (isAdminRequest && data.email === ADMIN_EMAIL) {
               setView("admin");
+            } else if (pendingSurvey) {
+              setView("survey");
             } else {
               setView("new_chat");
             }
@@ -444,17 +451,19 @@ export default function App() {
   // ── OAuth callback handlers ───────────────────────────────────
   const handleAuthSuccess = useCallback((u: User, profileComplete: boolean) => {
     // Clean URL so refresh doesn't re-trigger auth callback
-    window.history.replaceState({}, "", "/");
+    window.history.replaceState({}, "", pendingSurvey ? "/survey" : "/");
     saveSession(u);
     setUser(u);
     if (!profileComplete) {
       setView("profile_setup");
     } else if (!u.consent_accepted) {
       setView("consent");
+    } else if (pendingSurvey) {
+      setView("survey");
     } else {
       setView("new_chat");
     }
-  }, []);
+  }, [pendingSurvey]);
 
   const handleAuthError = useCallback((message: string) => {
     console.error("[auth callback]", message);
@@ -472,7 +481,7 @@ export default function App() {
   function handleConsentComplete(u: User) {
     saveSession(u);
     setUser(u);
-    setView("new_chat");
+    setView(pendingSurvey ? "survey" : "new_chat");
   }
 
   // ── Don't render until auto-login check completes ──────────────
@@ -485,7 +494,7 @@ export default function App() {
   }
 
   // Hide header in full-screen views
-  const showHeader = view !== "landing" && view !== "admin" && view !== "welcome" && view !== "new_chat" && view !== "insights" && view !== "auth" && view !== "auth_callback" && view !== "profile_setup";
+  const showHeader = view !== "landing" && view !== "admin" && view !== "welcome" && view !== "new_chat" && view !== "insights" && view !== "auth" && view !== "auth_callback" && view !== "profile_setup" && view !== "survey";
 
   return (
     <ErrorBoundary>
@@ -606,6 +615,13 @@ export default function App() {
             saveSession(u as User);
             setView("new_chat");
           }}
+        />
+      )}
+
+      {view === "survey" && user && (
+        <SurveyPage
+          userId={user.id}
+          onBack={() => { window.history.replaceState({}, "", "/"); setView("new_chat"); }}
         />
       )}
 

@@ -1099,4 +1099,30 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
     WHERE internal_name IN ('right_wing', 'left_wing', 'social_activism', 'religiosity', 'secularity', 'value_rigidity')
       AND trait_group = 'Personal Style';
   `);
+
+  // ── Survey responses table ──
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS survey_responses (
+      id              SERIAL PRIMARY KEY,
+      user_id         INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      responses       JSONB NOT NULL DEFAULT '{}',
+      completed       BOOLEAN DEFAULT FALSE,
+      created_at      TIMESTAMPTZ DEFAULT NOW(),
+      updated_at      TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_survey_responses_user ON survey_responses(user_id);
+  `);
+
+  // ── Survey columns on users ──
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='survey_email_sent_at') THEN
+        ALTER TABLE users ADD COLUMN survey_email_sent_at TIMESTAMPTZ;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='survey_banner_dismissed') THEN
+        ALTER TABLE users ADD COLUMN survey_banner_dismissed BOOLEAN DEFAULT FALSE;
+      END IF;
+    END $$;
+  `);
 }
