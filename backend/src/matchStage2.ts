@@ -776,7 +776,7 @@ async function promoteToMatches(): Promise<number> {
        AND internal_profile_score IS NOT NULL
        AND (
          (internal_score > 70 AND internal_profile_score > 70)
-         OR ((internal_score + internal_profile_score) / 2.0 > 72)
+         OR ((internal_score + internal_profile_score) / 2.0 > 70)
        )`
   );
 

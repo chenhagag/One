@@ -2800,7 +2800,7 @@ app.post("/admin/unfreeze-all-matches", async (_req, res) => {
 // Demotes potential_match that don't meet threshold, promotes scored that do
 app.post("/admin/requalify-matches", async (_req, res) => {
   try {
-    // 1. Find potential_match entries that don't meet threshold and have no active lifecycle
+    // 1. Find potential_match entries that don't meet threshold
     const toDelete = await pgQueryAll<any>(
       `SELECT m.id as match_id, cm.id as cm_id
        FROM matches m
@@ -2809,10 +2809,9 @@ app.post("/admin/requalify-matches", async (_req, res) => {
          OR (cm.user_id = m.user2_id AND cm.candidate_user_id = m.user1_id)
        )
        WHERE m.status = 'potential_match'
-         AND cm.status = 'matched'
          AND NOT (
            (cm.internal_score > 70 AND cm.internal_profile_score > 70)
-           OR ((cm.internal_score + cm.internal_profile_score) / 2.0 > 72)
+           OR ((cm.internal_score + cm.internal_profile_score) / 2.0 > 70)
          )`
     );
     let demoted = 0;
@@ -2831,7 +2830,7 @@ app.post("/admin/requalify-matches", async (_req, res) => {
          AND cm.internal_profile_score IS NOT NULL
          AND (
            (cm.internal_score > 70 AND cm.internal_profile_score > 70)
-           OR ((cm.internal_score + cm.internal_profile_score) / 2.0 > 72)
+           OR ((cm.internal_score + cm.internal_profile_score) / 2.0 > 70)
          )
          AND NOT EXISTS (
            SELECT 1 FROM matches WHERE
