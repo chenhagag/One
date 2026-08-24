@@ -240,12 +240,13 @@ export default function SurveyPage({ userId, onBack }: SurveyPageProps) {
         method: "POST",
         body: JSON.stringify({ responses: allResponses, completed: true }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.ok || data.already_completed) setCompleted(true);
+      const data = await res.json();
+      console.log("[survey submit] status:", res.status, "data:", data);
+      if (data.ok || data.already_completed) {
+        setCompleted(true);
       }
     } catch (err) {
-      console.error("[survey submit]", err);
+      console.error("[survey submit] error:", err);
     }
     setSaving(false);
   };
