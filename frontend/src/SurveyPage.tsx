@@ -308,6 +308,9 @@ export default function SurveyPage({ userId, onBack }: SurveyPageProps) {
           <p style={{ color: "#555", fontSize: 14, lineHeight: 1.8, margin: "8px 0 0" }}>
             כל פידבק יעזור לנו לשפר ולדייק את המערכת 🤍
           </p>
+          <p style={{ color: "#888", fontSize: 13, lineHeight: 1.7, margin: "12px 0 0" }}>
+            נשמח אם תענו על כל השאלות, אבל שום שאלה היא לא חובה — כל תשובה, גם חלקית, תעזור לנו.
+          </p>
         </div>
 
         {/* Questions 1-8 */}
