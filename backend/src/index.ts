@@ -2014,10 +2014,10 @@ app.post("/admin/users/:id/suspect-inactive", async (req, res) => {
 
   await pgQueryAll("UPDATE users SET suspected_inactive = TRUE, updated_at = NOW() WHERE id = $1", [userId]);
 
-  // Freeze all potential_match matches involving this user
+  // Freeze all potential_match / waiting_for_photo / waiting_for_response matches involving this user
   const frozen = await pgQueryAll(
     `UPDATE matches SET previous_status = status, status = 'frozen', updated_at = NOW()
-     WHERE status = 'potential_match'
+     WHERE status IN ('potential_match', 'waiting_for_photo', 'waiting_for_response')
        AND (user1_id = $1 OR user2_id = $1)
      RETURNING id`,
     [userId]
@@ -3090,7 +3090,7 @@ async function freezeOtherMatches(activeMatchId: number, user1Id: number, user2I
   const result = await pgQueryAll(
     `UPDATE matches SET previous_status = status, status = 'frozen', updated_at = NOW()
      WHERE id != $1
-       AND status = 'potential_match'
+       AND status IN ('potential_match', 'waiting_for_photo', 'waiting_for_response')
        AND (user1_id = $2 OR user2_id = $2 OR user1_id = $3 OR user2_id = $3)
      RETURNING id`,
     [activeMatchId, user1Id, user2Id]
@@ -3252,6 +3252,10 @@ app.get("/admin/candidate-matches", async (_req, res) => {
       u2.match_card_restrictions as user2_card_restrictions,
       u1.admin_notes as user1_admin_notes,
       u2.admin_notes as user2_admin_notes,
+      u1.photo_request_sent_at as user1_photo_request,
+      u2.photo_request_sent_at as user2_photo_request,
+      u1.admin_message_sent_at as user1_msg_sent,
+      u2.admin_message_sent_at as user2_msg_sent,
       (SELECT filename FROM user_photos WHERE user_id = u1.id ORDER BY is_primary DESC, created_at ASC LIMIT 1) as user1_photo,
       (SELECT filename FROM user_photos WHERE user_id = u2.id ORDER BY is_primary DESC, created_at ASC LIMIT 1) as user2_photo
     FROM candidate_matches cm
@@ -3351,7 +3355,8 @@ app.patch("/admin/matches/:id/status", async (req, res) => {
   const matchId = parseInt(req.params.id, 10);
   const { status } = req.body;
   const validStatuses = [
-    "potential_match", "waiting_first_rating", "waiting_second_rating", "approved_by_both",
+    "potential_match", "waiting_for_photo", "waiting_for_response",
+    "waiting_first_rating", "waiting_second_rating", "approved_by_both",
     "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users",
     "approved_acquaintance"
   ];
@@ -3504,7 +3509,7 @@ app.post("/admin/matches/:id/send-for-rating", async (req, res) => {
   const match = await pgQueryOne<any>("SELECT * FROM matches WHERE id = $1", [matchId]);
   if (!match) return res.status(404).json({ error: "Match not found" });
 
-  if (!["potential_match", "waiting_first_rating", "waiting_second_rating"].includes(match.status)) {
+  if (!["potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "waiting_second_rating"].includes(match.status)) {
     return res.status(400).json({ error: `Cannot send for rating in status '${match.status}'` });
   }
 
@@ -3515,15 +3520,16 @@ app.post("/admin/matches/:id/send-for-rating", async (req, res) => {
     return res.status(400).json({ error: "user_id must be part of the match" });
   }
 
-  // Move from potential_match to waiting_first_rating when first sent
-  const newStatus = match.status === "potential_match" ? "waiting_first_rating" : match.status;
+  // Move from potential_match/waiting_for_photo/waiting_for_response to waiting_first_rating when first sent
+  const preRatingStatuses = new Set(["potential_match", "waiting_for_photo", "waiting_for_response"]);
+  const newStatus = preRatingStatuses.has(match.status) ? "waiting_first_rating" : match.status;
   await pgQueryAll(
     "UPDATE matches SET status = $1, sent_for_rating_at = NOW(), sent_for_rating_to = $2, updated_at = NOW() WHERE id = $3",
     [newStatus, targetUserId, matchId]
   );
 
   // Auto-freeze other potential matches when entering active status
-  if (match.status === "potential_match") {
+  if (preRatingStatuses.has(match.status)) {
     await freezeOtherMatches(matchId, match.user1_id, match.user2_id);
   }
 

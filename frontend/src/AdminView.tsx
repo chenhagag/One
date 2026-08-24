@@ -2967,7 +2967,7 @@ ${footer}`)
               const isRating = ratingInProgress === m.id;
 
               // Can send for user rating
-              const canSendForRating = (m.status === "potential_match" || m.status === "waiting_first_rating" || m.status === "waiting_second_rating") && !m.sent_for_rating_at;
+              const canSendForRating = (m.status === "potential_match" || m.status === "waiting_for_photo" || m.status === "waiting_for_response" || m.status === "waiting_first_rating" || m.status === "waiting_second_rating") && !m.sent_for_rating_at;
               const alreadySent = !!m.sent_for_rating_at;
 
               // Rating labels
@@ -3663,6 +3663,8 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
 
   const matchStatusColor = (status: string | null) => {
     if (status === "potential_match") return { ...s.badge, background: "#fef3c7", color: "#92400e" };
+    if (status === "waiting_for_photo") return { ...s.badge, background: "#fde68a", color: "#92400e" };
+    if (status === "waiting_for_response") return { ...s.badge, background: "#fed7aa", color: "#9a3412" };
     if (status === "pre_match") return { ...s.badge, background: "#d4edda", color: "#155724" };
     if (status === "in_match") return { ...s.badge, background: "#cce5ff", color: "#004085" };
     if (status === "frozen") return { ...s.badge, background: "#e2e3e5", color: "#383d41" };
@@ -3781,13 +3783,13 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
       {/* Status filter */}
       <div style={{ display: "flex", gap: 6, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, color: "#6b7280" }}>סטטוס:</span>
-        {["all", "potential_match", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled_by_user", "cancelled_by_system", "rejected_by_users", "no_match"].map(st => {
+        {["all", "potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled_by_user", "cancelled_by_system", "rejected_by_users", "no_match"].map(st => {
           const count = st === "all" ? data.length
             : st === "no_match" ? data.filter((cm: any) => !cm.match_status).length
             : st === "cancelled_by_user" ? data.filter((cm: any) => cm.match_status === "cancelled" && cm.cancelled_by).length
             : st === "cancelled_by_system" ? data.filter((cm: any) => cm.match_status === "cancelled" && !cm.cancelled_by).length
             : data.filter((cm: any) => cm.match_status === st).length;
-          const label = st === "all" ? "הכל" : st === "no_match" ? "ללא התאמה" : st === "cancelled_by_user" ? "ביטול משתמש" : st === "cancelled_by_system" ? "ביטול מערכת" : st;
+          const label = st === "all" ? "הכל" : st === "no_match" ? "ללא התאמה" : st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st === "cancelled_by_user" ? "ביטול משתמש" : st === "cancelled_by_system" ? "ביטול מערכת" : st;
           return (
             <button key={st} style={filterBtnStyle(filterCmStatus === st)} onClick={() => setFilterCmStatus(st)}>
               {label} ({count})
@@ -3926,6 +3928,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                   <td style={s.td}>{cm.profile_score != null ? <strong style={{ color: cm.profile_score >= 70 ? "#28a745" : cm.profile_score >= 50 ? "#856404" : "#dc3545" }}>{cm.profile_score}</strong> : "-"}</td>
                   <td style={s.td}>{cm.internal_profile_score != null ? <strong style={{ color: cm.internal_profile_score >= 70 ? "#28a745" : cm.internal_profile_score >= 50 ? "#856404" : "#dc3545" }}>{cm.internal_profile_score}</strong> : "-"}</td>
                   <td style={s.td}>{cm.match_id ? (
+                    <>
                     <select
                       value={cm.match_status || ""}
                       style={{ ...matchStatusColor(cm.match_status), border: "1px solid #ccc", borderRadius: 4, padding: "2px 4px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}
@@ -3942,10 +3945,28 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                         } catch (err: any) { alert("שגיאה: " + err.message); }
                       }}
                     >
-                      {["potential_match", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
-                        <option key={st} value={st}>{st}</option>
+                      {["potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
+                        <option key={st} value={st}>{st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st}</option>
                       ))}
                     </select>
+                    {cm.match_status === "waiting_for_photo" && (
+                      <div style={{ marginTop: 4, fontSize: 10, lineHeight: 1.5 }}>
+                        {cm.user1_photo_count < 1 && (
+                          <div style={{ color: "#d97706" }}>
+                            📷 {cm.user1_name}: {cm.user1_photo_request ? `מייל ✓` : "לא נשלח מייל"}{cm.user1_msg_sent ? ` | הודעה ✓` : " | לא נשלחה הודעה"}
+                          </div>
+                        )}
+                        {cm.user2_photo_count < 1 && (
+                          <div style={{ color: "#d97706" }}>
+                            📷 {cm.user2_name}: {cm.user2_photo_request ? `מייל ✓` : "לא נשלח מייל"}{cm.user2_msg_sent ? ` | הודעה ✓` : " | לא נשלחה הודעה"}
+                          </div>
+                        )}
+                        {cm.user1_photo_count >= 1 && cm.user2_photo_count >= 1 && (
+                          <div style={{ color: "#28a745" }}>✅ לשניהם יש תמונה</div>
+                        )}
+                      </div>
+                    )}
+                    </>
                   ) : <span style={s.badge}>{cm.status}</span>}</td>
                   <td style={s.td}>
                     {(cm.user1_rating || cm.user2_rating) ? (() => {
@@ -4230,8 +4251,8 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                       } catch (err: any) { alert("שגיאה: " + err.message); }
                     }}
                   >
-                    {["potential_match", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
-                      <option key={st} value={st}>{st}</option>
+                    {["potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
+                      <option key={st} value={st}>{st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st}</option>
                     ))}
                   </select>
                 ) : (
@@ -5508,7 +5529,10 @@ function OutreachLogTab() {
 
   function statusBadge(status: string) {
     const map: Record<string, { label: string; bg: string; color: string }> = {
-      waiting_first_rating: { label: "ממתין לתשובה", bg: "#fef3c7", color: "#92400e" },
+      potential_match: { label: "התאמה פוטנציאלית", bg: "#fef3c7", color: "#92400e" },
+      waiting_for_photo: { label: "ממתין לתמונה", bg: "#fde68a", color: "#92400e" },
+      waiting_for_response: { label: "ממתין לתשובה", bg: "#fed7aa", color: "#9a3412" },
+      waiting_first_rating: { label: "ממתין לדירוג", bg: "#fef3c7", color: "#92400e" },
       waiting_second_rating: { label: "ממתין לצד שני", bg: "#dbeafe", color: "#1e40af" },
       approved_by_both: { label: "אושר ע\"י שניהם", bg: "#d1fae5", color: "#065f46" },
       rejected_by_users: { label: "נדחה", bg: "#fee2e2", color: "#991b1b" },

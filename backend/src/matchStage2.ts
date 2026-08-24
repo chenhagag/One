@@ -766,23 +766,18 @@ async function updateMatchCounts(): Promise<void> {
 // ── Promote scored candidates to matches table ──────────────────
 
 async function promoteToMatches(): Promise<number> {
-  const minScoreRow = await queryOne<{ value: any }>(
-    "SELECT value FROM config WHERE key = 'matching.min_match_score'"
-  );
-  // config.value is JSONB — pg already parses it. If it's a stringified number, parse it.
-  let minScore = 50;
-  if (minScoreRow?.value != null) {
-    minScore = typeof minScoreRow.value === "number"
-      ? minScoreRow.value
-      : parseFloat(String(minScoreRow.value));
-    if (!Number.isFinite(minScore)) minScore = 50;
-  }
-
-  const candidates = await queryAll<{ id: number; user_id: number; candidate_user_id: number; final_score: number }>(
-    `SELECT id, user_id, candidate_user_id, final_score
+  // Promotion criteria: internal_score > 70 AND internal_profile_score > 70,
+  // OR average of both > 72
+  const candidates = await queryAll<{ id: number; user_id: number; candidate_user_id: number; final_score: number; internal_score: number; internal_profile_score: number }>(
+    `SELECT id, user_id, candidate_user_id, final_score, internal_score, internal_profile_score
      FROM candidate_matches
-     WHERE status = 'scored' AND final_score IS NOT NULL AND final_score >= $1`,
-    [minScore]
+     WHERE status = 'scored'
+       AND internal_score IS NOT NULL
+       AND internal_profile_score IS NOT NULL
+       AND (
+         (internal_score > 70 AND internal_profile_score > 70)
+         OR ((internal_score + internal_profile_score) / 2.0 > 72)
+       )`
   );
 
   if (candidates.length === 0) return 0;
