@@ -4777,6 +4777,7 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       match_card_consent: profileRow?.match_card_consent ?? null,
       has_past_matches: hasPastMatches,
       show_survey_banner: showSurveyBanner,
+      survey_partial: surveyRow && !surveyRow.completed ? true : false,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
