@@ -3745,6 +3745,23 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
         >
           {running === "pool-email" ? "שולח..." : "מייל כרטיס למאגר"}
         </button>
+        <button
+          onClick={async () => {
+            if (!confirm("לעדכן סיווג התאמות לפי סף הציונים החדש?\n\nהתאמות שלא עומדות בסף ירדו ל-scored, התאמות שעומדות יעלו ל-potential_match.")) return;
+            setRunning("requalify");
+            try {
+              const r = await apiFetch("/admin/requalify-matches", { method: "POST" });
+              const json = await r.json();
+              alert(`עודכנו: ${json.demoted} ירדו, ${json.promoted} עלו`);
+              load();
+            } catch (e: any) { alert(`שגיאה: ${e.message}`); }
+            finally { setRunning(null); }
+          }}
+          disabled={running !== null}
+          style={{ padding: "8px 16px", fontSize: 14, background: "#d97706", color: "#fff", border: "none", borderRadius: 6, cursor: running ? "wait" : "pointer", fontWeight: 600 }}
+        >
+          {running === "requalify" ? "מעדכן..." : "עדכון סיווג"}
+        </button>
         {result && !result.error && result.stage1 && (
           <span style={{ fontSize: 13, color: "#28a745" }}>
             {result.stage1.users} eligible, {result.stage1.pairs} filtered, {result.stage2.scored} scored,{" "}
@@ -3952,13 +3969,13 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                     {cm.match_status === "waiting_for_photo" && (
                       <div style={{ marginTop: 4, fontSize: 10, lineHeight: 1.5 }}>
                         {cm.user1_photo_count < 1 && (
-                          <div style={{ color: "#d97706" }}>
-                            📷 {cm.user1_name}: {cm.user1_photo_request ? `מייל ✓` : "לא נשלח מייל"}{cm.user1_msg_sent ? ` | הודעה ✓` : " | לא נשלחה הודעה"}
+                          <div style={{ color: cm.user1_photo_request ? "#28a745" : "#d97706" }}>
+                            📷 {cm.user1_name}: {cm.user1_photo_request ? "נשלחה בקשה ✓" : "לא נשלחה בקשה"}
                           </div>
                         )}
                         {cm.user2_photo_count < 1 && (
-                          <div style={{ color: "#d97706" }}>
-                            📷 {cm.user2_name}: {cm.user2_photo_request ? `מייל ✓` : "לא נשלח מייל"}{cm.user2_msg_sent ? ` | הודעה ✓` : " | לא נשלחה הודעה"}
+                          <div style={{ color: cm.user2_photo_request ? "#28a745" : "#d97706" }}>
+                            📷 {cm.user2_name}: {cm.user2_photo_request ? "נשלחה בקשה ✓" : "לא נשלחה בקשה"}
                           </div>
                         )}
                         {cm.user1_photo_count >= 1 && cm.user2_photo_count >= 1 && (

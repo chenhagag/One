@@ -2796,6 +2796,68 @@ app.post("/admin/unfreeze-all-matches", async (_req, res) => {
   }
 });
 
+// POST /admin/requalify-matches — Re-evaluate which scored candidates deserve potential_match
+// Demotes potential_match that don't meet threshold, promotes scored that do
+app.post("/admin/requalify-matches", async (_req, res) => {
+  try {
+    // 1. Find potential_match entries that don't meet threshold and have no active lifecycle
+    const toDelete = await pgQueryAll<any>(
+      `SELECT m.id as match_id, cm.id as cm_id
+       FROM matches m
+       JOIN candidate_matches cm ON (
+         (cm.user_id = m.user1_id AND cm.candidate_user_id = m.user2_id)
+         OR (cm.user_id = m.user2_id AND cm.candidate_user_id = m.user1_id)
+       )
+       WHERE m.status = 'potential_match'
+         AND cm.status = 'matched'
+         AND NOT (
+           (cm.internal_score > 70 AND cm.internal_profile_score > 70)
+           OR ((cm.internal_score + cm.internal_profile_score) / 2.0 > 72)
+         )`
+    );
+    let demoted = 0;
+    for (const row of toDelete) {
+      await pgQueryAll("DELETE FROM matches WHERE id = $1", [row.match_id]);
+      await pgQueryAll("UPDATE candidate_matches SET status = 'scored', updated_at = NOW() WHERE id = $1", [row.cm_id]);
+      demoted++;
+    }
+
+    // 2. Find scored candidates that meet threshold and don't have a match yet
+    const toPromote = await pgQueryAll<any>(
+      `SELECT cm.id, cm.user_id, cm.candidate_user_id, cm.final_score
+       FROM candidate_matches cm
+       WHERE cm.status = 'scored'
+         AND cm.internal_score IS NOT NULL
+         AND cm.internal_profile_score IS NOT NULL
+         AND (
+           (cm.internal_score > 70 AND cm.internal_profile_score > 70)
+           OR ((cm.internal_score + cm.internal_profile_score) / 2.0 > 72)
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM matches WHERE
+             (user1_id = cm.user_id AND user2_id = cm.candidate_user_id)
+             OR (user1_id = cm.candidate_user_id AND user2_id = cm.user_id)
+         )`
+    );
+    let promoted = 0;
+    for (const c of toPromote) {
+      await pgQueryAll(
+        `INSERT INTO matches (user1_id, user2_id, match_score, status)
+         VALUES ($1, $2, $3, 'potential_match')`,
+        [c.user_id, c.candidate_user_id, Math.round((c.final_score ?? 0) * 100) / 100]
+      );
+      await pgQueryAll("UPDATE candidate_matches SET status = 'matched', updated_at = NOW() WHERE id = $1", [c.id]);
+      promoted++;
+    }
+
+    console.log(`[admin] Requalify: demoted ${demoted}, promoted ${promoted}`);
+    return res.json({ demoted, promoted });
+  } catch (err: any) {
+    console.error("[requalify] Error:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /admin/approve-all-ratings — Testing shortcut: bulk-approve all pending ratings
 app.post("/admin/approve-all-ratings", async (_req, res) => {
   try {
