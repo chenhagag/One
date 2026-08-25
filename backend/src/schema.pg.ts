@@ -1125,4 +1125,27 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       END IF;
     END $$;
   `);
+
+  // ── Agent context columns on users ──
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='agent_context') THEN
+        ALTER TABLE users ADD COLUMN agent_context TEXT;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='admin_message_type') THEN
+        ALTER TABLE users ADD COLUMN admin_message_type VARCHAR(20) DEFAULT 'info';
+      END IF;
+    END $$;
+  `);
+
+  // ── System summary config rows for agent context ──
+  await pool.query(`
+    INSERT INTO config (key, value, description, category)
+    VALUES
+      ('system_summary_male', '""'::jsonb, 'System-wide agent context for male users', 'agent_context'),
+      ('system_summary_female', '""'::jsonb, 'System-wide agent context for female users (straight)', 'agent_context'),
+      ('system_summary_female_ff', '""'::jsonb, 'System-wide agent context for women seeking women', 'agent_context')
+    ON CONFLICT (key) DO NOTHING;
+  `);
 }

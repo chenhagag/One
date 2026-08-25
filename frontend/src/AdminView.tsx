@@ -458,21 +458,77 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
 
 function OverviewTab() {
   const [stats, setStats] = useState<Record<string, number> | null>(null);
+  const [summaries, setSummaries] = useState<Record<string, string>>({ system_summary_male: "", system_summary_female: "", system_summary_female_ff: "" });
+  const [summariesLoaded, setSummariesLoaded] = useState(false);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch("/admin/stats").then((r) => r.json()).then(setStats).catch(() => {});
+    apiFetch("/admin/config?category=agent_context").then(r => r.json()).then((rows: any[]) => {
+      const map: Record<string, string> = { system_summary_male: "", system_summary_female: "", system_summary_female_ff: "" };
+      for (const row of rows) {
+        if (row.key in map) map[row.key] = typeof row.value === "string" ? row.value : "";
+      }
+      setSummaries(map);
+      setSummariesLoaded(true);
+    }).catch(() => setSummariesLoaded(true));
   }, []);
+
+  const saveSummary = async (key: string) => {
+    setSavingKey(key);
+    await apiFetch(`/admin/config/${key}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value: summaries[key] }),
+    });
+    setSavingKey(null);
+  };
 
   if (!stats) return <p style={s.loading}>Loading...</p>;
 
+  const SUMMARY_LABELS: [string, string][] = [
+    ["system_summary_male", "👨 הקשר מערכתי — גברים"],
+    ["system_summary_female", "👩 הקשר מערכתי — נשים (סטרייט)"],
+    ["system_summary_female_ff", "👩‍❤️‍👩 הקשר מערכתי — נשים לנשים"],
+  ];
+
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-      {Object.entries(stats).map(([key, val]) => (
-        <div key={key} style={s.statCard}>
-          <p style={s.statNum}>{val}</p>
-          <p style={s.statLabel}>{key.replace(/_/g, " ")}</p>
+    <div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 24 }}>
+        {Object.entries(stats).map(([key, val]) => (
+          <div key={key} style={s.statCard}>
+            <p style={s.statNum}>{val}</p>
+            <p style={s.statLabel}>{key.replace(/_/g, " ")}</p>
+          </div>
+        ))}
+      </div>
+
+      {summariesLoaded && (
+        <div style={{ maxWidth: 700, direction: "rtl" }}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: "#1a1a2e", marginBottom: 12 }}>🧠 הקשר מערכתי לסוכן (מוזרק לכל שיחה)</h3>
+          <p style={{ fontSize: 12, color: "#64748b", marginBottom: 16, lineHeight: 1.5 }}>
+            הטקסט הזה מוזרק לפרומפט של כל שיחה עם משתמשים. הסוכן ישתמש בו כרקע — לא יצטט ולא יחשוף את המקור. כל תקציר מוזרק לקהל היעד המתאים.
+          </p>
+          {SUMMARY_LABELS.map(([key, label]) => (
+            <div key={key} style={{ marginBottom: 16, padding: 12, border: "1px solid #e2e8f0", borderRadius: 8, background: summaries[key]?.trim() ? "#f0fdf4" : "#f8fafc" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#64748b", marginBottom: 6 }}>{label}</div>
+              <textarea
+                value={summaries[key] || ""}
+                onChange={e => setSummaries(prev => ({ ...prev, [key]: e.target.value }))}
+                placeholder="כתוב כאן את ההקשר המערכתי..."
+                style={{ width: "100%", minHeight: 70, padding: "8px 10px", fontSize: 13, fontFamily: "inherit", border: "1px solid #d1d5db", borderRadius: 6, resize: "vertical", lineHeight: 1.5, boxSizing: "border-box" }}
+              />
+              <button
+                disabled={savingKey === key}
+                onClick={() => saveSummary(key)}
+                style={{ marginTop: 6, padding: "5px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#6366f1", color: "#fff", border: "none", borderRadius: 6 }}
+              >
+                {savingKey === key ? "שומר..." : "שמור"}
+              </button>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
@@ -723,14 +779,19 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   const [emailError, setEmailError] = useState<string | null>(null);
   const [emailPreview, setEmailPreview] = useState(false);
   const [adminMsg, setAdminMsg] = useState("");
+  const [adminMsgType, setAdminMsgType] = useState<string>("info");
   const [adminMsgSaving, setAdminMsgSaving] = useState(false);
+  const [agentContext, setAgentContext] = useState("");
+  const [agentContextSaving, setAgentContextSaving] = useState(false);
   const [systemQuestions, setSystemQuestions] = useState<any[]>([]);
   const [showSystemQuestions, setShowSystemQuestions] = useState(false);
   const [newQuestionText, setNewQuestionText] = useState("");
   const [sendingQuestion, setSendingQuestion] = useState(false);
 
-  // Sync admin_message from loaded data
+  // Sync admin_message + agent_context from loaded data
   useEffect(() => { if (data?.user?.admin_message != null) setAdminMsg(data.user.admin_message); }, [data?.user?.admin_message]);
+  useEffect(() => { if (data?.user?.admin_message_type) setAdminMsgType(data.user.admin_message_type); }, [data?.user?.admin_message_type]);
+  useEffect(() => { if (data?.user?.agent_context != null) setAgentContext(data.user.agent_context); }, [data?.user?.agent_context]);
 
   function loadMatches() {
     apiFetch(`/admin/users/${userId}/matches`)
@@ -2023,11 +2084,19 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                 onChange={e => setAdminMsg(e.target.value)}
                 style={{ flex: 1, padding: "6px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6, direction: "rtl" }}
               />
+              <select
+                value={adminMsgType}
+                onChange={e => setAdminMsgType(e.target.value)}
+                style={{ padding: "6px 8px", fontSize: 12, border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer" }}
+              >
+                <option value="info">הודעה רגילה</option>
+                <option value="conversation">הודעת שיחה</option>
+              </select>
               <button
                 disabled={adminMsgSaving}
                 onClick={async () => {
                   setAdminMsgSaving(true);
-                  await apiFetch(`/admin/users/${userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin_message: adminMsg.trim() || null }) });
+                  await apiFetch(`/admin/users/${userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin_message: adminMsg.trim() || null, admin_message_type: adminMsgType }) });
                   loadUserData();
                   setAdminMsgSaving(false);
                 }}
@@ -2057,12 +2126,52 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
               const userSawMsg = sentAt && userLastVisit && new Date(userLastVisit) > new Date(sentAt);
               return (
                 <div style={{ marginTop: 6, fontSize: 11, color: "#92400e" }}>
-                  ⚡ הודעה פעילה — מוצגת כרגע במסך הבית של המשתמש/ת
+                  ⚡ הודעה פעילה — {adminMsgType === "conversation" ? "הודעת שיחה" : "הודעה רגילה"} — מוצגת כרגע במסך הבית של המשתמש/ת
                   {sentAt && <span style={{ marginRight: 8, color: "#64748b" }}> · נשלחה: {fmtDate(sentAt)}</span>}
                   {userLastVisit && <span style={{ marginRight: 8, color: userSawMsg ? "#16a34a" : "#64748b" }}> · כניסה אחרונה: {fmtDate(userLastVisit)}{userSawMsg ? " ✓" : ""}</span>}
                 </div>
               );
             })()}
+          </div>
+
+          {/* Agent Context */}
+          <div style={{ marginBottom: 16, padding: 12, border: "1px solid #e2e8f0", borderRadius: 8, background: data?.user?.agent_context ? "#f0fdf4" : "#f8fafc" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#64748b", marginBottom: 6 }}>🧠 הקשר לסוכן (מוזרק לכל שיחה עם המשתמש/ת)</div>
+            <textarea
+              value={agentContext}
+              onChange={e => setAgentContext(e.target.value)}
+              placeholder="כתוב כאן מידע שהסוכן צריך לדעת על המשתמש/ת — למשל: יש התאמה פוטנציאלית עם מעשנת, צריך לבדוק אם זה בסדר..."
+              style={{ width: "100%", minHeight: 60, padding: "8px 10px", fontSize: 13, fontFamily: "inherit", border: "1px solid #d1d5db", borderRadius: 6, resize: "vertical", lineHeight: 1.5, direction: "rtl", boxSizing: "border-box" }}
+            />
+            <div style={{ display: "flex", gap: 6, marginTop: 6, alignItems: "center" }}>
+              <button
+                disabled={agentContextSaving}
+                onClick={async () => {
+                  setAgentContextSaving(true);
+                  await apiFetch(`/admin/users/${userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ agent_context: agentContext.trim() || null }) });
+                  loadUserData();
+                  setAgentContextSaving(false);
+                }}
+                style={{ padding: "5px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#6366f1", color: "#fff", border: "none", borderRadius: 6 }}
+              >
+                {agentContextSaving ? "שומר..." : "שמור"}
+              </button>
+              {data?.user?.agent_context && (
+                <button
+                  onClick={async () => {
+                    setAgentContextSaving(true);
+                    setAgentContext("");
+                    await apiFetch(`/admin/users/${userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ agent_context: null }) });
+                    loadUserData();
+                    setAgentContextSaving(false);
+                  }}
+                  style={{ padding: "5px 12px", fontSize: 12, cursor: "pointer", background: "#fee2e2", color: "#dc2626", border: "1px solid #fecaca", borderRadius: 6 }}
+                >
+                  הסר
+                </button>
+              )}
+              <span style={{ fontSize: 11, color: "#94a3b8" }}>הטקסט מוזרק לכל פרומפט — הסוכן ישתמש בו כרקע לשיחה</span>
+            </div>
           </div>
 
           {/* System Questions History */}

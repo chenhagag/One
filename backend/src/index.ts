@@ -1960,6 +1960,7 @@ app.patch("/admin/users/:id", async (req, res) => {
     "email_updates", "whatsapp_updates", "whatsapp_phone", "in_matching_pool",
     "marital_status", "has_children", "religion", "smoker", "admin_message", "admin_notes", "admin_location_override",
     "match_card_consent", "match_card_restrictions", "photo_request_sent_at",
+    "agent_context", "admin_message_type",
   ];
   const updates: string[] = [];
   const values: any[] = [];
@@ -4658,13 +4659,15 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       partner_name: string | null;
       in_matching_pool: boolean | null; match_card_consent: string | null;
       admin_message_dismissed: boolean | null;
+      admin_message_type: string | null;
     }>(
       `SELECT age, city, height, looking_for_gender,
               desired_age_min, desired_age_max, desired_height_min, desired_height_max,
               COALESCE(analysis_run_count, 0) as analysis_run_count, gender, admin_message,
               test_user_type, email_updates, COALESCE(partner_in_system, FALSE) as partner_in_system,
               whatsapp_updates, partner_name, in_matching_pool, match_card_consent,
-              COALESCE(admin_message_dismissed, FALSE) as admin_message_dismissed
+              COALESCE(admin_message_dismissed, FALSE) as admin_message_dismissed,
+              COALESCE(admin_message_type, 'info') as admin_message_type
        FROM users WHERE id = $1`, [userId]
     );
     const hasProfileDetails = !!(
@@ -4771,6 +4774,9 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       analysis_run_count: analysisRunCount,
       gender: userGender,
       admin_message: displayMessage,
+      admin_message_type: (profileRow?.admin_message && !profileRow?.admin_message_dismissed)
+        ? (profileRow?.admin_message_type || 'info')
+        : null,
       system_question: activeQuestion,
       pending_rating: !!pendingMatch,
       in_matching_pool: profileRow?.in_matching_pool ?? false,

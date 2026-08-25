@@ -387,7 +387,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [bugText, setBugText] = useState("");
   const [bugSent, setBugSent] = useState(false);
   const [feedbackCategory, setFeedbackCategory] = useState<string>("");
-  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null; has_past_matches: boolean; show_survey_banner: boolean; survey_partial: boolean }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, pending_rating: false, in_matching_pool: false, match_card_consent: null, has_past_matches: false, show_survey_banner: false, survey_partial: false });
+  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; admin_message_type: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null; has_past_matches: boolean; show_survey_banner: boolean; survey_partial: boolean }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, admin_message_type: null, pending_rating: false, in_matching_pool: false, match_card_consent: null, has_past_matches: false, show_survey_banner: false, survey_partial: false });
   const [systemQuestion, setSystemQuestion] = useState<{ id: number; question_text: string } | null>(null);
   const [answeredQuestion, setAnsweredQuestion] = useState<{ question_text: string; answer: string } | null>(null);
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
@@ -437,6 +437,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             analysis_run_count: data.analysis_run_count || 0,
             gender: data.gender || null,
             admin_message: data.admin_message || null,
+            admin_message_type: data.admin_message_type || null,
             pending_rating: !!data.pending_rating,
             in_matching_pool: !!data.in_matching_pool,
             match_card_consent: data.match_card_consent || null,
@@ -1875,15 +1876,36 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     <p style={{ fontSize: 14, color: "#1a1a2e", lineHeight: 1.7, margin: 0, fontWeight: 500, whiteSpace: "pre-wrap" }}>
                       {recommendations.admin_message}
                     </p>
-                    <button
-                      onClick={() => {
-                        apiFetch(`/users/${user.id}/dismiss-admin-message`, { method: "POST" })
-                          .then(() => setRecommendations(prev => ({ ...prev, admin_message: null })));
-                      }}
-                      style={{ display: "block", margin: "12px auto 0", padding: "6px 20px", fontSize: 13, color: "#7c6fae", background: "none", border: "1px solid #e0ddf5", borderRadius: 8, cursor: "pointer", fontWeight: 500 }}
-                    >
-                      ראיתי, תודה ❤️
-                    </button>
+                    {recommendations.admin_message_type === "conversation" ? (
+                      <button
+                        onClick={() => {
+                          const adminMsg = recommendations.admin_message!;
+                          // Seed qa_general with admin message as assistant's first message (only if empty)
+                          setChannelMessages(prev => {
+                            const existing = prev["qa_general"] || [];
+                            if (existing.length > 0) return prev;
+                            return { ...prev, qa_general: [{ role: "assistant" as const, content: adminMsg }] };
+                          });
+                          setChannel("qa_general");
+                          setScreen("chat");
+                          apiFetch(`/users/${user.id}/dismiss-admin-message`, { method: "POST" })
+                            .then(() => setRecommendations(prev => ({ ...prev, admin_message: null, admin_message_type: null })));
+                        }}
+                        style={{ display: "block", margin: "12px auto 0", padding: "8px 24px", fontSize: 13, color: "#fff", background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600 }}
+                      >
+                        {(recommendations.gender === "woman") ? "דברי איתי על זה 💬" : "דבר איתי על זה 💬"}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          apiFetch(`/users/${user.id}/dismiss-admin-message`, { method: "POST" })
+                            .then(() => setRecommendations(prev => ({ ...prev, admin_message: null, admin_message_type: null })));
+                        }}
+                        style={{ display: "block", margin: "12px auto 0", padding: "6px 20px", fontSize: 13, color: "#7c6fae", background: "none", border: "1px solid #e0ddf5", borderRadius: 8, cursor: "pointer", fontWeight: 500 }}
+                      >
+                        ראיתי, תודה ❤️
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
