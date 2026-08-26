@@ -459,6 +459,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
 function OverviewTab() {
   const [stats, setStats] = useState<Record<string, number> | null>(null);
   const [summaries, setSummaries] = useState<Record<string, string>>({ system_summary_general: "", system_summary_male: "", system_summary_female: "", system_summary_female_ff: "" });
+  const [savedSummaries, setSavedSummaries] = useState<Record<string, string>>({ system_summary_general: "", system_summary_male: "", system_summary_female: "", system_summary_female_ff: "" });
   const [summariesLoaded, setSummariesLoaded] = useState(false);
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
@@ -470,6 +471,7 @@ function OverviewTab() {
         if (row.key in map) map[row.key] = typeof row.value === "string" ? row.value : "";
       }
       setSummaries(map);
+      setSavedSummaries({ ...map });
       setSummariesLoaded(true);
     }).catch(() => setSummariesLoaded(true));
   }, []);
@@ -481,6 +483,7 @@ function OverviewTab() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ value: summaries[key] }),
     });
+    setSavedSummaries(prev => ({ ...prev, [key]: summaries[key] }));
     setSavingKey(null);
   };
 
@@ -510,24 +513,30 @@ function OverviewTab() {
           <p style={{ fontSize: 12, color: "#64748b", marginBottom: 16, lineHeight: 1.5 }}>
             הטקסט הזה מוזרק לפרומפט של כל שיחה עם משתמשים. הסוכן ישתמש בו כרקע — לא יצטט ולא יחשוף את המקור. כל תקציר מוזרק לקהל היעד המתאים.
           </p>
-          {SUMMARY_LABELS.map(([key, label]) => (
-            <div key={key} style={{ marginBottom: 16, padding: 12, border: "1px solid #e2e8f0", borderRadius: 8, background: summaries[key]?.trim() ? "#f0fdf4" : "#f8fafc" }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "#64748b", marginBottom: 6 }}>{label}</div>
+          {SUMMARY_LABELS.map(([key, label]) => {
+            const isDirty = summaries[key] !== savedSummaries[key];
+            return (
+            <div key={key} style={{ marginBottom: 16, padding: 12, border: isDirty ? "2px solid #f59e0b" : "1px solid #e2e8f0", borderRadius: 8, background: isDirty ? "#fffbeb" : summaries[key]?.trim() ? "#f0fdf4" : "#f8fafc" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#64748b", marginBottom: 6 }}>{label}{isDirty && <span style={{ color: "#d97706", marginRight: 8 }}> ⚠ לא נשמר</span>}</div>
               <textarea
                 value={summaries[key] || ""}
                 onChange={e => setSummaries(prev => ({ ...prev, [key]: e.target.value }))}
                 placeholder="כתוב כאן את ההקשר המערכתי..."
-                style={{ width: "100%", minHeight: 70, padding: "8px 10px", fontSize: 13, fontFamily: "inherit", border: "1px solid #d1d5db", borderRadius: 6, resize: "vertical", lineHeight: 1.5, boxSizing: "border-box" }}
+                style={{ width: "100%", minHeight: 70, padding: "8px 10px", fontSize: 13, fontFamily: "inherit", border: isDirty ? "1px solid #f59e0b" : "1px solid #d1d5db", borderRadius: 6, resize: "vertical", lineHeight: 1.5, boxSizing: "border-box" }}
               />
-              <button
-                disabled={savingKey === key}
-                onClick={() => saveSummary(key)}
-                style={{ marginTop: 6, padding: "5px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#6366f1", color: "#fff", border: "none", borderRadius: 6 }}
-              >
-                {savingKey === key ? "שומר..." : "שמור"}
-              </button>
+              <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6 }}>
+                <button
+                  disabled={savingKey === key}
+                  onClick={() => saveSummary(key)}
+                  style={{ padding: "5px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: isDirty ? "#f59e0b" : "#6366f1", color: "#fff", border: "none", borderRadius: 6 }}
+                >
+                  {savingKey === key ? "שומר..." : "שמור"}
+                </button>
+                {isDirty && <span style={{ fontSize: 11, color: "#d97706", fontWeight: 600 }}>יש ללחוץ "שמור"</span>}
+              </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -2077,15 +2086,20 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
           </div>
 
           {/* Admin Message */}
-          <div style={{ marginBottom: 16, padding: 12, border: "1px solid #e2e8f0", borderRadius: 8, background: data?.user?.admin_message ? "#fefce8" : "#f8fafc" }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "#64748b", marginBottom: 6 }}>💬 הודעת מערכת למשתמש (מוצגת במסך הבית)</div>
+          {(() => {
+            const savedMsg = data?.user?.admin_message || "";
+            const savedType = data?.user?.admin_message_type || "info";
+            const isMsgDirty = adminMsg !== savedMsg || adminMsgType !== savedType;
+            return (
+          <div style={{ marginBottom: 16, padding: 12, border: isMsgDirty ? "2px solid #f59e0b" : "1px solid #e2e8f0", borderRadius: 8, background: isMsgDirty ? "#fffbeb" : data?.user?.admin_message ? "#fefce8" : "#f8fafc" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#64748b", marginBottom: 6 }}>💬 הודעת מערכת למשתמש (מוצגת במסך הבית){isMsgDirty && <span style={{ color: "#d97706", marginRight: 8 }}>⚠ לא נשמר</span>}</div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <input
                 type="text"
                 placeholder="הזיני הודעה שתוצג למשתמש/ת במסך הבית..."
                 value={adminMsg}
                 onChange={e => setAdminMsg(e.target.value)}
-                style={{ flex: 1, padding: "6px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6, direction: "rtl" }}
+                style={{ flex: 1, padding: "6px 12px", fontSize: 13, border: isMsgDirty ? "1px solid #f59e0b" : "1px solid #d1d5db", borderRadius: 6, direction: "rtl" }}
               />
               <select
                 value={adminMsgType}
@@ -2103,7 +2117,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                   loadUserData();
                   setAdminMsgSaving(false);
                 }}
-                style={{ padding: "6px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#6366f1", color: "#fff", border: "none", borderRadius: 6, whiteSpace: "nowrap" }}
+                style={{ padding: "6px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: isMsgDirty ? "#f59e0b" : "#6366f1", color: "#fff", border: "none", borderRadius: 6, whiteSpace: "nowrap" }}
               >
                 {adminMsgSaving ? "שומר..." : "שמור"}
               </button>
@@ -2136,15 +2150,21 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
               );
             })()}
           </div>
+            );
+          })()}
 
           {/* Agent Context */}
-          <div style={{ marginBottom: 16, padding: 12, border: "1px solid #e2e8f0", borderRadius: 8, background: data?.user?.agent_context ? "#f0fdf4" : "#f8fafc" }}>
+          {(() => {
+            const saved = data?.user?.agent_context || "";
+            const isDirty = agentContext !== saved;
+            return (
+          <div style={{ marginBottom: 16, padding: 12, border: isDirty ? "2px solid #f59e0b" : "1px solid #e2e8f0", borderRadius: 8, background: isDirty ? "#fffbeb" : data?.user?.agent_context ? "#f0fdf4" : "#f8fafc" }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: "#64748b", marginBottom: 6 }}>🧠 הקשר לסוכן (מוזרק לכל שיחה עם המשתמש/ת)</div>
             <textarea
               value={agentContext}
               onChange={e => setAgentContext(e.target.value)}
               placeholder="כתוב כאן מידע שהסוכן צריך לדעת על המשתמש/ת — למשל: יש התאמה פוטנציאלית עם מעשנת, צריך לבדוק אם זה בסדר..."
-              style={{ width: "100%", minHeight: 60, padding: "8px 10px", fontSize: 13, fontFamily: "inherit", border: "1px solid #d1d5db", borderRadius: 6, resize: "vertical", lineHeight: 1.5, direction: "rtl", boxSizing: "border-box" }}
+              style={{ width: "100%", minHeight: 60, padding: "8px 10px", fontSize: 13, fontFamily: "inherit", border: isDirty ? "1px solid #f59e0b" : "1px solid #d1d5db", borderRadius: 6, resize: "vertical", lineHeight: 1.5, direction: "rtl", boxSizing: "border-box" }}
             />
             <div style={{ display: "flex", gap: 6, marginTop: 6, alignItems: "center" }}>
               <button
@@ -2155,7 +2175,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                   loadUserData();
                   setAgentContextSaving(false);
                 }}
-                style={{ padding: "5px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#6366f1", color: "#fff", border: "none", borderRadius: 6 }}
+                style={{ padding: "5px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: isDirty ? "#f59e0b" : "#6366f1", color: "#fff", border: "none", borderRadius: 6, animation: isDirty ? "none" : undefined }}
               >
                 {agentContextSaving ? "שומר..." : "שמור"}
               </button>
@@ -2173,9 +2193,14 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                   הסר
                 </button>
               )}
-              <span style={{ fontSize: 11, color: "#94a3b8" }}>הטקסט מוזרק לכל פרומפט — הסוכן ישתמש בו כרקע לשיחה</span>
+              {isDirty
+                ? <span style={{ fontSize: 11, color: "#d97706", fontWeight: 600 }}>⚠ שינויים לא נשמרו — יש ללחוץ "שמור"</span>
+                : <span style={{ fontSize: 11, color: "#94a3b8" }}>הטקסט מוזרק לכל פרומפט — הסוכן ישתמש בו כרקע לשיחה</span>
+              }
             </div>
           </div>
+            );
+          })()}
 
           {/* System Questions History */}
           <div style={{ marginBottom: 16, padding: 12, border: "1px solid #e2e8f0", borderRadius: 8, background: "#f8fafc" }}>
