@@ -28,15 +28,23 @@ async function loadAgentContext(
   userId: number,
   gender: string | null,
   lookingForGender: string | null,
+  channel: string,
 ): Promise<string> {
   const [userRow, maleSum, femaleSum, femaleFfSum] = await Promise.all([
-    pgQueryOne<{ agent_context: string | null }>(
-      "SELECT agent_context FROM users WHERE id = $1", [userId]
+    pgQueryOne<{ agent_context: string | null; in_matching_pool: boolean | null }>(
+      "SELECT agent_context, in_matching_pool FROM users WHERE id = $1", [userId]
     ),
     pgQueryOne<{ value: any }>("SELECT value FROM config WHERE key = 'system_summary_male'"),
     pgQueryOne<{ value: any }>("SELECT value FROM config WHERE key = 'system_summary_female'"),
     pgQueryOne<{ value: any }>("SELECT value FROM config WHERE key = 'system_summary_female_ff'"),
   ]);
+
+  const inPool = !!userRow?.in_matching_pool;
+  const isQaChannel = channel.startsWith("qa_");
+
+  // Before user is in matching pool: only inject in QA channels
+  // After user is in matching pool: inject in all channels
+  if (!inPool && !isQaChannel) return "";
 
   // Extract string value from JSONB config
   const configStr = (row: { value: any } | null): string => {
@@ -402,7 +410,7 @@ export async function buildChatPrompt(
     getUserSummary(userId),
     getChannelCounts(userId),
     getConversationState(userId),
-    loadAgentContext(userId, gender, lookingForGender),
+    loadAgentContext(userId, gender, lookingForGender, channel),
   ]);
 
   // Cognitive channel uses a completely separate prompt
