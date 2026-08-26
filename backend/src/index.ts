@@ -4254,6 +4254,17 @@ app.post("/admin/users/:id/mark-response-seen", async (req, res) => {
   return res.json({ ok: true });
 });
 
+// GET /admin/conversation-responses/pending — Users who responded to conversation messages (unseen)
+app.get("/admin/conversation-responses/pending", async (_req, res) => {
+  const rows = await pgQueryAll<any>(`
+    SELECT u.id as user_id, u.first_name, u.admin_message, u.admin_message_responded_at
+    FROM users u
+    WHERE u.admin_message_responded_at IS NOT NULL AND COALESCE(u.admin_message_response_seen, FALSE) = FALSE
+    ORDER BY u.admin_message_responded_at DESC
+  `);
+  return res.json(rows);
+});
+
 // POST /admin/matches/:id/mark-rating-seen — Admin marks rating as seen
 app.post("/admin/matches/:id/mark-rating-seen", async (req, res) => {
   const id = parseInt(req.params.id, 10);

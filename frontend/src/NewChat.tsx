@@ -1880,10 +1880,9 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       <button
                         onClick={() => {
                           const adminMsg = recommendations.admin_message!;
-                          // Seed qa_general with admin message as assistant's first message (only if empty)
-                          // Always reset qa_general with the new admin message
+                          // Append admin message to qa_general (don't reset existing history)
                           setChannelMessages(prev => ({
-                            ...prev, qa_general: [{ role: "assistant" as const, content: adminMsg }],
+                            ...prev, qa_general: [...(prev["qa_general"] || []), { role: "assistant" as const, content: adminMsg }],
                           }));
                           setChannel("qa_general");
                           setScreen("chat");

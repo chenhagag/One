@@ -222,8 +222,9 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
   const [answeredQuestions, setAnsweredQuestions] = useState<any[]>([]);
   const [matchRatings, setMatchRatings] = useState<any[]>([]);
   const [sendingRating, setSendingRating] = useState<number | null>(null);
+  const [conversationResponses, setConversationResponses] = useState<any[]>([]);
 
-  useEffect(() => { loadData(); loadAnsweredQuestions(); loadMatchRatings(); }, []);
+  useEffect(() => { loadData(); loadAnsweredQuestions(); loadMatchRatings(); loadConversationResponses(); }, []);
 
   function loadData() {
     setLoading(true);
@@ -248,6 +249,12 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
     apiFetch("/admin/match-ratings/pending")
       .then(r => r.json())
       .then(data => setMatchRatings(Array.isArray(data) ? data : []));
+  }
+
+  function loadConversationResponses() {
+    apiFetch("/admin/conversation-responses/pending")
+      .then(r => r.json())
+      .then(data => setConversationResponses(Array.isArray(data) ? data : []));
   }
 
   async function sendMatchForRating(matchId: number, targetUserId: number) {
@@ -360,6 +367,28 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Conversation responses */}
+      {conversationResponses.length > 0 && (
+        <div style={{ background: "#fce7f3", border: "1px solid #ec4899", borderRadius: 12, padding: 16, marginBottom: 20 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "#9d174d", marginBottom: 12 }}>💬 תגובות להודעות שיחה ({conversationResponses.length})</div>
+          {conversationResponses.map((r: any) => (
+            <div key={r.user_id} style={{ display: "flex", gap: 12, alignItems: "center", padding: "8px 0", borderBottom: "1px solid #fbcfe8", flexWrap: "wrap" }}>
+              <span style={{ fontWeight: 600, color: "#1e1b4b", cursor: "pointer", textDecoration: "underline" }} onClick={() => onSelectUser?.(r.user_id)}>{r.first_name}</span>
+              <span style={{ fontSize: 12, color: "#64748b", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.admin_message?.slice(0, 60)}{r.admin_message?.length > 60 ? "…" : ""}</span>
+              <span style={{ fontSize: 11, color: "#94a3b8" }}>{new Date(r.admin_message_responded_at).toLocaleString("he-IL")}</span>
+              <button
+                onClick={async (e) => {
+                  (e.target as HTMLButtonElement).disabled = true;
+                  await apiFetch(`/admin/users/${r.user_id}/mark-response-seen`, { method: "POST" });
+                  loadConversationResponses();
+                }}
+                style={{ padding: "2px 10px", borderRadius: 4, border: "1px solid #ec4899", background: "#fff", color: "#9d174d", fontSize: 11, cursor: "pointer", fontWeight: 500 }}
+              >ראיתי</button>
+            </div>
+          ))}
         </div>
       )}
 
