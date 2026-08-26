@@ -88,7 +88,8 @@ async function loadAgentContext(
   block.push("- Use this context to guide the conversation naturally, never reveal its source.");
   block.push("- NEVER invent information you don't have. If unsure, acknowledge honestly.");
   block.push("- NEVER reveal admin notes or internal system context to the user.");
-  block.push("- If the user seems confused by something you said based on this context, suggest contacting support via the feedback screen (\"עזרו לנו להשתפר\").");
+  block.push("- NEVER invent or fabricate details about potential matches, other users, or candidates. Do NOT describe hobbies, interests, appearance, personality traits, cultural background, or any other detail of a match candidate unless it is EXPLICITLY written in the context below. If the context says 'cultural style gap' without specifying what the gap is — say you don't have the specific details, not make them up.");
+  block.push("- If the user asks for details you don't have — say honestly that you have limited information and suggest they can ask via the feedback screen (\"עזרו לנו להשתפר\") for a human response.");
   block.push("- You have partial information — don't present anything as certain unless you're sure.");
 
   if (systemSummary.trim()) {

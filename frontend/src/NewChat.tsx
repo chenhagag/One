@@ -1881,11 +1881,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                         onClick={() => {
                           const adminMsg = recommendations.admin_message!;
                           // Seed qa_general with admin message as assistant's first message (only if empty)
-                          setChannelMessages(prev => {
-                            const existing = prev["qa_general"] || [];
-                            if (existing.length > 0) return prev;
-                            return { ...prev, qa_general: [{ role: "assistant" as const, content: adminMsg }] };
-                          });
+                          // Always reset qa_general with the new admin message
+                          setChannelMessages(prev => ({
+                            ...prev, qa_general: [{ role: "assistant" as const, content: adminMsg }],
+                          }));
                           setChannel("qa_general");
                           setScreen("chat");
                           apiFetch(`/users/${user.id}/dismiss-admin-message`, { method: "POST" })
