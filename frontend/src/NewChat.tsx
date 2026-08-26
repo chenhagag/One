@@ -1887,7 +1887,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           }));
                           setChannel("qa_general");
                           setScreen("chat");
-                          apiFetch(`/users/${user.id}/dismiss-admin-message`, { method: "POST" })
+                          apiFetch(`/users/${user.id}/dismiss-admin-message`, { method: "POST", body: JSON.stringify({ responded: true }) })
                             .then(() => setRecommendations(prev => ({ ...prev, admin_message: null, admin_message_type: null })));
                         }}
                         style={{ display: "block", margin: "12px auto 0", padding: "8px 24px", fontSize: 13, color: "#fff", background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600 }}

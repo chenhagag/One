@@ -1136,6 +1136,12 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='admin_message_type') THEN
         ALTER TABLE users ADD COLUMN admin_message_type VARCHAR(20) DEFAULT 'info';
       END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='admin_message_responded_at') THEN
+        ALTER TABLE users ADD COLUMN admin_message_responded_at TIMESTAMPTZ;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='admin_message_response_seen') THEN
+        ALTER TABLE users ADD COLUMN admin_message_response_seen BOOLEAN DEFAULT FALSE;
+      END IF;
     END $$;
   `);
 

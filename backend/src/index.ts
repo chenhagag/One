@@ -790,10 +790,19 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
 // POST /users/:id/dismiss-admin-message — user dismisses admin message
 app.post("/users/:id/dismiss-admin-message", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
-  await pgQueryOne(
-    "UPDATE users SET admin_message_dismissed = TRUE WHERE id = $1",
-    [userId]
-  );
+  const { responded } = req.body || {};
+  if (responded) {
+    // User clicked "דבר/י איתי על זה" — mark as conversation response
+    await pgQueryOne(
+      "UPDATE users SET admin_message_dismissed = TRUE, admin_message_responded_at = NOW(), admin_message_response_seen = FALSE WHERE id = $1",
+      [userId]
+    );
+  } else {
+    await pgQueryOne(
+      "UPDATE users SET admin_message_dismissed = TRUE WHERE id = $1",
+      [userId]
+    );
+  }
   return res.json({ ok: true });
 });
 
@@ -1982,6 +1991,11 @@ app.patch("/admin/users/:id", async (req, res) => {
     updates.push(`admin_message_sent_at = $${i++}`);
     values.push(req.body.admin_message ? new Date().toISOString() : null);
     updates.push(`admin_message_dismissed = $${i++}`);
+    values.push(false);
+    // Reset conversation response tracking for new message
+    updates.push(`admin_message_responded_at = $${i++}`);
+    values.push(null);
+    updates.push(`admin_message_response_seen = $${i++}`);
     values.push(false);
   }
 
@@ -4181,9 +4195,12 @@ app.get("/admin/outreach-log", async (_req, res) => {
     const adminMessages = await pgQueryAll(`
       SELECT u.id as user_id, u.first_name, u.admin_message, u.admin_message_sent_at,
         COALESCE(u.admin_message_dismissed, FALSE) as admin_message_dismissed,
+        COALESCE(u.admin_message_type, 'info') as admin_message_type,
+        u.admin_message_responded_at,
+        COALESCE(u.admin_message_response_seen, FALSE) as admin_message_response_seen,
         (SELECT MAX(viewed_at) FROM page_views WHERE user_id = u.id) as user_last_visit
       FROM users u
-      WHERE u.admin_message IS NOT NULL
+      WHERE u.admin_message IS NOT NULL OR u.admin_message_responded_at IS NOT NULL
       ORDER BY u.admin_message_sent_at DESC NULLS LAST
     `);
     return res.json({ ratings, questions, cancellations, adminMessages });
@@ -4227,6 +4244,13 @@ app.get("/admin/system-questions/pending", async (_req, res) => {
 app.post("/admin/system-questions/:id/mark-seen", async (req, res) => {
   const id = parseInt(req.params.id, 10);
   await pgQueryOne("UPDATE system_questions SET admin_seen = TRUE, admin_seen_at = NOW() WHERE id = $1", [id]);
+  return res.json({ ok: true });
+});
+
+// POST /admin/users/:id/mark-response-seen — Admin marks conversation response as seen
+app.post("/admin/users/:id/mark-response-seen", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  await pgQueryOne("UPDATE users SET admin_message_response_seen = TRUE WHERE id = $1", [userId]);
   return res.json({ ok: true });
 });
 
