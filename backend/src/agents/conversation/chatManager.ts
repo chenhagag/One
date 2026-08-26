@@ -77,6 +77,11 @@ async function loadAgentContext(
 
   const userContext = userRow?.agent_context?.trim() || "";
 
+  // Debug logging — remove after verifying
+  console.log(`[agent-context] userId=${userId} channel=${channel} inPool=${inPool} isQa=${isQaChannel} gender=${gender} lfg=${lookingForGender}`);
+  console.log(`[agent-context] maleSum: type=${typeof maleSum?.value} len=${String(maleSum?.value || '').length} first40="${String(maleSum?.value || '').substring(0, 40)}"`);
+  console.log(`[agent-context] systemSummary len=${systemSummary.length} userContext len=${userContext.length}`);
+
   if (!systemSummary.trim() && !userContext) return "";
 
   const block: string[] = [];
