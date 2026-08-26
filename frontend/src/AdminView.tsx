@@ -788,6 +788,8 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   const [showSystemQuestions, setShowSystemQuestions] = useState(false);
   const [newQuestionText, setNewQuestionText] = useState("");
   const [sendingQuestion, setSendingQuestion] = useState(false);
+  const [editingQuestionId, setEditingQuestionId] = useState<number | null>(null);
+  const [editingQuestionText, setEditingQuestionText] = useState("");
 
   // Sync admin_message + agent_context from loaded data
   useEffect(() => { if (data?.user?.admin_message != null) setAdminMsg(data.user.admin_message); }, [data?.user?.admin_message]);
@@ -2190,17 +2192,46 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                 {systemQuestions.map((q: any) => {
                   const userLastVisit = pageViews?.summary?.reduce((max: string | null, p: any) => (!max || (p.last_visit && p.last_visit > max)) ? p.last_visit : max, null as string | null);
                   const userSawIt = userLastVisit && q.created_at && new Date(userLastVisit) > new Date(q.created_at);
+                  const isEditing = editingQuestionId === q.id;
                   return (
                   <div key={q.id} style={{ padding: "8px 0", borderBottom: "1px solid #f1f5f9", fontSize: 12, direction: "rtl" }}>
                     <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                      <span style={{ color: "#374151", fontWeight: 500 }}>"{q.question_text}"</span>
-                      {q.answer ? (
-                        <span style={{ fontWeight: 700, color: q.answer === "לא" ? "#dc2626" : q.answer === "אפשרי" ? "#d97706" : "#16a34a" }}>{q.answer}</span>
+                      {isEditing ? (
+                        <>
+                          <input
+                            type="text"
+                            value={editingQuestionText}
+                            onChange={e => setEditingQuestionText(e.target.value)}
+                            autoFocus
+                            style={{ flex: 1, padding: "4px 8px", fontSize: 12, border: "1px solid #6366f1", borderRadius: 4, direction: "rtl" }}
+                          />
+                          <button onClick={async () => {
+                            await apiFetch(`/admin/system-questions/${q.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question_text: editingQuestionText.trim() }) });
+                            setEditingQuestionId(null);
+                            loadSystemQuestions();
+                          }} style={{ fontSize: 10, padding: "2px 8px", background: "#6366f1", color: "#fff", border: "none", borderRadius: 3, cursor: "pointer" }}>שמור</button>
+                          <button onClick={() => setEditingQuestionId(null)} style={{ fontSize: 10, padding: "2px 8px", background: "#f3f4f6", color: "#333", border: "none", borderRadius: 3, cursor: "pointer" }}>ביטול</button>
+                        </>
                       ) : (
-                        <span style={{ color: "#94a3b8", fontStyle: "italic" }}>ממתין לתשובה</span>
+                        <>
+                          <span style={{ color: "#374151", fontWeight: 500 }}>"{q.question_text}"</span>
+                          {q.answer ? (
+                            <span style={{ fontWeight: 700, color: q.answer === "לא" ? "#dc2626" : q.answer === "אפשרי" ? "#d97706" : "#16a34a" }}>{q.answer}</span>
+                          ) : (
+                            <span style={{ color: "#94a3b8", fontStyle: "italic" }}>ממתין לתשובה</span>
+                          )}
+                          {q.admin_seen && <span style={{ color: "#94a3b8", fontSize: 10 }}>✓ נצפה</span>}
+                          {userSawIt ? <span style={{ color: "#16a34a", fontSize: 10, fontWeight: 600 }}>נכנס/ה ✓</span> : <span style={{ color: "#ef4444", fontSize: 10 }}>לא נכנס/ה</span>}
+                          {!q.answer && (
+                            <span style={{ cursor: "pointer", fontSize: 10, opacity: 0.5 }} onClick={() => { setEditingQuestionId(q.id); setEditingQuestionText(q.question_text); }}>✏️</span>
+                          )}
+                          <span style={{ cursor: "pointer", fontSize: 10, opacity: 0.5 }} onClick={async () => {
+                            if (!confirm(`למחוק את השאלה "${q.question_text.substring(0, 40)}..."?`)) return;
+                            await apiFetch(`/admin/system-questions/${q.id}`, { method: "DELETE" });
+                            loadSystemQuestions();
+                          }}>🗑️</span>
+                        </>
                       )}
-                      {q.admin_seen && <span style={{ color: "#94a3b8", fontSize: 10 }}>✓ נצפה</span>}
-                      {userSawIt ? <span style={{ color: "#16a34a", fontSize: 10, fontWeight: 600 }}>נכנס/ה ✓</span> : <span style={{ color: "#ef4444", fontSize: 10 }}>לא נכנס/ה</span>}
                     </div>
                     <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>
                       נשלח: {new Date(q.created_at).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
@@ -5789,6 +5820,7 @@ function OutreachLogTab() {
                 <th style={s.th}>תשובה</th>
                 <th style={s.th}>ענתה</th>
                 <th style={s.th}>נצפה</th>
+                <th style={s.th}></th>
               </tr>
             </thead>
             <tbody>
@@ -5802,11 +5834,18 @@ function OutreachLogTab() {
                   <td style={s.td}>{answerBadge(q.answer)}</td>
                   <td style={{ ...s.td, whiteSpace: "nowrap" }}>{fmtDate(q.answered_at)}</td>
                   <td style={s.td}>{seen ? <span style={{ color: "#16a34a", fontWeight: 600, fontSize: 12 }}>נכנס/ה ✓</span> : <span style={{ color: "#9ca3af", fontSize: 12 }}>לא נכנס/ה</span>}</td>
+                  <td style={s.td}>
+                    <span style={{ cursor: "pointer", fontSize: 11, opacity: 0.5, marginLeft: 6 }} onClick={async () => {
+                      if (!confirm(`למחוק את השאלה "${q.question_text.substring(0, 40)}..."?`)) return;
+                      await apiFetch(`/admin/system-questions/${q.id}`, { method: "DELETE" });
+                      setQuestions(prev => prev.filter((x: any) => x.id !== q.id));
+                    }}>🗑️</span>
+                  </td>
                 </tr>
                 );
               })}
               {filteredQuestions.length === 0 && (
-                <tr><td colSpan={6} style={{ ...s.td, textAlign: "center", color: "#9ca3af" }}>אין שאלות</td></tr>
+                <tr><td colSpan={7} style={{ ...s.td, textAlign: "center", color: "#9ca3af" }}>אין שאלות</td></tr>
               )}
             </tbody>
           </table>

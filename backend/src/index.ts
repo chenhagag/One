@@ -4237,6 +4237,26 @@ app.post("/admin/matches/:id/mark-rating-seen", async (req, res) => {
   return res.json({ ok: true });
 });
 
+// PATCH /admin/system-questions/:id — Edit question text
+app.patch("/admin/system-questions/:id", async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { question_text } = req.body;
+  if (!question_text?.trim()) return res.status(400).json({ error: "question_text required" });
+  const row = await pgQueryOne<any>(
+    "UPDATE system_questions SET question_text = $1 WHERE id = $2 RETURNING *",
+    [question_text.trim(), id]
+  );
+  if (!row) return res.status(404).json({ error: "Question not found" });
+  return res.json(row);
+});
+
+// DELETE /admin/system-questions/:id — Delete a question
+app.delete("/admin/system-questions/:id", async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  await pgQueryOne("DELETE FROM system_questions WHERE id = $1", [id]);
+  return res.json({ ok: true });
+});
+
 // GET /admin/users/:id/system-questions — All questions for a user (sent + answered)
 app.get("/admin/users/:id/system-questions", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
