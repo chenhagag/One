@@ -1143,9 +1143,10 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
   await pool.query(`
     INSERT INTO config (key, value, description, category)
     VALUES
-      ('system_summary_male', '""'::jsonb, 'System-wide agent context for male users', 'agent_context'),
-      ('system_summary_female', '""'::jsonb, 'System-wide agent context for female users (straight)', 'agent_context'),
-      ('system_summary_female_ff', '""'::jsonb, 'System-wide agent context for women seeking women', 'agent_context')
+      ('system_summary_general', '""'::jsonb, 'System-wide agent context for all users', 'agent_context'),
+      ('system_summary_male', '""'::jsonb, 'Additional agent context for male users', 'agent_context'),
+      ('system_summary_female', '""'::jsonb, 'Additional agent context for female users (straight)', 'agent_context'),
+      ('system_summary_female_ff', '""'::jsonb, 'Additional agent context for women seeking women', 'agent_context')
     ON CONFLICT (key) DO NOTHING;
   `);
 }

@@ -30,10 +30,11 @@ async function loadAgentContext(
   lookingForGender: string | null,
   channel: string,
 ): Promise<string> {
-  const [userRow, maleSum, femaleSum, femaleFfSum] = await Promise.all([
+  const [userRow, generalSum, maleSum, femaleSum, femaleFfSum] = await Promise.all([
     pgQueryOne<{ agent_context: string | null; in_matching_pool: boolean | null }>(
       "SELECT agent_context, in_matching_pool FROM users WHERE id = $1", [userId]
     ),
+    pgQueryOne<{ value: any }>("SELECT value FROM config WHERE key = 'system_summary_general'"),
     pgQueryOne<{ value: any }>("SELECT value FROM config WHERE key = 'system_summary_male'"),
     pgQueryOne<{ value: any }>("SELECT value FROM config WHERE key = 'system_summary_female'"),
     pgQueryOne<{ value: any }>("SELECT value FROM config WHERE key = 'system_summary_female_ff'"),
@@ -53,34 +54,31 @@ async function loadAgentContext(
     return "";
   };
 
-  // System summary based on gender + orientation
-  let systemSummary = "";
+  // System summary: general (for all) + gender-specific additions
+  const summaryParts: string[] = [];
+  const general = configStr(generalSum);
+  if (general.trim()) summaryParts.push(general);
+
   if (gender === "man") {
-    systemSummary = configStr(maleSum);
+    const male = configStr(maleSum);
+    if (male.trim()) summaryParts.push(male);
   } else if (gender === "woman") {
-    const parts: string[] = [];
     if (lookingForGender === "woman") {
       const ff = configStr(femaleFfSum);
-      if (ff.trim()) parts.push(ff);
+      if (ff.trim()) summaryParts.push(ff);
     } else if (lookingForGender === "both") {
       const straight = configStr(femaleSum);
       const ff = configStr(femaleFfSum);
-      if (straight.trim()) parts.push(straight);
-      if (ff.trim()) parts.push(ff);
+      if (straight.trim()) summaryParts.push(straight);
+      if (ff.trim()) summaryParts.push(ff);
     } else {
-      // "man" or null/unknown — default to straight
       const straight = configStr(femaleSum);
-      if (straight.trim()) parts.push(straight);
+      if (straight.trim()) summaryParts.push(straight);
     }
-    systemSummary = parts.join("\n\n");
   }
+  const systemSummary = summaryParts.join("\n\n");
 
   const userContext = userRow?.agent_context?.trim() || "";
-
-  // Debug logging — remove after verifying
-  console.log(`[agent-context] userId=${userId} channel=${channel} inPool=${inPool} isQa=${isQaChannel} gender=${gender} lfg=${lookingForGender}`);
-  console.log(`[agent-context] maleSum: type=${typeof maleSum?.value} len=${String(maleSum?.value || '').length} first40="${String(maleSum?.value || '').substring(0, 40)}"`);
-  console.log(`[agent-context] systemSummary len=${systemSummary.length} userContext len=${userContext.length}`);
 
   if (!systemSummary.trim() && !userContext) return "";
 

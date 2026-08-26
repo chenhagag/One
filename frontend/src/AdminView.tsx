@@ -458,14 +458,14 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
 
 function OverviewTab() {
   const [stats, setStats] = useState<Record<string, number> | null>(null);
-  const [summaries, setSummaries] = useState<Record<string, string>>({ system_summary_male: "", system_summary_female: "", system_summary_female_ff: "" });
+  const [summaries, setSummaries] = useState<Record<string, string>>({ system_summary_general: "", system_summary_male: "", system_summary_female: "", system_summary_female_ff: "" });
   const [summariesLoaded, setSummariesLoaded] = useState(false);
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch("/admin/stats").then((r) => r.json()).then(setStats).catch(() => {});
     apiFetch("/admin/config?category=agent_context").then(r => r.json()).then((rows: any[]) => {
-      const map: Record<string, string> = { system_summary_male: "", system_summary_female: "", system_summary_female_ff: "" };
+      const map: Record<string, string> = { system_summary_general: "", system_summary_male: "", system_summary_female: "", system_summary_female_ff: "" };
       for (const row of rows) {
         if (row.key in map) map[row.key] = typeof row.value === "string" ? row.value : "";
       }
@@ -487,9 +487,10 @@ function OverviewTab() {
   if (!stats) return <p style={s.loading}>Loading...</p>;
 
   const SUMMARY_LABELS: [string, string][] = [
-    ["system_summary_male", "👨 הקשר מערכתי — גברים"],
-    ["system_summary_female", "👩 הקשר מערכתי — נשים (סטרייט)"],
-    ["system_summary_female_ff", "👩‍❤️‍👩 הקשר מערכתי — נשים לנשים"],
+    ["system_summary_general", "🌐 הקשר מערכתי — כללי (לכל המשתמשים)"],
+    ["system_summary_male", "👨 תוספת — גברים"],
+    ["system_summary_female", "👩 תוספת — נשים (סטרייט)"],
+    ["system_summary_female_ff", "👩‍❤️‍👩 תוספת — נשים לנשים"],
   ];
 
   return (
