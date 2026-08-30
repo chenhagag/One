@@ -1155,4 +1155,31 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       ('system_summary_female_ff', '""'::jsonb, 'Additional agent context for women seeking women', 'agent_context')
     ON CONFLICT (key) DO NOTHING;
   `);
+
+  // ── pgvector extension + knowledge_chunks table for RAG ──
+  await pool.query(`CREATE EXTENSION IF NOT EXISTS vector`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS knowledge_chunks (
+      id           SERIAL PRIMARY KEY,
+      scope        TEXT NOT NULL CHECK (scope IN ('system', 'user')),
+      user_id      INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      category     TEXT NOT NULL,
+      title        TEXT NOT NULL,
+      content      TEXT NOT NULL,
+      embedding    vector(1536),
+      source_type  TEXT NOT NULL DEFAULT 'product_rule',
+      active       BOOLEAN DEFAULT TRUE,
+      version      INTEGER DEFAULT 1,
+      created_at   TIMESTAMPTZ DEFAULT NOW(),
+      updated_at   TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- Unique constraint for upsert: one chunk per scope + user + title
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_chunks_upsert
+      ON knowledge_chunks (scope, COALESCE(user_id, -1), title);
+
+    -- For <1000 chunks, exact cosine search (<=>)  is fast enough.
+    -- Add HNSW or IVFFlat index later if chunk count grows significantly.
+  `);
 }

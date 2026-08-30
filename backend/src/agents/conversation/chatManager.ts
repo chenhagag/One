@@ -21,6 +21,11 @@ import path from "path";
 import { getSafeUserProfile, formatSafeProfileForPrompt, formatRichProfileForChat } from "../../safeOutputLayer";
 import { getUserSummary, formatSummaryForPrompt, type UserChatSummary } from "./summarizer";
 import { queryOne as pgQueryOne, queryAll as pgQueryAll } from "../../db.pg";
+import {
+  retrieveContext, formatRetrievedContext, formatRetrievalDebug,
+  getAgentSafeLiveState, formatLiveStateForPrompt,
+  type RetrievalResult,
+} from "../../rag";
 
 // ── Agent context (per-user + system-wide summaries) ───────────
 
@@ -412,13 +417,33 @@ export async function buildChatPrompt(
   const genderInstruction = buildGenderInstruction(gender, lookingForGender);
   const coupleInstruction = testUserType === "Couple Tester" ? COUPLE_TESTER_INSTRUCTION : "";
 
-  // Load summary + channel counts + conversation state + agent context in parallel
-  const [{ summary: userSummary }, { cogCount, tasteCount }, convState, agentContextBlock] = await Promise.all([
+  // Load summary + channel counts + conversation state + agent context + RAG in parallel
+  // RAG query uses last assistant message + current user message for best semantic match
+  const ragQuery = [lastAssistantMessage, message].filter(Boolean).join("\n");
+
+  const [{ summary: userSummary }, { cogCount, tasteCount }, convState, agentContextBlock, ragResult, liveState] = await Promise.all([
     getUserSummary(userId),
     getChannelCounts(userId),
     getConversationState(userId),
     loadAgentContext(userId, gender, lookingForGender, channel),
+    retrieveContext(ragQuery, userId).catch((_err): RetrievalResult => {
+      console.error("[RAG] retrieval failed (non-fatal):", _err.message);
+      return { systemChunks: [], userChunks: [] };
+    }),
+    getAgentSafeLiveState(userId).catch((_err) => {
+      console.error("[RAG] live state failed (non-fatal):", _err.message);
+      return null;
+    }),
   ]);
+
+  // Debug log for RAG retrieval
+  if (ragResult.systemChunks.length > 0 || ragResult.userChunks.length > 0) {
+    console.log(`[RAG] user=${userId} channel=${channel}\n${formatRetrievalDebug(ragResult)}`);
+  }
+
+  // Build RAG context block (injected into all user-facing channels)
+  const ragContextBlock = formatRetrievedContext(ragResult);
+  const liveStateBlock = liveState ? "\n\n" + formatLiveStateForPrompt(liveState) : "";
 
   // Cognitive channel uses a completely separate prompt
   if (channel === "new_chat_cognitive") {
@@ -438,7 +463,7 @@ export async function buildChatPrompt(
       cognitiveExtra += `\n\n## שלב: סיום — חובה לסגור עכשיו\nזו ההודעה האחרונה שלך. אתה חייב לסגור את השיחה עכשיו.\nסגור בחיוב: ספר שהתשובות היו מעניינות ושזה עוזר לך מאוד להבין את סגנון החשיבה שלו. אל תתן תובנות על אישיות המשתמש — רק סגירה חיובית.\nסיים עם המשפט: "תודה, זה מאוד עוזר לי להבין את סגנון החשיבה שלך."\nאל תשאל שאלה נוספת. אל תמשיך את השיחה.`;
     }
 
-    const systemPrompt = COGNITIVE_PROMPT + genderInstruction + coupleInstruction + cognitiveExtra + agentContextBlock;
+    const systemPrompt = COGNITIVE_PROMPT + genderInstruction + coupleInstruction + cognitiveExtra + agentContextBlock + ragContextBlock;
     const closingStage = cogCount >= cogCloseThreshold ? 3 : 0;
     return { systemPrompt, intent: "general", phase: detectPhase(messageCount), closingStage };
   }
@@ -695,7 +720,7 @@ export async function buildChatPrompt(
 - אם שואלים על זמני המתנה — הדגש שאנחנו לא מתפשרים על התאמות בינוניות, שככל שהמאגר גדל הזמן מתקצר, ושלא ניתן להתחייב לזמן ספציפי.
 - ענה בצורה חמה, מקצועית ובגובה העיניים.${exAcquaintanceNote}${adminConversationNote}`;
     }
-    const systemPrompt = contextBlock + "\n\n" + genderInstruction + coupleInstruction + agentContextBlock;
+    const systemPrompt = contextBlock + "\n\n" + genderInstruction + coupleInstruction + agentContextBlock + liveStateBlock + ragContextBlock;
     return { systemPrompt, intent: "general" as ChatIntent, phase: detectPhase(messageCount), closingStage: 0 };
   }
 
@@ -829,7 +854,7 @@ export async function buildChatPrompt(
       navigationInstruction = `\n\nאחרי הסיכום והחידוד, כתוב: "תודה על הפתיחות, זה מאוד עוזר לי לדייק את ההתאמה."`;
     }
 
-    const systemPrompt = TASTE_TEST_PROMPT + genderInstruction + coupleInstruction + phaseInstruction + profileBlock + reentryInstruction + navigationInstruction + agentContextBlock;
+    const systemPrompt = TASTE_TEST_PROMPT + genderInstruction + coupleInstruction + phaseInstruction + profileBlock + reentryInstruction + navigationInstruction + agentContextBlock + ragContextBlock;
     // Taste is "closed" only when all profiles done, OR user said "enough" after mid-summary
     const wantsToStop = reachedMinimum && /מספיק|לא|סיימתי|די|נסגור|לא צריך|תודה|סיימנו|זהו|יאללה|בסדר/i.test(message.trim());
     const closingStage = ((allProfilesDone || wantsToStop) && tasteUserMsgCount > 1) ? 3 : 0;
@@ -974,34 +999,11 @@ export async function buildChatPrompt(
     systemPrompt += `\n\n(Internal note — do NOT mention unprompted: conversation progress ${done}/${total} topics (~${pct}%). If the user asks how much is left or says they're tired — tell them approximately how much is left, explain the importance of completing the conversation for accurate analysis, and say they can always continue later.)`;
   }
 
-  // Inject match status context (only for general/system intent, keeps prompt light)
-  try {
-    const userRow = await pgQueryOne<{ user_status: string | null }>(
-      "SELECT user_status FROM users WHERE id = $1", [userId]
-    );
-    const userStatus = userRow?.user_status || "waiting_match";
+  // Inject live state (replaces old hardcoded match status block)
+  if (liveStateBlock) systemPrompt += liveStateBlock;
 
-    if (userStatus === "in_match") {
-      systemPrompt += `\n\n(Internal note — do NOT mention unprompted: user currently has an active match. If they ask about their status, let them know they have an active match and can view it via the match screen in the sidebar.)`;
-    } else if (userStatus === "waiting_match") {
-      const lastMatch = await pgQueryOne<{ cancelled_by: number | null; updated_at: string }>(
-        `SELECT cancelled_by, updated_at FROM matches
-         WHERE (user1_id = $1 OR user2_id = $1) AND status = 'cancelled'
-         ORDER BY updated_at DESC LIMIT 1`,
-        [userId]
-      );
-      if (lastMatch && (Date.now() - new Date(lastMatch.updated_at).getTime()) < 30 * 24 * 60 * 60 * 1000) {
-        const wasInitiator = lastMatch.cancelled_by === userId;
-        systemPrompt += wasInitiator
-          ? `\n\n(Internal note — do NOT mention unprompted: user's previous match was cancelled by them. They're back in the matching pool and we're looking for a new match. If they mention it, be supportive — say we're taking their feedback into account for the next match.)`
-          : `\n\n(Internal note — do NOT mention unprompted: user's previous match was cancelled by the other side. They're back in the matching pool. If they mention it, be empathetic and encouraging — it's a normal part of the process, doesn't say anything about them, and we're searching for a better match.)`;
-      } else {
-        systemPrompt += `\n\n(Internal note — do NOT mention unprompted: user is in the matching pool, waiting for a match. If they ask about status, tell them we're searching for a compatible match and it may take some time because we prioritize quality.)`;
-      }
-    }
-  } catch (err) {
-    // Non-critical — don't fail the prompt if this query fails
-  }
+  // Inject RAG-retrieved knowledge (system + user chunks)
+  if (ragContextBlock) systemPrompt += ragContextBlock;
 
   // Inject agent context (per-user + system-wide summaries)
   if (agentContextBlock) systemPrompt += agentContextBlock;
