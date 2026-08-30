@@ -436,9 +436,10 @@ export async function buildChatPrompt(
     }),
   ]);
 
-  // Debug log for RAG retrieval
+  // Debug log for RAG retrieval (always log, even when no results)
+  console.log(`[RAG] user=${userId} channel=${channel} system=${ragResult.systemChunks.length} user=${ragResult.userChunks.length} liveState=${liveState ? 'ok' : 'failed'}`);
   if (ragResult.systemChunks.length > 0 || ragResult.userChunks.length > 0) {
-    console.log(`[RAG] user=${userId} channel=${channel}\n${formatRetrievalDebug(ragResult)}`);
+    console.log(formatRetrievalDebug(ragResult));
   }
 
   // Build RAG context block (injected into all user-facing channels)
