@@ -182,27 +182,16 @@ export function formatRetrievedContext(result: RetrievalResult): string {
  * Format retrieval debug info for logging/admin.
  */
 export function formatRetrievalDebug(result: RetrievalResult): string {
-  const lines: string[] = ["[RAG Retrieval]"];
+  const parts: string[] = [];
 
   if (result.systemChunks.length > 0) {
-    lines.push("  One Knowledge:");
-    for (const c of result.systemChunks) {
-      lines.push(`    - ${c.title} (${c.similarity.toFixed(3)})`);
-    }
-  } else {
-    lines.push("  One Knowledge: (none above threshold)");
+    parts.push("system:[" + result.systemChunks.map(c => `${c.title}(${c.similarity.toFixed(3)})`).join(", ") + "]");
   }
-
   if (result.userChunks.length > 0) {
-    lines.push("  User Memory:");
-    for (const c of result.userChunks) {
-      lines.push(`    - ${c.title} (${c.similarity.toFixed(3)})`);
-    }
-  } else {
-    lines.push("  User Memory: (none above threshold)");
+    parts.push("user:[" + result.userChunks.map(c => `${c.title}(${c.similarity.toFixed(3)})`).join(", ") + "]");
   }
 
-  return lines.join("\n");
+  return "[RAG Retrieval] " + (parts.length > 0 ? parts.join(" ") : "none above threshold");
 }
 
 // ── Chunk management ───────────────────────────────────────────────
