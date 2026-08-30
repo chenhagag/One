@@ -294,13 +294,13 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
       in_matching_pool: boolean;
       auto_analyzed: boolean;
       analysis_completed: boolean;
-      has_profile_details: boolean;
+      profile_complete: boolean;
       agent_context: string | null;
       created_at: string;
       user_status: string | null;
     }>(
       `SELECT in_matching_pool, auto_analyzed, analysis_completed,
-              has_profile_details, agent_context, created_at, user_status
+              profile_complete, agent_context, created_at, user_status
        FROM users WHERE id = $1`,
       [userId]
     ).then(r => r.rows[0]),
@@ -408,7 +408,7 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
     matchesSelfDeclined: selfDeclined,
     hasActiveMatch,
     waitingForPhotoApproval,
-    profileComplete: userRow.has_profile_details ?? false,
+    profileComplete: userRow.profile_complete ?? false,
     agentContext: userRow.agent_context,
   };
 }
