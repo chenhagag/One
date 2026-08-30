@@ -130,10 +130,10 @@ export async function retrieveContext(
   }
 ): Promise<RetrievalResult> {
   const {
-    systemLimit = 3,
+    systemLimit = 2,
     userLimit = 2,
-    systemThreshold = 0.72,
-    userThreshold = 0.72,
+    systemThreshold = 0.30,
+    userThreshold = 0.30,
   } = options || {};
 
   // Single embedding call for both searches
