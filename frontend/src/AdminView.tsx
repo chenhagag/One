@@ -636,6 +636,7 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
         <td style={s.td}>
           <span style={{ ...s.badge, background: u.user_status === "frozen" ? "#f8d7da" : "" }}>{u.user_status || "-"}</span>
           {u.suspected_inactive && <span style={{ ...s.badge, background: "#fef3c7", color: "#92400e", fontSize: 9, marginRight: 3 }}>לא פעיל</span>}
+          {u.self_frozen && <span style={{ ...s.badge, background: "#dbeafe", color: "#1e40af", fontSize: 9, marginRight: 3 }}>מושהה</span>}
         </td>
         <td style={s.td}>{u.is_matchable ? "Yes" : "No"}</td>
         <td style={s.td}><span style={{ color: u.in_matching_pool ? "#16a34a" : "#dc2626", fontWeight: 600 }}>{u.in_matching_pool ? "כן" : "לא"}</span></td>
@@ -1506,6 +1507,13 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
       {user.suspected_inactive && (
         <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 6, padding: "8px 14px", marginBottom: 8, fontSize: 13, color: "#92400e", fontWeight: 600 }}>
           ⚠ חשוד כלא פעיל — ההתאמות הפוטנציאליות מוקפאות
+        </div>
+      )}
+
+      {/* Self-frozen banner */}
+      {user.self_frozen && (
+        <div style={{ background: "#dbeafe", border: "1px solid #93c5fd", borderRadius: 6, padding: "8px 14px", marginBottom: 8, fontSize: 13, color: "#1e40af", fontWeight: 600 }}>
+          ❄️ {user.gender === "woman" ? "המשתמשת השהתה" : "המשתמש השהה"} את החיפוש בעצמ{user.gender === "woman" ? "ה" : "ו"}
         </div>
       )}
 

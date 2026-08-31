@@ -944,7 +944,7 @@ async function selectAndFreezeMatches(): Promise<{ promoted: number; frozen: num
         const result = await client.query(
           `UPDATE matches
            SET previous_status = status, status = 'frozen', updated_at = NOW()
-           WHERE id = $1 AND status != 'frozen'`,
+           WHERE id = $1 AND status != 'frozen' AND previous_status IS NULL`,
           [c.id]
         );
         frozen += result.rowCount ?? 0;

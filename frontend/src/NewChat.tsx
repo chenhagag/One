@@ -2336,6 +2336,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
   const [deleting, setDeleting] = useState(false);
   const [resetConfirm, setResetConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [selfFrozen, setSelfFrozen] = useState(false);
 
   useEffect(() => {
     apiFetch(`/users/${user.id}`).then(r => r.json()).then(data => {
@@ -2345,6 +2346,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
       setEmailUpdates(data.email_updates !== false);
       setWhatsappUpdates(!!data.whatsapp_updates);
       setPhone(data.whatsapp_phone || "");
+      setSelfFrozen(!!data.self_frozen);
     }).catch(() => {}).finally(() => setLoading(false));
   }, [user.id]);
 
@@ -2464,6 +2466,24 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
               <p style={{ ...hintStyle, marginTop: 4 }}>ניתן לערוך — השינויים יישמרו אוטומטית.</p>
             </div>
           )}
+        </div>
+
+        {/* Pause matching */}
+        <div style={{ ...sectionStyle, background: selfFrozen ? "#fef3c7" : "#f9fafb" }}>
+          <h3 style={titleStyle}>השהיית חיפוש</h3>
+          <label style={labelStyle}>
+            <input type="checkbox" checked={selfFrozen} disabled={saving || loading}
+              onChange={(e) => { setSelfFrozen(e.target.checked); saveSetting({ self_frozen: e.target.checked }); }}
+              style={checkboxStyle} />
+            <span>{user.gender === "woman"
+              ? "אני לא מחפשת כרגע, הקפיאו את החיפוש"
+              : "אני לא מחפש כרגע, הקפיאו את החיפוש"}</span>
+          </label>
+          <p style={hintStyle}>
+            {selfFrozen
+              ? "החיפוש מושהה. לא תקבלו התאמות חדשות. ניתן לחזור בכל עת."
+              : "אם תרצו הפסקה, אפשר להשהות את החיפוש. ההתאמות הקיימות יוקפאו ולא ייכנסו מועמדים חדשים."}
+          </p>
         </div>
 
         {/* Notifications */}

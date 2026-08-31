@@ -732,6 +732,7 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
     partner_name, test_user_type, consent_accepted, photo_ai_consent,
     email_updates, whatsapp_updates, whatsapp_phone,
     match_card_consent, match_card_restrictions, profile_complete,
+    self_frozen,
   } = req.body;
   // Build pg UPDATE with dynamic $N placeholders
   const assignments: string[] = [];
@@ -774,6 +775,7 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
   if (match_card_consent !== undefined)   push("match_card_consent", match_card_consent);
   if (match_card_restrictions !== undefined) push("match_card_restrictions", match_card_restrictions);
   if (profile_complete !== undefined)     push("profile_complete", profile_complete);
+  if (self_frozen !== undefined)         push("self_frozen", self_frozen);
 
   if (assignments.length === 0) return res.status(400).json({ error: "No fields to update" });
 
@@ -784,6 +786,55 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
     `UPDATE users SET ${assignments.join(", ")} WHERE id = $${p} RETURNING *`,
     values
   );
+
+  // Self-freeze: handle match status changes
+  if (self_frozen === true) {
+    // 1. waiting_first_rating sent to this user → revert to potential_match
+    await pgQueryAll(
+      `UPDATE matches SET status = 'potential_match', sent_for_rating_at = NULL, sent_for_rating_to = NULL,
+       updated_at = NOW()
+       WHERE status = 'waiting_first_rating'
+         AND sent_for_rating_to = $1`,
+      [userId]
+    );
+    // 2. waiting_second_rating sent to this user → check if other user is still active
+    const waitingSecond = await pgQueryAll<any>(
+      `SELECT m.id, m.user1_id, m.user2_id FROM matches m
+       WHERE m.status = 'waiting_second_rating' AND m.sent_for_rating_to = $1`,
+      [userId]
+    );
+    for (const m of waitingSecond) {
+      const otherUserId = m.user1_id === userId ? m.user2_id : m.user1_id;
+      const otherUser = await pgQueryOne<any>(
+        "SELECT self_frozen, suspected_inactive FROM users WHERE id = $1", [otherUserId]
+      );
+      const otherFrozen = otherUser?.self_frozen || otherUser?.suspected_inactive;
+      const otherInActiveMatch = await isUserCurrentlyNeeded(otherUserId, m.id);
+      if (otherFrozen || otherInActiveMatch) {
+        // Other user also unavailable → revert to potential_match (clear both ratings)
+        await pgQueryAll(
+          `UPDATE matches SET status = 'potential_match', sent_for_rating_at = NULL, sent_for_rating_to = NULL,
+           user1_rating = NULL, user2_rating = NULL, updated_at = NOW() WHERE id = $1`,
+          [m.id]
+        );
+      } else {
+        // Other user active → keep waiting_second_rating, just hide from frozen user
+        await pgQueryAll(
+          `UPDATE matches SET sent_for_rating_at = NULL, sent_for_rating_to = NULL,
+           updated_at = NOW() WHERE id = $1`,
+          [m.id]
+        );
+      }
+    }
+    // 3. Freeze all potential/waiting matches
+    await freezeUserMatches(userId, -1);
+    console.log(`[self-freeze] User ${userId} froze their matching`);
+  } else if (self_frozen === false) {
+    // Unfreeze — checks all other freeze reasons before unfreezing each match
+    const unfrozen = await unfreezeUserMatchesSafe(userId);
+    console.log(`[self-freeze] User ${userId} unfroze their matching, ${unfrozen} matches restored`);
+  }
+
   return res.json(updated);
 });
 
@@ -1376,19 +1427,6 @@ app.post("/users/:id/cancel-match", requireUserAuth, async (req, res) => {
         `UPDATE users SET user_status = 'waiting_match', waiting_since = NOW(), updated_at = NOW() WHERE id IN ($1, $2)`,
         [match.user1_id, match.user2_id]
       );
-      // Unfreeze frozen matches for both users
-      const frozenMatches = await client.query<{ id: number; previous_status: string }>(
-        `SELECT id, previous_status FROM matches
-         WHERE status = 'frozen' AND previous_status IS NOT NULL
-           AND (user1_id = ANY($1::int[]) OR user2_id = ANY($1::int[]))`,
-        [[match.user1_id, match.user2_id]]
-      );
-      for (const fm of frozenMatches.rows) {
-        await client.query(
-          "UPDATE matches SET status = $1, previous_status = NULL, updated_at = NOW() WHERE id = $2",
-          [fm.previous_status, fm.id]
-        );
-      }
       // Save feedback to conversation_messages so AI analysis can read it
       if (feedback && feedback.trim()) {
         await client.query(
@@ -1397,6 +1435,9 @@ app.post("/users/:id/cancel-match", requireUserAuth, async (req, res) => {
         );
       }
     });
+
+    // Safe unfreeze — checks all freeze reasons before unfreezing each match
+    await unfreezeMatchesSafe(match.user1_id, match.user2_id, match.id);
 
     return res.json({ success: true, match_id: match.id });
   } catch (err) {
@@ -2029,16 +2070,10 @@ app.post("/admin/users/:id/suspect-inactive", async (req, res) => {
 
   await pgQueryAll("UPDATE users SET suspected_inactive = TRUE, updated_at = NOW() WHERE id = $1", [userId]);
 
-  // Freeze all potential_match / waiting_for_photo / waiting_for_response matches involving this user
-  const frozen = await pgQueryAll(
-    `UPDATE matches SET previous_status = status, status = 'frozen', updated_at = NOW()
-     WHERE status IN ('potential_match', 'waiting_for_photo', 'waiting_for_response')
-       AND (user1_id = $1 OR user2_id = $1)
-     RETURNING id`,
-    [userId]
-  );
-  console.log(`[admin] Marked user ${userId} as suspected inactive, froze ${frozen.length} matches`);
-  return res.json({ suspected_inactive: true, user_id: userId, frozen_matches: frozen.length });
+  // Freeze all freezable matches for this user (previous_status IS NULL guard prevents double-freeze)
+  const frozenCount = await freezeUserMatches(userId, -1);
+  console.log(`[admin] Marked user ${userId} as suspected inactive, froze ${frozenCount} matches`);
+  return res.json({ suspected_inactive: true, user_id: userId, frozen_matches: frozenCount });
 });
 
 // POST /admin/users/:id/unsuspect-inactive — Remove suspected inactive status + unfreeze matches
@@ -2050,16 +2085,10 @@ app.post("/admin/users/:id/unsuspect-inactive", async (req, res) => {
 
   await pgQueryAll("UPDATE users SET suspected_inactive = FALSE, updated_at = NOW() WHERE id = $1", [userId]);
 
-  // Unfreeze matches that were frozen (only those with previous_status saved)
-  const unfrozen = await pgQueryAll(
-    `UPDATE matches SET status = previous_status, previous_status = NULL, updated_at = NOW()
-     WHERE status = 'frozen' AND previous_status IS NOT NULL
-       AND (user1_id = $1 OR user2_id = $1)
-     RETURNING id`,
-    [userId]
-  );
-  console.log(`[admin] Removed suspected inactive from user ${userId}, unfroze ${unfrozen.length} matches`);
-  return res.json({ suspected_inactive: false, user_id: userId, unfrozen_matches: unfrozen.length });
+  // Safe unfreeze — checks self_frozen and active matches before unfreezing
+  const unfrozenCount = await unfreezeUserMatchesSafe(userId);
+  console.log(`[admin] Removed suspected inactive from user ${userId}, unfroze ${unfrozenCount} matches`);
+  return res.json({ suspected_inactive: false, user_id: userId, unfrozen_matches: unfrozenCount });
 });
 
 // POST /admin/users/:id/freeze — Freeze/suspend a user
@@ -2741,7 +2770,8 @@ app.post("/admin/run-matching", async (_req, res) => {
   try {
     const stage1 = await runStage1(db);
     const stage2 = await runStage2(db);
-    return res.json({ stage1, stage2 });
+    const reconciled = await reconcileMatchStatuses();
+    return res.json({ stage1, stage2, reconciled });
   } catch (err: any) {
     console.error(err);
     return res.status(500).json({ error: err.message });
@@ -2753,7 +2783,8 @@ app.post("/admin/run-matching-expanded", async (_req, res) => {
   try {
     const stage1 = await runStage1(db, { expandedFilters: true });
     const stage2 = await runStage2(db);
-    return res.json({ stage1, stage2, note: "Ran with expanded filters — age +2 years, location bumped one level" });
+    const reconciled = await reconcileMatchStatuses();
+    return res.json({ stage1, stage2, reconciled, note: "Ran with expanded filters — age +2 years, location bumped one level" });
   } catch (err: any) {
     console.error(err);
     return res.status(500).json({ error: err.message });
@@ -2765,7 +2796,8 @@ app.post("/admin/run-matching-force", async (_req, res) => {
   try {
     const stage1 = await runStage1(db, { skipAllFilters: true });
     const stage2 = await runStage2(db);
-    return res.json({ stage1, stage2, note: "Ran with skipAllFilters — all pairs scored without any filtering" });
+    const reconciled = await reconcileMatchStatuses();
+    return res.json({ stage1, stage2, reconciled, note: "Ran with skipAllFilters — all pairs scored without any filtering" });
   } catch (err: any) {
     console.error(err);
     return res.status(500).json({ error: err.message });
@@ -2795,16 +2827,13 @@ app.post("/admin/rescore-all", async (_req, res) => {
   }
 });
 
-// POST /admin/unfreeze-all-matches — Restore all frozen matches to their previous status
+// POST /admin/unfreeze-all-matches — Restore frozen matches that have no freeze reason
 app.post("/admin/unfreeze-all-matches", async (_req, res) => {
   try {
-    const result = await pgQueryAll(
-      `UPDATE matches SET status = previous_status, previous_status = NULL, updated_at = NOW()
-       WHERE status = 'frozen' AND previous_status IS NOT NULL
-       RETURNING id`
-    );
-    console.log(`[admin] Unfroze all: ${result.length} matches`);
-    return res.json({ unfrozen: result.length });
+    // Use reconcile to safely unfreeze only matches with no freeze reason
+    const reconciled = await reconcileMatchStatuses();
+    console.log(`[admin] Unfreeze all (via reconcile): frozen ${reconciled.frozen}, unfrozen ${reconciled.unfrozen}`);
+    return res.json({ unfrozen: reconciled.unfrozen, frozen: reconciled.frozen });
   } catch (err: any) {
     console.error(err);
     return res.status(500).json({ error: err.message });
@@ -2864,8 +2893,9 @@ app.post("/admin/requalify-matches", async (_req, res) => {
       promoted++;
     }
 
-    console.log(`[admin] Requalify: demoted ${demoted}, promoted ${promoted}`);
-    return res.json({ demoted, promoted });
+    const reconciled = await reconcileMatchStatuses();
+    console.log(`[admin] Requalify: demoted ${demoted}, promoted ${promoted}, reconciled ${reconciled.frozen}/${reconciled.unfrozen}`);
+    return res.json({ demoted, promoted, reconciled });
   } catch (err: any) {
     console.error("[requalify] Error:", err);
     return res.status(500).json({ error: err.message });
@@ -2875,11 +2905,15 @@ app.post("/admin/requalify-matches", async (_req, res) => {
 // POST /admin/approve-all-ratings — Testing shortcut: bulk-approve all pending ratings
 app.post("/admin/approve-all-ratings", async (_req, res) => {
   try {
-    const result = await pgQueryAll(`
+    const result = await pgQueryAll<{ id: number; user1_id: number; user2_id: number }>(`
       UPDATE matches SET status = 'approved_by_both', updated_at = NOW()
       WHERE status IN ('waiting_first_rating', 'waiting_second_rating')
-      RETURNING id
+      RETURNING id, user1_id, user2_id
     `);
+    // Freeze both users' other matches for each approved match
+    for (const m of result) {
+      await freezeBothUsersMatches(m.id, m.user1_id, m.user2_id);
+    }
     return res.json({ approved: result.length });
   } catch (err: any) {
     console.error(err);
@@ -3157,55 +3191,138 @@ app.get("/admin/users/:id/candidate-matches", async (req, res) => {
 
 // ════════════════════════════════════════════════════════════════
 // ════════════════════════════════════════════════════════════════
-// AUTO-FREEZE / UNFREEZE — When a match enters an active status,
-// freeze all other potential_match matches for both users.
-// When it exits, unfreeze them back to potential_match.
+// AUTO-FREEZE / UNFREEZE — Freeze logic based on who is actually
+// being waited on. Only the user with sent_for_rating_to is frozen
+// when rating; both frozen for approved_by_both/pre_match/in_match.
+// Multiple freeze reasons (self_frozen, suspected_inactive, active
+// match) are checked before any unfreeze.
 // ════════════════════════════════════════════════════════════════
 
-async function freezeOtherMatches(activeMatchId: number, user1Id: number, user2Id: number) {
+// Is this user actively needed in any match? (meaning they should be frozen for match reasons)
+async function isUserCurrentlyNeeded(userId: number, excludeMatchId?: number): Promise<boolean> {
+  const row = await pgQueryOne<{ c: number }>(
+    `SELECT COUNT(*)::int AS c FROM matches
+     WHERE id != $1
+       AND (user1_id = $2 OR user2_id = $2)
+       AND (
+         status IN ('approved_by_both', 'pre_match', 'in_match')
+         OR (status IN ('waiting_first_rating', 'waiting_second_rating') AND sent_for_rating_to = $2)
+       )`,
+    [excludeMatchId ?? -1, userId]
+  );
+  return (row?.c ?? 0) > 0;
+}
+
+// Check ALL freeze reasons for a user
+async function hasAnyFreezeReason(userId: number, excludeMatchId?: number): Promise<boolean> {
+  const user = await pgQueryOne<{ self_frozen: boolean; suspected_inactive: boolean }>(
+    "SELECT COALESCE(self_frozen, FALSE) as self_frozen, COALESCE(suspected_inactive, FALSE) as suspected_inactive FROM users WHERE id = $1",
+    [userId]
+  );
+  if (user?.self_frozen || user?.suspected_inactive) return true;
+  return isUserCurrentlyNeeded(userId, excludeMatchId);
+}
+
+// Freeze all freezable matches for ONE user
+async function freezeUserMatches(userId: number, excludeMatchId: number): Promise<number> {
   const result = await pgQueryAll(
     `UPDATE matches SET previous_status = status, status = 'frozen', updated_at = NOW()
      WHERE id != $1
        AND status IN ('potential_match', 'waiting_for_photo', 'waiting_for_response')
-       AND (user1_id = $2 OR user2_id = $2 OR user1_id = $3 OR user2_id = $3)
+       AND (user1_id = $2 OR user2_id = $2)
+       AND previous_status IS NULL
      RETURNING id`,
-    [activeMatchId, user1Id, user2Id]
+    [excludeMatchId, userId]
   );
-  console.log(`[auto-freeze] Match #${activeMatchId}: froze ${result.length} other matches for users ${user1Id}, ${user2Id}`);
+  console.log(`[auto-freeze] Froze ${result.length} matches for user ${userId} (exclude match #${excludeMatchId})`);
   return result.length;
 }
 
-async function unfreezeMatches(user1Id: number, user2Id: number, excludeMatchId?: number) {
-  console.log(`[auto-unfreeze] Called for users ${user1Id}, ${user2Id}, excludeMatchId=${excludeMatchId}`);
-  let totalUnfrozen = 0;
+// Freeze both users' matches (for approved_by_both/in_match)
+async function freezeBothUsersMatches(activeMatchId: number, user1Id: number, user2Id: number): Promise<number> {
+  const a = await freezeUserMatches(user1Id, activeMatchId);
+  const b = await freezeUserMatches(user2Id, activeMatchId);
+  console.log(`[auto-freeze] Match #${activeMatchId}: froze ${a + b} total for users ${user1Id}, ${user2Id}`);
+  return a + b;
+}
 
-  // Process each user independently — one user may still have active matches while the other doesn't
-  for (const userId of [user1Id, user2Id]) {
-    const otherActive = await pgQueryOne<{ c: number }>(
-      `SELECT COUNT(*)::int AS c FROM matches
-       WHERE status IN ('waiting_first_rating', 'waiting_second_rating', 'in_match')
-         AND (user1_id = $1 OR user2_id = $1)
-         AND id != $2`,
-      [userId, excludeMatchId ?? -1]
-    );
-    if ((otherActive?.c ?? 0) > 0) {
-      console.log(`[auto-unfreeze] User ${userId} still has ${otherActive?.c} active matches, skipping their frozen`);
-      continue;
-    }
-    // Unfreeze matches for this user only
-    const result = await pgQueryAll(
-      `UPDATE matches SET status = previous_status, previous_status = NULL, updated_at = NOW()
-       WHERE status = 'frozen'
-         AND previous_status IS NOT NULL
-         AND (user1_id = $1 OR user2_id = $1)
-       RETURNING id`,
-      [userId]
-    );
-    console.log(`[auto-unfreeze] Unfroze ${result.length} matches for user ${userId}`);
-    totalUnfrozen += result.length;
+// Safe unfreeze for ONE user — checks ALL freeze reasons before unfreezing each match
+async function unfreezeUserMatchesSafe(userId: number, excludeMatchId?: number): Promise<number> {
+  if (await hasAnyFreezeReason(userId, excludeMatchId)) {
+    console.log(`[auto-unfreeze] User ${userId} still has freeze reason, skipping`);
+    return 0;
   }
 
-  return totalUnfrozen;
+  const frozenMatches = await pgQueryAll<{ id: number; user1_id: number; user2_id: number; previous_status: string }>(
+    `SELECT id, user1_id, user2_id, previous_status FROM matches
+     WHERE status = 'frozen' AND previous_status IS NOT NULL
+       AND (user1_id = $1 OR user2_id = $1)`,
+    [userId]
+  );
+
+  let unfrozen = 0;
+  for (const fm of frozenMatches) {
+    const otherUserId = fm.user1_id === userId ? fm.user2_id : fm.user1_id;
+    if (await hasAnyFreezeReason(otherUserId, fm.id)) continue;
+
+    await pgQueryAll(
+      "UPDATE matches SET status = $1, previous_status = NULL, updated_at = NOW() WHERE id = $2",
+      [fm.previous_status, fm.id]
+    );
+    unfrozen++;
+  }
+  console.log(`[auto-unfreeze] Unfroze ${unfrozen}/${frozenMatches.length} matches for user ${userId}`);
+  return unfrozen;
+}
+
+// Safe unfreeze for both users
+async function unfreezeMatchesSafe(user1Id: number, user2Id: number, excludeMatchId?: number): Promise<number> {
+  const a = await unfreezeUserMatchesSafe(user1Id, excludeMatchId);
+  const b = await unfreezeUserMatchesSafe(user2Id, excludeMatchId);
+  return a + b;
+}
+
+// Reconcile all match statuses — freeze what should be frozen, unfreeze what shouldn't
+async function reconcileMatchStatuses(): Promise<{ frozen: number; unfrozen: number }> {
+  let frozen = 0, unfrozen = 0;
+
+  // 1. Unfrozen matches that SHOULD be frozen
+  const openMatches = await pgQueryAll<{ id: number; user1_id: number; user2_id: number }>(
+    `SELECT m.id, m.user1_id, m.user2_id FROM matches m
+     WHERE m.status IN ('potential_match', 'waiting_for_photo', 'waiting_for_response')
+       AND m.previous_status IS NULL`
+  );
+  for (const m of openMatches) {
+    const u1frozen = await hasAnyFreezeReason(m.user1_id, m.id);
+    const u2frozen = await hasAnyFreezeReason(m.user2_id, m.id);
+    if (u1frozen || u2frozen) {
+      await pgQueryAll(
+        `UPDATE matches SET previous_status = status, status = 'frozen', updated_at = NOW() WHERE id = $1`,
+        [m.id]
+      );
+      frozen++;
+    }
+  }
+
+  // 2. Frozen matches that should NOT be frozen
+  const frozenMatches = await pgQueryAll<{ id: number; user1_id: number; user2_id: number; previous_status: string }>(
+    `SELECT m.id, m.user1_id, m.user2_id, m.previous_status FROM matches m
+     WHERE m.status = 'frozen' AND m.previous_status IS NOT NULL`
+  );
+  for (const m of frozenMatches) {
+    const u1frozen = await hasAnyFreezeReason(m.user1_id, m.id);
+    const u2frozen = await hasAnyFreezeReason(m.user2_id, m.id);
+    if (!u1frozen && !u2frozen) {
+      await pgQueryAll(
+        "UPDATE matches SET status = $1, previous_status = NULL, updated_at = NOW() WHERE id = $2",
+        [m.previous_status, m.id]
+      );
+      unfrozen++;
+    }
+  }
+
+  console.log(`[reconcile] Frozen ${frozen}, unfrozen ${unfrozen}`);
+  return { frozen, unfrozen };
 }
 
 // MATCH RATING — User rates a match
@@ -3262,7 +3379,7 @@ app.post("/matches/:id/rate", requireAuth, async (req, res) => {
        rejection_reason = 'known_person', updated_at = NOW() WHERE id = $1`,
       [match.id]
     );
-    await unfreezeMatches(match.user1_id, match.user2_id, match.id);
+    await unfreezeMatchesSafe(match.user1_id, match.user2_id, match.id);
     return res.json({ match_id: match.id, new_status: "rejected_acquaintance", rated_by: user_id });
   }
 
@@ -3280,7 +3397,10 @@ app.post("/matches/:id/rate", requireAuth, async (req, res) => {
       [newStatus, rating, match.id]
     );
     if (newStatus === "rejected_by_users") {
-      await unfreezeMatches(match.user1_id, match.user2_id, match.id);
+      await unfreezeMatchesSafe(match.user1_id, match.user2_id, match.id);
+    } else {
+      // User rated positively → they're done, unfreeze their other matches
+      await unfreezeUserMatchesSafe(user_id, match.id);
     }
     return res.json({ match_id: match.id, new_status: newStatus, rated_by: user_id });
   }
@@ -3292,7 +3412,10 @@ app.post("/matches/:id/rate", requireAuth, async (req, res) => {
     [newStatus, rating, match.id]
   );
   if (newStatus === "rejected_by_users") {
-    await unfreezeMatches(match.user1_id, match.user2_id, match.id);
+    await unfreezeMatchesSafe(match.user1_id, match.user2_id, match.id);
+  } else {
+    // approved_by_both — freeze both users' other matches
+    await freezeBothUsersMatches(match.id, match.user1_id, match.user2_id);
   }
   return res.json({ match_id: match.id, new_status: newStatus, rated_by: user_id });
 });
@@ -3447,17 +3570,17 @@ app.patch("/admin/matches/:id/status", async (req, res) => {
     await pgQueryAll("UPDATE matches SET status = $1, updated_at = NOW() WHERE id = $2", [status, matchId]);
     console.log(`[admin] Match ${matchId} status manually changed to: ${status}`);
 
-    const activeStatuses = new Set(["waiting_first_rating", "waiting_second_rating", "in_match"]);
-    const wasActive = activeStatuses.has(oldMatch.status);
+    const activeStatuses = new Set(["approved_by_both", "pre_match", "in_match"]);
+    const wasActive = activeStatuses.has(oldMatch.status) || (["waiting_first_rating", "waiting_second_rating"].includes(oldMatch.status) && oldMatch.sent_for_rating_to);
     const isNowActive = activeStatuses.has(status);
 
-    // Entering active status → freeze other potential matches
+    // Entering active status → freeze both users' potential matches
     if (!wasActive && isNowActive) {
-      await freezeOtherMatches(matchId, oldMatch.user1_id, oldMatch.user2_id);
+      await freezeBothUsersMatches(matchId, oldMatch.user1_id, oldMatch.user2_id);
     }
-    // Leaving active status → unfreeze
+    // Leaving active status → safe unfreeze
     if (wasActive && !isNowActive) {
-      await unfreezeMatches(oldMatch.user1_id, oldMatch.user2_id, matchId);
+      await unfreezeMatchesSafe(oldMatch.user1_id, oldMatch.user2_id, matchId);
     }
 
     return res.json({ success: true, match: { id: matchId, status } });
@@ -3521,8 +3644,8 @@ app.post("/admin/matches/:id/send", async (req, res) => {
     );
   });
 
-  // Auto-freeze other potential matches
-  await freezeOtherMatches(match.id, match.user1_id, match.user2_id);
+  // Auto-freeze both users' other potential matches
+  await freezeBothUsersMatches(match.id, match.user1_id, match.user2_id);
 
   return res.json({ success: true, match_id: match.id, status: "in_match" });
 });
@@ -3544,8 +3667,6 @@ app.post("/admin/matches/:id/cancel", async (req, res) => {
     return res.status(400).json({ error: `Can only cancel matches in pre_match or in_match, current status is '${match.status}'` });
   }
 
-  let unfrozen = 0;
-
   await withTransaction(async (client) => {
     await client.query(
       "UPDATE matches SET status = 'cancelled', updated_at = NOW() WHERE id = $1",
@@ -3556,23 +3677,10 @@ app.post("/admin/matches/:id/cancel", async (req, res) => {
        WHERE id IN ($1, $2)`,
       [match.user1_id, match.user2_id]
     );
-
-    const frozenMatches = await client.query<{ id: number; previous_status: string }>(
-      `SELECT id, previous_status FROM matches
-       WHERE status = 'frozen'
-         AND previous_status IS NOT NULL
-         AND (user1_id = ANY($1::int[]) OR user2_id = ANY($1::int[]))`,
-      [[match.user1_id, match.user2_id]]
-    );
-
-    for (const fm of frozenMatches.rows) {
-      await client.query(
-        "UPDATE matches SET status = $1, previous_status = NULL, updated_at = NOW() WHERE id = $2",
-        [fm.previous_status, fm.id]
-      );
-      unfrozen++;
-    }
   });
+
+  // Safe unfreeze — checks all freeze reasons before unfreezing each match
+  const unfrozen = await unfreezeMatchesSafe(match.user1_id, match.user2_id, match.id);
 
   return res.json({ success: true, match_id: match.id, status: "cancelled", unfrozen });
 });
@@ -3604,10 +3712,8 @@ app.post("/admin/matches/:id/send-for-rating", async (req, res) => {
     [newStatus, targetUserId, matchId]
   );
 
-  // Auto-freeze other potential matches when entering active status
-  if (preRatingStatuses.has(match.status)) {
-    await freezeOtherMatches(matchId, match.user1_id, match.user2_id);
-  }
+  // Auto-freeze only the target user's other matches (they're being asked to rate)
+  await freezeUserMatches(targetUserId, matchId);
 
   return res.json({ success: true, match_id: matchId, sent_to: targetUserId, status: newStatus });
 });

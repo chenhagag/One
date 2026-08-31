@@ -171,10 +171,10 @@ export async function runStage1(_db: Database.Database, options?: { skipMatchabl
 
   // 1. Load eligible users from pg
   const whereClause = options?.skipAllFilters
-    ? "WHERE u.valid_person = TRUE"
+    ? "WHERE u.valid_person = TRUE AND u.self_frozen IS NOT TRUE"
     : options?.skipMatchableFilter
-    ? "WHERE u.valid_person = TRUE"
-    : "WHERE u.in_matching_pool = TRUE AND u.valid_person = TRUE";
+    ? "WHERE u.valid_person = TRUE AND u.self_frozen IS NOT TRUE"
+    : "WHERE u.in_matching_pool = TRUE AND u.valid_person = TRUE AND u.self_frozen IS NOT TRUE";
 
   // 0. Resolve trait IDs dynamically from pg (no hardcoded IDs)
   const traitDefs = await queryAll<{ id: number; internal_name: string; trait_group: string | null }>(
