@@ -759,6 +759,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   const [sendingForRating, setSendingForRating] = useState<number | null>(null);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [rescoring, setRescoring] = useState(false);
   const [transcript, setTranscript] = useState<any>(null);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [transcriptTab, setTranscriptTab] = useState<string>("all");
@@ -923,6 +924,18 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
       apiFetch(`/admin/users/${userId}/analysis-run`).then(r => r.json()).then(setAnalysisRun).catch(() => {});
     } catch { alert("Network error"); }
     finally { setReanalyzing(false); }
+  }
+
+  async function handleRescore() {
+    if (!confirm("לחשב מחדש ציוני התאמה למשתמש הזה?")) return;
+    setRescoring(true);
+    try {
+      const r = await apiFetch(`/admin/users/${userId}/rescore`, { method: "POST" });
+      const json = await r.json();
+      if (!r.ok) { alert(json.error || "Rescore failed"); return; }
+      alert(`עודכנו ${json.rescored} התאמות`);
+    } catch { alert("Network error"); }
+    finally { setRescoring(false); }
   }
 
   async function handleCognitiveTest() {
@@ -1995,6 +2008,13 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
               disabled={resetting || reanalyzing}
             >
               {resetting ? "Resetting..." : "Reset analysis"}
+            </button>
+            <button
+              style={{ padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#f59e0b", color: "#fff", border: "none", borderRadius: 4 }}
+              onClick={handleRescore}
+              disabled={rescoring}
+            >
+              {rescoring ? "Rescoring..." : "Rescore matches"}
             </button>
             <button
               style={{ padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#7c3aed", color: "#fff", border: "none", borderRadius: 4 }}

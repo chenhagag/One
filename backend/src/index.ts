@@ -2838,6 +2838,19 @@ app.post("/admin/rescore-all", async (_req, res) => {
   }
 });
 
+// POST /admin/users/:id/rescore — Recalculate scores for a specific user's candidate_matches
+app.post("/admin/users/:id/rescore", async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  if (!userId) return res.status(400).json({ error: "invalid id" });
+  try {
+    const result = await rescoreExistingCandidates(userId);
+    return res.json(result);
+  } catch (err: any) {
+    console.error(`[rescore-user] Error for user ${userId}:`, err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /admin/unfreeze-all-matches — Restore frozen matches that have no freeze reason
 app.post("/admin/unfreeze-all-matches", async (_req, res) => {
   try {

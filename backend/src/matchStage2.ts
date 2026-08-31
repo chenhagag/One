@@ -636,7 +636,7 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
 
 // ── Rescore all existing candidates (scores only, no status change) ──
 
-export async function rescoreExistingCandidates(): Promise<{ rescored: number; skipped: number }> {
+export async function rescoreExistingCandidates(forUserId?: number): Promise<{ rescored: number; skipped: number }> {
 
   // Resolve appearance_sensitivity trait ID dynamically
   const asTrait = await queryOne<{ id: number }>(
@@ -653,9 +653,12 @@ export async function rescoreExistingCandidates(): Promise<{ rescored: number; s
 
   buildCategoryTraitIds(traitDefs);
 
-  // Get ALL candidate_matches (regardless of status)
+  // Get candidate_matches — all or filtered by user
   const allCandidates = await queryAll<{ id: number; user_id: number; candidate_user_id: number }>(
-    "SELECT id, user_id, candidate_user_id FROM candidate_matches"
+    forUserId
+      ? "SELECT id, user_id, candidate_user_id FROM candidate_matches WHERE user_id = $1 OR candidate_user_id = $1"
+      : "SELECT id, user_id, candidate_user_id FROM candidate_matches",
+    forUserId ? [forUserId] : []
   );
 
   if (allCandidates.length === 0) {
