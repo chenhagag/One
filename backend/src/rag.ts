@@ -251,7 +251,7 @@ export async function deactivateChunk(id: number): Promise<void> {
 // ── Live State (not RAG — direct DB) ───────────────────────────────
 
 export interface AgentSafeLiveState {
-  stage: string;            // "לפני מאגר" | "במאגר" | "בהתאמה פעילה"
+  stage: string;            // "לפני מאגר" | "במאגר" | "בהתאמה פעילה" | "מושהה"
   channelsCompleted: {
     general: boolean;
     cognitive: boolean;
@@ -262,8 +262,9 @@ export interface AgentSafeLiveState {
   hasAnalysis: boolean;
   matchesBeingReviewed: boolean;   // potential matches exist
   matchesSelfDeclined: number;     // matches user themselves declined
-  hasActiveMatch: boolean;
-  waitingForPhotoApproval: boolean;
+  hasActiveMatch: boolean;         // in_match only
+  waitingForRating: boolean;       // waiting_first/second_rating with sent_for_rating_to = user
+  selfFrozen: boolean;             // user paused their own matching
   profileComplete: boolean;
   agentContext: string | null;     // manual admin notes — always passed through
 }
@@ -287,9 +288,11 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
       agent_context: string | null;
       created_at: string;
       user_status: string | null;
+      self_frozen: boolean;
     }>(
       `SELECT in_matching_pool, auto_analyzed, analysis_completed,
-              profile_complete, agent_context, created_at, user_status
+              profile_complete, agent_context, created_at, user_status,
+              COALESCE(self_frozen, FALSE) as self_frozen
        FROM users WHERE id = $1`,
       [userId]
     ).then(r => r.rows[0]),
@@ -309,8 +312,8 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
     ).then(r => Number(r.rows[0]?.cnt || 0)),
 
     // Match info — only safe data
-    pool.query<{ status: string; cancelled_by: number | null }>(
-      `SELECT m.status, m.cancelled_by
+    pool.query<{ status: string; cancelled_by: number | null; sent_for_rating_to: number | null }>(
+      `SELECT m.status, m.cancelled_by, m.sent_for_rating_to
        FROM matches m
        WHERE (m.user1_id = $1 OR m.user2_id = $1)
          AND m.status NOT IN ('cancelled')
@@ -329,7 +332,8 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
       matchesBeingReviewed: false,
       matchesSelfDeclined: 0,
       hasActiveMatch: false,
-      waitingForPhotoApproval: false,
+      waitingForRating: false,
+      selfFrozen: false,
       profileComplete: false,
       agentContext: null,
     };
@@ -349,7 +353,9 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
 
   // Stage determination
   let stage: string;
-  if (userRow.user_status === "in_match") {
+  if (userRow.self_frozen) {
+    stage = "מושהה (הקפאה עצמית)";
+  } else if (userRow.user_status === "in_match") {
     stage = "בהתאמה פעילה";
   } else if (userRow.in_matching_pool) {
     stage = "במאגר";
@@ -366,14 +372,13 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
   );
 
   // Match analysis — only safe info
-  const hasActiveMatch = matchInfo.some(m =>
-    ["in_match", "waiting_first_rating", "waiting_second_rating"].includes(m.status)
-  );
+  const hasActiveMatch = matchInfo.some(m => m.status === "in_match");
   const matchesBeingReviewed = matchInfo.some(m =>
     ["potential_match", "pre_match", "waiting_for_photo", "waiting_for_response"].includes(m.status)
   );
-  const waitingForPhotoApproval = matchInfo.some(m =>
-    m.status === "waiting_first_rating" || m.status === "waiting_second_rating"
+  const waitingForRating = matchInfo.some(m =>
+    (m.status === "waiting_first_rating" || m.status === "waiting_second_rating")
+    && m.sent_for_rating_to === userId
   );
 
   // Self-declined matches count
@@ -396,7 +401,8 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
     matchesBeingReviewed,
     matchesSelfDeclined: selfDeclined,
     hasActiveMatch,
-    waitingForPhotoApproval,
+    waitingForRating,
+    selfFrozen: userRow.self_frozen,
     profileComplete: userRow.profile_complete ?? false,
     agentContext: userRow.agent_context,
   };
@@ -421,7 +427,9 @@ export function formatLiveStateForPrompt(state: AgentSafeLiveState): string {
     `ימים במערכת: ${state.daysInSystem}`,
   ];
 
+  if (state.selfFrozen) lines.push("חיפוש מושהה: כן (המשתמש/ת הקפיא/ה בעצמו/ה)");
   if (state.hasActiveMatch) lines.push("התאמה פעילה: כן");
+  if (state.waitingForRating) lines.push("ממתין לדירוג: כן");
   if (state.matchesBeingReviewed) lines.push("התאמות בבדיקה: כן");
   if (state.matchesSelfDeclined > 0) lines.push(`התאמות שפסלת: ${state.matchesSelfDeclined}`);
   if (!state.profileComplete) lines.push("פרטי פתיחה: חסרים");
