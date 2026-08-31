@@ -8,13 +8,13 @@
  *   4. Update row: set scores, status = 'scored'
  *
  * Score formulas:
- *   Per trait:  match = 100 - |v1 - v2|
+ *   Per trait:  rawMatch = 100 × e^(-(diff²)/(2×σ²))     (Gaussian, σ=12)
  *               shared_conf = sqrt(c1 * c2)
+ *               match = rawMatch × shared_conf + 50 × (1 - shared_conf)  ← blended toward neutral
  *               avg_weight = (w1 + w2) / 2
- *               weighted_weight = avg_weight * shared_conf
- *               weighted_score = weighted_weight * match
+ *               weighted_score = avg_weight * match
  *
- *   Internal:   SUM(weighted_score) / SUM(weighted_weight)  → 0-100
+ *   Internal:   SUM(weighted_score) / SUM(avg_weight)  → 0-100
  *
  *   Final:      internal_score * internal_ratio + external_score * external_ratio
  */
@@ -112,8 +112,10 @@ function calculateInternalScore(
 
     // Gaussian similarity: σ=12, so diff=5→92, diff=15→46, diff=30→5
     const diff = Math.abs(t1.score - t2.score);
-    const match = 100 * Math.exp(-(diff * diff) / (2 * 12 * 12));
+    const rawMatch = 100 * Math.exp(-(diff * diff) / (2 * 12 * 12));
     const sharedConf = Math.sqrt(t1.confidence * t2.confidence);
+    // Blend toward neutral (50) based on confidence — low confidence ≈ "no info"
+    const match = rawMatch * sharedConf + 50 * (1 - sharedConf);
 
     // Fall back to the trait definition's default weight when the AI
     // didn't produce a per-user weight_for_match (common — it's optional).
@@ -122,11 +124,8 @@ function calculateInternalScore(
     const w2 = t2.weight_for_match ?? defWeight;
     const avgWeight = (w1 + w2) / 2;
 
-    const weightedWeight = avgWeight * sharedConf;
-    const weightedScore = weightedWeight * match;
-
-    sumWeightedScore += weightedScore;
-    sumWeightedWeight += weightedWeight;
+    sumWeightedScore += avgWeight * match;
+    sumWeightedWeight += avgWeight;
   }
 
   if (sumWeightedWeight === 0) return null;
@@ -263,15 +262,20 @@ function buildCategoryTraitIds(traitDefs: Map<number, TraitDef>): void {
 }
 
 // Calculate match score for a single category (same formula as overall internal score,
-// but restricted to traits in the category)
+// but restricted to traits in the category).
+// Returns { score, avgConfidence } so profile score can weight by confidence.
+// traitWeightMultipliers: optional per-traitId weight multiplier (e.g. neuroticism ×0.5 in Big Five)
 function calculateCategoryScore(
   user1Traits: Map<number, TraitRow>,
   user2Traits: Map<number, TraitRow>,
   traitDefs: Map<number, TraitDef>,
   allowedTraitIds: Set<number>,
-): number | null {
+  traitWeightMultipliers?: Map<number, number>,
+): { score: number; avgConfidence: number } | null {
   let sumWeightedScore = 0;
   let sumWeightedWeight = 0;
+  let sumConf = 0;
+  let confCount = 0;
 
   for (const traitId of allowedTraitIds) {
     const t1 = user1Traits.get(traitId);
@@ -283,23 +287,31 @@ function calculateCategoryScore(
 
     // Gaussian similarity: σ=12, so diff=5→92, diff=15→46, diff=30→5
     const diff = Math.abs(t1.score - t2.score);
-    const match = 100 * Math.exp(-(diff * diff) / (2 * 12 * 12));
+    const rawMatch = 100 * Math.exp(-(diff * diff) / (2 * 12 * 12));
     const sharedConf = Math.sqrt(t1.confidence * t2.confidence);
+    // Blend toward neutral (50) based on confidence — low confidence ≈ "no info"
+    const match = rawMatch * sharedConf + 50 * (1 - sharedConf);
 
     const defWeight = def?.weight ?? 5;
     const w1 = t1.weight_for_match ?? defWeight;
     const w2 = t2.weight_for_match ?? defWeight;
-    const avgWeight = (w1 + w2) / 2;
+    let avgWeight = (w1 + w2) / 2;
 
-    const weightedWeight = avgWeight * sharedConf;
-    const weightedScore = weightedWeight * match;
+    // Apply per-trait weight multiplier if provided (e.g. neuroticism ×0.5)
+    const multiplier = traitWeightMultipliers?.get(traitId);
+    if (multiplier != null) avgWeight *= multiplier;
 
-    sumWeightedScore += weightedScore;
-    sumWeightedWeight += weightedWeight;
+    sumWeightedScore += avgWeight * match;
+    sumWeightedWeight += avgWeight;
+    sumConf += sharedConf;
+    confCount++;
   }
 
   if (sumWeightedWeight === 0) return null;
-  return sumWeightedScore / sumWeightedWeight;
+  return {
+    score: sumWeightedScore / sumWeightedWeight,
+    avgConfidence: confCount > 0 ? sumConf / confCount : 0,
+  };
 }
 
 interface CategoryScores {
@@ -316,6 +328,11 @@ interface CategoryScores {
   score_general: number | null;
   score_mbti: number | null;
   score_enneagram: number | null;
+}
+
+// Per-category average confidence (used to weight categories in profile score)
+interface CategoryConfidences {
+  [key: string]: number;  // e.g. "cognitive" → 0.85
 }
 
 // Compute confidence-weighted average score for a set of traits
@@ -342,14 +359,28 @@ function calculateAllCategoryScores(
   traitDefs: Map<number, TraitDef>,
   user1Gender: string | null,
   user2Gender: string | null,
-): CategoryScores {
+): { categories: CategoryScores; confidences: CategoryConfidences } {
   const scores: any = {};
+  const confidences: CategoryConfidences = {};
+
+  // Resolve neuroticism trait ID for Big Five weight override
+  let neuroticismTraitId = -1;
+  for (const [id, def] of traitDefs) {
+    if (def.internal_name === "neuroticism") { neuroticismTraitId = id; break; }
+  }
+  // In Big Five profile scoring, neuroticism gets half weight
+  const bigFiveWeightOverrides = new Map<number, number>();
+  if (neuroticismTraitId > 0) bigFiveWeightOverrides.set(neuroticismTraitId, 0.5);
+
   for (const cat of MATCH_CATEGORIES) {
     const ids = categoryTraitIds.get(cat.key);
     if (!ids || ids.size === 0) {
       scores[`score_${cat.key}`] = null;
       continue;
     }
+
+    // Per-trait weight overrides: only neuroticism ×0.5 in Big Five
+    const overrides = cat.key === "big_five" ? bigFiveWeightOverrides : undefined;
 
     // Emotionality / Emotional-Social in male-female pairs:
     // 50% trait-by-trait comparison (no boost)
@@ -359,54 +390,63 @@ function calculateAllCategoryScores(
       const g2 = user2Gender.toLowerCase();
       if ((g1 === "male" && g2 === "female") || (g1 === "female" && g2 === "male")) {
         const bonus = cat.key === "emotionality" ? 10 : 4;
-        const traitScore = calculateCategoryScore(user1Traits, user2Traits, traitDefs, ids);
+        const traitResult = calculateCategoryScore(user1Traits, user2Traits, traitDefs, ids, overrides);
 
         const avg1 = profileAverage(user1Traits, ids, traitDefs);
         const avg2 = profileAverage(user2Traits, ids, traitDefs);
 
-        if (traitScore != null && avg1 != null && avg2 != null) {
+        if (traitResult != null && avg1 != null && avg2 != null) {
           // Add bonus to male's profile average, then compare with gaussian
           const boostedAvg1 = g1 === "male" ? Math.min(100, avg1 + bonus) : avg1;
           const boostedAvg2 = g2 === "male" ? Math.min(100, avg2 + bonus) : avg2;
           const diff = Math.abs(boostedAvg1 - boostedAvg2);
           const profileMatch = 100 * Math.exp(-(diff * diff) / (2 * 12 * 12));
 
-          const combined = traitScore * 0.5 + profileMatch * 0.5;
+          const combined = traitResult.score * 0.5 + profileMatch * 0.5;
           scores[`score_${cat.key}`] = Math.round(combined * 100) / 100;
+          confidences[cat.key] = traitResult.avgConfidence;
           continue;
         }
       }
     }
 
-    const raw = calculateCategoryScore(user1Traits, user2Traits, traitDefs, ids);
-    scores[`score_${cat.key}`] = raw != null ? Math.round(raw * 100) / 100 : null;
+    const result = calculateCategoryScore(user1Traits, user2Traits, traitDefs, ids, overrides);
+    scores[`score_${cat.key}`] = result != null ? Math.round(result.score * 100) / 100 : null;
+    if (result != null) confidences[cat.key] = result.avgConfidence;
   }
-  return scores as CategoryScores;
+  return { categories: scores as CategoryScores, confidences };
 }
 
 // ── Profile-based score ─────────────────────────────────────────
 // Weighted average of category scores (not individual traits).
-// Cognitive gets 2x weight. Vibe, Popularity, General excluded.
-function calculateProfileScore(categories: CategoryScores, externalScore: number | null): number | null {
-  const profileWeights: [keyof CategoryScores, number][] = [
-    ["score_cognitive", 3],
-    ["score_emotional_social", 1],
-    ["score_emotionality", 0.5],
-    ["score_communication", 2],
-    ["score_big_five", 1],
-    ["score_schwartz", 1.5],
-    ["score_style", 2],
-    ["score_attitudes", 1.5],
-    ["score_popularity", 0.25],
-    ["score_vibe", 0.25],
-    ["score_mbti", 0.5],
-    ["score_enneagram", 0.5],
+// Category weight is scaled by average confidence of its traits.
+function calculateProfileScore(
+  categories: CategoryScores,
+  externalScore: number | null,
+  confidences: CategoryConfidences,
+): number | null {
+  const profileWeights: [keyof CategoryScores, string, number][] = [
+    ["score_cognitive", "cognitive", 3],
+    ["score_emotional_social", "emotional_social", 1],
+    ["score_emotionality", "emotionality", 0.5],
+    ["score_communication", "communication", 2],
+    ["score_big_five", "big_five", 1],
+    ["score_schwartz", "schwartz", 1.5],
+    ["score_style", "style", 2],
+    ["score_attitudes", "attitudes", 1.5],
+    ["score_popularity", "popularity", 0.25],
+    ["score_vibe", "vibe", 0.25],
+    ["score_mbti", "mbti", 0.5],
+    ["score_enneagram", "enneagram", 0.5],
   ];
 
   let sumW = 0, sumC = 0;
-  for (const [key, weight] of profileWeights) {
+  for (const [key, catKey, baseWeight] of profileWeights) {
     const val = categories[key];
     if (val == null) continue;
+    // Scale category weight by average confidence of its traits
+    const conf = confidences[catKey] ?? 1;
+    const weight = baseWeight * conf;
     sumW += val * weight;
     sumC += weight;
   }
@@ -541,14 +581,14 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
     const eRatio = sensitive ? SENSITIVE_EXTERNAL_RATIO : DEFAULT_EXTERNAL_RATIO;
     const finalScore = internalScore * iRatio + externalScore * eRatio;
 
-    const categories = calculateAllCategoryScores(
+    const { categories, confidences } = calculateAllCategoryScores(
       u1Traits, u2Traits, traitDefs,
       genderCache.get(row.user_id) ?? null,
       genderCache.get(row.candidate_user_id) ?? null,
     );
 
-    const profileScore = calculateProfileScore(categories, externalScore);
-    const internalProfileScore = calculateProfileScore(categories, null);
+    const profileScore = calculateProfileScore(categories, externalScore, confidences);
+    const internalProfileScore = calculateProfileScore(categories, null, confidences);
 
     updates.push({
       id: row.id,
@@ -694,14 +734,14 @@ export async function rescoreExistingCandidates(): Promise<{ rescored: number; s
     const eRatio = sensitive ? SENSITIVE_EXTERNAL_RATIO : DEFAULT_EXTERNAL_RATIO;
     const finalScore = internalScore * iRatio + externalScore * eRatio;
 
-    const categories = calculateAllCategoryScores(
+    const { categories, confidences } = calculateAllCategoryScores(
       u1Traits, u2Traits, traitDefs,
       genderCache.get(row.user_id) ?? null,
       genderCache.get(row.candidate_user_id) ?? null,
     );
 
-    const profileScore = calculateProfileScore(categories, externalScore);
-    const internalProfileScore = calculateProfileScore(categories, null);
+    const profileScore = calculateProfileScore(categories, externalScore, confidences);
+    const internalProfileScore = calculateProfileScore(categories, null, confidences);
 
     updates.push({
       id: row.id,
