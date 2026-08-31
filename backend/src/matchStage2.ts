@@ -35,9 +35,9 @@ const SENSITIVE_EXTERNAL_RATIO = 0.35;
 
 const EXCLUDED_CALC_TYPES = new Set(["internal_use", "special"]);
 
-// Confidence blending threshold: above this sharedConf, no blending (full Gaussian score).
-// Below it, linearly blend toward neutral (50). sharedConf = sqrt(c1 * c2).
-const CONFIDENCE_BLEND_THRESHOLD = 0.5;
+// Confidence blending threshold: below this sharedConf, blend Gaussian toward neutral (50).
+// Above it, no blending. Only affects very low confidence ("no info") traits.
+const CONFIDENCE_BLEND_THRESHOLD = 0.3;
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -118,7 +118,9 @@ function calculateInternalScore(
     const diff = Math.abs(t1.score - t2.score);
     const rawMatch = 100 * Math.exp(-(diff * diff) / (2 * 12 * 12));
     const sharedConf = Math.sqrt(t1.confidence * t2.confidence);
-    // Blend toward neutral (50) only when confidence is below threshold
+
+    // At very low confidence, blend Gaussian toward neutral (50) to avoid
+    // penalizing when there's essentially no data
     const confFactor = Math.min(1, sharedConf / CONFIDENCE_BLEND_THRESHOLD);
     const match = rawMatch * confFactor + 50 * (1 - confFactor);
 
@@ -129,8 +131,10 @@ function calculateInternalScore(
     const w2 = t2.weight_for_match ?? defWeight;
     const avgWeight = (w1 + w2) / 2;
 
-    sumWeightedScore += avgWeight * match;
-    sumWeightedWeight += avgWeight;
+    // Original: confidence as weight multiplier (reduces impact of uncertain traits)
+    const weightedWeight = avgWeight * sharedConf;
+    sumWeightedScore += weightedWeight * match;
+    sumWeightedWeight += weightedWeight;
   }
 
   if (sumWeightedWeight === 0) return null;
@@ -294,7 +298,8 @@ function calculateCategoryScore(
     const diff = Math.abs(t1.score - t2.score);
     const rawMatch = 100 * Math.exp(-(diff * diff) / (2 * 12 * 12));
     const sharedConf = Math.sqrt(t1.confidence * t2.confidence);
-    // Blend toward neutral (50) only when confidence is below threshold
+
+    // At very low confidence, blend Gaussian toward neutral (50)
     const confFactor = Math.min(1, sharedConf / CONFIDENCE_BLEND_THRESHOLD);
     const match = rawMatch * confFactor + 50 * (1 - confFactor);
 
@@ -307,8 +312,10 @@ function calculateCategoryScore(
     const multiplier = traitWeightMultipliers?.get(traitId);
     if (multiplier != null) avgWeight *= multiplier;
 
-    sumWeightedScore += avgWeight * match;
-    sumWeightedWeight += avgWeight;
+    // Original: confidence as weight multiplier
+    const weightedWeight = avgWeight * sharedConf;
+    sumWeightedScore += weightedWeight * match;
+    sumWeightedWeight += weightedWeight;
     sumConf += sharedConf;
     confCount++;
   }
