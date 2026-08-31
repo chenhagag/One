@@ -409,13 +409,13 @@ function passesAllFilters(
     ageExpanded = true;
   }
 
-  // Check location with original preference first, then with admin override or expanded
-  const aOriginalPasses = passesLocationFilter(a, b, getRegions, getNearbyRegions, false, expanded);
-  const bOriginalPasses = passesLocationFilter(b, a, getRegions, getNearbyRegions, false, expanded);
+  // Check location with original preference first (without expanded), then with admin override or expanded
+  const aOriginalPasses = passesLocationFilter(a, b, getRegions, getNearbyRegions, false, false);
+  const bOriginalPasses = passesLocationFilter(b, a, getRegions, getNearbyRegions, false, false);
   let locationExpanded = false;
 
   if (!aOriginalPasses || !bOriginalPasses) {
-    // Try with admin override
+    // Try with admin override or expanded range
     const aExpandedPasses = aOriginalPasses || passesLocationFilter(a, b, getRegions, getNearbyRegions, true, expanded);
     const bExpandedPasses = bOriginalPasses || passesLocationFilter(b, a, getRegions, getNearbyRegions, true, expanded);
     if (!aExpandedPasses || !bExpandedPasses) return { passes: false, locationExpanded: false, ageExpanded: false };
