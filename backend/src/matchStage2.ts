@@ -768,8 +768,9 @@ async function updateMatchCounts(): Promise<void> {
 async function promoteToMatches(): Promise<number> {
   // Promotion criteria: internal_score > 70 AND internal_profile_score > 70,
   // OR average of both > 72
-  const candidates = await queryAll<{ id: number; user_id: number; candidate_user_id: number; final_score: number; internal_score: number; internal_profile_score: number }>(
-    `SELECT id, user_id, candidate_user_id, final_score, internal_score, internal_profile_score
+  const candidates = await queryAll<{ id: number; user_id: number; candidate_user_id: number; final_score: number; internal_score: number; internal_profile_score: number; location_expanded: boolean; age_expanded: boolean }>(
+    `SELECT id, user_id, candidate_user_id, final_score, internal_score, internal_profile_score,
+            COALESCE(location_expanded, FALSE) as location_expanded, COALESCE(age_expanded, FALSE) as age_expanded
      FROM candidate_matches
      WHERE status = 'scored'
        AND internal_score IS NOT NULL
@@ -798,10 +799,11 @@ async function promoteToMatches(): Promise<number> {
         );
         continue;
       }
+      const matchStatus = (c.location_expanded || c.age_expanded) ? 'expanded_potential_match' : 'potential_match';
       await client.query(
-        `INSERT INTO matches (user1_id, user2_id, match_score, status)
-         VALUES ($1, $2, $3, 'potential_match')`,
-        [c.user_id, c.candidate_user_id, Math.round(c.final_score * 100) / 100]
+        `INSERT INTO matches (user1_id, user2_id, match_score, status, location_expanded, age_expanded)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [c.user_id, c.candidate_user_id, Math.round(c.final_score * 100) / 100, matchStatus, c.location_expanded, c.age_expanded]
       );
       await client.query(
         "UPDATE candidate_matches SET status = 'matched', updated_at = NOW() WHERE id = $1",

@@ -849,6 +849,18 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       END IF;
     END $$;
 
+    -- expanded flags on matches table (mirrored from candidate_matches)
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'matches' AND column_name = 'location_expanded') THEN
+        ALTER TABLE matches ADD COLUMN location_expanded BOOLEAN DEFAULT FALSE;
+      END IF;
+    END $$;
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'matches' AND column_name = 'age_expanded') THEN
+        ALTER TABLE matches ADD COLUMN age_expanded BOOLEAN DEFAULT FALSE;
+      END IF;
+    END $$;
+
     -- photo verification flags on users
     DO $$ BEGIN
       IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'photo_flags') THEN

@@ -2863,7 +2863,7 @@ app.post("/admin/requalify-matches", async (_req, res) => {
          (cm.user_id = m.user1_id AND cm.candidate_user_id = m.user2_id)
          OR (cm.user_id = m.user2_id AND cm.candidate_user_id = m.user1_id)
        )
-       WHERE m.status = 'potential_match'
+       WHERE m.status IN ('potential_match', 'expanded_potential_match')
          AND NOT (
            (cm.internal_score > 70 AND cm.internal_profile_score > 70)
            OR ((cm.internal_score + cm.internal_profile_score) / 2.0 > 70)
@@ -2878,7 +2878,8 @@ app.post("/admin/requalify-matches", async (_req, res) => {
 
     // 2. Find scored candidates that meet threshold and don't have a match yet
     const toPromote = await pgQueryAll<any>(
-      `SELECT cm.id, cm.user_id, cm.candidate_user_id, cm.final_score
+      `SELECT cm.id, cm.user_id, cm.candidate_user_id, cm.final_score,
+              COALESCE(cm.location_expanded, FALSE) as location_expanded, COALESCE(cm.age_expanded, FALSE) as age_expanded
        FROM candidate_matches cm
        WHERE cm.status = 'scored'
          AND cm.internal_score IS NOT NULL
@@ -2895,10 +2896,11 @@ app.post("/admin/requalify-matches", async (_req, res) => {
     );
     let promoted = 0;
     for (const c of toPromote) {
+      const matchStatus = (c.location_expanded || c.age_expanded) ? 'expanded_potential_match' : 'potential_match';
       await pgQueryAll(
-        `INSERT INTO matches (user1_id, user2_id, match_score, status)
-         VALUES ($1, $2, $3, 'potential_match')`,
-        [c.user_id, c.candidate_user_id, Math.round((c.final_score ?? 0) * 100) / 100]
+        `INSERT INTO matches (user1_id, user2_id, match_score, status, location_expanded, age_expanded)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [c.user_id, c.candidate_user_id, Math.round((c.final_score ?? 0) * 100) / 100, matchStatus, c.location_expanded, c.age_expanded]
       );
       await pgQueryAll("UPDATE candidate_matches SET status = 'matched', updated_at = NOW() WHERE id = $1", [c.id]);
       promoted++;
@@ -2909,6 +2911,30 @@ app.post("/admin/requalify-matches", async (_req, res) => {
     return res.json({ demoted, promoted, reconciled });
   } catch (err: any) {
     console.error("[requalify] Error:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /admin/matches/expanded — Delete all expanded_potential_match matches + revert candidate_matches to scored
+app.delete("/admin/matches/expanded", async (_req, res) => {
+  try {
+    const toDelete = await pgQueryAll<{ id: number; user1_id: number; user2_id: number }>(
+      `SELECT id, user1_id, user2_id FROM matches WHERE status = 'expanded_potential_match'`
+    );
+    for (const m of toDelete) {
+      // Revert candidate_matches status back to scored
+      await pgQueryAll(
+        `UPDATE candidate_matches SET status = 'scored', updated_at = NOW()
+         WHERE ((user_id = $1 AND candidate_user_id = $2) OR (user_id = $2 AND candidate_user_id = $1))
+           AND status = 'matched'`,
+        [m.user1_id, m.user2_id]
+      );
+      await pgQueryAll("DELETE FROM matches WHERE id = $1", [m.id]);
+    }
+    console.log(`[admin] Deleted ${toDelete.length} expanded potential matches`);
+    return res.json({ deleted: toDelete.length });
+  } catch (err: any) {
+    console.error("[delete-expanded] Error:", err);
     return res.status(500).json({ error: err.message });
   }
 });
@@ -3239,7 +3265,7 @@ async function freezeUserMatches(userId: number, excludeMatchId: number): Promis
   const result = await pgQueryAll(
     `UPDATE matches SET previous_status = status, status = 'frozen', updated_at = NOW()
      WHERE id != $1
-       AND status IN ('potential_match', 'waiting_for_photo', 'waiting_for_response')
+       AND status IN ('potential_match', 'expanded_potential_match', 'waiting_for_photo', 'waiting_for_response')
        AND (user1_id = $2 OR user2_id = $2)
        AND previous_status IS NULL
      RETURNING id`,
@@ -3300,7 +3326,7 @@ async function reconcileMatchStatuses(): Promise<{ frozen: number; unfrozen: num
   // 1. Unfrozen matches that SHOULD be frozen (includes rating-pending matches)
   const openMatches = await pgQueryAll<{ id: number; user1_id: number; user2_id: number }>(
     `SELECT m.id, m.user1_id, m.user2_id FROM matches m
-     WHERE m.status IN ('potential_match', 'waiting_for_photo', 'waiting_for_response',
+     WHERE m.status IN ('potential_match', 'expanded_potential_match', 'waiting_for_photo', 'waiting_for_response',
                          'waiting_first_rating', 'waiting_second_rating')
        AND m.previous_status IS NULL`
   );
@@ -3705,7 +3731,7 @@ app.post("/admin/matches/:id/send-for-rating", async (req, res) => {
   const match = await pgQueryOne<any>("SELECT * FROM matches WHERE id = $1", [matchId]);
   if (!match) return res.status(404).json({ error: "Match not found" });
 
-  if (!["potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "waiting_second_rating"].includes(match.status)) {
+  if (!["potential_match", "expanded_potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "waiting_second_rating"].includes(match.status)) {
     return res.status(400).json({ error: `Cannot send for rating in status '${match.status}'` });
   }
 
@@ -3716,8 +3742,8 @@ app.post("/admin/matches/:id/send-for-rating", async (req, res) => {
     return res.status(400).json({ error: "user_id must be part of the match" });
   }
 
-  // Move from potential_match/waiting_for_photo/waiting_for_response to waiting_first_rating when first sent
-  const preRatingStatuses = new Set(["potential_match", "waiting_for_photo", "waiting_for_response"]);
+  // Move from potential_match/expanded_potential_match/waiting_for_photo/waiting_for_response to waiting_first_rating when first sent
+  const preRatingStatuses = new Set(["potential_match", "expanded_potential_match", "waiting_for_photo", "waiting_for_response"]);
   const newStatus = preRatingStatuses.has(match.status) ? "waiting_first_rating" : match.status;
   await pgQueryAll(
     "UPDATE matches SET status = $1, sent_for_rating_at = NOW(), sent_for_rating_to = $2, updated_at = NOW() WHERE id = $3",

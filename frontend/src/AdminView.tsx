@@ -3143,7 +3143,7 @@ ${footer}`)
               const isRating = ratingInProgress === m.id;
 
               // Can send for user rating
-              const canSendForRating = (m.status === "potential_match" || m.status === "waiting_for_photo" || m.status === "waiting_for_response" || m.status === "waiting_first_rating" || m.status === "waiting_second_rating") && !m.sent_for_rating_at;
+              const canSendForRating = (m.status === "potential_match" || m.status === "expanded_potential_match" || m.status === "waiting_for_photo" || m.status === "waiting_for_response" || m.status === "waiting_first_rating" || m.status === "waiting_second_rating") && !m.sent_for_rating_at;
               const alreadySent = !!m.sent_for_rating_at;
 
               // Rating labels
@@ -3839,6 +3839,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
 
   const matchStatusColor = (status: string | null) => {
     if (status === "potential_match") return { ...s.badge, background: "#fef3c7", color: "#92400e" };
+    if (status === "expanded_potential_match") return { ...s.badge, background: "#e0e7ff", color: "#3730a3" };
     if (status === "waiting_for_photo") return { ...s.badge, background: "#fde68a", color: "#92400e" };
     if (status === "waiting_for_response") return { ...s.badge, background: "#fed7aa", color: "#9a3412" };
     if (status === "pre_match") return { ...s.badge, background: "#d4edda", color: "#155724" };
@@ -3976,13 +3977,13 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
       {/* Status filter */}
       <div style={{ display: "flex", gap: 6, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, color: "#6b7280" }}>סטטוס:</span>
-        {["all", "potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled_by_user", "cancelled_by_system", "rejected_by_users", "no_match"].map(st => {
+        {["all", "potential_match", "expanded_potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled_by_user", "cancelled_by_system", "rejected_by_users", "no_match"].map(st => {
           const count = st === "all" ? data.length
             : st === "no_match" ? data.filter((cm: any) => !cm.match_status).length
             : st === "cancelled_by_user" ? data.filter((cm: any) => cm.match_status === "cancelled" && cm.cancelled_by).length
             : st === "cancelled_by_system" ? data.filter((cm: any) => cm.match_status === "cancelled" && !cm.cancelled_by).length
             : data.filter((cm: any) => cm.match_status === st).length;
-          const label = st === "all" ? "הכל" : st === "no_match" ? "ללא התאמה" : st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st === "cancelled_by_user" ? "ביטול משתמש" : st === "cancelled_by_system" ? "ביטול מערכת" : st;
+          const label = st === "all" ? "הכל" : st === "no_match" ? "ללא התאמה" : st === "expanded_potential_match" ? "מורחבת" : st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st === "cancelled_by_user" ? "ביטול משתמש" : st === "cancelled_by_system" ? "ביטול מערכת" : st;
           return (
             <button key={st} style={filterBtnStyle(filterCmStatus === st)} onClick={() => setFilterCmStatus(st)}>
               {label} ({count})
@@ -4004,6 +4005,23 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
             }}
           >
             Unfreeze All
+          </button>
+        )}
+        {data.some((cm: any) => cm.match_status === "expanded_potential_match") && (
+          <button
+            style={{ padding: "4px 12px", fontSize: 11, fontWeight: 600, borderRadius: 6, border: "1px solid #6366f1", cursor: "pointer", background: "#e0e7ff", color: "#3730a3" }}
+            onClick={async () => {
+              const expandedCount = data.filter((cm: any) => cm.match_status === "expanded_potential_match").length;
+              if (!confirm(`למחוק ${expandedCount} התאמות מורחבות?`)) return;
+              try {
+                const r = await apiFetch("/admin/matches/expanded", { method: "DELETE" });
+                const json = await r.json();
+                alert(`נמחקו ${json.deleted} התאמות מורחבות`);
+                load();
+              } catch { alert("שגיאה"); }
+            }}
+          >
+            מחק מורחבות
           </button>
         )}
       </div>
@@ -4138,7 +4156,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                         } catch (err: any) { alert("שגיאה: " + err.message); }
                       }}
                     >
-                      {["potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
+                      {["potential_match", "expanded_potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
                         <option key={st} value={st}>{st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st}</option>
                       ))}
                     </select>
@@ -4444,7 +4462,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                       } catch (err: any) { alert("שגיאה: " + err.message); }
                     }}
                   >
-                    {["potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
+                    {["potential_match", "expanded_potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
                       <option key={st} value={st}>{st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st}</option>
                     ))}
                   </select>
@@ -5723,6 +5741,7 @@ function OutreachLogTab() {
   function statusBadge(status: string) {
     const map: Record<string, { label: string; bg: string; color: string }> = {
       potential_match: { label: "התאמה פוטנציאלית", bg: "#fef3c7", color: "#92400e" },
+      expanded_potential_match: { label: "התאמה מורחבת", bg: "#e0e7ff", color: "#3730a3" },
       waiting_for_photo: { label: "ממתין לתמונה", bg: "#fde68a", color: "#92400e" },
       waiting_for_response: { label: "ממתין לתשובה", bg: "#fed7aa", color: "#9a3412" },
       waiting_first_rating: { label: "ממתין לדירוג", bg: "#fef3c7", color: "#92400e" },
