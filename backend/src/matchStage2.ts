@@ -35,6 +35,10 @@ const SENSITIVE_EXTERNAL_RATIO = 0.35;
 
 const EXCLUDED_CALC_TYPES = new Set(["internal_use", "special"]);
 
+// Confidence blending threshold: above this sharedConf, no blending (full Gaussian score).
+// Below it, linearly blend toward neutral (50). sharedConf = sqrt(c1 * c2).
+const CONFIDENCE_BLEND_THRESHOLD = 0.5;
+
 // ── Types ────────────────────────────────────────────────────────
 
 interface TraitRow {
@@ -114,8 +118,9 @@ function calculateInternalScore(
     const diff = Math.abs(t1.score - t2.score);
     const rawMatch = 100 * Math.exp(-(diff * diff) / (2 * 12 * 12));
     const sharedConf = Math.sqrt(t1.confidence * t2.confidence);
-    // Blend toward neutral (50) based on confidence — low confidence ≈ "no info"
-    const match = rawMatch * sharedConf + 50 * (1 - sharedConf);
+    // Blend toward neutral (50) only when confidence is below threshold
+    const confFactor = Math.min(1, sharedConf / CONFIDENCE_BLEND_THRESHOLD);
+    const match = rawMatch * confFactor + 50 * (1 - confFactor);
 
     // Fall back to the trait definition's default weight when the AI
     // didn't produce a per-user weight_for_match (common — it's optional).
@@ -289,8 +294,9 @@ function calculateCategoryScore(
     const diff = Math.abs(t1.score - t2.score);
     const rawMatch = 100 * Math.exp(-(diff * diff) / (2 * 12 * 12));
     const sharedConf = Math.sqrt(t1.confidence * t2.confidence);
-    // Blend toward neutral (50) based on confidence — low confidence ≈ "no info"
-    const match = rawMatch * sharedConf + 50 * (1 - sharedConf);
+    // Blend toward neutral (50) only when confidence is below threshold
+    const confFactor = Math.min(1, sharedConf / CONFIDENCE_BLEND_THRESHOLD);
+    const match = rawMatch * confFactor + 50 * (1 - confFactor);
 
     const defWeight = def?.weight ?? 5;
     const w1 = t1.weight_for_match ?? defWeight;
@@ -444,9 +450,10 @@ function calculateProfileScore(
   for (const [key, catKey, baseWeight] of profileWeights) {
     const val = categories[key];
     if (val == null) continue;
-    // Scale category weight by average confidence of its traits
-    const conf = confidences[catKey] ?? 1;
-    const weight = baseWeight * conf;
+    // Scale category weight by confidence — full weight above threshold, reduced below
+    const rawConf = confidences[catKey] ?? 1;
+    const confFactor = Math.min(1, rawConf / CONFIDENCE_BLEND_THRESHOLD);
+    const weight = baseWeight * confFactor;
     sumW += val * weight;
     sumC += weight;
   }
