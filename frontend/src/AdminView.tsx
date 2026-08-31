@@ -4156,7 +4156,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                         } catch (err: any) { alert("שגיאה: " + err.message); }
                       }}
                     >
-                      {["potential_match", "expanded_potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
+                      {["scored", "potential_match", "expanded_potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
                         <option key={st} value={st}>{st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st}</option>
                       ))}
                     </select>
@@ -4178,7 +4178,23 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                       </div>
                     )}
                     </>
-                  ) : <span style={s.badge}>{cm.status}</span>}</td>
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <span style={s.badge}>{cm.status}</span>
+                      {cm.status === "scored" && (
+                        <button
+                          style={{ padding: "2px 6px", fontSize: 10, border: "1px solid #28a745", borderRadius: 4, cursor: "pointer", background: "#d4edda", color: "#155724", fontWeight: 600 }}
+                          onClick={async () => {
+                            if (!confirm(`להעלות ל-potential_match?`)) return;
+                            try {
+                              await apiFetch(`/admin/candidate-matches/${cm.id}/promote`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+                              load();
+                            } catch (err: any) { alert("שגיאה: " + err.message); }
+                          }}
+                        >↑ promote</button>
+                      )}
+                    </div>
+                  )}</td>
                   <td style={s.td}>
                     {(cm.user1_rating || cm.user2_rating) ? (() => {
                       const rl = (r: string | null) => r === "bullseye" ? "✅ בול" : r === "possible" ? "🟡 אפשרי" : r === "miss" ? "❌ לא" : r === "known_person" ? "👤 מכיר/ה" : "—";
@@ -4462,7 +4478,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                       } catch (err: any) { alert("שגיאה: " + err.message); }
                     }}
                   >
-                    {["potential_match", "expanded_potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
+                    {["scored", "potential_match", "expanded_potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
                       <option key={st} value={st}>{st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st}</option>
                     ))}
                   </select>

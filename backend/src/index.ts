@@ -2915,6 +2915,36 @@ app.post("/admin/requalify-matches", async (_req, res) => {
   }
 });
 
+// POST /admin/candidate-matches/:id/promote — Promote a scored candidate_match to potential_match
+app.post("/admin/candidate-matches/:id/promote", async (req, res) => {
+  const cmId = parseInt(req.params.id, 10);
+  const { status: targetStatus } = req.body;
+  try {
+    const cm = await pgQueryOne<any>("SELECT * FROM candidate_matches WHERE id = $1", [cmId]);
+    if (!cm) return res.status(404).json({ error: "Candidate match not found" });
+
+    // Check no existing match for this pair
+    const existingMatch = await pgQueryOne<any>(
+      `SELECT id FROM matches WHERE (user1_id = $1 AND user2_id = $2) OR (user1_id = $2 AND user2_id = $1)`,
+      [cm.user_id, cm.candidate_user_id]
+    );
+    if (existingMatch) return res.status(400).json({ error: `Match already exists (id=${existingMatch.id})` });
+
+    const matchStatus = targetStatus || ((cm.location_expanded || cm.age_expanded) ? "expanded_potential_match" : "potential_match");
+    await pgQueryAll(
+      `INSERT INTO matches (user1_id, user2_id, match_score, status, location_expanded, age_expanded)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [cm.user_id, cm.candidate_user_id, Math.round((cm.final_score ?? 0) * 100) / 100, matchStatus, cm.location_expanded, cm.age_expanded]
+    );
+    await pgQueryAll("UPDATE candidate_matches SET status = 'matched', updated_at = NOW() WHERE id = $1", [cmId]);
+    console.log(`[admin] Candidate match ${cmId} promoted to ${matchStatus}`);
+    return res.json({ success: true, status: matchStatus });
+  } catch (err: any) {
+    console.error("[promote-candidate] Error:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE /admin/matches/expanded — Delete all expanded_potential_match matches + revert candidate_matches to scored
 app.delete("/admin/matches/expanded", async (_req, res) => {
   try {
@@ -3592,7 +3622,7 @@ app.patch("/admin/matches/:id/status", async (req, res) => {
   const matchId = parseInt(req.params.id, 10);
   const { status } = req.body;
   const validStatuses = [
-    "potential_match", "waiting_for_photo", "waiting_for_response",
+    "scored", "potential_match", "waiting_for_photo", "waiting_for_response",
     "waiting_first_rating", "waiting_second_rating", "approved_by_both",
     "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users",
     "approved_acquaintance"
@@ -3604,6 +3634,27 @@ app.patch("/admin/matches/:id/status", async (req, res) => {
     // Read current match before updating (for freeze/unfreeze logic)
     const oldMatch = await pgQueryOne<any>("SELECT * FROM matches WHERE id = $1", [matchId]);
     if (!oldMatch) return res.status(404).json({ error: "Match not found" });
+
+    // Special case: demoting to "scored" means deleting the match and reverting candidate_matches
+    if (status === "scored") {
+      await pgQueryAll(
+        `UPDATE candidate_matches SET status = 'scored', updated_at = NOW()
+         WHERE ((user_id = $1 AND candidate_user_id = $2) OR (user_id = $2 AND candidate_user_id = $1))
+           AND status = 'matched'`,
+        [oldMatch.user1_id, oldMatch.user2_id]
+      );
+      await pgQueryAll("DELETE FROM matches WHERE id = $1", [matchId]);
+      console.log(`[admin] Match ${matchId} demoted to scored (deleted match, reverted candidate_matches)`);
+
+      // Unfreeze if was active
+      const activeStatuses = new Set(["approved_by_both", "pre_match", "in_match"]);
+      const wasActive = activeStatuses.has(oldMatch.status) || (["waiting_first_rating", "waiting_second_rating"].includes(oldMatch.status) && oldMatch.sent_for_rating_to);
+      if (wasActive) {
+        await unfreezeMatchesSafe(oldMatch.user1_id, oldMatch.user2_id, matchId);
+      }
+
+      return res.json({ success: true, match: { id: matchId, status: "scored" } });
+    }
 
     await pgQueryAll("UPDATE matches SET status = $1, updated_at = NOW() WHERE id = $2", [status, matchId]);
     console.log(`[admin] Match ${matchId} status manually changed to: ${status}`);
