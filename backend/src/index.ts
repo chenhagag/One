@@ -4833,6 +4833,7 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       in_matching_pool: boolean | null; match_card_consent: string | null;
       admin_message_dismissed: boolean | null;
       admin_message_type: string | null;
+      self_frozen: boolean | null;
     }>(
       `SELECT age, city, height, looking_for_gender,
               desired_age_min, desired_age_max, desired_height_min, desired_height_max,
@@ -4840,7 +4841,8 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
               test_user_type, email_updates, COALESCE(partner_in_system, FALSE) as partner_in_system,
               whatsapp_updates, partner_name, in_matching_pool, match_card_consent,
               COALESCE(admin_message_dismissed, FALSE) as admin_message_dismissed,
-              COALESCE(admin_message_type, 'info') as admin_message_type
+              COALESCE(admin_message_type, 'info') as admin_message_type,
+              COALESCE(self_frozen, FALSE) as self_frozen
        FROM users WHERE id = $1`, [userId]
     );
     const hasProfileDetails = !!(
@@ -4957,6 +4959,7 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       has_past_matches: hasPastMatches,
       show_survey_banner: showSurveyBanner,
       survey_partial: surveyRow && !surveyRow.completed ? true : false,
+      self_frozen: !!profileRow?.self_frozen,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

@@ -387,7 +387,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [bugText, setBugText] = useState("");
   const [bugSent, setBugSent] = useState(false);
   const [feedbackCategory, setFeedbackCategory] = useState<string>("");
-  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; admin_message_type: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null; has_past_matches: boolean; show_survey_banner: boolean; survey_partial: boolean }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, admin_message_type: null, pending_rating: false, in_matching_pool: false, match_card_consent: null, has_past_matches: false, show_survey_banner: false, survey_partial: false });
+  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; admin_message_type: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null; has_past_matches: boolean; show_survey_banner: boolean; survey_partial: boolean; self_frozen: boolean }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, admin_message_type: null, pending_rating: false, in_matching_pool: false, match_card_consent: null, has_past_matches: false, show_survey_banner: false, survey_partial: false, self_frozen: false });
   const [systemQuestion, setSystemQuestion] = useState<{ id: number; question_text: string } | null>(null);
   const [answeredQuestion, setAnsweredQuestion] = useState<{ question_text: string; answer: string } | null>(null);
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
@@ -444,6 +444,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             has_past_matches: !!data.has_past_matches,
             show_survey_banner: !!data.show_survey_banner,
             survey_partial: !!data.survey_partial,
+            self_frozen: !!data.self_frozen,
           });
           setHasPastMatches(!!data.has_past_matches);
           setSystemQuestion(data.system_question || null);
@@ -651,7 +652,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           if (data.closing_stage >= 3) {
             setClosedChannels(prev => ({ ...prev, [effectiveChannel]: true }));
             apiFetch(`/new-chat/status/${user.id}`).then(r => r.json()).then(d => {
-              if (d.has_cognitive !== undefined) { setRecommendations({ has_cognitive: d.has_cognitive, has_taste_info: d.has_taste_info, chat_count: d.chat_count || 0, summary_fields: d.summary_fields || 0, cognitive_count: d.cognitive_count || 0, photo_count: d.photo_count || 0, has_profile_details: d.has_profile_details || false, analysis_run_count: d.analysis_run_count || 0, gender: d.gender || null, admin_message: d.admin_message || null, pending_rating: !!d.pending_rating, in_matching_pool: !!d.in_matching_pool, match_card_consent: d.match_card_consent || null }); setSystemQuestion(d.system_question || null); }
+              if (d.has_cognitive !== undefined) { setRecommendations({ has_cognitive: d.has_cognitive, has_taste_info: d.has_taste_info, chat_count: d.chat_count || 0, summary_fields: d.summary_fields || 0, cognitive_count: d.cognitive_count || 0, photo_count: d.photo_count || 0, has_profile_details: d.has_profile_details || false, analysis_run_count: d.analysis_run_count || 0, gender: d.gender || null, admin_message: d.admin_message || null, admin_message_type: d.admin_message_type || null, pending_rating: !!d.pending_rating, in_matching_pool: !!d.in_matching_pool, match_card_consent: d.match_card_consent || null, has_past_matches: !!d.has_past_matches, show_survey_banner: !!d.show_survey_banner, survey_partial: !!d.survey_partial, self_frozen: !!d.self_frozen }); setSystemQuestion(d.system_question || null); }
             }).catch(() => {});
           }
         } else if (data.error) {
@@ -1869,6 +1870,22 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 </div>
               )}
 
+              {/* Self-frozen banner — permanent, no dismiss */}
+              {screen === "home" && recommendations.self_frozen && (
+                <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
+                  <div style={{ background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)", borderRadius: 14, padding: "16px 20px", border: "1px solid #93c5fd" }}>
+                    <p style={{ fontSize: 14, color: "#1e40af", lineHeight: 1.7, margin: 0, fontWeight: 600 }}>
+                      ❄️ {recommendations.gender === "woman" ? "לבקשתך, החיפוש שלך כרגע מושהה." : "לבקשתך, החיפוש שלך כרגע מושהה."}
+                    </p>
+                    <p style={{ fontSize: 13, color: "#3b82f6", lineHeight: 1.6, margin: "6px 0 0" }}>
+                      {recommendations.gender === "woman"
+                        ? "במידה ותרצי להחזיר את החיפוש — כנסי למסך ההגדרות ונמשיך לחפש עבורך התאמה."
+                        : "במידה ותרצה להחזיר את החיפוש — כנס למסך ההגדרות ונמשיך לחפש עבורך התאמה."}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Admin message — shown above all recommendations */}
               {screen === "home" && recommendations.admin_message && (
                 <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
@@ -2337,6 +2354,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
   const [resetConfirm, setResetConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [selfFrozen, setSelfFrozen] = useState(false);
+  const [freezeMsg, setFreezeMsg] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch(`/users/${user.id}`).then(r => r.json()).then(data => {
@@ -2473,7 +2491,17 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
           <h3 style={titleStyle}>השהיית חיפוש</h3>
           <label style={labelStyle}>
             <input type="checkbox" checked={selfFrozen} disabled={saving || loading}
-              onChange={(e) => { setSelfFrozen(e.target.checked); saveSetting({ self_frozen: e.target.checked }); }}
+              onChange={(e) => {
+                const val = e.target.checked;
+                setSelfFrozen(val);
+                saveSetting({ self_frozen: val });
+                if (val) {
+                  setFreezeMsg("החיפוש הושהה בהצלחה.");
+                } else {
+                  setFreezeMsg("החיפוש חזר לפעול! נמשיך לחפש עבורך התאמה.");
+                }
+                setTimeout(() => setFreezeMsg(null), 5000);
+              }}
               style={checkboxStyle} />
             <span>{user.gender === "woman"
               ? "אני לא מחפשת כרגע, הקפיאו את החיפוש"
@@ -2484,6 +2512,11 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
               ? "החיפוש מושהה. לא תקבלו התאמות חדשות. ניתן לחזור בכל עת."
               : "אם תרצו הפסקה, אפשר להשהות את החיפוש. ההתאמות הקיימות יוקפאו ולא ייכנסו מועמדים חדשים."}
           </p>
+          {freezeMsg && (
+            <p style={{ fontSize: 13, color: selfFrozen ? "#92400e" : "#16a34a", fontWeight: 600, margin: "8px 0 0", paddingRight: 28 }}>
+              {freezeMsg}
+            </p>
+          )}
         </div>
 
         {/* Notifications */}
