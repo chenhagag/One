@@ -329,9 +329,17 @@ export async function runStage1(_db: Database.Database, options?: { skipMatchabl
         continue;
       }
 
-      const result = options?.skipAllFilters
-        ? { passes: passesCognitiveFilter(a, b), locationExpanded: false, ageExpanded: false }
-        : passesAllFilters(a, b, getUserTrait, getUserLookTrait, getRegions, getNearbyRegions, !!options?.expandedFilters);
+      let result: { passes: boolean; locationExpanded: boolean; ageExpanded: boolean };
+      if (options?.skipAllFilters) {
+        // Force-all: always passes (cognitive only), but still compute expanded flags
+        const passes = passesCognitiveFilter(a, b);
+        const ageOk = passesAgeFilter(a, b, false) && passesAgeFilter(b, a, false);
+        const locOk = passesLocationFilter(a, b, getRegions, getNearbyRegions, false, false)
+                   && passesLocationFilter(b, a, getRegions, getNearbyRegions, false, false);
+        result = { passes, locationExpanded: !locOk, ageExpanded: !ageOk };
+      } else {
+        result = passesAllFilters(a, b, getUserTrait, getUserLookTrait, getRegions, getNearbyRegions, !!options?.expandedFilters);
+      }
 
       if (result.passes) {
         if (existing) actions.push({ kind: "update", id: existing.id, aTs, bTs, locationExpanded: result.locationExpanded, ageExpanded: result.ageExpanded });
