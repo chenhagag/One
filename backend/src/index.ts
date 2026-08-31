@@ -712,7 +712,8 @@ app.get("/users/:id", requireUserAuth, async (req, res) => {
             desired_location_range, marital_status, has_children, religion, smoker,
             partner_name, test_user_type, self_style, profile_complete, consent_accepted,
             photo_ai_consent, email_updates, whatsapp_updates, whatsapp_phone,
-            match_card_consent, match_card_restrictions, supabase_uid, created_at
+            match_card_consent, match_card_restrictions, supabase_uid, created_at,
+            COALESCE(self_frozen, FALSE) as self_frozen
      FROM users WHERE id = $1`,
     [userId]
   );
@@ -828,6 +829,16 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
     }
     // 3. Freeze all potential/waiting matches
     await freezeUserMatches(userId, -1);
+    // 4. Also freeze waiting_first/second_rating that are NOT sent to this user
+    //    (sent to other user, or not sent yet — this user is unavailable either way)
+    await pgQueryAll(
+      `UPDATE matches SET previous_status = status, status = 'frozen', updated_at = NOW()
+       WHERE status IN ('waiting_first_rating', 'waiting_second_rating')
+         AND (user1_id = $1 OR user2_id = $1)
+         AND (sent_for_rating_to IS NULL OR sent_for_rating_to != $1)
+         AND previous_status IS NULL`,
+      [userId]
+    );
     console.log(`[self-freeze] User ${userId} froze their matching`);
   } else if (self_frozen === false) {
     // Unfreeze — checks all other freeze reasons before unfreezing each match
@@ -3286,10 +3297,11 @@ async function unfreezeMatchesSafe(user1Id: number, user2Id: number, excludeMatc
 async function reconcileMatchStatuses(): Promise<{ frozen: number; unfrozen: number }> {
   let frozen = 0, unfrozen = 0;
 
-  // 1. Unfrozen matches that SHOULD be frozen
+  // 1. Unfrozen matches that SHOULD be frozen (includes rating-pending matches)
   const openMatches = await pgQueryAll<{ id: number; user1_id: number; user2_id: number }>(
     `SELECT m.id, m.user1_id, m.user2_id FROM matches m
-     WHERE m.status IN ('potential_match', 'waiting_for_photo', 'waiting_for_response')
+     WHERE m.status IN ('potential_match', 'waiting_for_photo', 'waiting_for_response',
+                         'waiting_first_rating', 'waiting_second_rating')
        AND m.previous_status IS NULL`
   );
   for (const m of openMatches) {
