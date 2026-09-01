@@ -1744,7 +1744,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       יש לך התאמה חדשה!
                     </h3>
                     <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, margin: "0 0 16px" }}>
-                      מצאנו מישהו/י שנראה שיש ביניכם חיבור מעניין ושווה בדיקה.
+                      מצאנו {user.looking_for_gender === "woman" ? "מישהי" : user.looking_for_gender === "man" ? "מישהו" : "מישהו/י"} שנראה שיש ביניכם חיבור מעניין ושווה בדיקה.
                       <br />כרטיס ההתאמה האישי שלכם מוכן, ואפשר לראות למה חשבנו שכדאי שתכירו.
                     </p>
                     {unreadMatchMessages > 0 && (

@@ -579,7 +579,7 @@ export default function App() {
             אנחנו מתחילים לחפש עבורך את ההתאמה המושלמת
           </p>
           <p style={{ color: "#999", fontSize: 14 }}>
-            נעדכן אותך ברגע שנמצא מישהו מתאים
+            נעדכן אותך ברגע שנמצא {user.looking_for_gender === "woman" ? "מישהי מתאימה" : user.looking_for_gender === "man" ? "מישהו מתאים" : "מישהו/י מתאים/ה"}
           </p>
           <button
             style={{ ...styles.logoutBtn, marginTop: 24 }}
