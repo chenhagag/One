@@ -515,7 +515,28 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
     }
     prevScreenRef.current = screen;
   }, [screen]);
-  useEffect(() => { if (!adminViewing) trackPage(screen === "chat" ? "chat" : screen === "home" ? "home" : screen, user?.id); }, [screen]);
+  useEffect(() => {
+    if (adminViewing) return;
+    const pageNames: Record<string, string> = {
+      home: "דף הבית",
+      chat: "צ׳אט",
+      profile_edit: "עריכת פרופיל",
+      insights: "תובנות",
+      couple_insights: "כרטיס התאמה זוגי",
+      bug_report: "משוב ודיווח",
+      settings: "הגדרות",
+      how_it_works: "איך זה עובד",
+      potential_matches: "בדיקת תמונות",
+      match_card_consent: "הסכמה לכרטיס התאמה",
+      match_card: "כרטיס התאמה",
+      match_chat: "צ׳אט התאמה",
+      match_hub: "מרכז התאמות",
+      cancel_match: "ביטול התאמה",
+      past_matches: "התאמות קודמות",
+      past_match_detail: "פרטי התאמה קודמת",
+    };
+    trackPage(pageNames[screen] || screen, user?.id);
+  }, [screen]);
 
   // Poll unread match messages on home screen (lightweight endpoint)
   useEffect(() => {

@@ -269,7 +269,21 @@ export default function App() {
 
   // ── Track page views (user-facing screens only, not admin previewing) ────────────────
   useEffect(() => {
-    if (view && autoLoginDone && view !== "admin" && !adminViewingUser) trackPage(view, user?.id);
+    if (view && autoLoginDone && view !== "admin" && !adminViewingUser) {
+      const viewNames: Record<string, string> = {
+        landing: "דף נחיתה",
+        register: "הרשמה",
+        welcome: "ברוכים הבאים",
+        pwa_install: "התקנת אפליקציה",
+        new_chat: "דף הבית",
+        auth: "התחברות",
+        auth_callback: "התחברות — חזרה",
+        profile_setup: "נתוני פתיחה",
+        consent: "הסכמה לתנאים",
+        survey: "סקר",
+      };
+      trackPage(viewNames[view] || view, user?.id);
+    }
   }, [view, autoLoginDone]);
 
   // ── Auto-login on mount: Supabase session + legacy fallback ────

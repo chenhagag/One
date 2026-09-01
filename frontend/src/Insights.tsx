@@ -134,7 +134,17 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
 
   // Track insight sub-views
   useEffect(() => {
-    if (detailView !== "main" && !adminViewing) trackPage(`insights_${detailView}`, user?.id);
+    if (detailView !== "main" && !adminViewing) {
+      const insightNames: Record<string, string> = {
+        mbti: "תובנות — MBTI",
+        values: "תובנות — ערכים",
+        bigfive: "תובנות — ביג פייב",
+        enneagram: "תובנות — אניאגרם",
+        attachment: "תובנות — התקשרות",
+        personal_full: "תובנות — פרופיל מלא",
+      };
+      trackPage(insightNames[detailView] || `תובנות — ${detailView}`, user?.id);
+    }
   }, [detailView]);
 
   useEffect(() => {
