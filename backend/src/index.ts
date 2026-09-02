@@ -5016,9 +5016,17 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
     );
     const hasPastMatches = (pastMatchRow?.c ?? 0) > 0;
 
-    // Survey currently disabled — re-enable manually when needed
-    const showSurveyBanner = false;
-    const surveyRow: any = null;
+    // Survey status — only show to users who joined before 2026-08-18
+    const surveyRow = await pgQueryOne<{ completed: boolean }>(
+      "SELECT completed FROM survey_responses WHERE user_id = $1", [userId]
+    );
+    const surveyBannerDismissed = await pgQueryOne<{ survey_banner_dismissed: boolean }>(
+      "SELECT COALESCE(survey_banner_dismissed, FALSE) as survey_banner_dismissed FROM users WHERE id = $1", [userId]
+    );
+    const joinedBeforeSurveyCutoff = await pgQueryOne<{ eligible: boolean }>(
+      "SELECT (created_at < '2026-08-18'::date) as eligible FROM users WHERE id = $1", [userId]
+    );
+    const showSurveyBanner = !surveyRow?.completed && !surveyBannerDismissed?.survey_banner_dismissed && !!joinedBeforeSurveyCutoff?.eligible;
 
     return res.json({
       has_cognitive: cogClosed,
