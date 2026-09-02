@@ -5023,7 +5023,11 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
     const surveyBannerDismissed = await pgQueryOne<{ survey_banner_dismissed: boolean }>(
       "SELECT COALESCE(survey_banner_dismissed, FALSE) as survey_banner_dismissed FROM users WHERE id = $1", [userId]
     );
-    const showSurveyBanner = !surveyRow?.completed && !surveyBannerDismissed?.survey_banner_dismissed;
+    // Don't show survey to users who joined less than 14 days ago
+    const userAge = await pgQueryOne<{ is_new: boolean }>(
+      "SELECT (created_at > NOW() - INTERVAL '14 days') as is_new FROM users WHERE id = $1", [userId]
+    );
+    const showSurveyBanner = !surveyRow?.completed && !surveyBannerDismissed?.survey_banner_dismissed && !userAge?.is_new;
 
     return res.json({
       has_cognitive: cogClosed,
