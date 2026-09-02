@@ -528,7 +528,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
       how_it_works: "איך זה עובד",
       potential_matches: "בדיקת תמונות",
       match_card_consent: "הסכמה לכרטיס התאמה",
-      match_card: "כרטיס התאמה",
+      match_card: activeMatchCard ? "כרטיס התאמה" : "דוגמה לכרטיס התאמה",
       match_chat: "צ׳אט התאמה",
       match_hub: "מרכז התאמות",
       cancel_match: "ביטול התאמה",
