@@ -11,7 +11,7 @@ export interface MatchCardData {
 }
 
 interface MatchCardProps {
-  user: { id: number; first_name: string; gender?: string };
+  user: { id: number; first_name: string; gender?: string; looking_for_gender?: string };
   onBack: () => void;
   matchData?: MatchCardData;
   isDemo?: boolean;
@@ -53,6 +53,8 @@ const DEMO_MATCH: MatchCardData = {
 export default function MatchCard({ user, onBack, matchData, isDemo, onStartChat }: MatchCardProps) {
   const data = matchData || DEMO_MATCH;
   const [expandedSection, setExpandedSection] = useState<number | null>(null);
+  const bothWomen = user.gender === "woman" && user.looking_for_gender === "woman";
+  const bothMen = user.gender === "man" && user.looking_for_gender === "man";
 
   return (
     <div style={{ flex: 1, overflowY: "auto", direction: "rtl", background: "#f9fafb" }}>
@@ -142,7 +144,7 @@ export default function MatchCard({ user, onBack, matchData, isDemo, onStartChat
           boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
         }}>
           <h3 style={{ fontSize: 16, fontWeight: 600, color: "#1a1a2e", margin: "0 0 6px" }}>
-            {data.person1.name} ו{data.person2.name}, הכירו אחד את השנייה
+            {data.person1.name} ו{data.person2.name}, {bothWomen ? "הכירו אחת את השנייה" : bothMen ? "הכירו אחד את השני" : "הכירו אחד את השנייה"}
           </h3>
           <p style={{ fontSize: 13, color: "#888", margin: "0 0 14px" }}>כרטיס התאמה אישי מ-One</p>
           <p style={{ fontSize: 13.5, color: "#444", lineHeight: 1.85, margin: 0, whiteSpace: "pre-wrap" }}>
@@ -157,7 +159,7 @@ export default function MatchCard({ user, onBack, matchData, isDemo, onStartChat
           boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
         }}>
           <h3 style={{ fontSize: 15, fontWeight: 600, color: "#1a1a2e", margin: "0 0 14px" }}>
-            מה מחבר ביניכם
+            מה מחבר {bothWomen ? "ביניכן" : "ביניכם"}
           </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {data.connectionPoints.map((point, i) => (
@@ -212,7 +214,7 @@ export default function MatchCard({ user, onBack, matchData, isDemo, onStartChat
           boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
         }}>
           <h3 style={{ fontSize: 15, fontWeight: 600, color: "#854d0e", margin: "0 0 10px" }}>
-            מה יכול להיות מעניין לבדוק ביניכם
+            מה יכול להיות מעניין לבדוק {bothWomen ? "ביניכן" : "ביניכם"}
           </h3>
           <p style={{ fontSize: 13, color: "#713f12", lineHeight: 1.75, margin: 0 }}>
             {data.caveat}
