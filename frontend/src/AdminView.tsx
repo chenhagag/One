@@ -552,6 +552,7 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
   const [filterPool, setFilterPool] = useState<"all" | "in" | "out">("all");
   const [filterGender, setFilterGender] = useState<"all" | "man" | "woman">("all");
   const [filterOrientation, setFilterOrientation] = useState<"all" | "straight" | "ww" | "mm">("all");
+  const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("all");
 
   useEffect(() => {
     apiFetch("/admin/users")
@@ -581,6 +582,9 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
     if (filterOrientation === "straight" && !((u.gender === "man" && u.looking_for_gender === "woman") || (u.gender === "woman" && u.looking_for_gender === "man"))) return false;
     if (filterOrientation === "ww" && !(u.gender === "woman" && u.looking_for_gender === "woman")) return false;
     if (filterOrientation === "mm" && !(u.gender === "man" && u.looking_for_gender === "man")) return false;
+    const isInactive = u.self_frozen || u.suspected_inactive || u.user_status === "frozen";
+    if (filterActive === "active" && isInactive) return false;
+    if (filterActive === "inactive" && !isInactive) return false;
     return true;
   });
 
@@ -726,6 +730,10 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
         <button style={filterBtnStyle(filterOrientation === "straight")} onClick={() => setFilterOrientation("straight")}>סטרייט</button>
         <button style={filterBtnStyle(filterOrientation === "ww")} onClick={() => setFilterOrientation("ww")}>נשים→נשים</button>
         <button style={filterBtnStyle(filterOrientation === "mm")} onClick={() => setFilterOrientation("mm")}>גברים→גברים</button>
+        <span style={{ fontSize: 12, color: "#6b7280", marginRight: 12, marginLeft: 4 }}>פעילות:</span>
+        <button style={filterBtnStyle(filterActive === "all")} onClick={() => setFilterActive("all")}>הכל</button>
+        <button style={filterBtnStyle(filterActive === "active")} onClick={() => setFilterActive("active")}>פעילים</button>
+        <button style={filterBtnStyle(filterActive === "inactive")} onClick={() => setFilterActive("inactive")}>לא פעילים</button>
       </div>
 
       {/* Flagged sections at top */}
