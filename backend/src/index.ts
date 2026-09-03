@@ -3635,7 +3635,7 @@ app.patch("/admin/matches/:id/status", async (req, res) => {
   const matchId = parseInt(req.params.id, 10);
   const { status } = req.body;
   const validStatuses = [
-    "scored", "potential_match", "waiting_for_photo", "waiting_for_response",
+    "scored", "potential_match", "expanded_potential_match", "waiting_for_photo", "waiting_for_response",
     "waiting_first_rating", "waiting_second_rating", "approved_by_both",
     "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users",
     "approved_acquaintance"
@@ -3669,7 +3669,12 @@ app.patch("/admin/matches/:id/status", async (req, res) => {
       return res.json({ success: true, match: { id: matchId, status: "scored" } });
     }
 
-    await pgQueryAll("UPDATE matches SET status = $1, updated_at = NOW() WHERE id = $2", [status, matchId]);
+    // When manually setting to expanded_potential_match, also mark location_expanded
+    if (status === "expanded_potential_match" && !oldMatch.location_expanded && !oldMatch.age_expanded) {
+      await pgQueryAll("UPDATE matches SET status = $1, location_expanded = TRUE, updated_at = NOW() WHERE id = $2", [status, matchId]);
+    } else {
+      await pgQueryAll("UPDATE matches SET status = $1, updated_at = NOW() WHERE id = $2", [status, matchId]);
+    }
     console.log(`[admin] Match ${matchId} status manually changed to: ${status}`);
 
     const activeStatuses = new Set(["approved_by_both", "pre_match", "in_match"]);
