@@ -348,7 +348,7 @@ export async function runStage1(_db: Database.Database, options?: { skipMatchabl
       } else if (existing) {
         // Don't delete expanded pairs during normal runs — they were created by expanded matching
         // and should only be removed explicitly (via admin or expanded run)
-        if (!options?.expandedFilters && existing.isExpanded && existing.status !== 'pending_score') {
+        if (!options?.expandedFilters && existing.isExpanded) {
           pairsSkipped++;
         } else {
           actions.push({ kind: "delete", id: existing.id });
@@ -379,7 +379,8 @@ export async function runStage1(_db: Database.Database, options?: { skipMatchabl
       } else {
         await client.query(
           `DELETE FROM candidate_matches
-           WHERE id = $1 AND filtering_passed = TRUE AND status = 'pending_score'`,
+           WHERE id = $1 AND filtering_passed = TRUE AND status = 'pending_score'
+             AND COALESCE(location_expanded, FALSE) = FALSE AND COALESCE(age_expanded, FALSE) = FALSE`,
           [act.id]
         );
       }
