@@ -1,6 +1,297 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-08-23 (Auto-Freeze + Suspected Inactive + Admin Improvements)
+## Latest Session: 2026-09-03 (Confidence Blending + Expanded Matches Fix)
+
+### ✅ עלה לפרודקשן
+
+#### Confidence-aware scoring — שינוי נוסחת ציונים
+- **Trait-level blending**: כש-`sharedConf` (=`sqrt(c1×c2)`) מתחת ל-0.3, הציון הגאוסיאני נמשך לכיוון 50 (ניטרלי). מעל 0.3 — ללא שינוי. מונע ענישה על טרייטים שאין עליהם מידע (כמו דעות פוליטיות בconf 0.1)
+- **Profile-level confidence**: משקל קטגוריה בציון הפרופיל מוכפל ב-avg confidence שלה (מתחת לסף 0.3)
+- **Neuroticism ×0.5**: בקטגוריית Big Five בלבד, neuroticism מקבל חצי משקל
+- שקלול confidence המקורי (כמשקל) נשמר כמו שהיה — הblending הוא תוספת, לא תחליף
+
+#### תיקון התאמות מורחבות (expanded matches)
+- **באג**: Run Algorithm רגיל מחק candidate_matches של התאמות מורחבות כי הן לא עוברות פילטרים רגילים
+- **תיקון**: matchStage1 מגן על expanded pairs — שתי שכבות (לוגיקה + SQL guard)
+- **ערים חסרות**: 11 ערים נוספו לטבלת cities (מצליח, מיתר, עתלית, קרית ביאליק, ראש העין, יפו, ערבה, כפר סירקין, רמת יוחנן, מזכרת בתיה, רמת ישי) — בלעדיהן לוקיישן פילטר לא יכול לזהות מרחק
+- **`expanded_potential_match`** נוסף ל-validStatuses כדי לאפשר שינוי סטטוס ידני
+
+---
+
+## Previous Session: 2026-08-31 (Self-Freeze + Fix Freeze Logic + Expanded Match Status)
+
+### ✅ עלה לפרודקשן
+
+#### השהיית חיפוש (Self-Freeze) — משתמשים יכולים להקפיא את עצמם
+- **Toggle בהגדרות** — "אני לא מחפש/ת כרגע, הקפיאו את החיפוש" (מותאם מגדר)
+- **עמודה חדשה** `self_frozen BOOLEAN DEFAULT FALSE` על users
+- כשמופעל: כל ההתאמות מוקפאות (potential, waiting_for_photo/response, waiting_first/second_rating)
+  - waiting_first_rating שנשלח למשתמש → חוזרת ל-potential_match ומוקפאת
+  - waiting_second_rating שנשלח למשתמש → אם הצד השני פעיל — נשארת waiting_second אבל מוסתרת; אם הצד השני גם לא פעיל — חוזרת ל-potential
+- כשמכובה: unfreeze בטוח — בודק כל סיבות ההקפאה לפני שחרור
+- **matchStage1** — self_frozen users מוחרגים מהמאגר (לא נכנסים לחישוב)
+- **באנר קבוע במסך הבית** — עיצוב כחול-קרחי, בלי כפתור "ראיתי", מותאם מגדר
+- **הודעת אישור בהגדרות** — "החיפוש הושהה" / "החיפוש חזר לפעול" (5 שניות)
+- **Admin** — badge כחול "מושהה" בטבלת pipeline + banner כחול במסך משתמש
+- **Agent context** — הסוכן יודע שהמשתמש השהה את החיפוש (מוזרק לפרומפט)
+- **RAG** — chunk חדש `self_freeze_pause` מסביר למשתמשים על האופציה
+
+#### תיקון לוגיקת הקפאה — רק מי שממתינים לו מוקפא
+- **בעיה**: כשהתאמה נכנסת ל-waiting_first_rating, שני הצדדים מוקפאים. אם צד אחד לא מגיב חודש — הצד השני תקוע
+- **תיקון**: הקפאה מבוססת על `sent_for_rating_to` בפועל, לא על שני הצדדים
+  - send-for-rating → מקפיא רק את ה-target user
+  - דירוג חיובי (waiting_first → waiting_second) → משחרר את מי שדירג
+  - approved_by_both / pre_match / in_match → מקפיא את שניהם
+- **פונקציות חדשות**: `isUserCurrentlyNeeded`, `hasAnyFreezeReason`, `freezeUserMatches`, `unfreezeUserMatchesSafe`
+- **Safe unfreeze** — בודק self_frozen + suspected_inactive + active match לפני כל שחרור
+- **Double-freeze guard** — `previous_status IS NULL` מונע דריסת סטטוס שמור
+
+#### Reconcile אוטומטי
+- `reconcileMatchStatuses()` — רץ אוטומטית אחרי כל run-matching ו-requalify
+- בודקת התאמות שצריכות להיות מוקפאות אבל לא + מוקפאות שצריכות להשתחרר
+- "Unfreeze All" באדמין עובד דרך reconcile (לא blind unfreeze)
+
+#### תיקונים נוספים
+- `approve-all-ratings` — מקפיא את שני הצדדים אחרי bulk approval
+- `unsuspect-inactive` — safe unfreeze (בודק self_frozen לפני שחרור)
+- matchStage2 matchmaking — `previous_status IS NULL` guard
+- תיקון: `self_frozen` חוזר מ-`GET /users/:id` ומ-`/new-chat/status`
+- תיקון: setRecommendations השני (אחרי סגירת ערוץ) היה חסר שדות
+
+#### סטטוס Expanded Potential Match
+- **סטטוס חדש** `expanded_potential_match` — להתאמות שחורגות מטווחי גיל/מיקום שהמשתמש הגדיר
+- **`promoteToMatches()`** — קורא `location_expanded` / `age_expanded` מ-candidate_matches, קובע סטטוס בהתאם
+- **Requalify** — גם הוא משתמש בסטטוס החדש
+- **Admin** — badge כחול "התאמה מורחבת", פילטר סטטוס, dropdown, אייקוני 📍/🔞
+- **כפתור "מחק מורחבות"** — מוחק כל expanded_potential_match ומחזיר candidate_matches ל-scored
+- **Freeze logic** — `expanded_potential_match` נכלל בכל IN clauses כמו potential_match
+- **`DELETE /admin/matches/expanded`** — endpoint חדש
+
+#### תיקון באג location_expanded — אף פעם לא סומן!
+- **בעיה**: `passesAllFilters` בדק location עם `expanded=true` גם ב-"original" check, אז locationExpanded נשאר תמיד false
+- **תיקון**: original check בודק עם `expanded=false`, fallback עם `expanded=true`
+- **תיקון נוסף**: `skipAllFilters` (force-all) עכשיו מחשב דגלים נכון במקום להחזיר false תמיד
+- **Backfill**: הרצת stage1 expanded + backfill ל-matches על production
+
+#### Live State — תיקון hasActiveMatch
+- **בעיה**: `hasActiveMatch` כלל waiting_first/second_rating — גרם לסוכן לדווח "התאמה פעילה" לא נכון
+- **תיקון**: `hasActiveMatch` רק ל-`in_match`, `waitingForRating` חדש בודק `sent_for_rating_to = userId`
+- **selfFrozen** חדש ב-live state — שלב מציג "מושהה (הקפאה עצמית)"
+
+#### DB
+- עמודה חדשה על `users`: `self_frozen BOOLEAN DEFAULT FALSE`
+- עמודות חדשות על `matches`: `location_expanded BOOLEAN DEFAULT FALSE`, `age_expanded BOOLEAN DEFAULT FALSE`
+
+#### קבצים שהשתנו
+- `backend/src/schema.pg.ts` — migrations (self_frozen, expanded on matches)
+- `backend/src/index.ts` — freeze helpers, call sites, self-freeze API, reconcile, expanded delete endpoint, status endpoint
+- `backend/src/matchStage1.ts` — exclude self_frozen, fix location_expanded flag, fix force-all flags
+- `backend/src/matchStage2.ts` — previous_status guard, expanded status in promoteToMatches
+- `backend/src/rag.ts` — fix hasActiveMatch, add selfFrozen + waitingForRating to live state
+- `backend/src/agents/conversation/chatManager.ts` — agent context injection for self_frozen
+- `backend/src/seedKnowledge.ts` — RAG chunks (self_freeze_pause, settings_screen update)
+- `frontend/src/NewChat.tsx` — Settings toggle, home banner, recommendations, freeze confirmation
+- `frontend/src/AdminView.tsx` — self_frozen badge/banner, expanded badge/filter/dropdown/delete button
+
+### סנכרון staging ↔ production
+- שני הענפים זהים
+- seed רץ על שתי הסביבות
+- backfill expanded flags רץ על production
+
+### TODO לסשן הבא
+- להמשיך לעבור על פרומפט סגנון תכונה תכונה (17 תכונות נותרו)
+- מעקב אחרי תוצאות הסקר
+
+---
+
+## Previous Session: 2026-08-30 (RAG System — Love Agent Knowledge Base)
+
+### ✅ עלה לפרודקשן
+
+#### מערכת RAG — סוכן האהבה מכיר את One
+- **תשתית pgvector** — extension + טבלת `knowledge_chunks` עם חיפוש וקטורי סמנטי
+- **53 system chunks** — מאגר ידע מלא על One מחולק לנושאים:
+  - identity (4) — מהי One, למה שונה, פילוסופיה, מה לא טוענת
+  - process (12) — שיחות, מקורות מידע, כניסה למאגר, מחזור חיי התאמה, המתנה, עדכונים, הודעות
+  - analysis (4) — הסקת תכונות (לא self-report), ניתוח multi-agent, שכבות ניתוח, משמעות תובנות
+  - matching (8) — ממדים, שיטת ציון, התאמה אישית, AI review, משמעות ציון, תעדוף, דיל-ברייקרים
+  - appearance (6) — ניתוח מראה, מראה בהתאמה, אישור תמונות, פידבק, תרחישים ללא תמונה, מכרים
+  - models (7) — Big Five, שוורץ, אניאגרם, היקשרות, קוגניטיבי, MBTI, אינטגרציה בין מודלים
+  - ui (4) — מסכים, פרטים אישיים, הגדרות, כרטיס התאמה
+  - support (4) — תמיכה, פרטיות, הסכמת תמונות, מגבלות בטא
+- **תשתית User RAG** — scope=user עם scoping קשיח ל-user_id, מוכן לשימוש עתידי
+- **Retrieval אוטומטי בכל הודעה** — embed(lastAssistantMsg + userMsg) → חיפוש סמנטי → הזרקת top 2 chunks
+- **Live State block** — `getAgentSafeLiveState()` מחליף את בלוק match status הישן, מחושב מ-DB בזמן אמת
+- **Debug logging** — `[RAG] user=X channel=Y system=N user=M liveState=ok/failed` + chunk titles+scores
+- **Threshold 0.30** — text-embedding-3-small עם עברית נותן scores נמוכים (0.30-0.65), לא 0.70+ כמו באנגלית
+- **Graceful fallback** — אם RAG נכשל, הצ'אט ממשיך כרגיל
+
+#### שיפור prompt ב-qa_general/qa_system
+- תשובות ישירות וקצרות (קודם תשובה, אחר כך הרחבה)
+- לא חוזר על מידע שכבר נאמר בשיחה
+- שפה טבעית, לא רשימות ממוספרות ולא כותרות בולדיות
+- לא מסיים כל הודעה ב"אני כאן בשבילך"
+- כשמשתמש שואל על התאמה ספציפית — משתמש בידע כללי על מה התאמה אומרת גם בלי פרטים על המועמד
+
+#### קבצים חדשים
+- `backend/src/rag.ts` — מודול RAG מלא (embed, search, retrieve, live state, formatters)
+- `backend/src/seedKnowledge.ts` — סקריפט seed ל-chunks (system + user)
+
+#### שינויים בקבצים קיימים
+- `backend/src/schema.pg.ts` — pgvector extension + knowledge_chunks table
+- `backend/src/agents/conversation/chatManager.ts` — RAG retrieval בכל buildChatPrompt, live state, prompt improvements
+
+### סנכרון staging ↔ production
+- שני הענפים זהים
+
+### ⚠️ TODO — עבודה נוספת על RAG
+- **תכנים לא מושלמים** — יש אי-דיוקים ודברים שלא מספיק מפורטים. צריך לעבור chunk-by-chunk ולשפר
+- **עדכון שוטף** — כשמשנים דברים במערכת שמשפיעים על הגדרות, פרטים, תהליך או לוגיקה — חובה לעדכן גם את ה-RAG (seedKnowledge.ts + להריץ seed)
+- **כיול threshold** — 0.30 עובד אבל ייתכן ששולף chunks לא רלוונטיים. צריך QA מתמשך
+- **User RAG** — התשתית מוכנה, צריך להכניס summaries + insights כ-chunks ולבדוק
+- **הסרת context-system-info.txt** — להעביר topic-by-topic ל-RAG ולהסיר מהמסמך הישן. לא overlap ארוך
+- **Core prompt** — לכתוב core prompt קצר וסופי שמחליף חלק מ-SYSTEM_IDENTITY
+- **Admin visibility** — להציג RAG retrieval results ב-admin panel (לא רק בלוגים)
+
+---
+
+## Previous Session: 2026-08-26 (Agent Context System + Admin Improvements)
+
+### ✅ עלה לפרודקשן
+
+#### מערכת הקשר לסוכן — AI מודע למצב המשתמש והמערכת
+- **הקשר אישי** (`agent_context`) — שדה טקסט חדש במסך משתמש באדמין
+  - האדמין כותב מידע שהסוכן צריך לדעת (למשל: "יש התאמה פוטנציאלית עם מעשנת")
+  - מוזרק לכל פרומפט בכל ערוץ צ'אט
+- **תקצירי מערכת** — 4 textareas בטאב Overview באדמין:
+  - כללי (לכל המשתמשים) + תוספת גברים + תוספת נשים סטרייט + תוספת נשים→נשים
+  - נשים עם looking_for=both מקבלות את שני התקצירים של נשים
+  - נשמר ב-config table, מוזרק לכל פרומפט
+- **לוגיקת הזרקה**: QA channels — תמיד; general/cognitive/taste — רק אם המשתמש במאגר
+- **כללי בטיחות (closed-world)**:
+  - כל מה שלא כתוב מפורשות = לא ידוע
+  - אסור להמציא פרטים על מועמדים, אסור להסיק מקטגוריה כללית
+  - אסור דוגמאות היפותטיות על מועמדים (משתמשים קוראים כעובדה)
+  - עדיף "אין לי את המידע הזה" מאשר לנחש
+
+#### הודעות שיחה מהאדמין
+- סוג הודעה חדש: "הודעת שיחה" (dropdown ליד שדה ההודעה)
+- במקום "ראיתי תודה" → כפתור "דבר/י איתי על זה 💬" (מגדר-sensitive)
+- לחיצה מוסיפה את ההודעה לסוף qa_general (לא דורסת היסטוריה קיימת)
+- ה-AI מזהה שיחה שהתחילה מהודעת מערכת וממשיך בצורה טבעית
+
+#### התראות תגובות שיחה
+- **ניהול משתמשים** — סקשן ורוד "💬 תגובות להודעות שיחה" עם כפתור "ראיתי"
+- **יומן פניות** — עמודת "סוג" (שיחה/רגילה), "💬 הגיב/ה" עם תאריך, badge תגובות חדשות
+- `admin_message_responded_at` נרשם כשמשתמש לוחץ "דבר/י איתי"
+- מתאפס אוטומטית כששולחים הודעה חדשה
+
+#### חיווי שמירה באדמין
+- border צהוב + כפתור כתום + "⚠ לא נשמר" כשיש שינויים שלא נשמרו
+- חל על: הודעת מערכת, הקשר לסוכן, תקצירי מערכת ב-Overview
+
+#### עריכה/מחיקת שאלות מערכת
+- `PATCH /admin/system-questions/:id` — עריכת טקסט (רק שאלות שלא נענו)
+- `DELETE /admin/system-questions/:id` — מחיקה עם confirm
+- כפתורי ✏️/🗑️ במסך משתמש וביומן פניות
+
+#### תיקוני פרומפט
+- הוספת הקשר "אישרתי תמונה אבל לא קיבלתי התאמה" ל-context-system-info
+- תיקון "שהצוות עוקב" → "שאנחנו עוקבים"
+
+#### DB
+- עמודות חדשות על `users`: `agent_context`, `admin_message_type`, `admin_message_responded_at`, `admin_message_response_seen`
+- 4 שורות config: `system_summary_general`, `system_summary_male`, `system_summary_female`, `system_summary_female_ff`
+
+### סנכרון staging ↔ production
+- שני הענפים זהים
+
+### TODO לסשן הבא
+- להמשיך לעבור על פרומפט סגנון תכונה תכונה (17 תכונות נותרו)
+- מעקב אחרי תוצאות הסקר
+- בדיקה שה-closed-world rules עובדים היטב על משתמשים אמיתיים
+
+---
+
+## Previous Session: 2026-08-25 (Beta User Survey)
+
+### ✅ עלה לפרודקשן
+
+#### סקר משתמשי בטא — מערכת מלאה
+- **דף סקר** (`/survey`) — 9 שאלות: single/multi select, שדות טקסט מותנים ואופציונליים
+  - שמירה אוטומטית כל 2 שניות (debounced)
+  - מסך "תודה" אחרי שליחה, חסימת מילוי כפול
+  - שאלה 6 עם תת-שאלת פערים בהתאמה
+  - הערה למעלה: "שום שאלה היא לא חובה — כל תשובה, גם חלקית, תעזור לנו"
+- **מייל סקר** — תבנית HTML עם CTA לינק ל-`joinone.io/survey`, נשלח דרך Resend
+  - נשלח ל-120 משתמשים (לא כולל Couple Testers ומי שביטל מיילים)
+  - 21 משתמשים ביטלו מיילים (5 מהם מקבלים וואטסאפ)
+- **באנר מסך הבית** — מוצג עד שהמשתמש עונה או דוחה (X)
+  - חוזר בכל כניסה אם לא ענה ולא דחה
+  - כפתור "המשיכו למלא את הסקר →" למי שהתחיל ולא סיים
+- **טאב אדמין** (סקר) — סטטיסטיקות + 3 תצוגות:
+  - תוצאות מרוכזות: גרפי אחוזים + תשובות חופשיות לכל שאלה
+  - רשימת משתמשים: מי קיבל מייל, מי דחה באנר, סטטוס סקר
+  - תשובות מלאות: לחיצה על משתמש מציגה תשובות מפורטות
+  - כפתורי שליחה: טסט (chen.hagag) או לכולם
+
+#### DB
+- טבלת `survey_responses` — user_id (unique), responses (JSONB), completed, timestamps
+- עמודות על `users` — `survey_email_sent_at`, `survey_banner_dismissed`
+- `show_survey_banner` + `survey_partial` נוספו ל-`/new-chat/status` response
+
+### סנכרון staging ↔ production
+- שני הענפים זהים
+
+### TODO לסשן הבא
+- להמשיך לעבור על פרומפט סגנון תכונה תכונה (17 תכונות נותרו)
+- מעקב אחרי תוצאות הסקר
+
+---
+
+## Previous Session: 2026-08-24 (Candidate Match Scoring Threshold + Sub-Statuses)
+
+### ✅ עלה לפרודקשן
+
+#### סף ציונים להתאמה פוטנציאלית
+- התאמה עולה ל-`potential_match` רק אם:
+  - `internal_score > 70` **וגם** `internal_profile_score > 70`
+  - **או** ממוצע שניהם > 70
+- אחרת נשאר `scored` (ללא התאמה) — גם אם ציון סופי גבוה
+- שונה ב-`matchStage2.ts` (promoteToMatches) וב-requalify endpoint
+- החליף את הסף הישן (final_score >= 50 מ-config)
+
+#### כפתור "עדכון סיווג" (Requalify)
+- כפתור כתום בשורת הכפתורים בטאב Candidates
+- `POST /admin/requalify-matches` — מעדכן רטרואקטיבית:
+  - התאמות `potential_match` שלא עומדות בסף → יורדות ל-`scored` (match נמחק)
+  - התאמות `scored` שעומדות בסף → עולות ל-`potential_match` (match נוצר)
+- תופס גם חוסר עקביות בנתונים (cm_status='scored' עם match קיים)
+
+#### סטטוסי ניהול חדשים להתאמות
+- **ממתין לתמונה** (`waiting_for_photo`) — צהוב כהה
+- **ממתין לתשובה** (`waiting_for_response`) — כתום
+- מופיעים בפילטרים, בדרופדאון סטטוס (בטבלה ובמודל פרטי התאמה), וביומן פניות
+- עובדים עם מנגנון freeze/unfreeze — מוקפאים כש-match נכנס ל-active, חוזרים כשיורד
+- עובדים עם suspect-inactive — מוקפאים כשמשתמש מסומן חשוד
+- שליחה לדירוג מותרת גם מסטטוסים אלו → עובר ל-`waiting_first_rating`
+
+#### חיווי בקשת תמונה
+- כשהתאמה בסטטוס "ממתין לתמונה" — מתחת לדרופדאון מוצג לכל צד שחסר תמונה:
+  - "נשלחה בקשה ✓" (ירוק) אם `photo_request_sent_at` קיים
+  - "לא נשלחה בקשה" (כתום) אם לא
+- אם לשניהם יש תמונה — "✅ לשניהם יש תמונה"
+- מבוסס על `photo_request_sent_at` בלבד (לא על `admin_message_sent_at` שיכול להיות מהודעה לא קשורה)
+
+### סנכרון staging ↔ production
+- שני הענפים זהים
+
+### TODO לסשן הבא
+- להמשיך לעבור על פרומפט סגנון תכונה תכונה (17 תכונות נותרו)
+
+---
+
+## Previous Session: 2026-08-23 (Auto-Freeze + Suspected Inactive + Admin Improvements)
 
 ### ✅ עלה לפרודקשן
 
