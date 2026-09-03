@@ -393,7 +393,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
   const [matchingProgress, setMatchingProgress] = useState<{ total_pool_profiles: number; scanned_profiles: number; status_text: string } | null>(null);
   const [activeMatchCard, setActiveMatchCard] = useState<{ match_id: number; data: any; partner_name: string; partner_age: number | null; partner_city: string | null; my_name: string; partner_photo: string | null; my_photo: string | null; is_blind_match?: boolean } | null>(null);
-  const [matchCardViewed, setMatchCardViewed] = useState<boolean>(() => localStorage.getItem(`match_card_viewed_${user.id}`) === "true");
+  const [matchCardViewedId, setMatchCardViewedId] = useState<number | null>(() => {
+    const stored = localStorage.getItem(`match_card_viewed_${user.id}`);
+    return stored ? parseInt(stored, 10) || null : null;
+  });
   const [insightCard, setInsightCard] = useState<{ mbti: { type: string | null; description: string | null }; allValues: { name: string; he: string; score: number; description: string }[]; allBigFive: { name: string; he: string; score: number; description: string }[] } | null>(null);
   const [fineTuneAnswered, setFineTuneAnswered] = useState<boolean>(() => localStorage.getItem(`fine_tune_${user.id}`) === "true");
   const [insightRotation, setInsightRotation] = useState<number>(() => {
@@ -500,9 +503,9 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   // Mark match card as viewed when user enters card screen
   const prevScreenRef = useRef(screen);
   useEffect(() => {
-    if (screen === "match_card" && activeMatchCard && !matchCardViewed) {
-      setMatchCardViewed(true);
-      localStorage.setItem(`match_card_viewed_${user.id}`, "true");
+    if (screen === "match_card" && activeMatchCard && matchCardViewedId !== activeMatchCard.match_id) {
+      setMatchCardViewedId(activeMatchCard.match_id);
+      localStorage.setItem(`match_card_viewed_${user.id}`, String(activeMatchCard.match_id));
     }
     // Only mark messages read when returning from chat specifically
     if (screen === "home" && prevScreenRef.current === "match_chat" && activeMatchCard) {
@@ -1752,7 +1755,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               )}
 
               {/* Match banner — celebration (first view) or persistent card (after viewing) */}
-              {screen === "home" && activeMatchCard && !matchCardViewed && (
+              {screen === "home" && activeMatchCard && matchCardViewedId !== activeMatchCard.match_id && (
                 <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
                   <div style={{
                     background: "linear-gradient(135deg, #f0eef8 0%, #e8e4f0 100%)",
@@ -1803,7 +1806,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   </div>
                 </div>
               )}
-              {screen === "home" && activeMatchCard && matchCardViewed && (
+              {screen === "home" && activeMatchCard && matchCardViewedId === activeMatchCard.match_id && (
                 <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
                   <div style={{
                     background: "#fff", borderRadius: 16, padding: "18px 20px",
