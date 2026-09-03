@@ -1599,6 +1599,40 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
         >
           {user.in_matching_pool ? "✓ הוצאה מהמאגר" : "⊕ כניסה למאגר"}
         </button>
+        <button
+          style={{
+            fontSize: 11,
+            padding: "3px 10px",
+            marginRight: 6,
+            cursor: "pointer",
+            border: "1px solid",
+            borderRadius: 4,
+            background: user.blind_match_consent ? "#ede9fe" : "#f3f4f6",
+            borderColor: user.blind_match_consent ? "#8b5cf6" : "#ccc",
+            color: user.blind_match_consent ? "#6d28d9" : "#666",
+          }}
+          onClick={async (e) => {
+            const btn = e.currentTarget;
+            btn.disabled = true;
+            const newVal = !user.blind_match_consent;
+            try {
+              const res = await apiFetch(`/admin/users/${user.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ blind_match_consent: newVal }),
+              });
+              if (res.ok) {
+                setData((prev: any) => prev ? { ...prev, user: { ...prev.user, blind_match_consent: newVal } } : prev);
+              } else {
+                const text = await res.text();
+                alert(`שמירה נכשלה: ${res.status} ${text}`);
+              }
+            } catch (err: any) { alert(`שגיאת רשת: ${err.message}`); }
+            finally { btn.disabled = false; }
+          }}
+        >
+          {user.blind_match_consent ? "👁️‍🗨️ התאמה עיוורת ✓" : "👁️‍🗨️ התאמה עיוורת"}
+        </button>
          | כרטיס התאמה: <strong style={{ color: user.match_card_consent === "approved" ? "#28a745" : user.match_card_consent === "declined" ? "#dc3545" : "#888" }}>
           {user.match_card_consent === "approved" ? "אושר" : user.match_card_consent === "declined" ? "לא אושר" : "טרם נשאל"}
         </strong>
@@ -3870,6 +3904,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
     if (status === "expanded_potential_match") return { ...s.badge, background: "#e0e7ff", color: "#3730a3" };
     if (status === "waiting_for_photo") return { ...s.badge, background: "#fde68a", color: "#92400e" };
     if (status === "waiting_for_response") return { ...s.badge, background: "#fed7aa", color: "#9a3412" };
+    if (status === "blind_match_candidate") return { ...s.badge, background: "#ede9fe", color: "#6d28d9" };
     if (status === "pre_match") return { ...s.badge, background: "#d4edda", color: "#155724" };
     if (status === "in_match") return { ...s.badge, background: "#cce5ff", color: "#004085" };
     if (status === "frozen") return { ...s.badge, background: "#e2e3e5", color: "#383d41" };
@@ -4005,13 +4040,13 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
       {/* Status filter */}
       <div style={{ display: "flex", gap: 6, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, color: "#6b7280" }}>סטטוס:</span>
-        {["all", "potential_match", "expanded_potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled_by_user", "cancelled_by_system", "rejected_by_users", "no_match"].map(st => {
+        {["all", "potential_match", "expanded_potential_match", "blind_match_candidate", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled_by_user", "cancelled_by_system", "rejected_by_users", "no_match"].map(st => {
           const count = st === "all" ? data.length
             : st === "no_match" ? data.filter((cm: any) => !cm.match_status).length
             : st === "cancelled_by_user" ? data.filter((cm: any) => cm.match_status === "cancelled" && cm.cancelled_by).length
             : st === "cancelled_by_system" ? data.filter((cm: any) => cm.match_status === "cancelled" && !cm.cancelled_by).length
             : data.filter((cm: any) => cm.match_status === st).length;
-          const label = st === "all" ? "הכל" : st === "no_match" ? "ללא התאמה" : st === "expanded_potential_match" ? "מורחבת" : st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st === "cancelled_by_user" ? "ביטול משתמש" : st === "cancelled_by_system" ? "ביטול מערכת" : st;
+          const label = st === "all" ? "הכל" : st === "no_match" ? "ללא התאמה" : st === "expanded_potential_match" ? "מורחבת" : st === "blind_match_candidate" ? "התאמה עיוורת" : st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st === "cancelled_by_user" ? "ביטול משתמש" : st === "cancelled_by_system" ? "ביטול מערכת" : st;
           return (
             <button key={st} style={filterBtnStyle(filterCmStatus === st)} onClick={() => setFilterCmStatus(st)}>
               {label} ({count})
@@ -4184,8 +4219,8 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                         } catch (err: any) { alert("שגיאה: " + err.message); }
                       }}
                     >
-                      {["scored", "potential_match", "expanded_potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
-                        <option key={st} value={st}>{st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st}</option>
+                      {["scored", "potential_match", "expanded_potential_match", "blind_match_candidate", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
+                        <option key={st} value={st}>{st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st === "blind_match_candidate" ? "התאמה עיוורת" : st}</option>
                       ))}
                     </select>
                     {cm.match_status === "waiting_for_photo" && (
@@ -4234,6 +4269,9 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                     })() : "—"}
                   </td>
                   <td style={s.td}>
+                    {cm.user1_blind_consent && cm.user2_blind_consent && (cm.user1_photo_count < 1 || cm.user2_photo_count < 1) && (
+                      <span style={{ display: "inline-block", padding: "2px 6px", background: "#ede9fe", color: "#6d28d9", borderRadius: 4, fontSize: 10, fontWeight: 600, marginBottom: 4 }} title="שני הצדדים אישרו התאמה עיוורת">👁️‍🗨️ שניהם אישרו עיוורת</span>
+                    )}
                     {cm.match_status === "approved_by_both" && (
                       <button
                         style={{ padding: "3px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#6f42c1", color: "#fff" }}
@@ -4244,6 +4282,18 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                         }}
                       >
                         שלח התאמה
+                      </button>
+                    )}
+                    {cm.match_status === "blind_match_candidate" && (
+                      <button
+                        style={{ padding: "3px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#6d28d9", color: "#fff", marginTop: 4 }}
+                        onClick={async () => {
+                          if (!confirm(`להעביר את ${cm.user1_name} ו-${cm.user2_name} להתאמה עיוורת (pre_match)?`)) return;
+                          await apiFetch(`/admin/matches/${cm.match_id}/prepare`, { method: "POST" });
+                          load();
+                        }}
+                      >
+                        שלח התאמה עיוורת
                       </button>
                     )}
                     {cm.match_status === "pre_match" && !cm.match_card_data && (

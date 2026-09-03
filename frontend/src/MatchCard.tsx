@@ -15,6 +15,7 @@ interface MatchCardProps {
   onBack: () => void;
   matchData?: MatchCardData;
   isDemo?: boolean;
+  isBlindMatch?: boolean;
   onStartChat?: () => void;
 }
 
@@ -50,7 +51,7 @@ const DEMO_MATCH: MatchCardData = {
   closing: "אנחנו מאמינים בהתאמה הזו כי מצאנו חיבור שהוא לא רק \"על הנייר\" — אלא דפוס עמוק של ערכים משותפים, סגנון תקשורת תואם, ודינמיקה שמאפשרת לשניכם לגדול יחד בלי לוותר על מי שאתם. זה לא קורה בכל יום.\n\nמאחר ואנחנו שומרים על הפרטיות של שניכם, לא ניתן לחשוף כאן את כל מה שעומד מאחורי ההתאמה הזו — אבל יש עוד הרבה רבדים שגילינו, ואנחנו מקווים שתגלו אותם יחד.",
 };
 
-export default function MatchCard({ user, onBack, matchData, isDemo, onStartChat }: MatchCardProps) {
+export default function MatchCard({ user, onBack, matchData, isDemo, isBlindMatch, onStartChat }: MatchCardProps) {
   const data = matchData || DEMO_MATCH;
   const [expandedSection, setExpandedSection] = useState<number | null>(null);
   const bothWomen = user.gender === "woman" && user.looking_for_gender === "woman";

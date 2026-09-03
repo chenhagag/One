@@ -1201,4 +1201,16 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
     -- For <1000 chunks, exact cosine search (<=>)  is fast enough.
     -- Add HNSW or IVFFlat index later if chunk count grows significantly.
   `);
+
+  // ── blind_match_consent — user agrees to receive matches without photo exchange ──
+  await pool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='blind_match_consent') THEN
+        ALTER TABLE users ADD COLUMN blind_match_consent BOOLEAN DEFAULT FALSE;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='matches' AND column_name='is_blind_match') THEN
+        ALTER TABLE matches ADD COLUMN is_blind_match BOOLEAN DEFAULT FALSE;
+      END IF;
+    END $$;
+  `);
 }

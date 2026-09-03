@@ -1091,7 +1091,7 @@ app.get("/users/:id/active-match-card", requireUserAuth, async (req, res) => {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.json({ match_card: null });
     const match = await pgQueryOne<any>(
-      `SELECT m.id, m.match_card_data, m.user1_id, m.user2_id, m.match_card_sent_at,
+      `SELECT m.id, m.match_card_data, m.user1_id, m.user2_id, m.match_card_sent_at, m.is_blind_match,
               u1.first_name AS user1_name, u2.first_name AS user2_name,
               u1.age AS user1_age, u2.age AS user2_age,
               u1.city AS user1_city, u2.city AS user2_city
@@ -1132,8 +1132,9 @@ app.get("/users/:id/active-match-card", requireUserAuth, async (req, res) => {
         partner_age: partnerAge,
         partner_city: partnerCity,
         my_name: myName,
-        partner_photo: photos.length > 1 ? `/uploads/${photos[1].filename}` : photos.length > 0 ? `/uploads/${photos[0].filename}` : null,
-        my_photo: myPhotos.length > 1 ? `/uploads/${myPhotos[1].filename}` : myPhotos.length > 0 ? `/uploads/${myPhotos[0].filename}` : null,
+        partner_photo: match.is_blind_match ? null : (photos.length > 1 ? `/uploads/${photos[1].filename}` : photos.length > 0 ? `/uploads/${photos[0].filename}` : null),
+        my_photo: match.is_blind_match ? null : (myPhotos.length > 1 ? `/uploads/${myPhotos[1].filename}` : myPhotos.length > 0 ? `/uploads/${myPhotos[0].filename}` : null),
+        is_blind_match: !!match.is_blind_match,
         sent_at: match.match_card_sent_at,
       },
     });
@@ -1513,7 +1514,7 @@ app.get("/users/:id/match-partner-profile", requireUserAuth, async (req, res) =>
 
   try {
     const match = await pgQueryOne<any>(
-      "SELECT user1_id, user2_id FROM matches WHERE id = $1 AND (user1_id = $2 OR user2_id = $2)",
+      "SELECT user1_id, user2_id, is_blind_match FROM matches WHERE id = $1 AND (user1_id = $2 OR user2_id = $2)",
       [matchId, userId]
     );
     if (!match) return res.status(404).json({ error: "Match not found" });
@@ -1525,7 +1526,7 @@ app.get("/users/:id/match-partner-profile", requireUserAuth, async (req, res) =>
     );
     if (!partner) return res.status(404).json({ error: "Partner not found" });
 
-    const photos = await pgQueryAll<any>(
+    const photos = match.is_blind_match ? [] : await pgQueryAll<any>(
       "SELECT id, filename, is_primary FROM user_photos WHERE user_id = $1 ORDER BY is_primary DESC, created_at ASC",
       [partnerId]
     );
@@ -1535,6 +1536,7 @@ app.get("/users/:id/match-partner-profile", requireUserAuth, async (req, res) =>
       age: partner.age,
       city: partner.city,
       photos: photos.map((p: any) => ({ id: p.id, url: `/uploads/${p.filename}` })),
+      is_blind_match: !!match.is_blind_match,
     });
   } catch (err) {
     console.error("[match-partner-profile] Error:", err);
@@ -2021,7 +2023,7 @@ app.patch("/admin/users/:id", async (req, res) => {
     "email_updates", "whatsapp_updates", "whatsapp_phone", "in_matching_pool",
     "marital_status", "has_children", "religion", "smoker", "admin_message", "admin_notes", "admin_location_override",
     "match_card_consent", "match_card_restrictions", "photo_request_sent_at",
-    "agent_context", "admin_message_type",
+    "agent_context", "admin_message_type", "blind_match_consent",
   ];
   const updates: string[] = [];
   const values: any[] = [];
@@ -3308,7 +3310,7 @@ async function freezeUserMatches(userId: number, excludeMatchId: number): Promis
   const result = await pgQueryAll(
     `UPDATE matches SET previous_status = status, status = 'frozen', updated_at = NOW()
      WHERE id != $1
-       AND status IN ('potential_match', 'expanded_potential_match', 'waiting_for_photo', 'waiting_for_response')
+       AND status IN ('potential_match', 'expanded_potential_match', 'waiting_for_photo', 'waiting_for_response', 'blind_match_candidate')
        AND (user1_id = $2 OR user2_id = $2)
        AND previous_status IS NULL
      RETURNING id`,
@@ -3369,7 +3371,7 @@ async function reconcileMatchStatuses(): Promise<{ frozen: number; unfrozen: num
   // 1. Unfrozen matches that SHOULD be frozen (includes rating-pending matches)
   const openMatches = await pgQueryAll<{ id: number; user1_id: number; user2_id: number }>(
     `SELECT m.id, m.user1_id, m.user2_id FROM matches m
-     WHERE m.status IN ('potential_match', 'expanded_potential_match', 'waiting_for_photo', 'waiting_for_response',
+     WHERE m.status IN ('potential_match', 'expanded_potential_match', 'waiting_for_photo', 'waiting_for_response', 'blind_match_candidate',
                          'waiting_first_rating', 'waiting_second_rating')
        AND m.previous_status IS NULL`
   );
@@ -3536,6 +3538,8 @@ app.get("/admin/candidate-matches", async (_req, res) => {
       u2.photo_request_sent_at as user2_photo_request,
       u1.admin_message_sent_at as user1_msg_sent,
       u2.admin_message_sent_at as user2_msg_sent,
+      u1.blind_match_consent as user1_blind_consent,
+      u2.blind_match_consent as user2_blind_consent,
       (SELECT filename FROM user_photos WHERE user_id = u1.id ORDER BY is_primary DESC, created_at ASC LIMIT 1) as user1_photo,
       (SELECT filename FROM user_photos WHERE user_id = u2.id ORDER BY is_primary DESC, created_at ASC LIMIT 1) as user2_photo
     FROM candidate_matches cm
@@ -3636,6 +3640,7 @@ app.patch("/admin/matches/:id/status", async (req, res) => {
   const { status } = req.body;
   const validStatuses = [
     "scored", "potential_match", "expanded_potential_match", "waiting_for_photo", "waiting_for_response",
+    "blind_match_candidate",
     "waiting_first_rating", "waiting_second_rating", "approved_by_both",
     "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users",
     "approved_acquaintance"
@@ -3708,15 +3713,16 @@ app.post("/admin/matches/:id/prepare", async (req, res) => {
   const match = await pgQueryOne<any>("SELECT * FROM matches WHERE id = $1", [matchId]);
   if (!match) return res.status(404).json({ error: "Match not found" });
 
-  const allowedStatuses = ["approved_by_both", "waiting_first_rating", "waiting_second_rating"];
+  const allowedStatuses = ["approved_by_both", "waiting_first_rating", "waiting_second_rating", "blind_match_candidate"];
   if (!allowedStatuses.includes(match.status)) {
     return res.status(400).json({ error: `Cannot prepare match in status '${match.status}'` });
   }
 
+  const isBlind = match.status === "blind_match_candidate";
   await withTransaction(async (client) => {
     await client.query(
-      "UPDATE matches SET status = 'pre_match', updated_at = NOW() WHERE id = $1",
-      [match.id]
+      "UPDATE matches SET status = 'pre_match', is_blind_match = CASE WHEN $2 THEN TRUE ELSE is_blind_match END, updated_at = NOW() WHERE id = $1",
+      [match.id, isBlind]
     );
     await client.query(
       `UPDATE users SET user_status = 'pending_card', updated_at = NOW()
@@ -3725,7 +3731,7 @@ app.post("/admin/matches/:id/prepare", async (req, res) => {
     );
   });
 
-  return res.json({ success: true, match_id: match.id, status: "pre_match" });
+  return res.json({ success: true, match_id: match.id, status: "pre_match", is_blind_match: isBlind });
 });
 
 // POST /admin/matches/:id/send — Mark a match as sent/revealed to both users

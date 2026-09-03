@@ -392,7 +392,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [answeredQuestion, setAnsweredQuestion] = useState<{ question_text: string; answer: string } | null>(null);
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
   const [matchingProgress, setMatchingProgress] = useState<{ total_pool_profiles: number; scanned_profiles: number; status_text: string } | null>(null);
-  const [activeMatchCard, setActiveMatchCard] = useState<{ match_id: number; data: any; partner_name: string; partner_age: number | null; partner_city: string | null; my_name: string; partner_photo: string | null; my_photo: string | null } | null>(null);
+  const [activeMatchCard, setActiveMatchCard] = useState<{ match_id: number; data: any; partner_name: string; partner_age: number | null; partner_city: string | null; my_name: string; partner_photo: string | null; my_photo: string | null; is_blind_match?: boolean } | null>(null);
   const [matchCardViewed, setMatchCardViewed] = useState<boolean>(() => localStorage.getItem(`match_card_viewed_${user.id}`) === "true");
   const [insightCard, setInsightCard] = useState<{ mbti: { type: string | null; description: string | null }; allValues: { name: string; he: string; score: number; description: string }[]; allBigFive: { name: string; he: string; score: number; description: string }[] } | null>(null);
   const [fineTuneAnswered, setFineTuneAnswered] = useState<boolean>(() => localStorage.getItem(`fine_tune_${user.id}`) === "true");
