@@ -299,12 +299,12 @@ export async function runStage1(_db: Database.Database, options?: { skipMatchabl
   const getUserLastUpdate = (uid: number) => lastUpdateMap.get(uid) ?? "1970-01-01 00:00:00";
 
   // 6. Load existing candidate_matches for all pairs we care about
-  const existingRows = await queryAll<{ id: number; user_id: number; candidate_user_id: number; updated_at: string }>(
-    `SELECT id, user_id, candidate_user_id, updated_at FROM candidate_matches`
+  const existingRows = await queryAll<{ id: number; user_id: number; candidate_user_id: number; updated_at: string; location_expanded: boolean; age_expanded: boolean; status: string }>(
+    `SELECT id, user_id, candidate_user_id, updated_at, COALESCE(location_expanded, FALSE) as location_expanded, COALESCE(age_expanded, FALSE) as age_expanded, status FROM candidate_matches`
   );
-  const existingMap = new Map<string, { id: number; updated_at: string }>();
+  const existingMap = new Map<string, { id: number; updated_at: string; isExpanded: boolean; status: string }>();
   for (const e of existingRows) {
-    existingMap.set(`${e.user_id}:${e.candidate_user_id}`, { id: e.id, updated_at: e.updated_at });
+    existingMap.set(`${e.user_id}:${e.candidate_user_id}`, { id: e.id, updated_at: e.updated_at, isExpanded: e.location_expanded || e.age_expanded, status: e.status });
   }
 
   // 7. Compute filter results in-memory
@@ -346,7 +346,13 @@ export async function runStage1(_db: Database.Database, options?: { skipMatchabl
         else actions.push({ kind: "insert", aId: a.id, bId: b.id, aTs, bTs, locationExpanded: result.locationExpanded, ageExpanded: result.ageExpanded });
         pairsCreated++;
       } else if (existing) {
-        actions.push({ kind: "delete", id: existing.id });
+        // Don't delete expanded pairs during normal runs — they were created by expanded matching
+        // and should only be removed explicitly (via admin or expanded run)
+        if (!options?.expandedFilters && existing.isExpanded && existing.status !== 'pending_score') {
+          pairsSkipped++;
+        } else {
+          actions.push({ kind: "delete", id: existing.id });
+        }
       }
     }
   }
