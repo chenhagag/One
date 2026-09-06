@@ -102,7 +102,8 @@ const ALLOWED_ORIGINS = [
   "http://localhost:3000",         // local frontend dev
   "http://localhost:5173",         // Vite default
   "capacitor://localhost",         // Capacitor iOS
-  "http://localhost",              // Capacitor Android
+  "https://localhost",             // Capacitor Android (androidScheme: 'https')
+  "http://localhost",              // Capacitor Android (fallback)
 ].filter(Boolean) as string[];
 
 app.use(cors({
