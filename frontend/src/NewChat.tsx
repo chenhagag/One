@@ -459,6 +459,12 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           apiFetch(`/users/${user.id}/active-match-card`).then(r => r.json()).then(mc => {
             if (mc.match_card) {
               setActiveMatchCard(mc.match_card);
+              // Migrate old localStorage "true" → match_id so celebration banner doesn't re-show
+              const storedVal = localStorage.getItem(`match_card_viewed_${user.id}`);
+              if (storedVal && isNaN(parseInt(storedVal, 10))) {
+                localStorage.setItem(`match_card_viewed_${user.id}`, String(mc.match_card.match_id));
+                setMatchCardViewedId(mc.match_card.match_id);
+              }
               // Lightweight unread count check
               apiFetch(`/users/${user.id}/unread-count`).then(r => r.json()).then(uc => {
                 setUnreadMatchMessages(uc.unread_count || 0);
