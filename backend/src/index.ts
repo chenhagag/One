@@ -86,7 +86,7 @@ app.use(helmet({
       scriptSrc: ["'self'", "'unsafe-inline'"],   // Needed for inline React scripts
       styleSrc: ["'self'", "'unsafe-inline'"],    // Needed for inline styles
       imgSrc: ["'self'", "data:", "blob:", "https:"],
-      connectSrc: ["'self'", "https://auth.joinone.io", "https://*.supabase.co"],
+      connectSrc: ["'self'", "https://joinone.io", "https://auth.joinone.io", "https://*.supabase.co"],
       fontSrc: ["'self'", "https:", "data:"],
       frameSrc: ["'none'"],
     },
