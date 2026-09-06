@@ -1,12 +1,16 @@
 [
   {
-    "relation": ["delegate_permission/common.handle_all_urls"],
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
     "target": {
       "namespace": "android_app",
       "package_name": "io.joinone.app",
       "sha256_cert_fingerprints": [
         "CB:B8:1F:6D:A0:27:D9:7B:21:CB:D3:13:30:C8:3A:DF:4E:B7:72:4E:7D:46:00:54:31:BF:61:44:5D:7D:AC:6F",
-        "AC:15:2B:91:DA:00:FE:7A:15:40:8C:01:54:4E:6F:10:98:71:F1:EF:9C:49:2C:3D:85:35:AA:9A:4A:74:B1:D0"
+        "AC:15:2B:91:DA:00:FE:7A:15:40:8C:01:54:4E:6F:10:98:71:F1:EF:9C:49:2C:3D:85:35:AA:9A:4A:74:B1:D0",
+        "EE:6B:00:F3:84:68:F9:5B:DA:B2:40:FA:E9:90:FA:60:6F:68:DA:31:78:03:F6:75:04:CF:DB:78:B9:BB:F7:B5"
       ]
     }
   }
