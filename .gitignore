@@ -28,5 +28,9 @@ Picture Examples/
 # Temp files
 tmp_*
 
+# Android build artifacts
+*.apk
+*.aab
+
 # Claude Code local settings
 .claude/

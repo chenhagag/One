@@ -7,6 +7,8 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
     iosScheme: 'https',
+    url: 'https://joinone.io',
+    cleartext: false,
   },
   plugins: {
     SplashScreen: {
