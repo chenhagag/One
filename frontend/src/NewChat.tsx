@@ -701,7 +701,6 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
       }
     }
     setSending(false);
-    setTimeout(() => inputRef.current?.focus(), 50);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
