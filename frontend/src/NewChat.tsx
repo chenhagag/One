@@ -387,7 +387,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [bugText, setBugText] = useState("");
   const [bugSent, setBugSent] = useState(false);
   const [feedbackCategory, setFeedbackCategory] = useState<string>("");
-  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; admin_message_type: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null; has_past_matches: boolean; show_survey_banner: boolean; survey_partial: boolean; self_frozen: boolean }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, admin_message_type: null, pending_rating: false, in_matching_pool: false, match_card_consent: null, has_past_matches: false, show_survey_banner: false, survey_partial: false, self_frozen: false });
+  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; admin_message_type: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null; has_past_matches: boolean; show_survey_banner: boolean; survey_partial: boolean; self_frozen: boolean; active_nudge: { id: number; match_id: number; partner_name: string; partner_gender: string } | null }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, admin_message_type: null, pending_rating: false, in_matching_pool: false, match_card_consent: null, has_past_matches: false, show_survey_banner: false, survey_partial: false, self_frozen: false, active_nudge: null });
   const [systemQuestion, setSystemQuestion] = useState<{ id: number; question_text: string } | null>(null);
   const [answeredQuestion, setAnsweredQuestion] = useState<{ question_text: string; answer: string } | null>(null);
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
@@ -406,6 +406,11 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [insightInitialView, setInsightInitialView] = useState<"main" | "mbti" | "values" | "bigfive" | "enneagram" | "attachment">("main");
   const [insightResetKey, setInsightResetKey] = useState(0);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [nudgeStep, setNudgeStep] = useState<1 | 2 | 3>(1);
+  const [nudgeSelectedOptions, setNudgeSelectedOptions] = useState<string[]>([]);
+  const [nudgeFreeText, setNudgeFreeText] = useState("");
+  const [nudgeSubmitting, setNudgeSubmitting] = useState(false);
+  const [nudgeConfirmationType, setNudgeConfirmationType] = useState<"unseen" | "help" | "chat_only" | "not_interested" | "not_available" | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const loadGenRef = useRef(0); // Generation counter to prevent stale loadRecommendations responses
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -448,6 +453,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             show_survey_banner: !!data.show_survey_banner,
             survey_partial: !!data.survey_partial,
             self_frozen: !!data.self_frozen,
+            active_nudge: data.active_nudge || null,
           });
           setHasPastMatches(!!data.has_past_matches);
           setSystemQuestion(data.system_question || null);
@@ -1915,6 +1921,249 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   </div>
                 </div>
               )}
+
+              {/* Match nudge — check-in flow for unresponsive match partner */}
+              {screen === "home" && recommendations.active_nudge && (() => {
+                const n = recommendations.active_nudge!;
+                const isFemale = (recommendations.gender || user.gender) === "woman";
+                const gn = (m: string, f: string) => isFemale ? f : m;
+                const partnerIsFemale = n.partner_gender === "woman";
+                const pgn = (m: string, f: string) => partnerIsFemale ? f : m;
+
+                const helpOptionsA = [
+                  { key: "continue_here", label: `אני ${gn("מעדיף", "מעדיפה")} להמשיך להתכתב כאן.` },
+                  { key: "coordinate_time", label: `${gn("אשמח", "אשמח")} ש-One ${gn("יעזור", "יעזור")} לתאם זמן שבו ${gn("שנינו פנויים", "שתינו פנויות")} להתכתב כאן.` },
+                  { key: "whatsapp", label: `${gn("אשמח", "אשמח")} לעבור לווטסאפ, אם גם ${pgn("הוא מעוניין", "היא מעוניינת")}.` },
+                  { key: "date", label: `${gn("אשמח", "אשמח")} ש-One ${gn("יעזור", "יעזור")} לתאם ${gn("לנו", "לנו")} דייט 🙂` },
+                  { key: "other", label: "משהו אחר" },
+                ];
+                const helpOptionsB = [
+                  { key: "not_interested", label: `אני לא ${gn("מעוניין", "מעוניינת")} להמשיך בהתאמה הזאת.` },
+                  { key: "not_available", label: `כרגע אני לא ${gn("פנוי", "פנויה")} להיכרות.` },
+                ];
+                const isGroupB = nudgeSelectedOptions.some(o => o === "not_interested" || o === "not_available");
+                const isGroupA = nudgeSelectedOptions.some(o => !["not_interested", "not_available"].includes(o));
+
+                const handleOptionToggle = (key: string) => {
+                  const isBOption = key === "not_interested" || key === "not_available";
+                  setNudgeSelectedOptions(prev => {
+                    if (prev.includes(key)) return prev.filter(k => k !== key);
+                    if (isBOption) return [key]; // B options are exclusive — clear everything
+                    return [...prev.filter(k => k !== "not_interested" && k !== "not_available"), key]; // A clears B
+                  });
+                };
+
+                const handleSubmit = async () => {
+                  if (nudgeSelectedOptions.length === 0) return;
+                  setNudgeSubmitting(true);
+                  try {
+                    await apiFetch(`/users/${user.id}/nudge-response`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        nudge_id: n.id,
+                        saw_message: true,
+                        help_options: nudgeSelectedOptions,
+                        free_text: nudgeSelectedOptions.includes("other") ? nudgeFreeText : undefined,
+                      }),
+                    });
+                    // Determine confirmation type
+                    if (nudgeSelectedOptions.includes("not_interested")) {
+                      setNudgeConfirmationType("not_interested");
+                    } else if (nudgeSelectedOptions.includes("not_available")) {
+                      setNudgeConfirmationType("not_available");
+                    } else if (nudgeSelectedOptions.length === 1 && nudgeSelectedOptions[0] === "continue_here") {
+                      setNudgeConfirmationType("chat_only");
+                    } else {
+                      setNudgeConfirmationType("help");
+                    }
+                    setNudgeStep(3);
+                  } catch { /* ignore */ }
+                  setNudgeSubmitting(false);
+                };
+
+                const handleUnseen = async () => {
+                  setNudgeSubmitting(true);
+                  try {
+                    await apiFetch(`/users/${user.id}/nudge-response`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ nudge_id: n.id, saw_message: false }),
+                    });
+                    setNudgeConfirmationType("unseen");
+                    setNudgeStep(3);
+                  } catch { /* ignore */ }
+                  setNudgeSubmitting(false);
+                };
+
+                const clearNudge = () => {
+                  setRecommendations(prev => ({ ...prev, active_nudge: null }));
+                  setNudgeStep(1);
+                  setNudgeSelectedOptions([]);
+                  setNudgeFreeText("");
+                  setNudgeConfirmationType(null);
+                };
+
+                return (
+                  <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
+                    <div style={{ background: "#fff", borderRadius: 14, padding: "18px 20px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #e5e7eb" }}>
+
+                      {/* Step 1: Did you see the message? */}
+                      {nudgeStep === 1 && (
+                        <>
+                          <p style={{ fontSize: 14, color: "#1a1a2e", lineHeight: 1.8, margin: 0, fontWeight: 500 }}>
+                            היי 🙂 רצינו לוודא שהכול תקין עם ההתאמה שלך עם {n.partner_name}.
+                          </p>
+                          <p style={{ fontSize: 14, color: "#1a1a2e", lineHeight: 1.8, margin: "6px 0 0", fontWeight: 500 }}>
+                            ממתינה לך הודעה {pgn("ממנו", "ממנה")} — האם {gn("ראית", "ראית")} אותה?
+                          </p>
+                          <div style={{ display: "flex", gap: 8, marginTop: 14, justifyContent: "center" }}>
+                            <button
+                              disabled={nudgeSubmitting}
+                              onClick={() => setNudgeStep(2)}
+                              style={{ padding: "8px 20px", fontSize: 13, fontWeight: 600, color: "#fff", background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)", border: "none", borderRadius: 8, cursor: "pointer" }}
+                            >כן, {gn("ראיתי", "ראיתי")}</button>
+                            <button
+                              disabled={nudgeSubmitting}
+                              onClick={handleUnseen}
+                              style={{ padding: "8px 20px", fontSize: 13, fontWeight: 500, color: "#7c6fae", background: "none", border: "1px solid #e0ddf5", borderRadius: 8, cursor: "pointer" }}
+                            >לא, לא {gn("ראיתי", "ראיתי")}</button>
+                          </div>
+                        </>
+                      )}
+
+                      {/* Step 2: Help options */}
+                      {nudgeStep === 2 && (
+                        <>
+                          <p style={{ fontSize: 14, color: "#1a1a2e", lineHeight: 1.8, margin: "0 0 4px", fontWeight: 500 }}>
+                            האם יש משהו שיכול לעזור {gn("לכם", "לכן")} להמשיך להכיר?
+                          </p>
+                          <p style={{ fontSize: 12, color: "#9ca3af", margin: "0 0 12px" }}>
+                            אפשר לבחור יותר מאפשרות אחת.
+                          </p>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            {helpOptionsA.map(opt => (
+                              <label key={opt.key} style={{ display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer", opacity: isGroupB ? 0.4 : 1, padding: "6px 0" }}>
+                                <input
+                                  type="checkbox"
+                                  checked={nudgeSelectedOptions.includes(opt.key)}
+                                  onChange={() => handleOptionToggle(opt.key)}
+                                  style={{ marginTop: 3, accentColor: "#6366f1" }}
+                                />
+                                <span style={{ fontSize: 13, color: "#1a1a2e", lineHeight: 1.6 }}>{opt.label}</span>
+                              </label>
+                            ))}
+                            {nudgeSelectedOptions.includes("other") && (
+                              <textarea
+                                value={nudgeFreeText}
+                                onChange={e => setNudgeFreeText(e.target.value)}
+                                placeholder={`${gn("ספר", "ספרי")} לנו...`}
+                                style={{ width: "100%", minHeight: 60, border: "1px solid #e0ddf5", borderRadius: 8, padding: "8px 12px", fontSize: 13, resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
+                              />
+                            )}
+                            <div style={{ height: 1, background: "#e5e7eb", margin: "6px 0" }} />
+                            {helpOptionsB.map(opt => (
+                              <label key={opt.key} style={{ display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer", opacity: isGroupA ? 0.4 : 1, padding: "6px 0" }}>
+                                <input
+                                  type="checkbox"
+                                  checked={nudgeSelectedOptions.includes(opt.key)}
+                                  onChange={() => handleOptionToggle(opt.key)}
+                                  style={{ marginTop: 3, accentColor: "#6366f1" }}
+                                />
+                                <span style={{ fontSize: 13, color: "#1a1a2e", lineHeight: 1.6 }}>{opt.label}</span>
+                              </label>
+                            ))}
+                          </div>
+                          <p style={{ fontSize: 11, color: "#9ca3af", lineHeight: 1.7, margin: "14px 0 0" }}>
+                            התשובות שלך כאן פרטיות ולא יוצגו לצד השני. אם {gn("תבחר", "תבחרי")} בדרך אחרת להמשיך להכיר, נבדוק {gn("איתך", "איתך")} את ההמשך ונברר גם את {pgn("רצונו", "רצונה")}. מספר טלפון יועבר רק באישור מפורש שלך.
+                          </p>
+                          <button
+                            disabled={nudgeSubmitting || nudgeSelectedOptions.length === 0}
+                            onClick={handleSubmit}
+                            style={{ display: "block", width: "100%", marginTop: 14, padding: "10px 20px", fontSize: 14, fontWeight: 600, color: "#fff", background: nudgeSelectedOptions.length === 0 ? "#c4b5fd" : "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)", border: "none", borderRadius: 10, cursor: nudgeSelectedOptions.length === 0 ? "default" : "pointer", fontFamily: "inherit" }}
+                          >
+                            שליחת התשובה
+                          </button>
+                        </>
+                      )}
+
+                      {/* Step 3: Confirmation */}
+                      {nudgeStep === 3 && (
+                        <>
+                          {nudgeConfirmationType === "unseen" && (
+                            <p style={{ fontSize: 14, color: "#1a1a2e", lineHeight: 1.8, margin: 0, fontWeight: 500 }}>
+                              תודה {gn("שעדכנת", "שעדכנת")} אותנו. אנחנו מעבירים את זה לצוות הטכני לבדיקה 🙂
+                            </p>
+                          )}
+                          {nudgeConfirmationType === "help" && (
+                            <p style={{ fontSize: 14, color: "#1a1a2e", lineHeight: 1.8, margin: 0, fontWeight: 500 }}>
+                              תודה, קיבלנו את התשובה שלך 🙂 נבדוק איך אפשר לעזור ונחזור אלייך לגבי ההמשך.
+                            </p>
+                          )}
+                          {nudgeConfirmationType === "chat_only" && (
+                            <>
+                              <p style={{ fontSize: 14, color: "#1a1a2e", lineHeight: 1.8, margin: 0, fontWeight: 500 }}>
+                                מעולה! ההודעה של {n.partner_name} ממתינה לך 🙂
+                              </p>
+                              <button
+                                onClick={() => { clearNudge(); setScreen("match_hub"); }}
+                                style={{ display: "block", margin: "12px auto 0", padding: "8px 24px", fontSize: 13, fontWeight: 600, color: "#fff", background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)", border: "none", borderRadius: 8, cursor: "pointer" }}
+                              >
+                                {gn("פתח", "פתחי")} את השיחה 💬
+                              </button>
+                            </>
+                          )}
+                          {nudgeConfirmationType === "not_interested" && (
+                            <>
+                              <p style={{ fontSize: 14, color: "#1a1a2e", lineHeight: 1.8, margin: "0 0 6px", fontWeight: 500 }}>
+                                קיבלנו. הצד השני יראה שההתאמה הסתיימה, אבל לא את התשובה הפרטית שלך.
+                              </p>
+                              <p style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.7, margin: "0 0 12px" }}>
+                                {gn("רוצה", "רוצה")} לסיים את ההתאמה?
+                              </p>
+                              <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                                <button
+                                  onClick={() => { clearNudge(); setScreen("cancel_match"); }}
+                                  style={{ padding: "8px 20px", fontSize: 13, fontWeight: 600, color: "#fff", background: "#ef4444", border: "none", borderRadius: 8, cursor: "pointer" }}
+                                >כן, {gn("סיים", "סיימי")} התאמה</button>
+                                <button
+                                  onClick={clearNudge}
+                                  style={{ padding: "8px 20px", fontSize: 13, fontWeight: 500, color: "#7c6fae", background: "none", border: "1px solid #e0ddf5", borderRadius: 8, cursor: "pointer" }}
+                                >לא עכשיו</button>
+                              </div>
+                            </>
+                          )}
+                          {nudgeConfirmationType === "not_available" && (
+                            <>
+                              <p style={{ fontSize: 14, color: "#1a1a2e", lineHeight: 1.8, margin: "0 0 12px", fontWeight: 500 }}>
+                                קיבלנו. אם {gn("תרצה", "תרצי")}, אפשר להקפיא את החיפוש במסך ההגדרות ולחזור כש{gn("שתהיה פנוי", "שתהיי פנויה")}.
+                              </p>
+                              <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                                <button
+                                  onClick={() => { clearNudge(); setScreen("settings"); }}
+                                  style={{ padding: "8px 20px", fontSize: 13, fontWeight: 600, color: "#fff", background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)", border: "none", borderRadius: 8, cursor: "pointer" }}
+                                >{gn("עבור", "עברי")} להגדרות</button>
+                                <button
+                                  onClick={clearNudge}
+                                  style={{ padding: "8px 20px", fontSize: 13, fontWeight: 500, color: "#7c6fae", background: "none", border: "1px solid #e0ddf5", borderRadius: 8, cursor: "pointer" }}
+                                >סגור</button>
+                              </div>
+                            </>
+                          )}
+                          {/* Auto-dismiss for unseen/help after viewing */}
+                          {(nudgeConfirmationType === "unseen" || nudgeConfirmationType === "help") && (
+                            <button
+                              onClick={clearNudge}
+                              style={{ display: "block", margin: "12px auto 0", padding: "6px 20px", fontSize: 13, color: "#7c6fae", background: "none", border: "1px solid #e0ddf5", borderRadius: 8, cursor: "pointer", fontWeight: 500 }}
+                            >סגור</button>
+                          )}
+                        </>
+                      )}
+
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Admin message — shown above all recommendations */}
               {screen === "home" && recommendations.admin_message && (

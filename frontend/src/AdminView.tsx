@@ -4664,6 +4664,36 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                 {matchDetail.match_status === "in_match" && matchDetail.match_card_sent_at && (
                   <span style={{ fontSize: 12, color: "#28a745", fontWeight: 600 }}>✓ כרטיס נשלח</span>
                 )}
+                {matchDetail.match_status === "in_match" && (
+                  <>
+                    <button
+                      style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#f59e0b", color: "#fff" }}
+                      onClick={async () => {
+                        if (!confirm(`לשלוח בירור ל-${matchDetail.user1_name}?`)) return;
+                        try {
+                          await apiFetch(`/admin/matches/${matchDetail.match_id}/nudge`, {
+                            method: "POST", headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ user_id: matchDetail.user_id }),
+                          });
+                          alert("בירור נשלח בהצלחה");
+                        } catch (err: any) { alert("שגיאה: " + (err.message || "unknown")); }
+                      }}
+                    >שלח בירור ל-{matchDetail.user1_name}</button>
+                    <button
+                      style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#f59e0b", color: "#fff" }}
+                      onClick={async () => {
+                        if (!confirm(`לשלוח בירור ל-${matchDetail.user2_name}?`)) return;
+                        try {
+                          await apiFetch(`/admin/matches/${matchDetail.match_id}/nudge`, {
+                            method: "POST", headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ user_id: matchDetail.candidate_user_id }),
+                          });
+                          alert("בירור נשלח בהצלחה");
+                        } catch (err: any) { alert("שגיאה: " + (err.message || "unknown")); }
+                      }}
+                    >שלח בירור ל-{matchDetail.user2_name}</button>
+                  </>
+                )}
                 {(matchDetail.match_status === "waiting_first_rating" || matchDetail.match_status === "waiting_second_rating") && matchDetail.user1_photo_count === 0 && matchDetail.user2_photo_count === 0 && (
                   <button
                     style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#d97706", color: "#fff" }}
@@ -5809,9 +5839,11 @@ function OutreachLogTab() {
   const [questions, setQuestions] = useState<any[]>([]);
   const [cancellations, setCancellations] = useState<any[]>([]);
   const [adminMessages, setAdminMessages] = useState<any[]>([]);
+  const [nudges, setNudges] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [ratingFilter, setRatingFilter] = useState<"all" | "pending">("all");
   const [questionFilter, setQuestionFilter] = useState<"all" | "pending">("all");
+  const [nudgeFilter, setNudgeFilter] = useState<"all" | "pending">("all");
 
   useEffect(() => {
     apiFetch("/admin/outreach-log")
@@ -5821,6 +5853,7 @@ function OutreachLogTab() {
         setQuestions(Array.isArray(data.questions) ? data.questions : []);
         setCancellations(Array.isArray(data.cancellations) ? data.cancellations : []);
         setAdminMessages(Array.isArray(data.adminMessages) ? data.adminMessages : []);
+        setNudges(Array.isArray(data.nudges) ? data.nudges : []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -5882,6 +5915,10 @@ function OutreachLogTab() {
   const filteredQuestions = questionFilter === "pending"
     ? questions.filter(q => !q.answer)
     : questions;
+
+  const filteredNudges = nudgeFilter === "pending"
+    ? nudges.filter(n => n.status === "pending" || (!n.admin_seen && n.status !== "pending"))
+    : nudges;
 
   return (
     <div>
@@ -6106,6 +6143,84 @@ function OutreachLogTab() {
               ))}
               {cancellations.length === 0 && (
                 <tr><td colSpan={8} style={{ ...s.td, textAlign: "center", color: "#9ca3af" }}>אין ביטולים</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Section 5: Match Nudges */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+          <h3 style={{ margin: 0 }}>בירורי התאמות ({filteredNudges.length})</h3>
+          <button
+            style={{ ...s.tab, ...(nudgeFilter === "all" ? s.tabActive : {}), padding: "4px 10px", fontSize: 12 }}
+            onClick={() => setNudgeFilter("all")}
+          >הכל</button>
+          <button
+            style={{ ...s.tab, ...(nudgeFilter === "pending" ? s.tabActive : {}), padding: "4px 10px", fontSize: 12 }}
+            onClick={() => setNudgeFilter("pending")}
+          >ממתינים</button>
+        </div>
+        <div style={s.scrollWrap}>
+          <table style={s.table}>
+            <thead>
+              <tr>
+                <th style={s.th}>התאמה</th>
+                <th style={s.th}>נשלח ל</th>
+                <th style={s.th}>הצד השני</th>
+                <th style={s.th}>תאריך שליחה</th>
+                <th style={s.th}>סטטוס</th>
+                <th style={s.th}>תשובה</th>
+                <th style={s.th}>פעולות</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredNudges.map((nd: any) => {
+                const nudgeStatusMap: Record<string, { label: string; bg: string; color: string }> = {
+                  pending: { label: "ממתין", bg: "#fef3c7", color: "#92400e" },
+                  saw_no: { label: "לא ראתה", bg: "#fee2e2", color: "#991b1b" },
+                  responded: { label: "ענתה", bg: "#d1fae5", color: "#065f46" },
+                  dismissed: { label: "בוטל", bg: "#f3f4f6", color: "#374151" },
+                };
+                const si = nudgeStatusMap[nd.status] || { label: nd.status, bg: "#f3f4f6", color: "#374151" };
+                const optionLabels: Record<string, string> = {
+                  continue_here: "להמשיך כאן",
+                  coordinate_time: "תיאום זמן",
+                  whatsapp: "מעבר לווטסאפ",
+                  date: "תיאום דייט",
+                  other: "משהו אחר",
+                  not_interested: "לא מעוניינת",
+                  not_available: "לא פנויה כרגע",
+                };
+                const responseText = nd.help_options
+                  ? nd.help_options.map((o: string) => optionLabels[o] || o).join(", ") + (nd.free_text ? ` — "${nd.free_text}"` : "")
+                  : nd.saw_message === false ? "דיווח: לא ראתה הודעה" : "—";
+                const isUnseen = !nd.admin_seen && nd.status !== "pending";
+                return (
+                  <tr key={nd.id} style={{ background: isUnseen ? "#fffbeb" : undefined }}>
+                    <td style={s.td}>{nd.match_id}</td>
+                    <td style={s.td}>{nd.user_name} ({nd.user_id})</td>
+                    <td style={s.td}>{nd.partner_name} ({nd.partner_id})</td>
+                    <td style={{ ...s.td, whiteSpace: "nowrap" }}>{fmtDate(nd.created_at)}</td>
+                    <td style={s.td}><span style={{ background: si.bg, color: si.color, padding: "2px 8px", borderRadius: 4, fontSize: 12, fontWeight: 600 }}>{si.label}</span></td>
+                    <td style={{ ...s.td, maxWidth: 250, whiteSpace: "normal", wordBreak: "break-word" }}>{responseText}</td>
+                    <td style={s.td}>
+                      {isUnseen && (
+                        <button
+                          style={{ padding: "4px 10px", fontSize: 11, border: "1px solid #d1d5db", borderRadius: 4, cursor: "pointer", background: "#fff" }}
+                          onClick={async () => {
+                            await apiFetch(`/admin/nudges/${nd.id}/mark-seen`, { method: "POST" });
+                            setNudges(prev => prev.map(n => n.id === nd.id ? { ...n, admin_seen: true } : n));
+                          }}
+                        >ראיתי</button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              {filteredNudges.length === 0 && (
+                <tr><td colSpan={7} style={{ ...s.td, textAlign: "center", color: "#9ca3af" }}>אין בירורים</td></tr>
               )}
             </tbody>
           </table>

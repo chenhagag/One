@@ -4427,7 +4427,14 @@ app.get("/admin/outreach-log", async (_req, res) => {
       WHERE u.admin_message IS NOT NULL OR u.admin_message_responded_at IS NOT NULL
       ORDER BY u.admin_message_sent_at DESC NULLS LAST
     `);
-    return res.json({ ratings, questions, cancellations, adminMessages });
+    const nudges = await pgQueryAll(`
+      SELECT mn.*, u.first_name as user_name, p.first_name as partner_name
+      FROM match_nudges mn
+      JOIN users u ON u.id = mn.user_id
+      JOIN users p ON p.id = mn.partner_id
+      ORDER BY mn.created_at DESC
+    `);
+    return res.json({ ratings, questions, cancellations, adminMessages, nudges });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -4487,6 +4494,118 @@ app.get("/admin/conversation-responses/pending", async (_req, res) => {
     ORDER BY u.admin_message_responded_at DESC
   `);
   return res.json(rows);
+});
+
+// POST /admin/matches/:id/nudge — Admin triggers check-in nudge for unresponsive match partner
+app.post("/admin/matches/:id/nudge", async (req, res) => {
+  try {
+    const matchId = parseInt(req.params.id, 10);
+    const { user_id } = req.body;
+    if (!user_id) return res.status(400).json({ error: "user_id required" });
+
+    const match = await pgQueryOne<any>("SELECT * FROM matches WHERE id = $1", [matchId]);
+    if (!match) return res.status(404).json({ error: "Match not found" });
+    if (match.status !== "in_match") return res.status(400).json({ error: "Match is not active (in_match)" });
+
+    const targetUserId = parseInt(user_id, 10);
+    if (match.user1_id !== targetUserId && match.user2_id !== targetUserId) {
+      return res.status(400).json({ error: "User is not part of this match" });
+    }
+    const partnerId = match.user1_id === targetUserId ? match.user2_id : match.user1_id;
+
+    // Check no existing pending nudge
+    const existing = await pgQueryOne<any>(
+      "SELECT id FROM match_nudges WHERE match_id = $1 AND user_id = $2 AND status = 'pending'",
+      [matchId, targetUserId]
+    );
+    if (existing) return res.status(400).json({ error: "Pending nudge already exists for this user on this match" });
+
+    const nudge = await pgQueryOne<any>(
+      `INSERT INTO match_nudges (match_id, user_id, partner_id) VALUES ($1, $2, $3) RETURNING *`,
+      [matchId, targetUserId, partnerId]
+    );
+    return res.json({ success: true, nudge });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /users/:id/active-nudge — Check if user has a pending nudge
+app.get("/users/:id/active-nudge", requireUserAuth, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const nudge = await pgQueryOne<any>(
+      `SELECT mn.id, mn.match_id, mn.partner_id, mn.status,
+        p.first_name as partner_name, p.gender as partner_gender
+       FROM match_nudges mn
+       JOIN users p ON p.id = mn.partner_id
+       WHERE mn.user_id = $1 AND mn.status = 'pending'
+       ORDER BY mn.created_at DESC LIMIT 1`,
+      [userId]
+    );
+    return res.json({ nudge: nudge || null });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /users/:id/nudge-response — User responds to a nudge
+app.post("/users/:id/nudge-response", requireUserAuth, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const { nudge_id, saw_message, help_options, free_text } = req.body;
+    if (!nudge_id) return res.status(400).json({ error: "nudge_id required" });
+
+    const nudge = await pgQueryOne<any>(
+      "SELECT * FROM match_nudges WHERE id = $1 AND user_id = $2",
+      [nudge_id, userId]
+    );
+    if (!nudge) return res.status(404).json({ error: "Nudge not found" });
+    if (nudge.status !== "pending") return res.status(400).json({ error: "Nudge already responded to" });
+
+    // Verify match is still active
+    const match = await pgQueryOne<any>("SELECT status FROM matches WHERE id = $1", [nudge.match_id]);
+    if (!match || match.status !== "in_match") {
+      // Match ended — dismiss nudge silently
+      await pgQueryOne("UPDATE match_nudges SET status = 'dismissed', responded_at = NOW() WHERE id = $1", [nudge_id]);
+      return res.json({ ok: true, dismissed: true });
+    }
+
+    // Step 1: saw_message answer
+    if (saw_message === false) {
+      await pgQueryOne(
+        "UPDATE match_nudges SET saw_message = FALSE, status = 'saw_no', responded_at = NOW() WHERE id = $1",
+        [nudge_id]
+      );
+      // Create report for admin
+      const partner = await pgQueryOne<any>("SELECT first_name FROM users WHERE id = $1", [nudge.partner_id]);
+      await pgQueryOne(
+        "INSERT INTO bug_reports (user_id, report_text) VALUES ($1, $2)",
+        [userId, `[nudge_unseen] משתמש/ת דיווח/ה שלא ראתה הודעה מ-${partner?.first_name || "?"} בהתאמה #${nudge.match_id}`]
+      );
+      return res.json({ ok: true, status: "saw_no" });
+    }
+
+    // Step 2: help options (saw_message = true)
+    if (help_options && Array.isArray(help_options)) {
+      await pgQueryOne(
+        `UPDATE match_nudges SET saw_message = TRUE, help_options = $1, free_text = $2, status = 'responded', responded_at = NOW() WHERE id = $3`,
+        [help_options, free_text || null, nudge_id]
+      );
+      return res.json({ ok: true, status: "responded" });
+    }
+
+    return res.status(400).json({ error: "Invalid response — provide saw_message or help_options" });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /admin/nudges/:id/mark-seen — Admin marks nudge response as seen
+app.post("/admin/nudges/:id/mark-seen", async (req, res) => {
+  const nudgeId = parseInt(req.params.id, 10);
+  await pgQueryOne("UPDATE match_nudges SET admin_seen = TRUE WHERE id = $1", [nudgeId]);
+  return res.json({ ok: true });
 });
 
 // POST /admin/matches/:id/mark-rating-seen — Admin marks rating as seen
@@ -5015,6 +5134,17 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       [userId]
     ) || null;
 
+    // Check for active nudge (check-in flow for unresponsive match partner)
+    const activeNudge = await pgQueryOne<any>(
+      `SELECT mn.id, mn.match_id, mn.partner_id, mn.status,
+        p.first_name as partner_name, p.gender as partner_gender
+       FROM match_nudges mn
+       JOIN users p ON p.id = mn.partner_id
+       WHERE mn.user_id = $1 AND mn.status = 'pending'
+       ORDER BY mn.created_at DESC LIMIT 1`,
+      [userId]
+    );
+
     // Check for pending match rating (sent specifically to this user by admin)
     const pendingMatch = await pgQueryOne<{ id: number }>(
       `SELECT id FROM matches
@@ -5069,6 +5199,12 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       show_survey_banner: showSurveyBanner,
       survey_partial: surveyRow && !surveyRow.completed ? true : false,
       self_frozen: !!profileRow?.self_frozen,
+      active_nudge: activeNudge ? {
+        id: activeNudge.id,
+        match_id: activeNudge.match_id,
+        partner_name: activeNudge.partner_name,
+        partner_gender: activeNudge.partner_gender,
+      } : null,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

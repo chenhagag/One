@@ -1213,4 +1213,25 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       END IF;
     END $$;
   `);
+
+  // ── match_nudges — check-in flow for unresponsive match partners ──
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS match_nudges (
+      id              SERIAL PRIMARY KEY,
+      match_id        INTEGER NOT NULL REFERENCES matches(id),
+      user_id         INTEGER NOT NULL REFERENCES users(id),
+      partner_id      INTEGER NOT NULL REFERENCES users(id),
+      status          TEXT DEFAULT 'pending',
+      saw_message     BOOLEAN,
+      help_options    TEXT[],
+      free_text       TEXT,
+      admin_seen      BOOLEAN DEFAULT FALSE,
+      created_at      TIMESTAMPTZ DEFAULT NOW(),
+      responded_at    TIMESTAMPTZ
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_match_nudges_active
+      ON match_nudges (match_id, user_id)
+      WHERE status = 'pending';
+  `);
 }
