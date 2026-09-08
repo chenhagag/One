@@ -1628,6 +1628,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             <div className="nc-chat-area nc-screen-fade" key={`chat-${screen}-${channel}`} style={styles.chatArea}>
               {screen === "home" && (() => {
                 const allChatsCompleted = closedChannels["new_chat"] && recommendations.has_cognitive && recommendations.has_taste_info;
+                const hideIntro = allChatsCompleted || recommendations.in_matching_pool || recommendations.chat_count > 0;
                 return (
                   <div style={styles.welcomeBlock}>
                     <img src="/iconOnly.png" alt="" style={styles.welcomeIcon} />
@@ -1635,7 +1636,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     <p style={styles.welcomeText}>
                       העוזר האישי שלך למציאת התאמה מדויקת ומשמעותית.
                     </p>
-                    {!allChatsCompleted && (
+                    {!hideIntro && (
                       <>
                         <p style={styles.welcomeText}>
                           איך זה עובד? נעבור יחד תהליך היכרות באמצעות שיחה, ובסיומו המערכת תמצא עבורך התאמה אחת מדויקת, המבוססת על התאמה פסיכולוגית ואישיותית עמוקה.
