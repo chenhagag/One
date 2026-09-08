@@ -6201,7 +6201,7 @@ function OutreachLogTab() {
                 const isExpanded = expandedNudgeId === nd.id;
                 const hasResponse = nd.status !== "pending";
                 return (
-                  <React.Fragment key={nd.id}>
+                  <Fragment key={nd.id}>
                     <tr
                       style={{ background: isUnseen ? "#fffbeb" : undefined, cursor: hasResponse ? "pointer" : undefined }}
                       onClick={() => hasResponse && setExpandedNudgeId(isExpanded ? null : nd.id)}
@@ -6254,7 +6254,7 @@ function OutreachLogTab() {
                         </td>
                       </tr>
                     )}
-                  </React.Fragment>
+                  </Fragment>
                 );
               })}
               {filteredNudges.length === 0 && (
