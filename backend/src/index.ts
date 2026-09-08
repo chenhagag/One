@@ -381,7 +381,7 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
     user_metadata?.full_name || user_metadata?.name || email.split("@")[0];
 
   // Device info from frontend
-  const { device, pwa_installed, dark_mode } = req.body || {};
+  const { device, pwa_installed, dark_mode, native_app } = req.body || {};
 
   try {
     // Update device info helper — accumulates unique devices seen (dedup by device+pwa)
@@ -400,13 +400,14 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
           `SELECT devices_seen FROM users WHERE id = $1`, [userId]
         );
         const arr: any[] = Array.isArray(existing?.devices_seen) ? existing.devices_seen : [];
-        const idx = arr.findIndex((d: any) => d.device === device && d.pwa === pwa);
+        const nativeFlag = !!native_app;
+        const idx = arr.findIndex((d: any) => d.device === device && d.pwa === pwa && d.native === nativeFlag);
         if (idx >= 0) {
           // Update last_seen date for existing entry
           arr[idx].last_seen = today;
         } else {
           // Add new entry
-          arr.push({ device, pwa, first_seen: today, last_seen: today });
+          arr.push({ device, pwa, native: nativeFlag, first_seen: today, last_seen: today });
         }
         await pgQueryAll(
           `UPDATE users SET devices_seen = $1::jsonb WHERE id = $2`,

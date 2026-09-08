@@ -649,18 +649,18 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
         <td style={s.td}>
           {(() => {
             const raw: any[] = Array.isArray(u.devices_seen) && u.devices_seen.length > 0 ? u.devices_seen : (u.last_device ? [{ device: u.last_device, pwa: u.pwa_installed }] : []);
-            // Dedup by device+pwa (in case old entries with dates exist)
+            // Dedup by device+pwa+native (in case old entries with dates exist)
             const seen = new Set<string>();
             const devices: any[] = [];
             for (const d of raw) {
-              const key = `${d.device}|${d.pwa}`;
+              const key = `${d.device}|${d.pwa}|${d.native}`;
               if (!seen.has(key)) { seen.add(key); devices.push(d); }
             }
             if (devices.length === 0) return "-";
             return devices.map((d: any, i: number) => (
-              <span key={i} style={{ ...s.badge, fontSize: 10, marginRight: 3, background: d.device === "iphone" ? "#e0e7ff" : d.device === "android" ? "#d1fae5" : "#f3f4f6" }}>
-                {d.device === "iphone" ? "🍎" : d.device === "android" ? "🤖" : "🖥️"}{" "}
-                {d.device}{d.pwa ? " (PWA)" : ""}{u.dark_mode ? " 🌙" : ""}
+              <span key={i} style={{ ...s.badge, fontSize: 10, marginRight: 3, background: d.native ? "#fef3c7" : d.device === "iphone" ? "#e0e7ff" : d.device === "android" ? "#d1fae5" : "#f3f4f6" }}>
+                {d.native ? "📱" : d.device === "iphone" ? "🍎" : d.device === "android" ? "🤖" : "🖥️"}{" "}
+                {d.device}{d.native ? " (App)" : d.pwa ? " (PWA)" : ""}{u.dark_mode ? " 🌙" : ""}
               </span>
             ));
           })()}
