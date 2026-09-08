@@ -382,6 +382,9 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
 
   // Device info from frontend
   const { device, pwa_installed, dark_mode, native_app } = req.body || {};
+  // Android WebView sends X-Requested-With: <package_name> automatically
+  const xRequestedWith = req.get("x-requested-with") || "";
+  const isNativeFromHeader = xRequestedWith === "io.joinone.app";
 
   try {
     // Update device info helper — accumulates unique devices seen (dedup by device+pwa)
@@ -400,7 +403,7 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
           `SELECT devices_seen FROM users WHERE id = $1`, [userId]
         );
         const arr: any[] = Array.isArray(existing?.devices_seen) ? existing.devices_seen : [];
-        const nativeFlag = !!native_app;
+        const nativeFlag = !!native_app || isNativeFromHeader;
         const idx = arr.findIndex((d: any) => d.device === device && d.pwa === pwa && d.native === nativeFlag);
         if (idx >= 0) {
           // Update last_seen date for existing entry
