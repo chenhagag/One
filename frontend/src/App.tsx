@@ -99,7 +99,8 @@ function getDeviceInfo(): { device: string; pwa_installed: boolean; dark_mode: b
   if (/iphone|ipad|ipod/i.test(ua)) device = "iphone";
   else if (/android/i.test(ua)) device = "android";
   // Detect native app: Capacitor bridge (injected by native shell even with server.url)
-  const nativeApp = isNativeApp() || !!(window as any).Capacitor?.isNativePlatform;
+  const cap = (window as any).Capacitor;
+  const nativeApp = isNativeApp() || (cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform());
   return { device, pwa_installed: isStandalone, dark_mode: darkMode, native_app: nativeApp };
 }
 
