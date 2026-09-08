@@ -5844,6 +5844,7 @@ function OutreachLogTab() {
   const [ratingFilter, setRatingFilter] = useState<"all" | "pending">("all");
   const [questionFilter, setQuestionFilter] = useState<"all" | "pending">("all");
   const [nudgeFilter, setNudgeFilter] = useState<"all" | "pending">("all");
+  const [expandedNudgeId, setExpandedNudgeId] = useState<number | null>(null);
 
   useEffect(() => {
     apiFetch("/admin/outreach-log")
@@ -6193,30 +6194,67 @@ function OutreachLogTab() {
                   not_interested: "לא מעוניינת",
                   not_available: "לא פנויה כרגע",
                 };
-                const responseText = nd.help_options
-                  ? nd.help_options.map((o: string) => optionLabels[o] || o).join(", ") + (nd.free_text ? ` — "${nd.free_text}"` : "")
-                  : nd.saw_message === false ? "דיווח: לא ראתה הודעה" : "—";
+                const responseShort = nd.help_options
+                  ? nd.help_options.map((o: string) => optionLabels[o] || o).join(", ")
+                  : nd.saw_message === false ? "לא ראתה הודעה" : "—";
                 const isUnseen = !nd.admin_seen && nd.status !== "pending";
+                const isExpanded = expandedNudgeId === nd.id;
+                const hasResponse = nd.status !== "pending";
                 return (
-                  <tr key={nd.id} style={{ background: isUnseen ? "#fffbeb" : undefined }}>
-                    <td style={s.td}>{nd.match_id}</td>
-                    <td style={s.td}>{nd.user_name} ({nd.user_id})</td>
-                    <td style={s.td}>{nd.partner_name} ({nd.partner_id})</td>
-                    <td style={{ ...s.td, whiteSpace: "nowrap" }}>{fmtDate(nd.created_at)}</td>
-                    <td style={s.td}><span style={{ background: si.bg, color: si.color, padding: "2px 8px", borderRadius: 4, fontSize: 12, fontWeight: 600 }}>{si.label}</span></td>
-                    <td style={{ ...s.td, maxWidth: 250, whiteSpace: "normal", wordBreak: "break-word" }}>{responseText}</td>
-                    <td style={s.td}>
-                      {isUnseen && (
-                        <button
-                          style={{ padding: "4px 10px", fontSize: 11, border: "1px solid #d1d5db", borderRadius: 4, cursor: "pointer", background: "#fff" }}
-                          onClick={async () => {
-                            await apiFetch(`/admin/nudges/${nd.id}/mark-seen`, { method: "POST" });
-                            setNudges(prev => prev.map(n => n.id === nd.id ? { ...n, admin_seen: true } : n));
-                          }}
-                        >ראיתי</button>
-                      )}
-                    </td>
-                  </tr>
+                  <React.Fragment key={nd.id}>
+                    <tr
+                      style={{ background: isUnseen ? "#fffbeb" : undefined, cursor: hasResponse ? "pointer" : undefined }}
+                      onClick={() => hasResponse && setExpandedNudgeId(isExpanded ? null : nd.id)}
+                    >
+                      <td style={s.td}>{nd.match_id}</td>
+                      <td style={s.td}>{nd.user_name} ({nd.user_id})</td>
+                      <td style={s.td}>{nd.partner_name} ({nd.partner_id})</td>
+                      <td style={{ ...s.td, whiteSpace: "nowrap" }}>{fmtDate(nd.created_at)}</td>
+                      <td style={s.td}><span style={{ background: si.bg, color: si.color, padding: "2px 8px", borderRadius: 4, fontSize: 12, fontWeight: 600 }}>{si.label}</span></td>
+                      <td style={{ ...s.td, maxWidth: 250 }}>
+                        <span style={{ fontSize: 12 }}>{responseShort}</span>
+                        {hasResponse && <span style={{ fontSize: 10, color: "#9ca3af", marginRight: 4 }}>{isExpanded ? " ▲" : " ▼"}</span>}
+                      </td>
+                      <td style={s.td}>
+                        {isUnseen && (
+                          <button
+                            style={{ padding: "4px 10px", fontSize: 11, border: "1px solid #d1d5db", borderRadius: 4, cursor: "pointer", background: "#fff" }}
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              await apiFetch(`/admin/nudges/${nd.id}/mark-seen`, { method: "POST" });
+                              setNudges(prev => prev.map(n => n.id === nd.id ? { ...n, admin_seen: true } : n));
+                            }}
+                          >ראיתי</button>
+                        )}
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={7} style={{ padding: "12px 16px", background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, direction: "rtl" }}>
+                            <div><strong>ראתה את ההודעה:</strong> {nd.saw_message === true ? "כן ✓" : nd.saw_message === false ? "לא ✗" : "טרם ענתה"}</div>
+                            {nd.help_options && nd.help_options.length > 0 && (
+                              <div>
+                                <strong>אפשרויות שנבחרו:</strong>
+                                <ul style={{ margin: "4px 0 0 0", paddingRight: 20, listStyle: "disc" }}>
+                                  {nd.help_options.map((o: string) => (
+                                    <li key={o} style={{ marginBottom: 2 }}>{optionLabels[o] || o}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {nd.free_text && (
+                              <div>
+                                <strong>טקסט חופשי:</strong>
+                                <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 6, padding: "8px 12px", marginTop: 4, whiteSpace: "pre-wrap" }}>{nd.free_text}</div>
+                              </div>
+                            )}
+                            {nd.responded_at && <div><strong>זמן תשובה:</strong> {fmtDate(nd.responded_at)}</div>}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
               {filteredNudges.length === 0 && (
