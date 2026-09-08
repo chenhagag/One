@@ -98,7 +98,9 @@ function getDeviceInfo(): { device: string; pwa_installed: boolean; dark_mode: b
   let device = "desktop";
   if (/iphone|ipad|ipod/i.test(ua)) device = "iphone";
   else if (/android/i.test(ua)) device = "android";
-  return { device, pwa_installed: isStandalone, dark_mode: darkMode, native_app: isNativeApp() };
+  // Detect native app: Capacitor bridge or Android WebView marker ("wv" in UA)
+  const nativeApp = isNativeApp() || (/android/i.test(ua) && /\bwv\b/.test(ua));
+  return { device, pwa_installed: isStandalone, dark_mode: darkMode, native_app: nativeApp };
 }
 
 function getSavedSession(): { id: number; email: string } | null {
