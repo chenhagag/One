@@ -9,6 +9,7 @@ const config: CapacitorConfig = {
     iosScheme: 'https',
     url: 'https://joinone.io',
     cleartext: false,
+    appendUserAgent: 'OneNativeApp',
   },
   plugins: {
     SplashScreen: {
