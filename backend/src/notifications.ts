@@ -447,7 +447,7 @@ export async function notifyAdminMessage(userId: number, messageType: string, me
   const title = isQuestion ? "שאלה מ-One" : "הודעה מ-One";
   const pushBody = isQuestion
     ? "יש לנו שאלה קצרה — " + g("כנס", "כנסי") + " לענות"
-    : g("כנס", "כנסי") + " לקרוא";
+    : g("כנס", "כנסי") + " לקרוא את ההודעה";
 
   await notifyUser(userId, {
     title,
@@ -457,8 +457,8 @@ export async function notifyAdminMessage(userId: number, messageType: string, me
       title,
       `<p>היי ${user.first_name},</p>
        <p>${messageText}</p>
-       <p>${g("כנס", "כנסי")} למערכת ${isQuestion ? "כדי לענות" : "לפרטים נוספים"}.</p>`,
-      g("כנס", "כנסי") + (isQuestion ? " לענות" : " למערכת")
+       ${isQuestion ? `<p>${g("כנס", "כנסי")} כדי לענות.</p>` : ""}`,
+      isQuestion ? g("כנס", "כנסי") + " לענות" : g("דבר", "דברי") + " איתי על זה"
     ),
   });
 }
