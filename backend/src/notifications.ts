@@ -343,3 +343,135 @@ export async function hasPushTokens(userId: number): Promise<boolean> {
   );
   return row ? parseInt(row.count, 10) > 0 : false;
 }
+
+// ── Trigger helpers ──────────────────────────────────────────────
+
+/** Check if a notification was sent recently (throttle) */
+async function wasRecentlySent(userId: number, eventType: string, minutes: number): Promise<boolean> {
+  const row = await pgQueryOne<{ id: number }>(
+    `SELECT id FROM notification_log
+     WHERE user_id = $1 AND event_type = $2 AND success = TRUE
+       AND sent_at > NOW() - INTERVAL '1 minute' * $3
+     LIMIT 1`,
+    [userId, eventType, minutes]
+  );
+  return !!row;
+}
+
+/** Helper to load user name + gender for gendered emails */
+async function getUserInfo(userId: number): Promise<{ first_name: string; gender: string; email: string } | null> {
+  return pgQueryOne<{ first_name: string; gender: string; email: string }>(
+    "SELECT first_name, gender, email FROM users WHERE id = $1",
+    [userId]
+  );
+}
+
+function gn(gender: string | null, m: string, f: string): string {
+  return gender === "woman" ? f : m;
+}
+
+// ── Trigger: Match card sent ─────────────────────────────────────
+
+export async function notifyMatchCardSent(userId: number, partnerName: string): Promise<void> {
+  const user = await getUserInfo(userId);
+  if (!user) return;
+  const g = (m: string, f: string) => gn(user.gender, m, f);
+
+  await notifyUser(userId, {
+    title: "🎉 יש לך התאמה חדשה!",
+    body: "כרטיס ההתאמה שלך מחכה לך ב-One",
+    event_type: "match_card_sent",
+    emailHtml: buildRichEmail(
+      "🎉 יש לך התאמה חדשה!",
+      `<p>היי ${user.first_name},</p>
+       <p>יש לנו חדשות מרגשות — מצאנו ${g("לך", "לך")} התאמה!</p>
+       <p>כרטיס ההתאמה ${g("שלך", "שלך")} מוכן ומחכה ${g("לך", "לך")} במערכת. ${g("כנס", "כנסי")} כדי לראות את הפרטים.</p>`,
+      g("כנס", "כנסי") + " לראות את ההתאמה"
+    ),
+  });
+}
+
+// ── Trigger: New direct message ──────────────────────────────────
+
+export async function notifyNewMessage(recipientId: number, senderName: string): Promise<void> {
+  // Throttle: max 1 notification per 5 minutes per recipient
+  if (await wasRecentlySent(recipientId, "new_message", 5)) return;
+
+  const user = await getUserInfo(recipientId);
+  if (!user) return;
+  const g = (m: string, f: string) => gn(user.gender, m, f);
+
+  await notifyUser(recipientId, {
+    title: `הודעה חדשה מ${senderName}`,
+    body: `קיבלת הודעה חדשה מההתאמה שלך`,
+    event_type: "new_message",
+    emailHtml: buildRichEmail(
+      `הודעה חדשה מ${senderName}`,
+      `<p>היי ${user.first_name},</p>
+       <p>${senderName} ${g("שלח לך", "שלחה לך")} הודעה חדשה ב-One.</p>
+       <p>${g("כנס", "כנסי")} למערכת כדי לקרוא ולהשיב.</p>`,
+      g("כנס", "כנסי") + " לקרוא"
+    ),
+  });
+}
+
+// ── Trigger: Sent for rating ─────────────────────────────────────
+
+export async function notifySentForRating(userId: number): Promise<void> {
+  const user = await getUserInfo(userId);
+  if (!user) return;
+  const g = (m: string, f: string) => gn(user.gender, m, f);
+
+  await notifyUser(userId, {
+    title: "✨ מצאנו לך התאמה פוטנציאלית",
+    body: g("כנס", "כנסי") + " לראות ולהגיב",
+    event_type: "sent_for_rating",
+    emailHtml: buildRichEmail(
+      "✨ מצאנו לך התאמה פוטנציאלית",
+      `<p>היי ${user.first_name},</p>
+       <p>מצאנו ${g("לך", "לך")} התאמה פוטנציאלית ב-One!</p>
+       <p>${g("כנס", "כנסי")} למערכת כדי לראות את הפרטים ${g("ולהגיב", "ולהגיב")}.</p>`,
+      g("כנס", "כנסי") + " לראות"
+    ),
+  });
+}
+
+// ── Trigger: Admin message / question ────────────────────────────
+
+export async function notifyAdminMessage(userId: number, messageType: string, messageText: string): Promise<void> {
+  const user = await getUserInfo(userId);
+  if (!user) return;
+  const g = (m: string, f: string) => gn(user.gender, m, f);
+
+  const isQuestion = messageType === "question";
+  const title = isQuestion ? "שאלה מ-One" : "הודעה מ-One";
+  const pushBody = isQuestion
+    ? "יש לנו שאלה קצרה — " + g("כנס", "כנסי") + " לענות"
+    : g("כנס", "כנסי") + " לקרוא";
+
+  await notifyUser(userId, {
+    title,
+    body: pushBody,
+    event_type: isQuestion ? "admin_question" : "admin_message",
+    emailHtml: buildRichEmail(
+      title,
+      `<p>היי ${user.first_name},</p>
+       <p>${messageText}</p>
+       <p>${g("כנס", "כנסי")} למערכת ${isQuestion ? "כדי לענות" : "לפרטים נוספים"}.</p>`,
+      g("כנס", "כנסי") + (isQuestion ? " לענות" : " למערכת")
+    ),
+  });
+}
+
+// ── Rich email builder (with CTA button) ─────────────────────────
+function buildRichEmail(title: string, bodyHtml: string, ctaText: string): string {
+  return `<div dir="rtl" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 500px; margin: 0 auto; padding: 32px 24px; color: #1a1a2e; line-height: 1.8;">
+  <img src="https://joinone.io/nameLogoTrans.png" alt="One" style="height: 28px; margin-bottom: 24px; display: block;" />
+  <h2 style="font-size: 20px; margin: 0 0 16px;">${title}</h2>
+  <div style="font-size: 15px;">${bodyHtml}</div>
+  <div style="text-align: center; margin: 28px 0;">
+    <a href="https://joinone.io" style="display:inline-block;background-color:#7b5fa3;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:15px">${ctaText}</a>
+  </div>
+  <p style="font-size: 12px; color: #999; text-align: center;">צוות One</p>
+</div>` + EMAIL_FOOTER;
+}

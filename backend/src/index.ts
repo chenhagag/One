@@ -42,7 +42,7 @@ import { trackTokens } from "./tokenTracker";
 import { requireAuth, optionalAuth, requireUserAuth, requireAdmin } from "./auth";
 import { generateInsights as generateInsightsFn } from "./pipeline/generateInsights";
 import { startJobRunner, createJob as createPipelineJob, requeueOrCreateJob as requeueOrCreateJobFn, processPendingJobs as processPendingJobsFn } from "./pipeline/jobRunner";
-import { notifyUser, sendPushOnly, registerToken, unregisterToken, syncPermissionStatus, hasPushTokens } from "./notifications";
+import { notifyUser, sendPushOnly, registerToken, unregisterToken, syncPermissionStatus, hasPushTokens, notifyMatchCardSent, notifyNewMessage, notifySentForRating, notifyAdminMessage } from "./notifications";
 
 dotenv.config();
 
@@ -1271,6 +1271,11 @@ app.post("/users/:id/direct-messages", requireUserAuth, async (req, res) => {
       [match.match_id, userId]
     );
 
+    // Notify the recipient (non-blocking, throttled)
+    const recipientId = match.user1_id === userId ? match.user2_id : match.user1_id;
+    const sender = await pgQueryOne<{ first_name: string }>("SELECT first_name FROM users WHERE id = $1", [userId]);
+    notifyNewMessage(recipientId, sender?.first_name || "ההתאמה שלך").catch(() => {});
+
     return res.json(msg);
   } catch (err) {
     console.error("[direct-messages POST] Error:", err);
@@ -2078,6 +2083,13 @@ app.patch("/admin/users/:id", async (req, res) => {
 
   values.push(userId);
   await pgQueryAll(`UPDATE users SET ${updates.join(", ")}, updated_at = NOW() WHERE id = $${i}`, values);
+
+  // Notify user when admin sets a new message/question (non-blocking)
+  if ("admin_message" in req.body && req.body.admin_message) {
+    const msgType = req.body.admin_message_type || "info";
+    notifyAdminMessage(userId, msgType, req.body.admin_message).catch(() => {});
+  }
+
   const updated = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [userId]);
   return res.json(updated);
 });
@@ -2281,7 +2293,8 @@ app.get("/admin/users", async (_req, res) => {
       COALESCE(tu.total_cost_usd, 0) as total_cost_usd,
       COALESCE(tu.conversation_cost_usd, 0) as conversation_cost_usd,
       COALESCE(tu.analysis_cost_usd, 0) as analysis_cost_usd,
-      pv_last.last_visit
+      pv_last.last_visit,
+      COALESCE(pt.push_token_count, 0) as push_token_count
     FROM users u
     LEFT JOIN LATERAL (
       SELECT raw_answer, analysis_json, created_at
@@ -2302,6 +2315,11 @@ app.get("/admin/users", async (_req, res) => {
       SELECT user_id, MAX(viewed_at) as last_visit
       FROM page_views GROUP BY user_id
     ) pv_last ON pv_last.user_id = u.id
+    LEFT JOIN (
+      SELECT user_id, COUNT(*) as push_token_count
+      FROM fcm_tokens WHERE permission_status = 'granted'
+      GROUP BY user_id
+    ) pt ON pt.user_id = u.id
     ORDER BY u.created_at DESC
   `);
 
@@ -3768,6 +3786,12 @@ app.post("/admin/matches/:id/send", async (req, res) => {
   // Auto-freeze both users' other potential matches
   await freezeBothUsersMatches(match.id, match.user1_id, match.user2_id);
 
+  // Notify both users (non-blocking)
+  const u1 = await pgQueryOne<{ first_name: string }>("SELECT first_name FROM users WHERE id = $1", [match.user1_id]);
+  const u2 = await pgQueryOne<{ first_name: string }>("SELECT first_name FROM users WHERE id = $1", [match.user2_id]);
+  notifyMatchCardSent(match.user1_id, u2?.first_name || "").catch(() => {});
+  notifyMatchCardSent(match.user2_id, u1?.first_name || "").catch(() => {});
+
   return res.json({ success: true, match_id: match.id, status: "in_match" });
 });
 
@@ -3835,6 +3859,9 @@ app.post("/admin/matches/:id/send-for-rating", async (req, res) => {
 
   // Auto-freeze only the target user's other matches (they're being asked to rate)
   await freezeUserMatches(targetUserId, matchId);
+
+  // Notify the target user (non-blocking)
+  notifySentForRating(targetUserId).catch(() => {});
 
   return res.json({ success: true, match_id: matchId, sent_to: targetUserId, status: newStatus });
 });

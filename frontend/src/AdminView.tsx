@@ -656,13 +656,15 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
               const key = `${d.device}|${d.pwa}|${d.native}`;
               if (!seen.has(key)) { seen.add(key); devices.push(d); }
             }
-            if (devices.length === 0) return "-";
-            return devices.map((d: any, i: number) => (
+            const badges: any[] = devices.map((d: any, i: number) => (
               <span key={i} style={{ ...s.badge, fontSize: 10, marginRight: 3, background: d.native ? "#fef3c7" : d.device === "iphone" ? "#e0e7ff" : d.device === "android" ? "#d1fae5" : "#f3f4f6" }}>
                 {d.native ? "📱" : d.device === "iphone" ? "🍎" : d.device === "android" ? "🤖" : "🖥️"}{" "}
                 {d.device}{d.native ? " (App)" : d.pwa ? " (PWA)" : ""}{u.dark_mode ? " 🌙" : ""}
               </span>
             ));
+            if (Number(u.push_token_count) > 0) badges.push(<span key="push" style={{ ...s.badge, fontSize: 10, marginRight: 3, background: "#d1fae5", color: "#065f46" }}>🔔 Push</span>);
+            if (badges.length === 0) return "-";
+            return badges;
           })()}
         </td>
         <td style={s.td}>
@@ -2155,17 +2157,15 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                 if (!title) return;
                 const body = prompt("תוכן ההתראה:");
                 if (!body) return;
-                const pushOnly = confirm("שלח רק פוש (ללא מייל חלופי)?\nOK = רק פוש, Cancel = פוש עם מייל חלופי");
                 try {
                   const r = await apiFetch(`/admin/users/${userId}/send-notification`, {
                     method: "POST",
-                    body: JSON.stringify({ title, body, push_only: pushOnly }),
+                    body: JSON.stringify({ title, body }),
                   });
                   const result = await r.json();
                   if (r.ok) {
-                    const channelHe = result.channel === "push" ? "פוש" : result.channel === "email" ? "מייל" : "לא נשלח";
-                    const tokenInfo = result.has_push_tokens ? "יש טוקן פוש" : "אין טוקן פוש";
-                    alert(`${result.success ? "נשלח" : "נכשל"} — ערוץ: ${channelHe} (${tokenInfo})`);
+                    const channelHe = result.channel === "push" ? "📱 פוש" : result.channel === "email" ? "📧 מייל" : "❌ לא נשלח";
+                    alert(`${result.success ? "✓ נשלח" : "✗ נכשל"} — ${channelHe}`);
                   } else {
                     alert("שגיאה: " + (result.error || "unknown"));
                   }
