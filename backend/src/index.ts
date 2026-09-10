@@ -499,7 +499,7 @@ app.post("/auth/send-otp", authLimiter, otpSendLimiter, async (req, res) => {
       subject: `${code} — קוד הכניסה שלך ל-One`,
       html: `
         <div dir="rtl" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 400px; margin: 0 auto; padding: 32px 24px; text-align: center;">
-          <img src="https://joinone.io/nameLogoTrans.png" alt="One" style="height: 28px; margin-bottom: 24px;" />
+          <img src="https://joinone.io/appLogo.png" alt="One" style="height: 44px; margin-bottom: 24px; display: block; margin-left: auto; margin-right: auto;" />
           <p style="font-size: 16px; color: #1a1a2e; margin: 0 0 8px;">קוד הכניסה שלך:</p>
           <div style="font-size: 36px; font-weight: 700; letter-spacing: 8px; color: #1a1a2e; background: #f5f0fb; border-radius: 12px; padding: 16px 24px; margin: 16px 0; display: inline-block;">${code}</div>
           <p style="font-size: 13px; color: #888; margin: 16px 0 0;">הקוד תקף ל-10 דקות</p>
@@ -4195,7 +4195,7 @@ app.post("/admin/users/:id/send-notification", requireAdmin, async (req, res) =>
   }
 });
 
-// GET /admin/users/:id/push-status — Check user's push notification status
+// GET /admin/users/:id/push-status — Check user's notification status (push + email)
 app.get("/admin/users/:id/push-status", requireAdmin, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const tokens = await pgQueryAll<any>(
@@ -4206,15 +4206,24 @@ app.get("/admin/users/:id/push-status", requireAdmin, async (req, res) => {
     "SELECT push_notifications FROM users WHERE id = $1",
     [userId]
   );
-  const recentNotifs = await pgQueryAll<any>(
-    "SELECT channel, event_type, title, success, error, sent_at FROM notification_log WHERE user_id = $1 ORDER BY sent_at DESC LIMIT 10",
+  // Combine notification_log + email_log into one timeline
+  const notifLog = await pgQueryAll<any>(
+    "SELECT channel, event_type, title, body, success, error, sent_at FROM notification_log WHERE user_id = $1 ORDER BY sent_at DESC LIMIT 50",
     [userId]
   );
+  const emailLog = await pgQueryAll<any>(
+    "SELECT 'email' as channel, COALESCE(email_type, 'manual') as event_type, subject as title, NULL as body, TRUE as success, NULL as error, sent_at FROM email_log WHERE user_id = $1 ORDER BY sent_at DESC LIMIT 50",
+    [userId]
+  );
+  // Merge and sort by date
+  const allNotifications = [...notifLog, ...emailLog]
+    .sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime())
+    .slice(0, 50);
 
   return res.json({
     push_enabled: user?.push_notifications !== false,
     tokens,
-    recent_notifications: recentNotifs,
+    notifications: allNotifications,
   });
 });
 
