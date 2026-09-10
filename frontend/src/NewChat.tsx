@@ -2634,6 +2634,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
   const [resetting, setResetting] = useState(false);
   const [selfFrozen, setSelfFrozen] = useState(false);
   const [freezeMsg, setFreezeMsg] = useState<string | null>(null);
+  const [pushNotifications, setPushNotifications] = useState(true);
 
   useEffect(() => {
     apiFetch(`/users/${user.id}`).then(r => r.json()).then(data => {
@@ -2644,6 +2645,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
       setWhatsappUpdates(!!data.whatsapp_updates);
       setPhone(data.whatsapp_phone || "");
       setSelfFrozen(!!data.self_frozen);
+      setPushNotifications(data.push_notifications !== false);
     }).catch(() => {}).finally(() => setLoading(false));
   }, [user.id]);
 
@@ -2801,6 +2803,12 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
         {/* Notifications */}
         <div style={sectionStyle}>
           <h3 style={titleStyle}>התראות ועדכונים</h3>
+          <label style={{ ...labelStyle, marginBottom: 14 }}>
+            <input type="checkbox" checked={pushNotifications} disabled={saving || loading}
+              onChange={(e) => { setPushNotifications(e.target.checked); saveSetting({ push_notifications: e.target.checked }); }}
+              style={checkboxStyle} />
+            <span>התראות פוש באפליקציה</span>
+          </label>
           <label style={{ ...labelStyle, marginBottom: 14 }}>
             <input type="checkbox" checked={emailUpdates} disabled={saving || loading}
               onChange={(e) => { setEmailUpdates(e.target.checked); saveSetting({ email_updates: e.target.checked }); }}

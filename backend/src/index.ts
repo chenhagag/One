@@ -42,6 +42,7 @@ import { trackTokens } from "./tokenTracker";
 import { requireAuth, optionalAuth, requireUserAuth, requireAdmin } from "./auth";
 import { generateInsights as generateInsightsFn } from "./pipeline/generateInsights";
 import { startJobRunner, createJob as createPipelineJob, requeueOrCreateJob as requeueOrCreateJobFn, processPendingJobs as processPendingJobsFn } from "./pipeline/jobRunner";
+import { notifyUser, sendPushOnly, registerToken, unregisterToken, syncPermissionStatus, hasPushTokens } from "./notifications";
 
 dotenv.config();
 
@@ -718,7 +719,8 @@ app.get("/users/:id", requireUserAuth, async (req, res) => {
             partner_name, test_user_type, self_style, profile_complete, consent_accepted,
             photo_ai_consent, email_updates, whatsapp_updates, whatsapp_phone,
             match_card_consent, match_card_restrictions, supabase_uid, created_at,
-            COALESCE(self_frozen, FALSE) as self_frozen
+            COALESCE(self_frozen, FALSE) as self_frozen,
+            COALESCE(push_notifications, TRUE) as push_notifications
      FROM users WHERE id = $1`,
     [userId]
   );
@@ -738,7 +740,7 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
     partner_name, test_user_type, consent_accepted, photo_ai_consent,
     email_updates, whatsapp_updates, whatsapp_phone,
     match_card_consent, match_card_restrictions, profile_complete,
-    self_frozen,
+    self_frozen, push_notifications,
   } = req.body;
   // Build pg UPDATE with dynamic $N placeholders
   const assignments: string[] = [];
@@ -782,6 +784,7 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
   if (match_card_restrictions !== undefined) push("match_card_restrictions", match_card_restrictions);
   if (profile_complete !== undefined)     push("profile_complete", profile_complete);
   if (self_frozen !== undefined)         push("self_frozen", self_frozen);
+  if (push_notifications !== undefined) push("push_notifications", push_notifications);
 
   if (assignments.length === 0) return res.status(400).json({ error: "No fields to update" });
 
@@ -4078,6 +4081,116 @@ app.post("/admin/users/:id/send-email", async (req, res) => {
   }
 });
 
+// ── Push notification endpoints ──────────────────────────────────
+
+// POST /push/register — Register FCM token for authenticated user
+app.post("/push/register", requireUserAuth, async (req: any, res) => {
+  const userId = req.userId as number;
+  const { token, platform, permission_status } = req.body;
+
+  if (!token?.trim()) return res.status(400).json({ error: "token is required" });
+
+  try {
+    await registerToken(userId, token.trim(), platform || "android", permission_status || "granted");
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error(`[push] Register error for user ${userId}:`, err.message);
+    return res.status(500).json({ error: "Failed to register token" });
+  }
+});
+
+// POST /push/unregister — Remove FCM token (on logout)
+app.post("/push/unregister", requireUserAuth, async (req: any, res) => {
+  const { token } = req.body;
+  if (!token?.trim()) return res.status(400).json({ error: "token is required" });
+
+  try {
+    await unregisterToken(token.trim());
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error(`[push] Unregister error:`, err.message);
+    return res.status(500).json({ error: "Failed to unregister token" });
+  }
+});
+
+// POST /push/sync-permission — Sync notification permission status from device
+app.post("/push/sync-permission", requireUserAuth, async (req: any, res) => {
+  const userId = req.userId as number;
+  const { permission_status } = req.body;
+
+  if (!permission_status) return res.status(400).json({ error: "permission_status is required" });
+
+  try {
+    await syncPermissionStatus(userId, permission_status);
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error(`[push] Sync permission error for user ${userId}:`, err.message);
+    return res.status(500).json({ error: "Failed to sync permission" });
+  }
+});
+
+// POST /admin/users/:id/send-notification — Admin sends notification to user
+// Uses notifyUser (push with email fallback) — returns which channel was used
+app.post("/admin/users/:id/send-notification", requireAdmin, async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const { title, body, push_only } = req.body;
+
+  if (!title?.trim()) return res.status(400).json({ error: "title is required" });
+  if (!body?.trim()) return res.status(400).json({ error: "body is required" });
+
+  try {
+    const hasTokens = await hasPushTokens(userId);
+    let result;
+
+    if (push_only) {
+      // Admin explicitly chose "push only" — no silent email fallback
+      result = await sendPushOnly(userId, {
+        title: title.trim(),
+        body: body.trim(),
+        event_type: "admin_custom",
+      });
+    } else {
+      // Normal: push with email fallback
+      result = await notifyUser(userId, {
+        title: title.trim(),
+        body: body.trim(),
+        event_type: "admin_custom",
+      });
+    }
+
+    return res.json({
+      ...result,
+      has_push_tokens: hasTokens,
+    });
+  } catch (err: any) {
+    console.error(`[push] Admin send error for user ${userId}:`, err.message);
+    return res.status(500).json({ error: err.message || "Failed to send notification" });
+  }
+});
+
+// GET /admin/users/:id/push-status — Check user's push notification status
+app.get("/admin/users/:id/push-status", requireAdmin, async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const tokens = await pgQueryAll<any>(
+    "SELECT id, platform, permission_status, created_at, last_used_at FROM fcm_tokens WHERE user_id = $1",
+    [userId]
+  );
+  const user = await pgQueryOne<any>(
+    "SELECT push_notifications FROM users WHERE id = $1",
+    [userId]
+  );
+  const recentNotifs = await pgQueryAll<any>(
+    "SELECT channel, event_type, title, success, error, sent_at FROM notification_log WHERE user_id = $1 ORDER BY sent_at DESC LIMIT 10",
+    [userId]
+  );
+
+  return res.json({
+    push_enabled: user?.push_notifications !== false,
+    tokens,
+    recent_notifications: recentNotifs,
+  });
+});
+
 // Keep old GET /users for backward compatibility
 app.get("/users", requireAdmin, async (_req, res) => {
   const users = await pgQueryAll<any>(`
@@ -5059,6 +5172,7 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       admin_message_dismissed: boolean | null;
       admin_message_type: string | null;
       self_frozen: boolean | null;
+      push_notifications: boolean | null;
     }>(
       `SELECT age, city, height, looking_for_gender,
               desired_age_min, desired_age_max, desired_height_min, desired_height_max,
@@ -5067,7 +5181,8 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
               whatsapp_updates, partner_name, in_matching_pool, match_card_consent,
               COALESCE(admin_message_dismissed, FALSE) as admin_message_dismissed,
               COALESCE(admin_message_type, 'info') as admin_message_type,
-              COALESCE(self_frozen, FALSE) as self_frozen
+              COALESCE(self_frozen, FALSE) as self_frozen,
+              COALESCE(push_notifications, TRUE) as push_notifications
        FROM users WHERE id = $1`, [userId]
     );
     const hasProfileDetails = !!(
@@ -5199,6 +5314,7 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       show_survey_banner: showSurveyBanner,
       survey_partial: surveyRow && !surveyRow.completed ? true : false,
       self_frozen: !!profileRow?.self_frozen,
+      push_notifications: profileRow?.push_notifications !== false,
       active_nudge: activeNudge ? {
         id: activeNudge.id,
         match_id: activeNudge.match_id,
