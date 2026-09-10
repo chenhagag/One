@@ -1234,4 +1234,43 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       ON match_nudges (match_id, user_id)
       WHERE status = 'pending';
   `);
+
+  // ── FCM tokens for push notifications ──
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS fcm_tokens (
+      id                SERIAL PRIMARY KEY,
+      user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token             TEXT NOT NULL UNIQUE,
+      platform          TEXT NOT NULL DEFAULT 'android',
+      permission_status TEXT NOT NULL DEFAULT 'granted',
+      created_at        TIMESTAMPTZ DEFAULT NOW(),
+      last_used_at      TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_fcm_tokens_user ON fcm_tokens(user_id);
+  `);
+
+  // ── Notification log (push + email) ──
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS notification_log (
+      id           SERIAL PRIMARY KEY,
+      user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      channel      TEXT NOT NULL,
+      event_type   TEXT NOT NULL,
+      title        TEXT,
+      body         TEXT,
+      sent_at      TIMESTAMPTZ DEFAULT NOW(),
+      success      BOOLEAN DEFAULT TRUE,
+      error        TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_notification_log_user ON notification_log(user_id);
+  `);
+
+  // ── push_notifications preference on users ──
+  await pool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='push_notifications') THEN
+        ALTER TABLE users ADD COLUMN push_notifications BOOLEAN DEFAULT TRUE;
+      END IF;
+    END $$;
+  `);
 }

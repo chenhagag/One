@@ -2148,6 +2148,32 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
             >
               מייל כרטיס התאמה
             </button>
+            <button
+              style={{ padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#059669", color: "#fff", border: "none", borderRadius: 4 }}
+              onClick={async () => {
+                const title = prompt("כותרת ההתראה:", "עדכון מ-One");
+                if (!title) return;
+                const body = prompt("תוכן ההתראה:");
+                if (!body) return;
+                const pushOnly = confirm("שלח רק פוש (ללא מייל חלופי)?\nOK = רק פוש, Cancel = פוש עם מייל חלופי");
+                try {
+                  const r = await apiFetch(`/admin/users/${userId}/send-notification`, {
+                    method: "POST",
+                    body: JSON.stringify({ title, body, push_only: pushOnly }),
+                  });
+                  const result = await r.json();
+                  if (r.ok) {
+                    const channelHe = result.channel === "push" ? "פוש" : result.channel === "email" ? "מייל" : "לא נשלח";
+                    const tokenInfo = result.has_push_tokens ? "יש טוקן פוש" : "אין טוקן פוש";
+                    alert(`${result.success ? "נשלח" : "נכשל"} — ערוץ: ${channelHe} (${tokenInfo})`);
+                  } else {
+                    alert("שגיאה: " + (result.error || "unknown"));
+                  }
+                } catch { alert("שגיאת רשת"); }
+              }}
+            >
+              שלח התראה
+            </button>
             {traits.length === 0 && lookTraits.length === 0 && (
               <span style={{ fontSize: 12, color: "#856404", background: "#fff3cd", padding: "4px 10px", borderRadius: 4 }}>
                 No trait data — click Re-analyze to generate

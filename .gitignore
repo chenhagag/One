@@ -32,5 +32,8 @@ tmp_*
 *.apk
 *.aab
 
+# Firebase service account (secret — NEVER commit)
+google-services.json
+
 # Claude Code local settings
 .claude/

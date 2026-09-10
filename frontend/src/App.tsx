@@ -15,6 +15,7 @@ import { supabase } from "./lib/supabase";
 import { saveSupabaseTokens, clearSupabaseTokens, initErrorReporting } from "./lib/api";
 import { isNativeApp, getApiBaseUrl, getPlatform } from "./lib/platform";
 import { trackPage } from "./lib/trackPage";
+import { initPushNotifications, syncPushPermission, unregisterPush } from "./lib/pushNotifications";
 import { App as CapApp } from "@capacitor/app";
 
 type View =
@@ -347,6 +348,8 @@ export default function App() {
                   setView("new_chat");
                 }
                 setAutoLoginDone(true);
+                // Register for push notifications (native app only, non-blocking)
+                initPushNotifications().catch(() => {});
                 return;
               }
             } catch {
@@ -421,6 +424,17 @@ export default function App() {
     return () => { listener.then(l => l.remove()); };
   }, []);
 
+  // ── Sync push permission on app resume (native only) ──
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    const listener = CapApp.addListener("appStateChange", ({ isActive }) => {
+      if (isActive && user) {
+        syncPushPermission().catch(() => {});
+      }
+    });
+    return () => { listener.then(l => l.remove()); };
+  }, [user]);
+
   // Check if should show PWA install (mobile + not standalone)
   function shouldShowPWAInstall(): boolean {
     console.log("[PWA check] isNativeApp:", isNativeApp(), "platform:", getPlatform());
@@ -456,6 +470,7 @@ export default function App() {
 
   // ── Logout ─────────────────────────────────────────────────────
   function handleLogout() {
+    unregisterPush().catch(() => {});
     supabase?.auth.signOut().catch(() => {});
     clearSession();
     clearSupabaseTokens();
@@ -470,6 +485,8 @@ export default function App() {
     window.history.replaceState({}, "", pendingSurvey ? "/survey" : "/");
     saveSession(u);
     setUser(u);
+    // Register for push notifications (native app only, non-blocking)
+    initPushNotifications().catch(() => {});
     if (!profileComplete) {
       setView("profile_setup");
     } else if (!u.consent_accepted) {
