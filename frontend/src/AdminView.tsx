@@ -811,6 +811,8 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   const [sendingQuestion, setSendingQuestion] = useState(false);
   const [editingQuestionId, setEditingQuestionId] = useState<number | null>(null);
   const [editingQuestionText, setEditingQuestionText] = useState("");
+  const [notifLog, setNotifLog] = useState<any[]>([]);
+  const [notifLogOpen, setNotifLogOpen] = useState(false);
 
   // Sync admin_message + agent_context from loaded data
   useEffect(() => { if (data?.user?.admin_message != null) setAdminMsg(data.user.admin_message); }, [data?.user?.admin_message]);
@@ -2248,6 +2250,49 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
           </div>
             );
           })()}
+
+          {/* Notification Log */}
+          <div style={{ marginBottom: 16, padding: 12, border: "1px solid #e2e8f0", borderRadius: 8, background: "#f8fafc" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }} onClick={() => {
+              if (!notifLogOpen && notifLog.length === 0) {
+                apiFetch(`/admin/users/${userId}/push-status`).then(r => r.json()).then(d => setNotifLog(d.notifications || [])).catch(() => {});
+              }
+              setNotifLogOpen(!notifLogOpen);
+            }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>📬 היסטוריית התראות ומיילים</span>
+              <span style={{ fontSize: 11, color: "#94a3b8" }}>{notifLogOpen ? "▲" : "▼"} {notifLog.length > 0 ? `(${notifLog.length})` : ""}</span>
+            </div>
+            {notifLogOpen && (
+              <div style={{ marginTop: 10, maxHeight: 300, overflowY: "auto" }}>
+                {notifLog.length === 0 ? (
+                  <p style={{ fontSize: 12, color: "#94a3b8", margin: 0 }}>אין התראות</p>
+                ) : (
+                  <table style={{ width: "100%", fontSize: 11, borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid #e2e8f0", textAlign: "right" }}>
+                        <th style={{ padding: "4px 6px", color: "#64748b" }}>תאריך</th>
+                        <th style={{ padding: "4px 6px", color: "#64748b" }}>ערוץ</th>
+                        <th style={{ padding: "4px 6px", color: "#64748b" }}>סוג</th>
+                        <th style={{ padding: "4px 6px", color: "#64748b" }}>תוכן</th>
+                        <th style={{ padding: "4px 6px", color: "#64748b" }}>סטטוס</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {notifLog.map((n: any, i: number) => (
+                        <tr key={i} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: "4px 6px", whiteSpace: "nowrap" }}>{new Date(n.sent_at).toLocaleDateString("he-IL")} {new Date(n.sent_at).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}</td>
+                          <td style={{ padding: "4px 6px" }}>{n.channel === "push" ? "📱" : "📧"}</td>
+                          <td style={{ padding: "4px 6px" }}>{n.event_type}</td>
+                          <td style={{ padding: "4px 6px", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.title}</td>
+                          <td style={{ padding: "4px 6px" }}>{n.success ? "✓" : <span style={{ color: "#dc2626" }} title={n.error || ""}>✗</span>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Agent Context */}
           {(() => {

@@ -253,7 +253,7 @@ async function sendEmail(
 // ── Email template builder ───────────────────────────────────────
 function buildNotificationEmail(title: string, body: string): string {
   return `<div dir="rtl" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 500px; margin: 0 auto; padding: 32px 24px; text-align: center;">
-  <img src="https://joinone.io/nameLogoTrans.png" alt="One" style="height: 28px; margin-bottom: 24px;" />
+  <img src="https://joinone.io/appLogo.png" alt="One" style="height: 44px; margin-bottom: 24px; display: block; margin-left: auto; margin-right: auto;" />
   <h2 style="font-size: 20px; color: #1a1a2e; margin: 0 0 12px;">${title}</h2>
   <p style="font-size: 15px; color: #444; line-height: 1.6; margin: 0 0 24px;">${body}</p>
   <a href="https://joinone.io" style="display:inline-block;background-color:#7b5fa3;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold">פתח את One</a>
@@ -466,7 +466,7 @@ export async function notifyAdminMessage(userId: number, messageType: string, me
 // ── Rich email builder (with CTA button) ─────────────────────────
 function buildRichEmail(title: string, bodyHtml: string, ctaText: string): string {
   return `<div dir="rtl" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 500px; margin: 0 auto; padding: 32px 24px; color: #1a1a2e; line-height: 1.8;">
-  <img src="https://joinone.io/nameLogoTrans.png" alt="One" style="height: 28px; margin-bottom: 24px; display: block;" />
+  <img src="https://joinone.io/appLogo.png" alt="One" style="height: 44px; margin-bottom: 24px; display: block; margin-left: auto; margin-right: auto;" />
   <h2 style="font-size: 20px; margin: 0 0 16px;">${title}</h2>
   <div style="font-size: 15px;">${bodyHtml}</div>
   <div style="text-align: center; margin: 28px 0;">
