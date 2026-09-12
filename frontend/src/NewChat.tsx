@@ -2629,7 +2629,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteStep, setDeleteStep] = useState<"choose" | "reset_confirm" | "delete_confirm">("choose");
+  const [deleteStep, setDeleteStep] = useState<"choose" | "reset_confirm" | "reset_final" | "delete_confirm" | "delete_final" | "goodbye">("choose");
   const [deleteReason, setDeleteReason] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -2696,7 +2696,9 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
         body: JSON.stringify({ reason: deleteReason.trim() || undefined }),
       });
       if (res.ok) {
-        onLogout?.();
+        setDeleteStep("goodbye");
+        setDeleting(false);
+        return;
       } else {
         alert("מחיקה נכשלה, נסו שוב");
       }
@@ -2704,8 +2706,6 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
       alert("שגיאת רשת, נסו שוב");
     } finally {
       setDeleting(false);
-      setShowDeleteModal(false);
-      setDeleteReason("");
     }
   }
 
@@ -2899,7 +2899,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
             background: "rgba(0,0,0,0.5)", zIndex: 9999,
             display: "flex", alignItems: "center", justifyContent: "center",
             padding: 16,
-          }} onClick={() => { if (!deleting && !resetting) { setShowDeleteModal(false); setDeleteStep("choose"); setDeleteReason(""); } }}>
+          }} onClick={() => { if (!deleting && !resetting && deleteStep !== "goodbye") { setShowDeleteModal(false); setDeleteStep("choose"); setDeleteReason(""); } }}>
             <div
               style={{
                 background: "#fff", borderRadius: 16, padding: "24px 20px",
@@ -3027,6 +3027,37 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
                 />
                 <div style={{ display: "flex", gap: 8 }}>
                   <button
+                    onClick={() => setDeleteStep("reset_final")}
+                    style={{
+                      flex: 1, padding: "10px 0", borderRadius: 8, background: "#d97706",
+                      color: "#fff", fontSize: 14, fontWeight: 600, border: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {isFemale ? "המשיכי למחיקה" : "המשך למחיקה"}
+                  </button>
+                  <button
+                    onClick={() => setDeleteStep("choose")}
+                    style={{
+                      flex: 1, padding: "10px 0", borderRadius: 8, background: "#f3f4f6",
+                      color: "#374151", fontSize: 14, border: "none", cursor: "pointer",
+                    }}
+                  >
+                    חזרה
+                  </button>
+                </div>
+              </>)}
+
+              {/* Step 3a: Reset data — final confirmation */}
+              {deleteStep === "reset_final" && (<>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: "#92400e", margin: "0 0 16px", textAlign: "center" }}>
+                  {isFemale ? "את בטוחה?" : "אתה בטוח?"}
+                </h3>
+                <p style={{ fontSize: 14, color: "#6b7280", lineHeight: 1.7, margin: "0 0 20px", textAlign: "center" }}>
+                  כל השיחות, התובנות וההתאמות יימחקו לצמיתות. לא ניתן לשחזר.
+                </p>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
                     onClick={handleResetData}
                     disabled={resetting}
                     style={{
@@ -3035,17 +3066,17 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
                       cursor: "pointer", opacity: resetting ? 0.5 : 1,
                     }}
                   >
-                    {resetting ? (isFemale ? "מוחקת..." : "מוחק...") : (isFemale ? "כן, מחקו את הנתונים" : "כן, מחקו את הנתונים")}
+                    {resetting ? (isFemale ? "מוחקת..." : "מוחק...") : "כן, מחקו"}
                   </button>
                   <button
-                    onClick={() => setDeleteStep("choose")}
+                    onClick={() => setDeleteStep("reset_confirm")}
                     disabled={resetting}
                     style={{
                       flex: 1, padding: "10px 0", borderRadius: 8, background: "#f3f4f6",
                       color: "#374151", fontSize: 14, border: "none", cursor: "pointer",
                     }}
                   >
-                    חזרה
+                    לא, חזרה
                   </button>
                 </div>
               </>)}
@@ -3098,6 +3129,37 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
                 />
                 <div style={{ display: "flex", gap: 8 }}>
                   <button
+                    onClick={() => setDeleteStep("delete_final")}
+                    style={{
+                      flex: 1, padding: "10px 0", borderRadius: 8, background: "#dc2626",
+                      color: "#fff", fontSize: 14, fontWeight: 600, border: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {isFemale ? "המשיכי למחיקה" : "המשך למחיקה"}
+                  </button>
+                  <button
+                    onClick={() => setDeleteStep("choose")}
+                    style={{
+                      flex: 1, padding: "10px 0", borderRadius: 8, background: "#f3f4f6",
+                      color: "#374151", fontSize: 14, border: "none", cursor: "pointer",
+                    }}
+                  >
+                    חזרה
+                  </button>
+                </div>
+              </>)}
+
+              {/* Step 3b: Delete account — final confirmation */}
+              {deleteStep === "delete_final" && (<>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: "#991b1b", margin: "0 0 16px", textAlign: "center" }}>
+                  {isFemale ? "את בטוחה?" : "אתה בטוח?"}
+                </h3>
+                <p style={{ fontSize: 14, color: "#6b7280", lineHeight: 1.7, margin: "0 0 20px", textAlign: "center" }}>
+                  החשבון וכל המידע יימחקו לצמיתות. לא ניתן לשחזר.
+                </p>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
                     onClick={handleDeleteAccount}
                     disabled={deleting}
                     style={{
@@ -3106,17 +3168,45 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
                       cursor: "pointer", opacity: deleting ? 0.5 : 1,
                     }}
                   >
-                    {deleting ? (isFemale ? "מוחקת..." : "מוחק...") : (isFemale ? "כן, מחקו את החשבון" : "כן, מחקו את החשבון")}
+                    {deleting ? (isFemale ? "מוחקת..." : "מוחק...") : "כן, מחקו"}
                   </button>
                   <button
-                    onClick={() => setDeleteStep("choose")}
+                    onClick={() => setDeleteStep("delete_confirm")}
                     disabled={deleting}
                     style={{
                       flex: 1, padding: "10px 0", borderRadius: 8, background: "#f3f4f6",
                       color: "#374151", fontSize: 14, border: "none", cursor: "pointer",
                     }}
                   >
-                    חזרה
+                    לא, חזרה
+                  </button>
+                </div>
+              </>)}
+
+              {/* Goodbye screen after deletion */}
+              {deleteStep === "goodbye" && (<>
+                <div style={{ textAlign: "center", padding: "20px 0" }}>
+                  <div style={{ fontSize: 40, marginBottom: 16 }}>💜</div>
+                  <h3 style={{ fontSize: 20, fontWeight: 700, color: "#111827", margin: "0 0 12px" }}>
+                    {isFemale ? "תודה שהיית חלק מ-One" : "תודה שהיית חלק מ-One"}
+                  </h3>
+                  <p style={{ fontSize: 14, color: "#6b7280", lineHeight: 1.7, margin: "0 0 8px" }}>
+                    החשבון נמחק בהצלחה.
+                  </p>
+                  <p style={{ fontSize: 14, color: "#6b7280", lineHeight: 1.7, margin: "0 0 24px" }}>
+                    {isFemale
+                      ? "אם תרצי לחזור בעתיד — תמיד אפשר להירשם מחדש. מקווים לראות אותך שוב 🤍"
+                      : "אם תרצה לחזור בעתיד — תמיד אפשר להירשם מחדש. מקווים לראות אותך שוב 🤍"}
+                  </p>
+                  <button
+                    onClick={() => { setShowDeleteModal(false); onLogout?.(); }}
+                    style={{
+                      padding: "12px 32px", borderRadius: 10, background: "#111827",
+                      color: "#fff", fontSize: 15, fontWeight: 600, border: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    להתראות
                   </button>
                 </div>
               </>)}
