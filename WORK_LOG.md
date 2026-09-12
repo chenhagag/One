@@ -1,6 +1,205 @@
 # WORK_LOG.md — One (formerly MatchMe) Development Log
 
-## Latest Session: 2026-09-03 (Confidence Blending + Expanded Matches Fix)
+## Launch Roadmap — Pre-Launch Sprint (Target: late Sep 2026)
+
+**Context**: אפליקציה מתחרה פתחה להרשמות, משיקה בנובמבר 2026. Google Play review ~2 שבועות. צריך גרסה יציבה ומשכנעת מוכנה לפרסום.
+
+### סדר עדיפויות
+
+| # | משימה | סטטוס | סיבה |
+|---|--------|--------|------|
+| 1 | **דף נחיתה + דפי הסבר משכנעים** | ❌ טרם התחיל | אין הרשמות = אין משמעות לכל השאר |
+| 2 | **חוויית המתנה חיה** | ❌ טרם התחיל | שמי שנרשמה לא תעזוב — timeline, תובנות מתגלגלות, עדכוני סטטוס |
+| 3 | **אוטומציה של pipeline** | ❌ טרם התחיל | סקיילינג — מייל pool אוטומטי, matching אוטומטי, אישור אנליזה |
+| 4 | **בדיקת אפליקציית Android** | ❌ טרם התחיל | לוודא שהכל עובד לפני פרסום |
+| 5 | **דיוק ציוני התאמה** | 🔄 בתהליך | פרומפט סגנון (17 תכונות נותרו) + calibration — לסמוך על תוצאות בלי בדיקה ידנית |
+| 6 | **באגי מחיקת חשבון** | ❌ טרם התחיל | לא blocking ללאנץ' |
+
+### עקרונות לספרינט
+- **לא לשבור דברים** — שינויים קטנים וממוקדים, לא refactors
+- **יציבות קודם** — כל שינוי עובר staging לפני production
+- **אוטומציה > פיצ'רים** — להפחית עומס ידני כדי להתמודד עם כמות
+
+---
+
+## TODO — Account Deletion Overhaul (Lower Priority)
+
+Discovered 2026-09-08: user רוני (208) deleted herself, displayed as "admin deletion" due to bug. Investigation revealed multiple issues.
+
+### באג: OTP login לא שולח device info
+- **בעיה**: משתמשים שנכנסים דרך OTP (לא Google OAuth) עוברים ב-legacy fallback (`/api/login`) שלא שולח device info → עמודת Device ריקה באדמין
+- **סיבה**: Supabase session לא קיים ל-OTP users → נופלים ל-`getSavedSession()` fallback (App.tsx:365) שקורא `/api/login` בלי `getDeviceInfo()`
+- **תיקון אפשרי**: להוסיף `getDeviceInfo()` לקריאת `/api/login` בצד לקוח, ולקלוט את זה ב-endpoint בצד שרת. שינוי קטן, לא נוגע ב-auth flow עצמו.
+- **עדיפות**: נמוכה — קוסמטי, לא שובר פונקציונליות
+
+### באגים לתקן
+1. **באג תצוגה בטאב משתמשים שנמחקו**: `deleted_by = "self"` מוצג כ-"אדמין" — הפרונט בודק רק `=== "user"`, לא תופס `"self"`. שורה 6356 ב-AdminView.tsx.
+2. **אין לוג למחיקת התאמות**: כשמשתמש מוחק חשבון, כל ההתאמות שלו נמחקות — הצד השני לא מקבל התראה וההתאמה פשוט נעלמת.
+3. **snapshot ב-deleted_users לא אמין**: אם היה reset-data לפני מחיקה, כל השדות (chat_count, was_in_pool, had_insights) מראים 0/false. צריך לשמור ערכי שיא היסטוריים, לא מצב נוכחי.
+
+### שדרוג UX של תהליך המחיקה
+- **מודאל/מסך מסודר** (לא confirm של דפדפן) שמסביר בבהירות מה הולך לקרות
+- **שדה סיבה**: לתת למשתמש לכתוב למה הוא מוחק
+- **אופציות חלופיות לפני מחיקה סופית**:
+  - 🧊 הקפאת חשבון — הקפאה, שמירת כל הנתונים, אפשרות לחזור
+  - 🔄 מחיקת שיחות בלבד — מתחיל תהליך מחדש
+  - 💾 מחיקה עם שמירת נתונים — המערכת זוכרת אותך אם תחזור
+  - ❌ מחיקה סופית — מחיקה מלאה לצמיתות
+- רק על מחיקה סופית — התראת "האם את/ה בטוח/ה?"
+- כל אופציה מסבירה בבירור מה נשמר ומה נמחק
+
+---
+
+## Latest Session: 2026-09-10 (Push Notification System)
+
+### ✅ קומט (לא נדחף עדיין)
+
+#### מערכת Push Notifications (FCM + Email fallback)
+- **קובץ חדש**: `backend/src/notifications.ts` (477 שורות) — Firebase Admin SDK, שמירת tokens, שליחת push עם fallback למייל via Resend
+- **קובץ חדש**: `frontend/src/lib/pushNotifications.ts` (159 שורות) — רישום FCM token בצד לקוח
+- **Auto-triggers**: התאמה חדשה, הודעה חדשה (throttle 5 דק), כרטיס נשלח, nudge
+- **Admin**: לוג נוטיפיקציות + badge סטטוס נוטיפיקציות
+- **מיילים**: לוגו appLogo, חתימה "One", טקסט מותאם מגדר ("דבר/דברי איתי על זה")
+
+#### קבצים שהשתנו
+- `backend/src/index.ts` — notification triggers + admin log endpoint
+- `backend/src/notifications.ts` — חדש, מערכת נוטיפיקציות מלאה
+- `frontend/src/lib/pushNotifications.ts` — חדש, FCM client
+- `frontend/src/AdminView.tsx` — notification log + badge
+- `frontend/src/App.tsx` — FCM token registration
+- `frontend/src/NewChat.tsx` — notification permission request
+- `frontend/public/appLogo.png` — לוגו לשימוש במיילים
+
+### הערות
+- הסשן נקטע (המחשב נכבה) — ייתכן שיש דברים שלא הושלמו
+- טרם נבדק על staging
+
+---
+
+## Previous Session: 2026-09-08 (Native App Detection + Beta Invite + Home Screen Fix)
+
+### ✅ עלה לפרודקשן (staging + production)
+
+#### זיהוי כניסה מאפליקציה נייטיבית
+- **בעיה**: עם `server.url`, ה-Capacitor bridge לא מוזרק ו-`isNativeApp()` מחזיר `false` — אין דרך לדעת מי נכנס מהאפליקציה
+- **פתרון צד שרת**: זיהוי `X-Requested-With: io.joinone.app` header ב-`/auth/sync` — Android WebView שולח אותו אוטומטית
+- **פתרון צד לקוח (ממתין ל-AAB הבא)**: `appendUserAgent: 'OneNativeApp'` ב-capacitor.config.ts + בדיקה ב-frontend
+- **Badge באדמין**: 📱 App בצהוב בעמודת devices למי שנכנס מהאפליקציה
+- **`devices_seen`**: שדה `native` חדש ב-JSONB array, dedup לפי device+pwa+native
+
+#### הזמנת בודקי בטא לאפליקציית Android
+- **30 הזמנות נשלחו** במייל דרך Resend:
+  - 14 משתמשים פעילים מאוגוסט+
+  - 16 משתמשים פעילים מיולי
+- **תוכן**: הזמנה להצטרף לקבוצת בטא + קישור ל-Google Play testing
+- **רשימת מיילים**: `Docs/android-testers-emails.txt`
+
+#### תיקון מסך הבית — הסתרת טקסט מבוא
+- **בעיה**: משתמשים שכבר במאגר (כמו נטלי שבתאי) עדיין ראו את הטקסט הארוך "ברוכים הבאים / איך זה עובד" שדחף את ההודעות למטה
+- **תיקון**: הטקסט הארוך מוסתר אם `in_matching_pool=true` או `chat_count > 0` (בנוסף ל-allChatsCompleted)
+
+#### קבצים שהשתנו
+- `backend/src/index.ts` — זיהוי native via X-Requested-With header
+- `frontend/src/App.tsx` — getDeviceInfo native detection (appendUserAgent + fallback)
+- `frontend/src/NewChat.tsx` — הסתרת intro text, הסרת auto-focus
+- `frontend/src/AdminView.tsx` — badge 📱 App בצהוב
+- `frontend/capacitor.config.ts` — appendUserAgent: 'OneNativeApp'
+
+### סנכרון staging ↔ production
+- שני הענפים זהים
+
+### TODO לסשן הבא
+- לוודא שזיהוי X-Requested-With עובד (בודקים שנכנסים מהאפליקציה)
+- לבנות AAB חדש כשצריך (עם appendUserAgent)
+- להמשיך לעבור על פרומפט סגנון תכונה תכונה (17 תכונות נותרו)
+- מעקב אחרי תוצאות הסקר
+- מעקב אחרי בודקי בטא — מי הוריד והצטרף
+
+---
+
+## Previous Session: 2026-09-07 (Android App — Live Update + Auth Fixes)
+
+### ✅ עלה לפרודקשן (staging + production)
+
+#### תיקון Auth באפליקציית Android
+- **CORS**: הוספת `https://localhost` ל-allowed origins — Capacitor עם `androidScheme: 'https'` שולח origin `https://localhost`, אבל רק `http://localhost` היה ב-whitelist. חסם את **כל** קריאות ה-API מהאפליקציה
+- **CSP**: הוספת `https://joinone.io` ל-`connect-src` ב-Helmet — האפליקציה רצה מ-`https://localhost` אז `'self'` לא כלל את joinone.io
+
+#### Live Update — server.url
+- **בעיית הרקע**: ה-AAB הקודם (v2, יולי) ארז frontend ישן בתוך ה-APK — כל שינויי frontend מאז לא הגיעו למשתמשי האפליקציה
+- **הפתרון**: `server.url: 'https://joinone.io'` ב-`capacitor.config.ts` — האפליקציה טוענת את ה-frontend מהשרת במקום מקבצים ארוזים
+- **תוצאה**: מעכשיו כל deploy ל-Railway מעדכן גם את האפליקציה, בלי AAB חדש. AAB נדרש רק לשינויים ב-native plugins, manifest, או Capacitor config
+
+#### AAB v1.1.0 (versionCode 3)
+- הועלה ל-Google Play Console
+- כולל server.url + assetlinks.json מעודכן
+- `build.gradle`: versionCode 3, versionName 1.1.0
+
+#### assetlinks.json — אימות Deep Links
+- הוספת חתימת SHA-256 שלישית שנדרשה ע"י Google Play
+- הוספת `delegate_permission/common.get_login_creds` ל-relation
+- קובץ: `frontend/public/.well-known/assetlinks.json`
+
+#### תיקון auto-focus בצ'אט
+- הסרת `inputRef.focus()` אחרי תגובת AI — גרם למקלדת לקפוץ מיד ולחסום את קריאת התשובה
+
+#### קבצים שהשתנו
+- `backend/src/index.ts` — CORS whitelist + CSP connect-src
+- `frontend/capacitor.config.ts` — server.url: joinone.io
+- `frontend/android/app/build.gradle` — versionCode 3, versionName 1.1.0
+- `frontend/public/.well-known/assetlinks.json` — 3 fingerprints + get_login_creds
+- `frontend/src/NewChat.tsx` — הסרת auto-focus
+- `.gitignore` — הוספת *.apk, *.aab
+
+### סנכרון staging ↔ production
+- שני הענפים זהים
+
+### TODO לסשן הבא
+- לוודא שהבודקים מצליחים להתחבר ולהשתמש באפליקציה אחרי עדכון מ-Play
+- להמשיך לעבור על פרומפט סגנון תכונה תכונה (17 תכונות נותרו)
+- מעקב אחרי תוצאות הסקר
+
+---
+
+## Previous Session: 2026-09-03 (Blind Match + Celebration Banner Fix)
+
+### ✅ עלה לפרודקשן (staging + production)
+
+#### פיצ'ר התאמה עיוורת (Blind Match)
+- **DB**: `blind_match_consent BOOLEAN DEFAULT FALSE` על users, `is_blind_match BOOLEAN DEFAULT FALSE` על matches
+- **אדמין — מסך משתמש**: כפתור toggle סגול "התאמה עיוורת" ליד כפתור המאגר
+- **אדמין — candidate matches**:
+  - סטטוס חדש `blind_match_candidate` (צבע סגול) בפילטרים, dropdown, ו-badge
+  - Badge "שניהם אישרו עיוורת" כששני הצדדים מסומנים + חסרה תמונה
+  - כפתור "שלח התאמה עיוורת" → ישר ל-pre_match (מדלג על דירוג תמונות)
+- **כרטיס התאמה**: כשהתאמה עיוורת — תמונות לא מוצגות (אות ראשונה של השם במקום), חל על כרטיס, match hub, צ'אט, ופרופיל השותף
+- **Freeze logic**: `blind_match_candidate` נכלל בכל IN clauses של freeze/reconcile כמו `potential_match`
+- **prepare endpoint**: מותר לעבור מ-`blind_match_candidate` ל-`pre_match`, מסמן `is_blind_match = TRUE`
+- **Backend**: `active-match-card` ו-`match-partner-profile` מחזירים photos=null להתאמות עיוורות
+
+#### תיקון באנר חגיגי — איפוס בהתאמה חדשה
+- **בעיה**: באנר "מזל טוב, קיבלת התאמה!" הופיע רק פעם אחת לכל משתמש (localStorage שמר `true`)
+- **תיקון**: שומר match_id במקום boolean → התאמה חדשה מציגה מחדש את הבאנר
+- **מיגרציה**: ערך ישן `"true"` מומר אוטומטית ל-match_id בטעינה ראשונה
+
+#### קבצים שהשתנו
+- `backend/src/schema.pg.ts` — migrations (blind_match_consent, is_blind_match)
+- `backend/src/index.ts` — blind_match_candidate status, freeze logic, prepare endpoint, active-match-card, match-partner-profile
+- `frontend/src/AdminView.tsx` — blind consent toggle, status filter/badge/dropdown/button
+- `frontend/src/MatchCard.tsx` — isBlindMatch prop
+- `frontend/src/NewChat.tsx` — matchCardViewedId (replaces boolean), migration logic
+
+### סנכרון staging ↔ production
+- שני הענפים זהים
+
+### TODO לסשן הבא
+- שליחת שאלת הסכמה להתאמה עיוורת ל-40 משתמשות עם התאמות בסטטוס "ממתין לתמונה" (מינוס שחר #290 וליאור #234 שכבר מסומנים)
+- להמשיך לעבור על פרומפט סגנון תכונה תכונה (17 תכונות נותרו)
+- מעקב אחרי תוצאות הסקר
+
+---
+
+## Previous Session: 2026-09-03 (Confidence Blending + Expanded Matches Fix)
 
 ### ✅ עלה לפרודקשן
 

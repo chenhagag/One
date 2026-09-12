@@ -2628,9 +2628,10 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteStep, setDeleteStep] = useState<"choose" | "reset_confirm" | "delete_confirm">("choose");
+  const [deleteReason, setDeleteReason] = useState("");
   const [deleting, setDeleting] = useState(false);
-  const [resetConfirm, setResetConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [selfFrozen, setSelfFrozen] = useState(false);
   const [freezeMsg, setFreezeMsg] = useState<string | null>(null);
@@ -2666,9 +2667,15 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
   async function handleResetData() {
     setResetting(true);
     try {
-      const res = await apiFetch(`/users/${user.id}/reset-data`, { method: "POST" });
+      const res = await apiFetch(`/users/${user.id}/reset-data`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: deleteReason.trim() || undefined }),
+      });
       if (res.ok) {
-        alert("הנתונים נמחקו בהצלחה. החשבון שלך נשמר.");
+        setShowDeleteModal(false);
+        setDeleteReason("");
+        alert(isFemale ? "הנתונים נמחקו בהצלחה. החשבון שלך נשמר." : "הנתונים נמחקו בהצלחה. החשבון שלך נשמר.");
         window.location.reload();
       } else {
         alert("משהו השתבש, נסו שוב");
@@ -2683,7 +2690,11 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
   async function handleDeleteAccount() {
     setDeleting(true);
     try {
-      const res = await apiFetch(`/users/${user.id}/account`, { method: "DELETE" });
+      const res = await apiFetch(`/users/${user.id}/account`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: deleteReason.trim() || undefined }),
+      });
       if (res.ok) {
         onLogout?.();
       } else {
@@ -2693,9 +2704,12 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
       alert("שגיאת רשת, נסו שוב");
     } finally {
       setDeleting(false);
-      setDeleteConfirm(false);
+      setShowDeleteModal(false);
+      setDeleteReason("");
     }
   }
+
+  const isFemale = user.gender === "woman";
 
   const sectionStyle: React.CSSProperties = { background: "#f9fafb", borderRadius: 12, padding: "16px 20px", marginBottom: 16 };
   const titleStyle: React.CSSProperties = { fontSize: 15, fontWeight: 600, color: "#111827", margin: "0 0 12px" };
@@ -2858,101 +2872,257 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
 
         {saved && <p style={{ fontSize: 12, color: "#22c55e", textAlign: "center", margin: "0 0 16px" }}>נשמר בהצלחה</p>}
 
-        {/* Reset data */}
-        <div style={{ ...sectionStyle, background: "#fffbeb", marginTop: 32 }}>
-          <h3 style={{ ...titleStyle, color: "#92400e" }}>מחיקת נתונים</h3>
+        {/* Delete / Reset / Freeze */}
+        <div style={{ ...sectionStyle, background: "#fef2f2", marginTop: 32 }}>
+          <h3 style={{ ...titleStyle, color: "#991b1b" }}>{isFemale ? "רוצה לעזוב?" : "רוצה לעזוב?"}</h3>
           <p style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.6, margin: "0 0 12px" }}>
-            מחיקת כל השיחות, התובנות וההתאמות שלך. שימו לב — כל השיחה תימחק לצמיתות, כולל כל הנתונים שנאספו ממנה, ותצטרכו לעבור את השיחה המלאה מחדש כדי להיכנס שוב למאגר ההתאמות.
+            {isFemale
+              ? "אם את שוקלת לעזוב, יש כמה אפשרויות — לא חייבים למחוק הכל."
+              : "אם אתה שוקל לעזוב, יש כמה אפשרויות — לא חייבים למחוק הכל."}
           </p>
-          {!resetConfirm ? (
-            <button
-              onClick={() => setResetConfirm(true)}
-              style={{
-                padding: "8px 20px", borderRadius: 8, background: "#fff",
-                color: "#d97706", fontSize: 13, fontWeight: 600,
-                border: "1px solid #fde68a", cursor: "pointer",
-              }}
-            >
-              מחיקת הנתונים שלי
-            </button>
-          ) : (
-            <div>
-              <p style={{ fontSize: 14, fontWeight: 600, color: "#d97706", margin: "0 0 10px" }}>
-                בטוח/ה? כל השיחות, התובנות וההתאמות יימחקו לצמיתות. תצטרכו לעבור את כל התהליך מחדש.
-              </p>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  onClick={handleResetData}
-                  disabled={resetting}
-                  style={{
-                    padding: "8px 20px", borderRadius: 8, background: "#d97706",
-                    color: "#fff", fontSize: 13, fontWeight: 600, border: "none",
-                    cursor: "pointer", opacity: resetting ? 0.5 : 1,
-                  }}
-                >
-                  {resetting ? "מוחק..." : "כן, מחקו את הנתונים"}
-                </button>
-                <button
-                  onClick={() => setResetConfirm(false)}
-                  style={{
-                    padding: "8px 20px", borderRadius: 8, background: "#fff",
-                    color: "#374151", fontSize: 13, border: "1px solid #d1d5db", cursor: "pointer",
-                  }}
-                >
-                  ביטול
-                </button>
-              </div>
-            </div>
-          )}
+          <button
+            onClick={() => { setShowDeleteModal(true); setDeleteStep("choose"); setDeleteReason(""); }}
+            style={{
+              padding: "8px 20px", borderRadius: 8, background: "#fff",
+              color: "#dc2626", fontSize: 13, fontWeight: 600,
+              border: "1px solid #fecaca", cursor: "pointer",
+            }}
+          >
+            {isFemale ? "הראי לי את האפשרויות" : "הראה לי את האפשרויות"}
+          </button>
         </div>
 
-        {/* Delete account */}
-        <div style={{ ...sectionStyle, background: "#fef2f2", marginTop: 32 }}>
-          <h3 style={{ ...titleStyle, color: "#991b1b" }}>מחיקת חשבון</h3>
-          <p style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.6, margin: "0 0 12px" }}>
-            מחיקת החשבון תסיר את כל המידע שלך לצמיתות — כולל שיחות, תמונות, תובנות והתאמות. לא ניתן לשחזר את המידע לאחר המחיקה.
-          </p>
-          {!deleteConfirm ? (
-            <button
-              onClick={() => setDeleteConfirm(true)}
+        {/* Deletion / Reset / Freeze Modal */}
+        {showDeleteModal && (
+          <div style={{
+            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(0,0,0,0.5)", zIndex: 9999,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: 16,
+          }} onClick={() => { if (!deleting && !resetting) { setShowDeleteModal(false); setDeleteStep("choose"); setDeleteReason(""); } }}>
+            <div
               style={{
-                padding: "8px 20px", borderRadius: 8, background: "#fff",
-                color: "#dc2626", fontSize: 13, fontWeight: 600,
-                border: "1px solid #fecaca", cursor: "pointer",
+                background: "#fff", borderRadius: 16, padding: "24px 20px",
+                maxWidth: 420, width: "100%", maxHeight: "85vh", overflowY: "auto",
+                boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
               }}
+              onClick={e => e.stopPropagation()}
             >
-              מחיקת החשבון שלי
-            </button>
-          ) : (
-            <div>
-              <p style={{ fontSize: 14, fontWeight: 600, color: "#dc2626", margin: "0 0 10px" }}>
-                בטוח/ה? הפעולה הזו בלתי הפיכה.
-              </p>
-              <div style={{ display: "flex", gap: 8 }}>
+              {/* Step 1: Choose action */}
+              {deleteStep === "choose" && (<>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: "#111827", margin: "0 0 16px", textAlign: "center" }}>
+                  {isFemale ? "מה את מעדיפה לעשות?" : "מה אתה מעדיף לעשות?"}
+                </h3>
+
+                {/* Option: Freeze */}
+                <div style={{
+                  background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 12,
+                  padding: 16, marginBottom: 12, cursor: "pointer",
+                  transition: "transform 0.15s",
+                }} onClick={() => {
+                  setSelfFrozen(true);
+                  saveSetting({ self_frozen: true });
+                  setShowDeleteModal(false);
+                  setDeleteStep("choose");
+                  setFreezeMsg("החיפוש הושהה בהצלחה. כל הנתונים שלך נשמרים.");
+                  setTimeout(() => setFreezeMsg(null), 5000);
+                }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: "#0369a1", marginBottom: 6 }}>
+                    הקפאת חשבון
+                  </div>
+                  <p style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.6, margin: 0 }}>
+                    {isFemale
+                      ? "החשבון שלך יישמר עם כל הנתונים, אבל החיפוש יעצור. תוכלי לחזור בכל רגע ולהפעיל מחדש."
+                      : "החשבון שלך יישמר עם כל הנתונים, אבל החיפוש יעצור. תוכל לחזור בכל רגע ולהפעיל מחדש."}
+                  </p>
+                </div>
+
+                {/* Option: Reset data */}
+                <div style={{
+                  background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 12,
+                  padding: 16, marginBottom: 12, cursor: "pointer",
+                }} onClick={() => { setDeleteStep("reset_confirm"); setDeleteReason(""); }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: "#92400e", marginBottom: 6 }}>
+                    מחיקת נתונים (התחלה מחדש)
+                  </div>
+                  <p style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.6, margin: 0 }}>
+                    כל השיחות, התובנות וההתאמות יימחקו. החשבון והתמונות נשמרים. {isFemale ? "תצטרכי" : "תצטרך"} לעבור את התהליך מחדש.
+                  </p>
+                </div>
+
+                {/* Option: Delete account */}
+                <div style={{
+                  background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12,
+                  padding: 16, marginBottom: 12, cursor: "pointer",
+                }} onClick={() => { setDeleteStep("delete_confirm"); setDeleteReason(""); }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: "#991b1b", marginBottom: 6 }}>
+                    מחיקת חשבון לצמיתות
+                  </div>
+                  <p style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.6, margin: 0 }}>
+                    כל המידע יימחק לצמיתות — שיחות, תמונות, תובנות והתאמות. לא ניתן לשחזר.
+                  </p>
+                </div>
+
+                {/* Cancel */}
                 <button
-                  onClick={handleDeleteAccount}
-                  disabled={deleting}
+                  onClick={() => { setShowDeleteModal(false); setDeleteStep("choose"); }}
                   style={{
-                    padding: "8px 20px", borderRadius: 8, background: "#dc2626",
-                    color: "#fff", fontSize: 13, fontWeight: 600, border: "none",
-                    cursor: "pointer", opacity: deleting ? 0.5 : 1,
+                    width: "100%", padding: "10px 0", borderRadius: 8, background: "#f3f4f6",
+                    color: "#374151", fontSize: 14, fontWeight: 500, border: "none",
+                    cursor: "pointer", marginTop: 4,
                   }}
                 >
-                  {deleting ? "מוחק..." : "כן, מחקו את החשבון"}
+                  {isFemale ? "נשארת" : "נשאר"} :)
                 </button>
-                <button
-                  onClick={() => setDeleteConfirm(false)}
+              </>)}
+
+              {/* Step 2a: Reset data confirmation */}
+              {deleteStep === "reset_confirm" && (<>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: "#92400e", margin: "0 0 12px", textAlign: "center" }}>
+                  מחיקת נתונים
+                </h3>
+                <div style={{ background: "#fffbeb", borderRadius: 10, padding: 14, marginBottom: 16 }}>
+                  <p style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.7, margin: "0 0 8px" }}>
+                    <strong>מה יימחק:</strong> כל השיחות, התובנות, ציוני ההתאמה, וההתאמות הקיימות.
+                  </p>
+                  <p style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.7, margin: 0 }}>
+                    <strong>מה נשמר:</strong> החשבון, הפרטים האישיים והתמונות. {isFemale ? "תצטרכי" : "תצטרך"} לעבור את השיחות מחדש כדי לחזור למאגר ההתאמות.
+                  </p>
+                </div>
+
+                {/* Freeze alternative */}
+                <div style={{
+                  background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 10,
+                  padding: 12, marginBottom: 16,
+                }}>
+                  <p style={{ fontSize: 13, color: "#0369a1", lineHeight: 1.6, margin: 0 }}>
+                    {isFemale
+                      ? "💡 רק רוצה הפסקה? את יכולה להקפיא את החשבון במקום — כל הנתונים נשמרים ותוכלי לחזור בכל רגע."
+                      : "💡 רק רוצה הפסקה? אתה יכול להקפיא את החשבון במקום — כל הנתונים נשמרים ותוכל לחזור בכל רגע."}
+                    <button onClick={() => {
+                      setSelfFrozen(true);
+                      saveSetting({ self_frozen: true });
+                      setShowDeleteModal(false);
+                      setDeleteStep("choose");
+                      setFreezeMsg("החיפוש הושהה בהצלחה. כל הנתונים שלך נשמרים.");
+                      setTimeout(() => setFreezeMsg(null), 5000);
+                    }} style={{
+                      background: "none", border: "none", color: "#0369a1", fontWeight: 600,
+                      cursor: "pointer", textDecoration: "underline", fontSize: 13, padding: 0, marginRight: 4,
+                    }}>
+                      {isFemale ? "הקפיאי את החשבון" : "הקפיא את החשבון"}
+                    </button>
+                  </p>
+                </div>
+
+                <textarea
+                  value={deleteReason}
+                  onChange={e => setDeleteReason(e.target.value)}
+                  placeholder={isFemale ? "רוצה לספר לנו למה? (לא חובה)" : "רוצה לספר לנו למה? (לא חובה)"}
                   style={{
-                    padding: "8px 20px", borderRadius: 8, background: "#fff",
-                    color: "#6b7280", fontSize: 13, border: "1px solid #e5e7eb", cursor: "pointer",
+                    width: "100%", minHeight: 60, borderRadius: 8, border: "1px solid #d1d5db",
+                    padding: 10, fontSize: 13, resize: "vertical", fontFamily: "inherit",
+                    boxSizing: "border-box", marginBottom: 16,
                   }}
-                >
-                  ביטול
-                </button>
-              </div>
+                />
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    onClick={handleResetData}
+                    disabled={resetting}
+                    style={{
+                      flex: 1, padding: "10px 0", borderRadius: 8, background: "#d97706",
+                      color: "#fff", fontSize: 14, fontWeight: 600, border: "none",
+                      cursor: "pointer", opacity: resetting ? 0.5 : 1,
+                    }}
+                  >
+                    {resetting ? (isFemale ? "מוחקת..." : "מוחק...") : (isFemale ? "כן, מחקו את הנתונים" : "כן, מחקו את הנתונים")}
+                  </button>
+                  <button
+                    onClick={() => setDeleteStep("choose")}
+                    disabled={resetting}
+                    style={{
+                      flex: 1, padding: "10px 0", borderRadius: 8, background: "#f3f4f6",
+                      color: "#374151", fontSize: 14, border: "none", cursor: "pointer",
+                    }}
+                  >
+                    חזרה
+                  </button>
+                </div>
+              </>)}
+
+              {/* Step 2b: Delete account confirmation */}
+              {deleteStep === "delete_confirm" && (<>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: "#991b1b", margin: "0 0 12px", textAlign: "center" }}>
+                  מחיקת חשבון לצמיתות
+                </h3>
+                <div style={{ background: "#fef2f2", borderRadius: 10, padding: 14, marginBottom: 16 }}>
+                  <p style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.7, margin: 0 }}>
+                    הפעולה הזו תמחק את <strong>כל</strong> המידע שלך לצמיתות — שיחות, תמונות, תובנות, התאמות והחשבון עצמו. לא ניתן לשחזר את המידע לאחר המחיקה.
+                  </p>
+                </div>
+
+                {/* Freeze alternative */}
+                <div style={{
+                  background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 10,
+                  padding: 12, marginBottom: 16,
+                }}>
+                  <p style={{ fontSize: 13, color: "#0369a1", lineHeight: 1.6, margin: 0 }}>
+                    {isFemale
+                      ? "💡 רק רוצה הפסקה? את יכולה להקפיא את החשבון במקום — כל הנתונים נשמרים ותוכלי לחזור בכל רגע."
+                      : "💡 רק רוצה הפסקה? אתה יכול להקפיא את החשבון במקום — כל הנתונים נשמרים ותוכל לחזור בכל רגע."}
+                    <button onClick={() => {
+                      setSelfFrozen(true);
+                      saveSetting({ self_frozen: true });
+                      setShowDeleteModal(false);
+                      setDeleteStep("choose");
+                      setFreezeMsg("החיפוש הושהה בהצלחה. כל הנתונים שלך נשמרים.");
+                      setTimeout(() => setFreezeMsg(null), 5000);
+                    }} style={{
+                      background: "none", border: "none", color: "#0369a1", fontWeight: 600,
+                      cursor: "pointer", textDecoration: "underline", fontSize: 13, padding: 0, marginRight: 4,
+                    }}>
+                      {isFemale ? "הקפיאי את החשבון" : "הקפיא את החשבון"}
+                    </button>
+                  </p>
+                </div>
+
+                <textarea
+                  value={deleteReason}
+                  onChange={e => setDeleteReason(e.target.value)}
+                  placeholder={isFemale ? "רוצה לספר לנו למה? (לא חובה)" : "רוצה לספר לנו למה? (לא חובה)"}
+                  style={{
+                    width: "100%", minHeight: 60, borderRadius: 8, border: "1px solid #d1d5db",
+                    padding: 10, fontSize: 13, resize: "vertical", fontFamily: "inherit",
+                    boxSizing: "border-box", marginBottom: 16,
+                  }}
+                />
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    onClick={handleDeleteAccount}
+                    disabled={deleting}
+                    style={{
+                      flex: 1, padding: "10px 0", borderRadius: 8, background: "#dc2626",
+                      color: "#fff", fontSize: 14, fontWeight: 600, border: "none",
+                      cursor: "pointer", opacity: deleting ? 0.5 : 1,
+                    }}
+                  >
+                    {deleting ? (isFemale ? "מוחקת..." : "מוחק...") : (isFemale ? "כן, מחקו את החשבון" : "כן, מחקו את החשבון")}
+                  </button>
+                  <button
+                    onClick={() => setDeleteStep("choose")}
+                    disabled={deleting}
+                    style={{
+                      flex: 1, padding: "10px 0", borderRadius: 8, background: "#f3f4f6",
+                      color: "#374151", fontSize: 14, border: "none", cursor: "pointer",
+                    }}
+                  >
+                    חזרה
+                  </button>
+                </div>
+              </>)}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Legal links */}
         <div style={{ textAlign: "center", marginTop: 24, paddingBottom: 8 }}>

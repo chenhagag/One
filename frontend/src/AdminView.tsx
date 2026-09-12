@@ -6378,6 +6378,7 @@ function DeletedUsersTab() {
               <th style={s.th}>הודעות</th>
               <th style={s.th}>במאגר</th>
               <th style={s.th}>תובנות</th>
+              <th style={s.th}>סיבה</th>
             </tr>
           </thead>
           <tbody>
@@ -6394,16 +6395,17 @@ function DeletedUsersTab() {
                 <td style={s.td}>{fmtDateTime(r.deleted_at)}</td>
                 <td style={s.td}>
                   <span style={{
-                    background: r.deleted_by === "user" ? "#fef3c7" : "#fee2e2",
-                    color: r.deleted_by === "user" ? "#92400e" : "#991b1b",
+                    background: (r.deleted_by === "user" || r.deleted_by === "self") ? "#fef3c7" : "#fee2e2",
+                    color: (r.deleted_by === "user" || r.deleted_by === "self") ? "#92400e" : "#991b1b",
                     borderRadius: 4, padding: "2px 6px", fontSize: 11, fontWeight: 600,
                   }}>
-                    {r.deleted_by === "user" ? "משתמש" : "אדמין"}
+                    {(r.deleted_by === "user" || r.deleted_by === "self") ? "משתמש" : "אדמין"}
                   </span>
                 </td>
                 <td style={s.td}>{r.chat_count}</td>
                 <td style={s.td}>{r.was_in_pool ? "V" : "—"}</td>
                 <td style={s.td}>{r.had_insights ? "V" : "—"}</td>
+                <td style={s.td}>{r.delete_reason ? <span title={r.delete_reason} style={{ fontSize: 11, color: "#6b7280", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "inline-block" }}>{r.delete_reason}</span> : "—"}</td>
               </tr>
             ))}
           </tbody>

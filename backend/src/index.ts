@@ -1655,6 +1655,7 @@ app.get("/users/:id/conversation-history", requireUserAuth, async (req, res) => 
 // DELETE /users/:id/account — User deletes their own account
 app.delete("/users/:id/account", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
+  const { reason } = req.body || {};
 
   const user = await pgQueryOne<any>(
     "SELECT id, first_name, email, gender, age, city, test_user_type, created_at, in_matching_pool, personal_insights_short, personal_insights_full, couple_insights FROM users WHERE id = $1",
@@ -1667,10 +1668,11 @@ app.delete("/users/:id/account", requireUserAuth, async (req, res) => {
       "SELECT COUNT(*)::int AS cnt FROM conversation_messages WHERE user_id = $1 AND role = 'user'", [userId]
     );
     await pgQueryAll(
-      `INSERT INTO deleted_users (original_user_id, first_name, email, gender, age, city, test_user_type, created_at, deleted_by, chat_count, was_in_pool, had_insights)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      `INSERT INTO deleted_users (original_user_id, first_name, email, gender, age, city, test_user_type, created_at, deleted_by, chat_count, was_in_pool, had_insights, delete_reason)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
       [userId, user.first_name, user.email, user.gender, user.age, user.city, user.test_user_type, user.created_at,
-       "self", chatCount?.cnt || 0, !!user.in_matching_pool, !!(user.personal_insights_short || user.personal_insights_full || user.couple_insights)]
+       "self", chatCount?.cnt || 0, !!user.in_matching_pool, !!(user.personal_insights_short || user.personal_insights_full || user.couple_insights),
+       reason || null]
     );
   } catch (e) {
     console.error("[delete-account] Failed to save to deleted_users:", e);
@@ -2232,6 +2234,7 @@ app.delete("/admin/users/:id", async (req, res) => {
 // POST /api/users/:id/reset-data — Delete all user data but keep account
 app.post("/users/:id/reset-data", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id);
+  const { reason } = req.body || {};
   if (isNaN(userId)) return res.status(400).json({ error: "Invalid user ID" });
 
   const user = await pgQueryOne<any>("SELECT id, email, first_name FROM users WHERE id = $1", [userId]);
@@ -2255,8 +2258,9 @@ app.post("/users/:id/reset-data", requireUserAuth, async (req, res) => {
   // Reset analysis-related fields on user row
   await pgQueryAll(
     `UPDATE users SET is_matchable = FALSE, in_matching_pool = FALSE, auto_analyzed = FALSE,
-     analysis_run_count = 0, cognitive_score = NULL, personal_insights_short = NULL,
-     personal_insights_full = NULL, couple_insights = NULL
+     analysis_run_count = 0, analysis_completed = FALSE, insights_pre_completion = NULL,
+     cognitive_score = NULL, personal_insights_short = NULL, personal_insights_full = NULL,
+     couple_insights = NULL, self_frozen = FALSE
      WHERE id = $1`,
     [userId]
   );
@@ -2264,7 +2268,7 @@ app.post("/users/:id/reset-data", requireUserAuth, async (req, res) => {
   // Notify admin via bug_reports
   await pgQueryAll(
     `INSERT INTO bug_reports (user_id, report_text) VALUES ($1, $2)`,
-    [userId, `[system] המשתמש/ת ${user.first_name} (${user.email}) מחק/ה את כל הנתונים והתחיל/ה מחדש`]
+    [userId, `[system] המשתמש/ת ${user.first_name} (${user.email}) מחק/ה את כל הנתונים והתחיל/ה מחדש${reason ? ` — סיבה: ${reason}` : ""}`]
   );
 
   console.log(`[reset-data] Reset data for user ${userId}`);

@@ -1012,8 +1012,18 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       deleted_by        TEXT DEFAULT 'user',
       chat_count        INTEGER DEFAULT 0,
       was_in_pool       BOOLEAN DEFAULT FALSE,
-      had_insights      BOOLEAN DEFAULT FALSE
+      had_insights      BOOLEAN DEFAULT FALSE,
+      delete_reason     TEXT
     );
+  `);
+
+  // Migration: add delete_reason to deleted_users
+  await pool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'deleted_users' AND column_name = 'delete_reason') THEN
+        ALTER TABLE deleted_users ADD COLUMN delete_reason TEXT;
+      END IF;
+    END $$;
   `);
 
   // Error logs — captures frontend + backend errors for monitoring
