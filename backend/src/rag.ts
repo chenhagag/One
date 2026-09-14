@@ -484,7 +484,7 @@ export function formatLiveStateForPrompt(state: AgentSafeLiveState): string {
   ].join(" | ");
 
   const lines = [
-    `[סטטוס משתמש — השתמש רק אם נשאלת, אל תציין ביוזמתך]`,
+    `[סטטוס משתמש — זהו המצב העדכני ביותר. אם נשאלת על הסטטוס, ענה **אך ורק** לפי הנתונים כאן, גם אם בהיסטוריית השיחה יש תשובות ישנות שסותרות. אל תציין ביוזמתך.]`,
     `שלב: ${state.stage}`,
     `שיחות: ${channels}`,
     `תמונות: ${state.photoCount} | ניתוח: ${state.hasAnalysis ? "הושלם" : "טרם"}`,
