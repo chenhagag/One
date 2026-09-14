@@ -457,7 +457,12 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             pool_profile_count: data.pool_profile_count || 0,
           });
           setHasPastMatches(!!data.has_past_matches);
-          setSystemQuestion(data.system_question || null);
+          // Only set system question if user hasn't already answered it in this session
+          if (data.system_question && (!answeredQuestion || answeredQuestion.question_text !== data.system_question.question_text)) {
+            setSystemQuestion(data.system_question);
+          } else if (!data.system_question) {
+            setSystemQuestion(null);
+          }
           if (data.chat_closed) setClosedChannels(prev => ({ ...prev, "new_chat": true }));
           if (data.cognitive_closed) setClosedChannels(prev => ({ ...prev, "new_chat_cognitive": true }));
           if (data.taste_closed) setClosedChannels(prev => ({ ...prev, "new_chat_taste": true }));
