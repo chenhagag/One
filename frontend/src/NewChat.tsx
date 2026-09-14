@@ -2537,12 +2537,21 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 {recommendations.in_matching_pool && allChatsComplete ? (<>
                   {/* Pool user: replace completed step bubbles with useful options */}
                   <button style={styles.qaBubble} onClick={() => {
-                    sendMessage("מה הסטטוס שלי?", "qa_system");
+                    if (channelMessages["qa_system"]?.length > 0) { setChannel("qa_system"); setScreen("chat"); }
+                    else { sendMessage("מה הסטטוס שלי?", "qa_system"); }
                   }}>
                     <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}><IconImg src="/icons/Question.png" size={16} /></span> מה הסטטוס שלי?
                   </button>
                   <button style={styles.qaBubble} onClick={() => {
-                    sendMessage(isFemale ? "אני רוצה להוסיף או לחדד משהו לגבי עצמי או מה שאני מחפשת" : "אני רוצה להוסיף או לחדד משהו לגבי עצמי או מה שאני מחפש", "new_chat");
+                    const msg = isFemale ? "אני רוצה להוסיף או לחדד משהו לגבי עצמי או מה שאני מחפשת" : "אני רוצה להוסיף או לחדד משהו לגבי עצמי או מה שאני מחפש";
+                    if (channelMessages["new_chat"]?.length > 0) {
+                      setChannel("new_chat");
+                      setScreen("chat");
+                      // Send with a tiny delay so the screen transition happens first
+                      setTimeout(() => sendMessage(msg, "new_chat"), 100);
+                    } else {
+                      sendMessage(msg, "new_chat");
+                    }
                   }}>
                     <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}><IconImg src="/icons/Conversation.png" size={16} /></span> רוצה להוסיף או לחדד משהו
                   </button>

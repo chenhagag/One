@@ -266,6 +266,7 @@ export interface AgentSafeLiveState {
   waitingForRating: boolean;       // waiting_first/second_rating with sent_for_rating_to = user
   selfFrozen: boolean;             // user paused their own matching
   profileComplete: boolean;
+  matchCardConsent: string | null;  // 'approved' | 'declined' | null
   poolProfileCount: number;        // total profiles in matching pool
   missingFields: string[];         // which profile fields are missing (empty if complete)
   userDetails: {                   // basic profile details for AI context
@@ -303,10 +304,12 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
       created_at: string;
       user_status: string | null;
       self_frozen: boolean;
+      match_card_consent: string | null;
     }>(
       `SELECT in_matching_pool, auto_analyzed, analysis_completed,
               profile_complete, agent_context, created_at, user_status,
-              COALESCE(self_frozen, FALSE) as self_frozen
+              COALESCE(self_frozen, FALSE) as self_frozen,
+              match_card_consent
        FROM users WHERE id = $1`,
       [userId]
     ).then(r => r.rows[0]),
@@ -369,6 +372,7 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
       waitingForRating: false,
       selfFrozen: false,
       profileComplete: false,
+      matchCardConsent: null,
       poolProfileCount: 0,
       missingFields: [],
       userDetails: { age: null, city: null, height: null, gender: null, looking_for_gender: null, desired_age_min: null, desired_age_max: null, desired_height_min: null, desired_height_max: null, desired_location_range: null },
@@ -441,7 +445,8 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
     waitingForRating,
     selfFrozen: userRow.self_frozen,
     profileComplete: userRow.profile_complete ?? false,
-    poolProfileCount: poolCount as number,
+    matchCardConsent: userRow.match_card_consent ?? null,
+    poolProfileCount: 0, // Hidden until critical mass — see project_pool_count_display.md
     missingFields: (() => {
       const missing: string[] = [];
       if (!profileFields?.age) missing.push("גיל");
@@ -484,7 +489,6 @@ export function formatLiveStateForPrompt(state: AgentSafeLiveState): string {
     `שיחות: ${channels}`,
     `תמונות: ${state.photoCount} | ניתוח: ${state.hasAnalysis ? "הושלם" : "טרם"}`,
     `ימים במערכת: ${state.daysInSystem}`,
-    `פרופילים במאגר: ${state.poolProfileCount}`,
   ];
 
   // User profile details
@@ -507,6 +511,10 @@ export function formatLiveStateForPrompt(state: AgentSafeLiveState): string {
   if (d.desired_location_range) {
     const locMap: Record<string, string> = { my_city: "העיר שלי", my_area: "האזור שלי", bit_further: "קצת רחוק יותר", whole_country: "כל הארץ" };
     lines.push(`טווח מיקום רצוי: ${locMap[d.desired_location_range] || d.desired_location_range}`);
+  }
+
+  if (state.matchCardConsent !== "approved") {
+    lines.push("כרטיס התאמה: לא אושר — יש להפנות לאישור כרטיס כדי שנוכל לשלוח התאמות");
   }
 
   if (state.selfFrozen) lines.push("חיפוש מושהה: כן (המשתמש/ת הקפיא/ה בעצמו/ה)");
