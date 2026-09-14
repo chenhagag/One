@@ -387,7 +387,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [bugText, setBugText] = useState("");
   const [bugSent, setBugSent] = useState(false);
   const [feedbackCategory, setFeedbackCategory] = useState<string>("");
-  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; admin_message_type: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null; has_past_matches: boolean; show_survey_banner: boolean; survey_partial: boolean; self_frozen: boolean; active_nudge: { id: number; match_id: number; partner_name: string; partner_gender: string } | null }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, admin_message_type: null, pending_rating: false, in_matching_pool: false, match_card_consent: null, has_past_matches: false, show_survey_banner: false, survey_partial: false, self_frozen: false, active_nudge: null });
+  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; admin_message_type: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null; has_past_matches: boolean; show_survey_banner: boolean; survey_partial: boolean; self_frozen: boolean; active_nudge: { id: number; match_id: number; partner_name: string; partner_gender: string } | null; pool_profile_count: number }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, admin_message_type: null, pending_rating: false, in_matching_pool: false, match_card_consent: null, has_past_matches: false, show_survey_banner: false, survey_partial: false, self_frozen: false, active_nudge: null, pool_profile_count: 0 });
   const [systemQuestion, setSystemQuestion] = useState<{ id: number; question_text: string } | null>(null);
   const [answeredQuestion, setAnsweredQuestion] = useState<{ question_text: string; answer: string } | null>(null);
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
@@ -454,6 +454,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             survey_partial: !!data.survey_partial,
             self_frozen: !!data.self_frozen,
             active_nudge: data.active_nudge || null,
+            pool_profile_count: data.pool_profile_count || 0,
           });
           setHasPastMatches(!!data.has_past_matches);
           setSystemQuestion(data.system_question || null);
@@ -767,6 +768,13 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         @keyframes nc-fadeIn {
           from { opacity: 0; transform: translateY(6px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        .pulse-dot {
+          animation: pulse-glow 2s ease-in-out infinite;
+        }
+        @keyframes pulse-glow {
+          0%, 100% { opacity: 1; box-shadow: 0 0 4px #22c55e; }
+          50% { opacity: 0.5; box-shadow: 0 0 10px #22c55e; }
         }
       `}</style>
 
@@ -2331,36 +2339,62 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   </div>
                 );
               }
-              // All done — thank the user + prompt for photos/profile
+              // All done — status card or prompt for photos/profile
               if (chatClosed && cogDoneForCouple && tasteDoneForCouple) {
                 const hasPhotos = recommendations.photo_count > 0;
                 const hasDetails = recommendations.has_profile_details;
+                const inPool = recommendations.in_matching_pool;
                 return (
                   <div style={styles.recommendationBlock}>
                     {isCouple ? (
                       <p style={styles.recommendationText}>
                         סיימת את כל השלבים, תודה רבה, עזרת לי מאוד לשפר את עצמי! נחזור אליך בקרוב עם תובנות על הזוגיות שלך :)
                       </p>
-                    ) : hasDetails ? (
-                      <p style={{ ...styles.recommendationText, lineHeight: 1.7 }}>
-                        🎉 כל השלבים הושלמו בהצלחה!
-                        <br />
-                        כעת המערכת מבצעת ניתוח מעמיק של המאפיינים {gn("שלך", "שלך")} ומתחילה בחיפוש. נשלח {gn("לך", "לך")} עדכון ברגע שתעלה התאמה רלוונטית ומדויקת.
-                        {recommendations.match_card_consent !== "approved" && (
-                          <>
-                            <br /><br />
-                            כדי שנוכל להציג את ההתאמה {gn("שלך", "שלך")} כשנמצא אותה, יש לאשר את בניית כרטיס ההתאמה {gn("שלך", "שלך")}.
-                            <br />
-                            <span style={{ cursor: "pointer", textDecoration: "underline", color: "#6366f1", fontWeight: 600 }} onClick={() => setScreen("match_card_consent")}>
-                              להסבר על כרטיס ההתאמה &#8592;
-                            </span>
-                          </>
+                    ) : hasDetails && inPool ? (
+                      /* ── Active search status card ── */
+                      <div style={{ textAlign: "center", padding: "4px 0" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 10 }}>
+                          <span className="pulse-dot" style={{
+                            width: 10, height: 10, borderRadius: "50%", background: "#22c55e",
+                            display: "inline-block", boxShadow: "0 0 6px #22c55e",
+                          }} />
+                          <span style={{ fontSize: 17, fontWeight: 700, color: "#111827" }}>
+                            {gn("החיפוש שלך פעיל", "החיפוש שלך פעיל")}
+                          </span>
+                        </div>
+                        {recommendations.pool_profile_count > 0 && (
+                          <p style={{ fontSize: 13, color: "#6b7280", margin: "0 0 6px" }}>
+                            {recommendations.pool_profile_count} פרופילים במאגר
+                          </p>
                         )}
-                        <br /><br />
-                        <span style={{ fontSize: 12, color: "#999" }}>
-                          אנחנו נמצאים כרגע בגרסת הרצה ראשונית (MVP) ובונים את קהילת המשתמשים שלנו, כך שהתהליך עשוי לקחת קצת זמן. ב-One אנחנו מעדיפים איכות על פני מהירות, ולכן לא מתפשרים על התאמות בינוניות.
-                        </span>
-                      </p>
+                        {recommendations.match_card_consent === "approved" ? (
+                          <p style={{ fontSize: 13, color: "#22c55e", margin: "0 0 8px" }}>
+                            כרטיס התאמה: מאושר ✓
+                          </p>
+                        ) : (
+                          <p style={{ fontSize: 13, color: "#d97706", margin: "0 0 8px" }}>
+                            <span style={{ cursor: "pointer", textDecoration: "underline", fontWeight: 600 }} onClick={() => setScreen("match_card_consent")}>
+                              {gn("אשר", "אשרי")} כרטיס התאמה כדי שנוכל לשלוח {gn("לך", "לך")} התאמות
+                            </span>
+                          </p>
+                        )}
+                        <p style={{ fontSize: 13, color: "#9ca3af", margin: "0", lineHeight: 1.6 }}>
+                          {gn("נעדכן אותך", "נעדכן אותך")} ברגע שנמצא התאמה מתאימה
+                        </p>
+                      </div>
+                    ) : hasDetails && !inPool ? (
+                      /* ── Pending review — not in pool yet ── */
+                      <div style={{ textAlign: "center", padding: "4px 0" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 10 }}>
+                          <span style={{ fontSize: 20 }}>⏳</span>
+                          <span style={{ fontSize: 17, fontWeight: 700, color: "#111827" }}>
+                            {gn("הפרופיל שלך בבדיקה", "הפרופיל שלך בבדיקה")}
+                          </span>
+                        </div>
+                        <p style={{ fontSize: 14, color: "#6b7280", margin: "0", lineHeight: 1.7 }}>
+                          {gn("סיימת", "סיימת")} את כל השלבים בהצלחה! אנחנו בודקים את הנתונים {gn("ומוסיפים אותך", "ומוסיפים אותך")} למאגר ההתאמות בהקדם.
+                        </p>
+                      </div>
                     ) : !hasPhotos ? (
                       <p style={{ ...styles.recommendationText, marginTop: 8, lineHeight: 1.7 }}>
                         רק עוד צעד אחד אחרון!
@@ -2371,7 +2405,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       <p style={{ ...styles.recommendationText, marginTop: 8, lineHeight: 1.7 }}>
                         רק עוד צעד אחד אחרון!
                         <br />
-                        כדי שהמערכת תוכל לצרף אותך למאגר ולהתחיל בחיפוש ההתאמה, נשארו רק העלאת התמונות והשלמת הנתונים במסך <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => setScreen("profile_edit")}>"הפרטים שלי"</span>.
+                        כדי שהמערכת תוכל לצרף אותך למאגר ולהתחיל בחיפוש ההתאמה, נשארו רק השלמת הנתונים במסך <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => setScreen("profile_edit")}>"הפרטים שלי"</span>.
                       </p>
                     )}
 
@@ -2503,42 +2537,65 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}>{chatDone ? <IconImg src="/icons/backToConversation.png" size={16} /> : <IconImg src="/icons/StartConversationPurple.png" size={16} />}</span> {chatDone ? "חזרה לשיחה" : hasMessages ? "בוא נמשיך" : "בוא נתחיל"}
                 </button>
 
-                {/* Step bubbles — cognitive & taste */}
-                {STEP_OPTIONS.map((s, i) => {
-                  const isChannelDone = closedChannels[s.channel] || (s.channel === "new_chat_cognitive" && recommendations.has_cognitive) || (s.channel === "new_chat_taste" && recommendations.has_taste_info);
-                  return (
-                  <button key={`step-${i}`} style={{ ...(allChatsComplete ? styles.qaBubble : styles.suggestionBtn), ...(isChannelDone ? { borderColor: "#22c55e", color: "#22c55e" } : {}) }} onClick={() => {
-                    if (channelMessages[s.channel]?.length > 0) {
-                      setChannel(s.channel);
-                      setScreen("chat");
-                    } else {
-                      sendMessage(s.text, s.channel);
-                    }
+                {/* Step bubbles — cognitive & taste (or pool-specific replacements) */}
+                {recommendations.in_matching_pool && allChatsComplete ? (<>
+                  {/* Pool user: replace completed step bubbles with useful options */}
+                  <button style={styles.qaBubble} onClick={() => {
+                    if (channelMessages["qa_system"]?.length > 0) { setChannel("qa_system"); setScreen("chat"); }
+                    else { sendMessage("מה הסטטוס שלי?", "qa_system"); }
                   }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle", opacity: 0.8 }}>{isChannelDone ? "✓" : <IconImg src={s.icon} size={16} />}</span> {s.text}
+                    <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}><IconImg src="/icons/Question.png" size={16} /></span> מה הסטטוס שלי?
                   </button>
-                  );
-                })}
+                  <button style={styles.qaBubble} onClick={() => {
+                    setChannel("new_chat"); setScreen("chat");
+                  }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}><IconImg src="/icons/Conversation.png" size={16} /></span> רוצה להוסיף או לחדד משהו
+                  </button>
+                </>) : (
+                  STEP_OPTIONS.map((s, i) => {
+                    const isChannelDone = closedChannels[s.channel] || (s.channel === "new_chat_cognitive" && recommendations.has_cognitive) || (s.channel === "new_chat_taste" && recommendations.has_taste_info);
+                    return (
+                    <button key={`step-${i}`} style={{ ...(allChatsComplete ? styles.qaBubble : styles.suggestionBtn), ...(isChannelDone ? { borderColor: "#22c55e", color: "#22c55e" } : {}) }} onClick={() => {
+                      if (channelMessages[s.channel]?.length > 0) {
+                        setChannel(s.channel);
+                        setScreen("chat");
+                      } else {
+                        sendMessage(s.text, s.channel);
+                      }
+                    }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle", opacity: 0.8 }}>{isChannelDone ? "✓" : <IconImg src={s.icon} size={16} />}</span> {s.text}
+                    </button>
+                    );
+                  })
+                )}
 
                 {/* Q&A bubbles — smaller, separated below */}
-                {QA_OPTIONS.filter(q => !q.requiresAnalysis || hasAnalysis).length > 0 && (
-                  <div style={{ width: "100%", display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", marginTop: 4, paddingTop: 8, borderTop: "1px solid #f0f0f4" }}>
-                    {QA_OPTIONS
-                      .filter(q => !q.requiresAnalysis || hasAnalysis)
-                      .map((q, i) => (
-                      <button key={`qa-${i}`} style={styles.qaBubble} onClick={() => {
-                        if (channelMessages[q.channel]?.length > 0) {
-                          setChannel(q.channel);
-                          setScreen("chat");
-                        } else {
-                          sendMessage(q.text, q.channel);
-                        }
-                      }}>
-                        <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}><IconImg src={q.icon} size={14} /></span> {q.text}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {(() => {
+                  const inPool = recommendations.in_matching_pool && allChatsComplete;
+                  const qaItems = inPool
+                    ? [
+                        { icon: "/icons/accurateMatch.png", text: "מה בדיוק אתה מחפש לי?", channel: "qa_system" },
+                        { icon: "/icons/Question.png", text: "יש לי שאלה לגבי התהליך", channel: "qa_general" },
+                        ...(hasAnalysis ? [{ icon: "/icons/aboutMe.png", text: "מה למדת עליי עד עכשיו?", channel: "qa_about_me" }] : []),
+                      ]
+                    : QA_OPTIONS.filter(q => !q.requiresAnalysis || hasAnalysis);
+                  return qaItems.length > 0 && (
+                    <div style={{ width: "100%", display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", marginTop: 4, paddingTop: 8, borderTop: "1px solid #f0f0f4" }}>
+                      {qaItems.map((q, i) => (
+                        <button key={`qa-${i}`} style={styles.qaBubble} onClick={() => {
+                          if (channelMessages[q.channel]?.length > 0) {
+                            setChannel(q.channel);
+                            setScreen("chat");
+                          } else {
+                            sendMessage(q.text, q.channel);
+                          }
+                        }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}><IconImg src={q.icon} size={14} /></span> {q.text}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
               </>
               );

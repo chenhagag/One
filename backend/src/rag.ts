@@ -266,6 +266,8 @@ export interface AgentSafeLiveState {
   waitingForRating: boolean;       // waiting_first/second_rating with sent_for_rating_to = user
   selfFrozen: boolean;             // user paused their own matching
   profileComplete: boolean;
+  poolProfileCount: number;        // total profiles in matching pool
+  missingFields: string[];         // which profile fields are missing (empty if complete)
   agentContext: string | null;     // manual admin notes — always passed through
 }
 
@@ -278,7 +280,7 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
   const pool = getPool();
 
   // Parallel queries for all live state data
-  const [userRow, channelCounts, photoCount, matchInfo] = await Promise.all([
+  const [userRow, channelCounts, photoCount, matchInfo, poolCount, profileFields] = await Promise.all([
     // User basics
     pool.query<{
       in_matching_pool: boolean;
@@ -320,6 +322,17 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
        ORDER BY m.created_at DESC LIMIT 5`,
       [userId]
     ).then(r => r.rows),
+
+    // Pool profile count
+    pool.query<{ cnt: string }>(
+      `SELECT COUNT(*)::text AS cnt FROM users WHERE in_matching_pool = TRUE`
+    ).then(r => Number(r.rows[0]?.cnt || 0)),
+
+    // Profile fields for missing field detection
+    pool.query<{ age: number | null; city: string | null; height: number | null; looking_for_gender: string | null }>(
+      `SELECT age, city, height, looking_for_gender FROM users WHERE id = $1`,
+      [userId]
+    ).then(r => r.rows[0]),
   ]);
 
   if (!userRow) {
@@ -335,6 +348,8 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
       waitingForRating: false,
       selfFrozen: false,
       profileComplete: false,
+      poolProfileCount: 0,
+      missingFields: [],
       agentContext: null,
     };
   }
@@ -404,6 +419,16 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
     waitingForRating,
     selfFrozen: userRow.self_frozen,
     profileComplete: userRow.profile_complete ?? false,
+    poolProfileCount: poolCount as number,
+    missingFields: (() => {
+      const missing: string[] = [];
+      if (!profileFields?.age) missing.push("גיל");
+      if (!profileFields?.city) missing.push("עיר");
+      if (!profileFields?.height) missing.push("גובה");
+      if (!profileFields?.looking_for_gender) missing.push("מגדר מבוקש");
+      if (photoCount === 0) missing.push("תמונה");
+      return missing;
+    })(),
     agentContext: userRow.agent_context,
   };
 }
@@ -425,6 +450,7 @@ export function formatLiveStateForPrompt(state: AgentSafeLiveState): string {
     `שיחות: ${channels}`,
     `תמונות: ${state.photoCount} | ניתוח: ${state.hasAnalysis ? "הושלם" : "טרם"}`,
     `ימים במערכת: ${state.daysInSystem}`,
+    `פרופילים במאגר: ${state.poolProfileCount}`,
   ];
 
   if (state.selfFrozen) lines.push("חיפוש מושהה: כן (המשתמש/ת הקפיא/ה בעצמו/ה)");
@@ -432,7 +458,11 @@ export function formatLiveStateForPrompt(state: AgentSafeLiveState): string {
   if (state.waitingForRating) lines.push("ממתין לדירוג: כן");
   if (state.matchesBeingReviewed) lines.push("התאמות בבדיקה: כן");
   if (state.matchesSelfDeclined > 0) lines.push(`התאמות שפסלת: ${state.matchesSelfDeclined}`);
-  if (!state.profileComplete) lines.push("פרטי פתיחה: חסרים");
+  if (!state.profileComplete && state.missingFields.length > 0) {
+    lines.push(`פרטי פתיחה חסרים: ${state.missingFields.join(", ")} — יש להפנות למסך "הפרטים שלי"`);
+  } else if (!state.profileComplete) {
+    lines.push("פרטי פתיחה: חסרים");
+  }
 
   return lines.join("\n");
 }

@@ -5228,8 +5228,6 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
     const hasProfileDetails = !!(
       profileRow?.age && profileRow?.city && profileRow?.height &&
       profileRow?.looking_for_gender &&
-      profileRow?.desired_age_min && profileRow?.desired_age_max &&
-      profileRow?.desired_height_min && profileRow?.desired_height_max &&
       photoCount >= 1
     );
     const analysisRunCount = profileRow?.analysis_run_count ?? 0;
@@ -5329,6 +5327,13 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
     );
     const showSurveyBanner = !surveyRow?.completed && !surveyBannerDismissed?.survey_banner_dismissed && !!joinedBeforeSurveyCutoff?.eligible;
 
+    // Pool profile count for status card (only query if user is in pool or all chats done)
+    let poolProfileCount = 0;
+    if (profileRow?.in_matching_pool || (chatClosed && cogClosed && hasTasteInfo)) {
+      const poolCount = await pgQueryOne<{ cnt: number }>("SELECT COUNT(*)::int AS cnt FROM users WHERE in_matching_pool = TRUE");
+      poolProfileCount = poolCount?.cnt ?? 0;
+    }
+
     return res.json({
       has_cognitive: cogClosed,
       cognitive_count: cognitiveCount,
@@ -5361,6 +5366,7 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
         partner_name: activeNudge.partner_name,
         partner_gender: activeNudge.partner_gender,
       } : null,
+      pool_profile_count: poolProfileCount,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
