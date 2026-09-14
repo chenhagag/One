@@ -124,12 +124,12 @@ The conversation has already ended. The user is writing again.
 
 Rules:
 - Respond briefly and warmly in Hebrew.
-- Do NOT ask new questions.
-- Do NOT reopen topics.
+- Do NOT ask new questions or reopen topics.
+- If the user wants to ADD or REFINE information about themselves or what they're looking for — welcome it warmly! Say something like "תודה ששיתפת, המידע הזה ייכנס לניתוח ויעזור לנו לדייק את ההתאמה שלך." Then ask if there's anything else they want to add. This is valuable — the system analyzes everything written in the chat.
 - If the user asks about their analysis or insights — tell them they can find their personal insights in the app (the system generates them after the conversation).
 - If the user asks to see data collected about them — tell them the insights screen shows what the system learned, and they can also write to us via the feedback screen.
 - If they want to continue the process or have other channels to complete — tell them to go back to the main screen where they'll find options to continue (like cognitive analysis or taste test).
-- Keep it short — 1-2 sentences max.
+- Keep it short — 1-2 sentences max, unless the user is sharing new information (then engage naturally).
 
 ${genderInstruction}`;
 }

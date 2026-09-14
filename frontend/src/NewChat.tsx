@@ -2245,18 +2245,6 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 </div>
               )}
 
-              {/* Survey partial — small link to resume survey */}
-              {screen === "home" && !recommendations.show_survey_banner && recommendations.survey_partial && (
-                <div style={{ padding: "0 24px 8px", maxWidth: 500, margin: "0 auto", textAlign: "center" }}>
-                  <button
-                    onClick={() => { window.history.replaceState({}, "", "/survey"); onNavigate?.("survey"); }}
-                    style={{ background: "none", border: "1px solid #e0ddf5", color: "#7b5fa3", borderRadius: 8, padding: "8px 20px", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
-                  >
-                    המשיכו למלא את הסקר →
-                  </button>
-                </div>
-              )}
-
               {/* Pool welcome message — for pool users who haven't approved match card */}
               {screen === "home" && recommendations.in_matching_pool && recommendations.match_card_consent !== "approved" && (
                 <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
@@ -2362,11 +2350,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                             {gn("החיפוש שלך פעיל", "החיפוש שלך פעיל")}
                           </span>
                         </div>
-                        {recommendations.pool_profile_count > 0 && (
-                          <p style={{ fontSize: 13, color: "#6b7280", margin: "0 0 6px" }}>
-                            {recommendations.pool_profile_count} פרופילים במאגר
-                          </p>
-                        )}
+                        {/* Pool count — hidden until critical mass (see memory: project_pool_count_display.md) */}
                         {recommendations.match_card_consent === "approved" ? (
                           <p style={{ fontSize: 13, color: "#22c55e", margin: "0 0 8px" }}>
                             כרטיס התאמה: מאושר ✓
@@ -2379,7 +2363,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           </p>
                         )}
                         <p style={{ fontSize: 13, color: "#9ca3af", margin: "0", lineHeight: 1.6 }}>
-                          {gn("נעדכן אותך", "נעדכן אותך")} ברגע שנמצא אפשרות להתאמה, או אם נצטרך לבדוק {gn("מולך", "מולך")} משהו
+                          ניצור {gn("איתך", "איתך")} קשר כשיהיה כיוון להתאמה או משהו שנרצה לברר {gn("איתך", "איתך")} כדי לדייק את החיפוש
                         </p>
                       </div>
                     ) : hasDetails && !inPool ? (
@@ -2503,6 +2487,18 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               return null;
             })()}
 
+              {/* Survey partial — small link to resume survey (below insights) */}
+              {screen === "home" && !recommendations.show_survey_banner && recommendations.survey_partial && (
+                <div style={{ padding: "0 24px 8px", maxWidth: 500, margin: "0 auto", textAlign: "center" }}>
+                  <button
+                    onClick={() => { window.history.replaceState({}, "", "/survey"); onNavigate?.("survey"); }}
+                    style={{ background: "none", border: "1px solid #e0ddf5", color: "#7b5fa3", borderRadius: 8, padding: "8px 20px", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    המשיכו למלא את הסקר →
+                  </button>
+                </div>
+              )}
+
               <div ref={messagesEndRef} />
             </div>
 
@@ -2541,13 +2537,12 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 {recommendations.in_matching_pool && allChatsComplete ? (<>
                   {/* Pool user: replace completed step bubbles with useful options */}
                   <button style={styles.qaBubble} onClick={() => {
-                    if (channelMessages["qa_system"]?.length > 0) { setChannel("qa_system"); setScreen("chat"); }
-                    else { sendMessage("מה הסטטוס שלי?", "qa_system"); }
+                    sendMessage("מה הסטטוס שלי?", "qa_system");
                   }}>
                     <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}><IconImg src="/icons/Question.png" size={16} /></span> מה הסטטוס שלי?
                   </button>
                   <button style={styles.qaBubble} onClick={() => {
-                    sendMessage("אני רוצה להוסיף או לחדד משהו לגבי עצמי או מה שאני מחפש/ת", "new_chat");
+                    sendMessage(isFemale ? "אני רוצה להוסיף או לחדד משהו לגבי עצמי או מה שאני מחפשת" : "אני רוצה להוסיף או לחדד משהו לגבי עצמי או מה שאני מחפש", "new_chat");
                   }}>
                     <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}><IconImg src="/icons/Conversation.png" size={16} /></span> רוצה להוסיף או לחדד משהו
                   </button>

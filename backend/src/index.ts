@@ -5555,6 +5555,14 @@ app.post("/new-chat/message", aiLimiter, requireAuth, async (req, res) => {
       [user_id, reply, guide]
     );
 
+    // Notify admin when user adds info post-close (non-blocking)
+    if (guide === "new_chat" && closingStage >= 3) {
+      pgQueryAll(
+        `INSERT INTO bug_reports (user_id, report_text) VALUES ($1, $2)`,
+        [user_id, `[post_close_update] ${chatUser?.first_name || "משתמש"} הוסיף/ה מידע אחרי סגירת שיחה: "${message.substring(0, 120)}${message.length > 120 ? "..." : ""}"`]
+      ).catch(() => {});
+    }
+
     // Trigger async summarization if enough messages accumulated (non-blocking)
     if (guide === "new_chat") {
       getUserSummary(user_id).then(({ summary: existingSummary, messageCountAt }) => {
