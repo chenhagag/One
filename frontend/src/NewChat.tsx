@@ -2379,7 +2379,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           </p>
                         )}
                         <p style={{ fontSize: 13, color: "#9ca3af", margin: "0", lineHeight: 1.6 }}>
-                          {gn("נעדכן אותך", "נעדכן אותך")} ברגע שנמצא התאמה מתאימה
+                          {gn("נעדכן אותך", "נעדכן אותך")} ברגע שנמצא אפשרות להתאמה, או אם נצטרך לבדוק {gn("מולך", "מולך")} משהו
                         </p>
                       </div>
                     ) : hasDetails && !inPool ? (
@@ -2547,7 +2547,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}><IconImg src="/icons/Question.png" size={16} /></span> מה הסטטוס שלי?
                   </button>
                   <button style={styles.qaBubble} onClick={() => {
-                    setChannel("new_chat"); setScreen("chat");
+                    sendMessage("אני רוצה להוסיף או לחדד משהו לגבי עצמי או מה שאני מחפש/ת", "new_chat");
                   }}>
                     <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}><IconImg src="/icons/Conversation.png" size={16} /></span> רוצה להוסיף או לחדד משהו
                   </button>

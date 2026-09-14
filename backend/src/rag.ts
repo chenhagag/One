@@ -268,6 +268,18 @@ export interface AgentSafeLiveState {
   profileComplete: boolean;
   poolProfileCount: number;        // total profiles in matching pool
   missingFields: string[];         // which profile fields are missing (empty if complete)
+  userDetails: {                   // basic profile details for AI context
+    age: number | null;
+    city: string | null;
+    height: number | null;
+    gender: string | null;
+    looking_for_gender: string | null;
+    desired_age_min: number | null;
+    desired_age_max: number | null;
+    desired_height_min: number | null;
+    desired_height_max: number | null;
+    desired_location_range: string | null;
+  };
   agentContext: string | null;     // manual admin notes — always passed through
 }
 
@@ -328,9 +340,18 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
       `SELECT COUNT(*)::text AS cnt FROM users WHERE in_matching_pool = TRUE`
     ).then(r => Number(r.rows[0]?.cnt || 0)),
 
-    // Profile fields for missing field detection
-    pool.query<{ age: number | null; city: string | null; height: number | null; looking_for_gender: string | null }>(
-      `SELECT age, city, height, looking_for_gender FROM users WHERE id = $1`,
+    // Profile fields for missing field detection + AI context
+    pool.query<{
+      age: number | null; city: string | null; height: number | null;
+      gender: string | null; looking_for_gender: string | null;
+      desired_age_min: number | null; desired_age_max: number | null;
+      desired_height_min: number | null; desired_height_max: number | null;
+      desired_location_range: string | null;
+    }>(
+      `SELECT age, city, height, gender, looking_for_gender,
+              desired_age_min, desired_age_max, desired_height_min, desired_height_max,
+              desired_location_range
+       FROM users WHERE id = $1`,
       [userId]
     ).then(r => r.rows[0]),
   ]);
@@ -350,6 +371,7 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
       profileComplete: false,
       poolProfileCount: 0,
       missingFields: [],
+      userDetails: { age: null, city: null, height: null, gender: null, looking_for_gender: null, desired_age_min: null, desired_age_max: null, desired_height_min: null, desired_height_max: null, desired_location_range: null },
       agentContext: null,
     };
   }
@@ -429,6 +451,18 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
       if (photoCount === 0) missing.push("תמונה");
       return missing;
     })(),
+    userDetails: {
+      age: profileFields?.age ?? null,
+      city: profileFields?.city ?? null,
+      height: profileFields?.height ?? null,
+      gender: profileFields?.gender ?? null,
+      looking_for_gender: profileFields?.looking_for_gender ?? null,
+      desired_age_min: profileFields?.desired_age_min ?? null,
+      desired_age_max: profileFields?.desired_age_max ?? null,
+      desired_height_min: profileFields?.desired_height_min ?? null,
+      desired_height_max: profileFields?.desired_height_max ?? null,
+      desired_location_range: profileFields?.desired_location_range ?? null,
+    },
     agentContext: userRow.agent_context,
   };
 }
@@ -452,6 +486,28 @@ export function formatLiveStateForPrompt(state: AgentSafeLiveState): string {
     `ימים במערכת: ${state.daysInSystem}`,
     `פרופילים במאגר: ${state.poolProfileCount}`,
   ];
+
+  // User profile details
+  const d = state.userDetails;
+  if (d.age || d.city || d.height) {
+    const parts: string[] = [];
+    if (d.age) parts.push(`גיל: ${d.age}`);
+    if (d.city) parts.push(`עיר: ${d.city}`);
+    if (d.height) parts.push(`גובה: ${d.height}`);
+    if (d.gender) parts.push(`מגדר: ${d.gender === "woman" ? "אישה" : "גבר"}`);
+    if (d.looking_for_gender) parts.push(`מחפש/ת: ${d.looking_for_gender === "woman" ? "נשים" : d.looking_for_gender === "man" ? "גברים" : d.looking_for_gender}`);
+    lines.push(parts.join(" | "));
+  }
+  if (d.desired_age_min || d.desired_age_max) {
+    lines.push(`טווח גיל רצוי: ${d.desired_age_min ?? "?"}-${d.desired_age_max ?? "?"}`);
+  }
+  if (d.desired_height_min || d.desired_height_max) {
+    lines.push(`טווח גובה רצוי: ${d.desired_height_min ?? "?"}-${d.desired_height_max ?? "?"}`);
+  }
+  if (d.desired_location_range) {
+    const locMap: Record<string, string> = { my_city: "העיר שלי", my_area: "האזור שלי", bit_further: "קצת רחוק יותר", whole_country: "כל הארץ" };
+    lines.push(`טווח מיקום רצוי: ${locMap[d.desired_location_range] || d.desired_location_range}`);
+  }
 
   if (state.selfFrozen) lines.push("חיפוש מושהה: כן (המשתמש/ת הקפיא/ה בעצמו/ה)");
   if (state.hasActiveMatch) lines.push("התאמה פעילה: כן");
