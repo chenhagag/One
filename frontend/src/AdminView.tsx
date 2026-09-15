@@ -5034,9 +5034,10 @@ const FEEDBACK_CATEGORIES: Record<string, { icon: string; label: string; color: 
   general: { icon: "💬", label: "שיתוף", color: "#6366f1" },
   request: { icon: "⚙️", label: "בקשה", color: "#3b82f6" },
   system: { icon: "⚙️", label: "מערכת", color: "#9ca3af" },
-  post_close_update: { icon: "📝", label: "עדכון אחרי שיחה", color: "#14b8a6" },
-  match_report: { icon: "🚩", label: "דיווח על התאמה", color: "#dc2626" },
+  post_close_update: { icon: "⚙️", label: "מערכת", color: "#9ca3af" },
+  match_report: { icon: "⚙️", label: "מערכת", color: "#9ca3af" },
 };
+const SYSTEM_CATEGORIES = ["system", "post_close_update", "match_report"];
 
 function parseFeedbackCategory(text: string): { category: string | null; body: string } {
   const match = text.match(/^\[(bug|idea|general|request|system|post_close_update|match_report)\]\s*/);
@@ -5343,7 +5344,10 @@ function BugReportsTab() {
 
   if (loading) return <p>Loading...</p>;
 
-  const filtered = filterCat === "all" ? reports : reports.filter(r => parseFeedbackCategory(r.report_text).category === filterCat);
+  const filtered = filterCat === "all" ? reports
+    : filterCat === "users" ? reports.filter(r => !SYSTEM_CATEGORIES.includes(parseFeedbackCategory(r.report_text).category || ""))
+    : filterCat === "system_all" ? reports.filter(r => SYSTEM_CATEGORIES.includes(parseFeedbackCategory(r.report_text).category || ""))
+    : reports.filter(r => parseFeedbackCategory(r.report_text).category === filterCat);
 
   return (
     <div>
@@ -5351,20 +5355,15 @@ function BugReportsTab() {
 
       {/* Filter chips */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
-        <button
-          style={{ padding: "4px 12px", fontSize: 12, borderRadius: 12, border: filterCat === "all" ? "1px solid #6366f1" : "1px solid #ddd", background: filterCat === "all" ? "#f0f0ff" : "#fff", color: filterCat === "all" ? "#6366f1" : "#666", cursor: "pointer", fontWeight: filterCat === "all" ? 600 : 400 }}
-          onClick={() => setFilterCat("all")}
-        >הכל ({reports.length})</button>
-        {Object.entries(FEEDBACK_CATEGORIES).map(([key, cat]) => {
-          const count = reports.filter(r => parseFeedbackCategory(r.report_text).category === key).length;
-          return (
-            <button
-              key={key}
-              style={{ padding: "4px 12px", fontSize: 12, borderRadius: 12, border: filterCat === key ? `1px solid ${cat.color}` : "1px solid #ddd", background: filterCat === key ? `${cat.color}15` : "#fff", color: filterCat === key ? cat.color : "#666", cursor: "pointer", fontWeight: filterCat === key ? 600 : 400 }}
-              onClick={() => setFilterCat(key)}
-            >{cat.icon} {cat.label} ({count})</button>
-          );
-        })}
+        {(() => {
+          const userCount = reports.filter(r => !SYSTEM_CATEGORIES.includes(parseFeedbackCategory(r.report_text).category || "")).length;
+          const sysCount = reports.filter(r => SYSTEM_CATEGORIES.includes(parseFeedbackCategory(r.report_text).category || "")).length;
+          return (<>
+            <button style={{ padding: "4px 12px", fontSize: 12, borderRadius: 12, border: filterCat === "all" ? "1px solid #6366f1" : "1px solid #ddd", background: filterCat === "all" ? "#f0f0ff" : "#fff", color: filterCat === "all" ? "#6366f1" : "#666", cursor: "pointer", fontWeight: filterCat === "all" ? 600 : 400 }} onClick={() => setFilterCat("all")}>הכל ({reports.length})</button>
+            <button style={{ padding: "4px 12px", fontSize: 12, borderRadius: 12, border: filterCat === "users" ? "1px solid #8b5cf6" : "1px solid #ddd", background: filterCat === "users" ? "#f5f3ff" : "#fff", color: filterCat === "users" ? "#8b5cf6" : "#666", cursor: "pointer", fontWeight: filterCat === "users" ? 600 : 400 }} onClick={() => setFilterCat("users")}>👤 משתמשים ({userCount})</button>
+            <button style={{ padding: "4px 12px", fontSize: 12, borderRadius: 12, border: filterCat === "system_all" ? "1px solid #9ca3af" : "1px solid #ddd", background: filterCat === "system_all" ? "#f9fafb" : "#fff", color: filterCat === "system_all" ? "#6b7280" : "#666", cursor: "pointer", fontWeight: filterCat === "system_all" ? 600 : 400 }} onClick={() => setFilterCat("system_all")}>⚙️ מערכת ({sysCount})</button>
+          </>);
+        })()}
       </div>
 
       {filtered.length === 0 ? (
