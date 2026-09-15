@@ -2355,6 +2355,38 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
               // Don't show recommendations before data is loaded
               if (chat_count < 0) return null;
+
+              // In pool but chats not all complete — show active status + completion prompt
+              const allDone = chatClosed && cogDoneForCouple && tasteDoneForCouple;
+              if (recommendations.in_matching_pool && !allDone && !activeMatchCard && !recommendations.pending_rating) {
+                const missing: string[] = [];
+                if (!chatClosed) missing.push("שיחת היכרות");
+                if (!cogDoneForCouple) missing.push("סגנון חשיבה");
+                if (!tasteDoneForCouple) missing.push("בדיקת טעם");
+                const hasDetails = recommendations.has_profile_details;
+                return (
+                  <div style={styles.recommendationBlock}>
+                    <div style={{ textAlign: "center", padding: "4px 0" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 10 }}>
+                        <span className="pulse-dot" style={{
+                          width: 10, height: 10, borderRadius: "50%", background: "#22c55e",
+                          display: "inline-block", boxShadow: "0 0 6px #22c55e",
+                        }} />
+                        <span style={{ fontSize: 17, fontWeight: 700, color: "#111827" }}>
+                          {gn("החיפוש שלך פעיל", "החיפוש שלך פעיל")}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: 13, color: "#9ca3af", margin: "0 0 12px", lineHeight: 1.6 }}>
+                        ניצור {gn("איתך", "איתך")} קשר כשיהיה כיוון להתאמה או משהו שנרצה לברר {gn("איתך", "איתך")} כדי לדייק את החיפוש
+                      </p>
+                      <p style={{ fontSize: 13, color: "#d97706", margin: 0, lineHeight: 1.7 }}>
+                        💡 כדי שנוכל לדייק את הניתוח ולתת {gn("לך", "לך")} התאמות טובות יותר, רצוי להשלים {missing.length === 1 ? `את ה${missing[0]}` : `את: ${missing.join(", ")}`}{!hasDetails ? ` ולהשלים את הפרטים במסך "הפרטים שלי"` : ""}.
+                      </p>
+                    </div>
+                  </div>
+                );
+              }
+
               // Priority 0: General chat never started — suggest starting it
               if (chat_count === 0 && !chatClosed) {
                 return (
