@@ -508,9 +508,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             }
           }).catch(() => {});
 
-          // Load dashboard data when all channels are done
+          // Load dashboard data when all channels are done or in pool
           const allDone = data.chat_closed && data.has_cognitive && data.has_taste_info;
-          if (allDone) {
+          const shouldLoadDashboard = allDone || data.in_matching_pool;
+          if (shouldLoadDashboard) {
             apiFetch(`/users/${user.id}/matching-progress`).then(r => r.json()).then(mp => {
               if (mp.scanned_profiles !== undefined) setMatchingProgress(mp);
             }).catch(() => {});
