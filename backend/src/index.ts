@@ -3655,12 +3655,19 @@ app.get("/admin/candidate-matches/:id/detail", async (req, res) => {
   const user1Traits = await userTraits(cm.user_id);
   const user2Traits = await userTraits(cm.candidate_user_id);
 
+  // Get pending nudges for this match
+  const pendingNudges = cm.match_id ? await pgQueryAll<any>(
+    "SELECT id, user_id, nudge_type, status FROM match_nudges WHERE match_id = $1 AND status = 'pending'",
+    [cm.match_id]
+  ) : [];
+
   return res.json({
     ...cm,
     user1_photos: user1Photos.map((p: any) => `/uploads/${p.filename}`),
     user2_photos: user2Photos.map((p: any) => `/uploads/${p.filename}`),
     user1_traits: user1Traits,
     user2_traits: user2Traits,
+    pending_nudges: pendingNudges,
   });
 });
 
