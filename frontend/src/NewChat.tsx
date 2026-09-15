@@ -2551,12 +2551,9 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   }}>
                     <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}><IconImg src="/icons/Question.png" size={16} /></span> מה הסטטוס שלי?
                   </button>
-                  <button style={styles.qaBubble} onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const msg = isFemale ? "אני רוצה להוסיף או לחדד משהו לגבי עצמי או מה שאני מחפשת" : "אני רוצה להוסיף או לחדד משהו לגבי עצמי או מה שאני מחפש";
-                    if (sending) { console.log("[bubble] blocked by sending"); return; }
-                    console.log("[bubble] calling sendMessage", msg);
+                  <button style={styles.qaBubble} onClick={() => {
+                    const fem = user.gender === "woman";
+                    const msg = fem ? "אני רוצה להוסיף או לחדד משהו לגבי עצמי או מה שאני מחפשת" : "אני רוצה להוסיף או לחדד משהו לגבי עצמי או מה שאני מחפש";
                     sendMessage(msg, "new_chat");
                   }}>
                     <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}><IconImg src="/icons/Conversation.png" size={16} /></span> רוצה להוסיף או לחדד משהו
