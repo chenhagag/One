@@ -2406,6 +2406,9 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       <p style={styles.recommendationText}>
                         סיימת את כל השלבים, תודה רבה, עזרת לי מאוד לשפר את עצמי! נחזור אליך בקרוב עם תובנות על הזוגיות שלך :)
                       </p>
+                    ) : hasDetails && inPool && (activeMatchCard || recommendations.pending_rating) ? (
+                      /* ── In active match or pending rating — no search card ── */
+                      null
                     ) : hasDetails && inPool ? (
                       /* ── Active search status card ── */
                       <div style={{ textAlign: "center", padding: "4px 0" }}>
