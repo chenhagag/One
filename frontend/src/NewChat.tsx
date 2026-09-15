@@ -2542,21 +2542,14 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 {recommendations.in_matching_pool && allChatsComplete ? (<>
                   {/* Pool user: replace completed step bubbles with useful options */}
                   <button style={styles.qaBubble} onClick={() => {
-                    if (channelMessages["qa_system"]?.length > 0) { setChannel("qa_system"); setScreen("chat"); }
-                    else { sendMessage("מה הסטטוס שלי?", "qa_system"); }
+                    if (channelMessages["qa_status"]?.length > 0) { setChannel("qa_status"); setScreen("chat"); }
+                    else { sendMessage("מה הסטטוס שלי?", "qa_status"); }
                   }}>
                     <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}><IconImg src="/icons/Question.png" size={16} /></span> מה הסטטוס שלי?
                   </button>
                   <button style={styles.qaBubble} onClick={() => {
                     const msg = isFemale ? "אני רוצה להוסיף או לחדד משהו לגבי עצמי או מה שאני מחפשת" : "אני רוצה להוסיף או לחדד משהו לגבי עצמי או מה שאני מחפש";
-                    if (channelMessages["new_chat"]?.length > 0) {
-                      setChannel("new_chat");
-                      setScreen("chat");
-                      // Send with a tiny delay so the screen transition happens first
-                      setTimeout(() => sendMessage(msg, "new_chat"), 100);
-                    } else {
-                      sendMessage(msg, "new_chat");
-                    }
+                    sendMessage(msg, "new_chat");
                   }}>
                     <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}><IconImg src="/icons/Conversation.png" size={16} /></span> רוצה להוסיף או לחדד משהו
                   </button>
@@ -2583,7 +2576,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   const inPool = recommendations.in_matching_pool && allChatsComplete;
                   const qaItems = inPool
                     ? [
-                        { icon: "/icons/accurateMatch.png", text: "מה בדיוק אתה מחפש לי?", channel: "qa_system" },
+                        { icon: "/icons/accurateMatch.png", text: "מה בדיוק אתה מחפש לי?", channel: "qa_search" },
                         { icon: "/icons/Question.png", text: "יש לי שאלה לגבי התהליך", channel: "qa_general" },
                         ...(hasAnalysis ? [{ icon: "/icons/aboutMe.png", text: "מה למדת עליי עד עכשיו?", channel: "qa_about_me" }] : []),
                       ]
@@ -2642,7 +2635,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             </button>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
-            <div style={styles.disclaimer}>השיחה מנוהלת על ידי בינה מלאכותית לצורך הכרות והתאמה</div>
+            <div style={styles.disclaimer}>השיחה מנוהלת על ידי AI שעלול לטעות לפעמים</div>
             <button style={{ background: "none", border: "none", fontSize: 11, color: "#aaa", cursor: "pointer", padding: "2px 0", whiteSpace: "nowrap" }} onClick={() => setScreen("home")}>
               ← חזרה למסך הראשי
             </button>

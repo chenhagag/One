@@ -474,7 +474,7 @@ export async function buildChatPrompt(
   }
 
   // Q&A channels — separate chats for "about me", "how system works", "questions", "insights discussion"
-  const QA_CHANNELS = ["qa_about_me", "qa_system", "qa_general", "qa_insights"];
+  const QA_CHANNELS = ["qa_about_me", "qa_system", "qa_general", "qa_insights", "qa_status", "qa_search"];
   if (QA_CHANNELS.includes(channel)) {
     let contextBlock = "";
     if (channel === "qa_about_me" || channel === "qa_insights") {
@@ -731,8 +731,8 @@ export async function buildChatPrompt(
 - **כשמשתמש שואל על התאמה ספציפית** — גם אם אין לך פרטים על המועמד, אתה כן יודע מה בדרך כלל אומרת התאמה ב-One: שנבדקו עשרות ממדים, שעברה סף, ומה הממדים. השתמש בזה כדי להסביר מה חיובי, בלי להמציא פרטים ספציפיים על המועמד.
 - ענה בשפה אנושית, אינטליגנטית ובגובה העיניים. לא שיווקית, לא מתנשאת.${exAcquaintanceNote}${adminConversationNote}`;
 
-      // Inject user's trait profile for "מה מחפש לי" type questions
-      if (channel === "qa_system") {
+      // Inject user's trait profile for status/search/system questions
+      if (channel === "qa_system" || channel === "qa_status" || channel === "qa_search") {
         const richProfile = await formatRichProfileForChat(userId);
         if (richProfile.trim()) {
           contextBlock += "\n\n## נתוני הפרופיל האישיותי של המשתמש (לשימוש בתשובה על 'מה אתה מחפש לי')\n" + richProfile;
