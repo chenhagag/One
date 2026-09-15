@@ -1623,7 +1623,7 @@ app.get("/users/:id/conversation-history", requireUserAuth, async (req, res) => 
         content: m.content,
         timestamp: m.created_at,
         chat_type: m.guide === "psychologist" ? "psychologist"
-          : m.guide && (m.guide.startsWith("new_chat") || m.guide.startsWith("qa_")) ? m.guide
+          : m.guide && (m.guide.startsWith("new_chat") || m.guide.startsWith("qa_") || m.guide === "match_feedback") ? m.guide
           : "interviewer",
       })),
     });
@@ -1751,7 +1751,7 @@ app.get("/admin/users/:id/full-transcript", async (req, res) => {
         content: m.content,
         timestamp: m.created_at,
         chat_type: m.guide === "psychologist" ? "psychologist"
-          : m.guide && (m.guide.startsWith("new_chat") || m.guide.startsWith("qa_")) ? m.guide
+          : m.guide && (m.guide.startsWith("new_chat") || m.guide.startsWith("qa_") || m.guide === "match_feedback") ? m.guide
           : "interviewer",
       })),
     });

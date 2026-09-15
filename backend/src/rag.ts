@@ -293,7 +293,7 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
   const pool = getPool();
 
   // Parallel queries for all live state data
-  const [userRow, channelCounts, photoCount, matchInfo, poolCount, profileFields] = await Promise.all([
+  const [userRow, channelCounts, photoCount, matchInfo, poolCount, pendingRating, profileFields] = await Promise.all([
     // User basics
     pool.query<{
       in_matching_pool: boolean;
@@ -342,6 +342,16 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
     pool.query<{ cnt: string }>(
       `SELECT COUNT(*)::text AS cnt FROM users WHERE in_matching_pool = TRUE`
     ).then(r => Number(r.rows[0]?.cnt || 0)),
+
+    // Pending rating — same query as /new-chat/status (reliable)
+    pool.query<{ id: number }>(
+      `SELECT id FROM matches
+       WHERE sent_for_rating_to = $1
+         AND sent_for_rating_at IS NOT NULL
+         AND status IN ('waiting_first_rating', 'waiting_second_rating')
+       LIMIT 1`,
+      [userId]
+    ).then(r => r.rows[0] || null),
 
     // Profile fields for missing field detection + AI context
     pool.query<{
@@ -417,10 +427,7 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
   const matchesBeingReviewed = matchInfo.some(m =>
     ["potential_match", "pre_match", "waiting_for_photo", "waiting_for_response"].includes(m.status)
   );
-  const waitingForRating = matchInfo.some(m =>
-    (m.status === "waiting_first_rating" || m.status === "waiting_second_rating")
-    && Number(m.sent_for_rating_to) === userId
-  );
+  const waitingForRating = !!pendingRating;
 
   // Self-declined matches count
   const selfDeclined = await pool.query<{ cnt: string }>(

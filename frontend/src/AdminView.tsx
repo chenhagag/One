@@ -2924,10 +2924,16 @@ ${footer}`)
         const qaSystemMsgs = transcript.messages.filter((m: any) => m.chat_type === "qa_system");
         const qaGeneralMsgs = transcript.messages.filter((m: any) => m.chat_type === "qa_general");
         const qaInsightsMsgs = transcript.messages.filter((m: any) => m.chat_type === "qa_insights");
+        const qaStatusMsgs = transcript.messages.filter((m: any) => m.chat_type === "qa_status");
+        const qaSearchMsgs = transcript.messages.filter((m: any) => m.chat_type === "qa_search");
         if (qaAboutMeMsgs.length > 0) channelGroups.push({ key: "qa_about_me", label: `מה למדת עליי (${qaAboutMeMsgs.length})`, color: "#10b981", msgs: qaAboutMeMsgs });
         if (qaSystemMsgs.length > 0) channelGroups.push({ key: "qa_system", label: `איך המערכת עובדת (${qaSystemMsgs.length})`, color: "#14b8a6", msgs: qaSystemMsgs });
+        if (qaStatusMsgs.length > 0) channelGroups.push({ key: "qa_status", label: `מה הסטטוס שלי (${qaStatusMsgs.length})`, color: "#06b6d4", msgs: qaStatusMsgs });
+        if (qaSearchMsgs.length > 0) channelGroups.push({ key: "qa_search", label: `מה מחפש לי (${qaSearchMsgs.length})`, color: "#a855f7", msgs: qaSearchMsgs });
         if (qaGeneralMsgs.length > 0) channelGroups.push({ key: "qa_general", label: `שאלות ותשובות (${qaGeneralMsgs.length})`, color: "#8b5cf6", msgs: qaGeneralMsgs });
         if (qaInsightsMsgs.length > 0) channelGroups.push({ key: "qa_insights", label: `דיון תובנות (${qaInsightsMsgs.length})`, color: "#f97316", msgs: qaInsightsMsgs });
+        const matchFeedbackMsgs = transcript.messages.filter((m: any) => m.chat_type === "match_feedback");
+        if (matchFeedbackMsgs.length > 0) channelGroups.push({ key: "match_feedback", label: `ביטולי התאמה (${matchFeedbackMsgs.length})`, color: "#ef4444", msgs: matchFeedbackMsgs });
 
         const filteredMsgs = transcriptTab === "all" ? transcript.messages
           : (channelGroups.find(g => g.key === transcriptTab)?.msgs || transcript.messages);
