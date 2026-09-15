@@ -2358,37 +2358,37 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
               // In pool but chats not all complete — show active status + completion prompt
               const allDone = chatClosed && cogDoneForCouple && tasteDoneForCouple;
-              if (recommendations.in_matching_pool && !allDone && !activeMatchCard && !recommendations.pending_rating) {
+              const poolIncomplete = recommendations.in_matching_pool && !allDone && !activeMatchCard && !recommendations.pending_rating;
+              let poolIncompleteBlock: React.ReactNode = null;
+              if (poolIncomplete) {
                 const missing: string[] = [];
                 if (!chatClosed) missing.push("שיחת היכרות");
                 if (!cogDoneForCouple) missing.push("סגנון חשיבה");
                 if (!tasteDoneForCouple) missing.push("בדיקת טעם");
                 const hasDetails = recommendations.has_profile_details;
-                return (
-                  <div style={styles.recommendationBlock}>
-                    <div style={{ textAlign: "center", padding: "4px 0" }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 10 }}>
-                        <span className="pulse-dot" style={{
-                          width: 10, height: 10, borderRadius: "50%", background: "#22c55e",
-                          display: "inline-block", boxShadow: "0 0 6px #22c55e",
-                        }} />
-                        <span style={{ fontSize: 17, fontWeight: 700, color: "#111827" }}>
-                          {gn("החיפוש שלך פעיל", "החיפוש שלך פעיל")}
-                        </span>
-                      </div>
-                      <p style={{ fontSize: 13, color: "#9ca3af", margin: "0 0 12px", lineHeight: 1.6 }}>
-                        ניצור {gn("איתך", "איתך")} קשר כשיהיה כיוון להתאמה או משהו שנרצה לברר {gn("איתך", "איתך")} כדי לדייק את החיפוש
-                      </p>
-                      <p style={{ fontSize: 13, color: "#d97706", margin: 0, lineHeight: 1.7 }}>
-                        💡 כדי שנוכל לדייק את הניתוח ולתת {gn("לך", "לך")} התאמות טובות יותר, רצוי להשלים {missing.length === 1 ? `את ה${missing[0]}` : `את: ${missing.join(", ")}`}{!hasDetails ? ` ולהשלים את הפרטים במסך "הפרטים שלי"` : ""}.
-                      </p>
+                poolIncompleteBlock = (
+                  <div style={{ textAlign: "center", padding: "4px 0", marginBottom: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 10 }}>
+                      <span className="pulse-dot" style={{
+                        width: 10, height: 10, borderRadius: "50%", background: "#22c55e",
+                        display: "inline-block", boxShadow: "0 0 6px #22c55e",
+                      }} />
+                      <span style={{ fontSize: 17, fontWeight: 700, color: "#111827" }}>
+                        {gn("החיפוש שלך פעיל", "החיפוש שלך פעיל")}
+                      </span>
                     </div>
+                    <p style={{ fontSize: 13, color: "#9ca3af", margin: "0 0 12px", lineHeight: 1.6 }}>
+                      ניצור {gn("איתך", "איתך")} קשר כשיהיה כיוון להתאמה או משהו שנרצה לברר {gn("איתך", "איתך")} כדי לדייק את החיפוש
+                    </p>
+                    <p style={{ fontSize: 13, color: "#d97706", margin: 0, lineHeight: 1.7 }}>
+                      💡 כדי שנוכל לדייק את הניתוח ולתת {gn("לך", "לך")} התאמות טובות יותר, רצוי להשלים {missing.length === 1 ? `את ה${missing[0]}` : `את: ${missing.join(", ")}`}{!hasDetails ? ` ולהשלים את הפרטים במסך "הפרטים שלי"` : ""}.
+                    </p>
                   </div>
                 );
               }
 
               // Priority 0: General chat never started — suggest starting it
-              if (chat_count === 0 && !chatClosed) {
+              if (!poolIncomplete && chat_count === 0 && !chatClosed) {
                 return (
                   <div style={styles.recommendationBlock}>
                     <p style={styles.recommendationText}>
@@ -2398,7 +2398,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 );
               }
               // Priority 1: General chat not complete — return to chat
-              if (chatNotEnough) {
+              if (!poolIncomplete && chatNotEnough) {
                 return (
                   <div style={styles.recommendationBlock}>
                     <p style={styles.recommendationText}>
@@ -2408,7 +2408,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 );
               }
               // Priority 2: Suggest cognitive after enough general conversation
-              if (!cogDoneForCouple && conversationAdvanced) {
+              if (!poolIncomplete && !cogDoneForCouple && conversationAdvanced) {
                 return (
                   <div style={styles.recommendationBlock}>
                     <p style={styles.recommendationText}>
@@ -2418,7 +2418,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 );
               }
               // Priority 3: Suggest taste after cognitive is done
-              if (cogDoneForCouple && !tasteDoneForCouple) {
+              if (!poolIncomplete && cogDoneForCouple && !tasteDoneForCouple) {
                 return (
                   <div style={styles.recommendationBlock}>
                     <p style={styles.recommendationText}>
@@ -2584,6 +2584,94 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       );
                     })()}
 
+                  </div>
+                );
+              }
+              // Pool user with incomplete chats — show status + insight card
+              if (poolIncompleteBlock) {
+                return (
+                  <div style={styles.recommendationBlock}>
+                    {poolIncompleteBlock}
+
+                    {/* ── Dashboard: Insight Drip Feed — also for pool-incomplete users ── */}
+                    {insightCard && (() => {
+                      const rot = insightRotation % 5;
+                      let emoji = "";
+                      let title = "";
+                      let text = "";
+                      let hasContent = false;
+                      let targetView: "mbti" | "values" | "bigfive" | "enneagram" | "attachment" = "mbti";
+
+                      if (rot === 0 && insightCard.mbti?.type) {
+                        emoji = "/icons/thinkingType.png";
+                        title = `טיפוס MBTI: ${insightCard.mbti.type}`;
+                        text = insightCard.mbti.description || "";
+                        hasContent = true;
+                        targetView = "mbti";
+                      } else if ((rot === 1 || (rot === 0 && !insightCard.mbti?.type)) && insightCard.allValues?.length > 0) {
+                        const top = insightCard.allValues.filter((v: any) => v.score > 60).slice(0, 2);
+                        if (top.length > 0) {
+                          emoji = "/icons/Insightes.png";
+                          title = "הערכים המובילים שלך";
+                          text = top.map((v: any) => `${v.he} — ${v.description}`).join(". ");
+                          hasContent = true;
+                          targetView = "values";
+                        }
+                      }
+                      if (!hasContent && rot === 2 && insightCard.allBigFive?.length > 0) {
+                        const top = insightCard.allBigFive.filter((v: any) => v.score > 60).slice(0, 2);
+                        if (top.length > 0) {
+                          emoji = "/icons/aboutMe.png";
+                          title = "תכונות אישיות בולטות";
+                          text = top.map((v: any) => `${v.he} — ${v.description}`).join(". ");
+                          hasContent = true;
+                          targetView = "bigfive";
+                        }
+                      }
+                      if (!hasContent && rot === 3 && (insightCard as any).enneagram?.primaryType) {
+                        emoji = "/icons/HowItWorks.png";
+                        title = `אניאגרם: טיפוס ${(insightCard as any).enneagram.typeLabel}`;
+                        text = (insightCard as any).enneagram.description || "";
+                        hasContent = true;
+                        targetView = "enneagram";
+                      }
+                      if (!hasContent && rot === 4 && (insightCard as any).attachment?.dominant) {
+                        emoji = "/icons/accurateMatch.png";
+                        title = `סגנון התקשרות: ${(insightCard as any).attachment.dominantHe}`;
+                        text = (insightCard as any).attachment.description || "";
+                        hasContent = true;
+                        targetView = "attachment";
+                      }
+                      if (!hasContent && insightCard.allBigFive?.length > 0) {
+                        const top = insightCard.allBigFive.filter((v: any) => v.score > 60).slice(0, 2);
+                        if (top.length > 0) {
+                          emoji = "/icons/aboutMe.png";
+                          title = "תכונות אישיות בולטות";
+                          text = top.map((v: any) => `${v.he} — ${v.description}`).join(". ");
+                          hasContent = true;
+                          targetView = "bigfive";
+                        }
+                      }
+                      if (!hasContent) return null;
+                      return (
+                        <div style={styles.dashboardCard}>
+                          <p style={styles.dashboardTitle}>מה למדנו עליך</p>
+                          <div style={styles.insightCardContent}>
+                            <IconImg src={emoji} size={28} />
+                            <div style={{ flex: 1 }}>
+                              <p style={styles.insightCardTitle}>{title}</p>
+                              <p style={styles.insightCardText}>{text}</p>
+                            </div>
+                          </div>
+                          <button
+                            style={styles.insightCardBtn}
+                            onClick={() => { setScreen("insights"); }}
+                          >
+                            לקריאת הניתוח המלא →
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               }
