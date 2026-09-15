@@ -365,6 +365,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
     qa_insights: [],
     qa_status: [],
     qa_search: [],
+    qa_refine: [],
   });
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -599,6 +600,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           qa_insights: [],
           qa_status: [],
           qa_search: [],
+          qa_refine: [],
         };
         for (const m of data.messages) {
           const ct = m.chat_type as string;
@@ -2554,7 +2556,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   <button style={styles.qaBubble} onClick={() => {
                     const fem = user.gender === "woman";
                     const msg = fem ? "אני רוצה להוסיף או לחדד משהו לגבי עצמי או מה שאני מחפשת" : "אני רוצה להוסיף או לחדד משהו לגבי עצמי או מה שאני מחפש";
-                    sendMessage(msg, "new_chat");
+                    if (channelMessages["qa_refine"]?.length > 0) { setChannel("qa_refine"); setScreen("chat"); }
+                    else { sendMessage(msg, "qa_refine"); }
                   }}>
                     <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}><IconImg src="/icons/Conversation.png" size={16} /></span> רוצה להוסיף או לחדד משהו
                   </button>

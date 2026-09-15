@@ -474,7 +474,7 @@ export async function buildChatPrompt(
   }
 
   // Q&A channels — separate chats for "about me", "how system works", "questions", "insights discussion"
-  const QA_CHANNELS = ["qa_about_me", "qa_system", "qa_general", "qa_insights", "qa_status", "qa_search"];
+  const QA_CHANNELS = ["qa_about_me", "qa_system", "qa_general", "qa_insights", "qa_status", "qa_search", "qa_refine"];
   if (QA_CHANNELS.includes(channel)) {
     let contextBlock = "";
     if (channel === "qa_about_me" || channel === "qa_insights") {
@@ -732,7 +732,7 @@ export async function buildChatPrompt(
 - ענה בשפה אנושית, אינטליגנטית ובגובה העיניים. לא שיווקית, לא מתנשאת.${exAcquaintanceNote}${adminConversationNote}`;
 
       // Inject user's trait profile for status/search/system questions
-      if (channel === "qa_system" || channel === "qa_status" || channel === "qa_search") {
+      if (channel === "qa_system" || channel === "qa_status" || channel === "qa_search" || channel === "qa_refine") {
         const richProfile = await formatRichProfileForChat(userId);
         if (richProfile.trim()) {
           contextBlock += "\n\n## נתוני הפרופיל האישיותי של המשתמש (לשימוש בתשובה על 'מה אתה מחפש לי')\n" + richProfile;

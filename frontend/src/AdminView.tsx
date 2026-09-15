@@ -2932,6 +2932,8 @@ ${footer}`)
         if (qaSearchMsgs.length > 0) channelGroups.push({ key: "qa_search", label: `מה מחפש לי (${qaSearchMsgs.length})`, color: "#a855f7", msgs: qaSearchMsgs });
         if (qaGeneralMsgs.length > 0) channelGroups.push({ key: "qa_general", label: `שאלות ותשובות (${qaGeneralMsgs.length})`, color: "#8b5cf6", msgs: qaGeneralMsgs });
         if (qaInsightsMsgs.length > 0) channelGroups.push({ key: "qa_insights", label: `דיון תובנות (${qaInsightsMsgs.length})`, color: "#f97316", msgs: qaInsightsMsgs });
+        const qaRefineMsgs = transcript.messages.filter((m: any) => m.chat_type === "qa_refine");
+        if (qaRefineMsgs.length > 0) channelGroups.push({ key: "qa_refine", label: `הוספה/חידוד (${qaRefineMsgs.length})`, color: "#f59e0b", msgs: qaRefineMsgs });
         const matchFeedbackMsgs = transcript.messages.filter((m: any) => m.chat_type === "match_feedback");
         if (matchFeedbackMsgs.length > 0) channelGroups.push({ key: "match_feedback", label: `ביטולי התאמה (${matchFeedbackMsgs.length})`, color: "#ef4444", msgs: matchFeedbackMsgs });
 
@@ -5031,10 +5033,13 @@ const FEEDBACK_CATEGORIES: Record<string, { icon: string; label: string; color: 
   idea: { icon: "💡", label: "רעיון", color: "#f59e0b" },
   general: { icon: "💬", label: "שיתוף", color: "#6366f1" },
   request: { icon: "⚙️", label: "בקשה", color: "#3b82f6" },
+  system: { icon: "⚙️", label: "מערכת", color: "#9ca3af" },
+  post_close_update: { icon: "📝", label: "עדכון אחרי שיחה", color: "#14b8a6" },
+  match_report: { icon: "🚩", label: "דיווח על התאמה", color: "#dc2626" },
 };
 
 function parseFeedbackCategory(text: string): { category: string | null; body: string } {
-  const match = text.match(/^\[(bug|idea|general|request)\]\s*/);
+  const match = text.match(/^\[(bug|idea|general|request|system|post_close_update|match_report)\]\s*/);
   if (match) return { category: match[1], body: text.slice(match[0].length) };
   return { category: null, body: text };
 }
