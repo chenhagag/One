@@ -3400,6 +3400,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 2,
     padding: "8px 10px",
     flex: 1,
+    overflowY: "auto",
   },
   sidebarItem: {
     display: "flex",
