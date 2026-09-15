@@ -1623,7 +1623,7 @@ app.get("/users/:id/conversation-history", requireUserAuth, async (req, res) => 
         content: m.content,
         timestamp: m.created_at,
         chat_type: m.guide === "psychologist" ? "psychologist"
-          : m.guide && (m.guide.startsWith("new_chat") || m.guide.startsWith("qa_")) ? m.guide
+          : m.guide && (m.guide.startsWith("new_chat") || m.guide.startsWith("qa_") || m.guide === "match_feedback") ? m.guide
           : "interviewer",
       })),
     });
@@ -1655,6 +1655,7 @@ app.get("/users/:id/conversation-history", requireUserAuth, async (req, res) => 
 // DELETE /users/:id/account — User deletes their own account
 app.delete("/users/:id/account", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
+  const { reason } = req.body || {};
 
   const user = await pgQueryOne<any>(
     "SELECT id, first_name, email, gender, age, city, test_user_type, created_at, in_matching_pool, personal_insights_short, personal_insights_full, couple_insights FROM users WHERE id = $1",
@@ -1667,10 +1668,11 @@ app.delete("/users/:id/account", requireUserAuth, async (req, res) => {
       "SELECT COUNT(*)::int AS cnt FROM conversation_messages WHERE user_id = $1 AND role = 'user'", [userId]
     );
     await pgQueryAll(
-      `INSERT INTO deleted_users (original_user_id, first_name, email, gender, age, city, test_user_type, created_at, deleted_by, chat_count, was_in_pool, had_insights)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      `INSERT INTO deleted_users (original_user_id, first_name, email, gender, age, city, test_user_type, created_at, deleted_by, chat_count, was_in_pool, had_insights, delete_reason)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
       [userId, user.first_name, user.email, user.gender, user.age, user.city, user.test_user_type, user.created_at,
-       "self", chatCount?.cnt || 0, !!user.in_matching_pool, !!(user.personal_insights_short || user.personal_insights_full || user.couple_insights)]
+       "self", chatCount?.cnt || 0, !!user.in_matching_pool, !!(user.personal_insights_short || user.personal_insights_full || user.couple_insights),
+       reason || null]
     );
   } catch (e) {
     console.error("[delete-account] Failed to save to deleted_users:", e);
@@ -1690,7 +1692,7 @@ app.delete("/users/:id/account", requireUserAuth, async (req, res) => {
   await pgQueryAll("DELETE FROM user_chat_summaries WHERE user_id = $1", [userId]);
   await pgQueryAll("DELETE FROM analysis_runs WHERE user_id = $1", [userId]);
   await pgQueryAll("DELETE FROM user_photos WHERE user_id = $1", [userId]);
-  await pgQueryAll("DELETE FROM bug_reports WHERE user_id = $1", [userId]);
+  // bug_reports: keep reports (FK ON DELETE SET NULL will nullify user_id)
   await pgQueryAll("DELETE FROM token_usage WHERE user_id = $1", [userId]);
   await pgQueryAll("DELETE FROM direct_messages WHERE match_id IN (SELECT id FROM matches WHERE user1_id = $1 OR user2_id = $1)", [userId]);
   await pgQueryAll("DELETE FROM typing_status WHERE match_id IN (SELECT id FROM matches WHERE user1_id = $1 OR user2_id = $1)", [userId]);
@@ -1749,7 +1751,7 @@ app.get("/admin/users/:id/full-transcript", async (req, res) => {
         content: m.content,
         timestamp: m.created_at,
         chat_type: m.guide === "psychologist" ? "psychologist"
-          : m.guide && (m.guide.startsWith("new_chat") || m.guide.startsWith("qa_")) ? m.guide
+          : m.guide && (m.guide.startsWith("new_chat") || m.guide.startsWith("qa_") || m.guide === "match_feedback") ? m.guide
           : "interviewer",
       })),
     });
@@ -2232,6 +2234,7 @@ app.delete("/admin/users/:id", async (req, res) => {
 // POST /api/users/:id/reset-data — Delete all user data but keep account
 app.post("/users/:id/reset-data", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id);
+  const { reason } = req.body || {};
   if (isNaN(userId)) return res.status(400).json({ error: "Invalid user ID" });
 
   const user = await pgQueryOne<any>("SELECT id, email, first_name FROM users WHERE id = $1", [userId]);
@@ -2255,8 +2258,9 @@ app.post("/users/:id/reset-data", requireUserAuth, async (req, res) => {
   // Reset analysis-related fields on user row
   await pgQueryAll(
     `UPDATE users SET is_matchable = FALSE, in_matching_pool = FALSE, auto_analyzed = FALSE,
-     analysis_run_count = 0, cognitive_score = NULL, personal_insights_short = NULL,
-     personal_insights_full = NULL, couple_insights = NULL
+     analysis_run_count = 0, analysis_completed = FALSE, insights_pre_completion = NULL,
+     cognitive_score = NULL, personal_insights_short = NULL, personal_insights_full = NULL,
+     couple_insights = NULL, self_frozen = FALSE
      WHERE id = $1`,
     [userId]
   );
@@ -2264,7 +2268,7 @@ app.post("/users/:id/reset-data", requireUserAuth, async (req, res) => {
   // Notify admin via bug_reports
   await pgQueryAll(
     `INSERT INTO bug_reports (user_id, report_text) VALUES ($1, $2)`,
-    [userId, `[system] המשתמש/ת ${user.first_name} (${user.email}) מחק/ה את כל הנתונים והתחיל/ה מחדש`]
+    [userId, `[system] המשתמש/ת ${user.first_name} (${user.email}) מחק/ה את כל הנתונים והתחיל/ה מחדש${reason ? ` — סיבה: ${reason}` : ""}`]
   );
 
   console.log(`[reset-data] Reset data for user ${userId}`);
@@ -4684,7 +4688,7 @@ app.get("/users/:id/active-nudge", requireUserAuth, async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     const nudge = await pgQueryOne<any>(
-      `SELECT mn.id, mn.match_id, mn.partner_id, mn.status,
+      `SELECT mn.id, mn.match_id, mn.partner_id, mn.status, mn.nudge_type,
         p.first_name as partner_name, p.gender as partner_gender
        FROM match_nudges mn
        JOIN users p ON p.id = mn.partner_id
@@ -4741,10 +4745,107 @@ app.post("/users/:id/nudge-response", requireUserAuth, async (req, res) => {
         `UPDATE match_nudges SET saw_message = TRUE, help_options = $1, free_text = $2, status = 'responded', responded_at = NOW() WHERE id = $3`,
         [help_options, free_text || null, nudge_id]
       );
+
+      // Auto-inject nudge response into agent_context for AI guidance
+      try {
+        const partner = await pgQueryOne<{ first_name: string }>("SELECT first_name FROM users WHERE id = $1", [nudge.partner_id]);
+        const userRow = await pgQueryOne<{ first_name: string; gender: string | null; whatsapp_phone: string | null; agent_context: string | null }>(
+          "SELECT first_name, gender, whatsapp_phone, agent_context FROM users WHERE id = $1", [userId]
+        );
+        const partnerName = partner?.first_name || "הצד השני";
+        const isFemale = userRow?.gender === "woman";
+        const gn = (m: string, f: string) => isFemale ? f : m;
+        const hasWhatsapp = !!userRow?.whatsapp_phone;
+
+        const contextLines: string[] = [];
+        contextLines.push(`[בירור התאמה — תשובה מהמשתמש/ת לגבי ההיכרות עם ${partnerName}]`);
+
+        if (help_options.includes("continue_here")) {
+          contextLines.push(`המשתמש/ת ${gn("בחר", "בחרה")} להמשיך להתכתב כאן עם ${partnerName}. הכל בסדר מבחינתם.`);
+        }
+        if (help_options.includes("coordinate_time")) {
+          contextLines.push(`המשתמש/ת ${gn("מעוניין", "מעוניינת")} שנעזור לתאם זמן משותף לשיחה בצ'אט עם ${partnerName}.`);
+          contextLines.push(`הנחיה: שאל/י מתי ${gn("נוח לו", "נוח לה")} להתכתב (ימים ושעות). הסבר/י שמדובר בתיאום זמן שבו שניהם יהיו פנויים לענות כאן בצ'אט. אמור/י ש${gn("אתה בודק", "את בודקת")} גם מול ${partnerName}.`);
+        }
+        if (help_options.includes("whatsapp")) {
+          contextLines.push(`המשתמש/ת ${gn("מעוניין", "מעוניינת")} לעבור לווטסאפ עם ${partnerName}.`);
+          if (hasWhatsapp) {
+            contextLines.push(`הנחיה: למשתמש/ת יש מספר ווטסאפ שמור בהגדרות (${userRow!.whatsapp_phone}). בקש/י אישור מפורש להעביר את המספר הזה ל${partnerName}. אמור/י ש${gn("אתה בודק", "את בודקת")} גם מול ${partnerName} ${gn("אם הוא מעוניין", "אם היא מעוניינת")}.`);
+          } else {
+            contextLines.push(`הנחיה: בקש/י מהמשתמש/ת את מספר הווטסאפ ${gn("שלו", "שלה")}. אחרי שתקבל/י את המספר, בקש/י אישור מפורש להעביר אותו ל${partnerName}. אמור/י ש${gn("אתה בודק", "את בודקת")} גם מול ${partnerName} ${gn("אם הוא מעוניין", "אם היא מעוניינת")}.`);
+          }
+        }
+        if (help_options.includes("date")) {
+          contextLines.push(`המשתמש/ת ${gn("מעוניין", "מעוניינת")} שנעזור לתאם דייט עם ${partnerName}.`);
+          contextLines.push(`הנחיה: שאל/י מתי ${gn("מתאים לו", "מתאים לה")} (ימים/שעות) ובאיזה אזור ${gn("נוח לו", "נוח לה")} להיפגש. אמור/י ש${gn("אתה בודק", "את בודקת")} גם מול ${partnerName}.`);
+        }
+        if (help_options.includes("other")) {
+          contextLines.push(`המשתמש/ת ${gn("ביקש", "ביקשה")} עזרה אחרת: "${free_text || "לא פורט"}".`);
+          contextLines.push(`הנחיה: בדוק/י מה ניתן לעשות בנושא. אם לא בטוח/ה, אמור/י ש${gn("אתה מעביר", "את מעבירה")} את הבקשה לצוות.`);
+        }
+
+        if (contextLines.length > 1) {
+          contextLines.push(`\nכללי: הנושא הזה הגיע מבירור שהמערכת שלחה למשתמש/ת. ${gn("תוכל", "תוכלי")} להתייחס אליו בשיחה באופן טבעי כשהמשתמש/ת ${gn("מדבר", "מדברת")} על ההתאמה.`);
+
+          const newContext = contextLines.join("\n");
+          const existingContext = userRow?.agent_context?.trim() || "";
+          const updatedContext = existingContext ? `${existingContext}\n\n${newContext}` : newContext;
+          await pgQueryOne("UPDATE users SET agent_context = $1 WHERE id = $2", [updatedContext, userId]);
+        }
+      } catch (ctxErr) {
+        // Non-critical — don't fail the response
+        console.error("Failed to inject nudge context:", ctxErr);
+      }
+
       return res.json({ ok: true, status: "responded" });
     }
 
     return res.status(400).json({ error: "Invalid response — provide saw_message or help_options" });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /admin/matches/:id/send-assistance — Admin sends assistance nudge to BOTH users
+app.post("/admin/matches/:id/send-assistance", async (req, res) => {
+  try {
+    const matchId = parseInt(req.params.id, 10);
+    const match = await pgQueryOne<any>("SELECT * FROM matches WHERE id = $1", [matchId]);
+    if (!match) return res.status(404).json({ error: "Match not found" });
+    if (match.status !== "in_match") return res.status(400).json({ error: "Match is not active (in_match)" });
+
+    const results: any[] = [];
+    for (const [targetUserId, partnerId] of [[match.user1_id, match.user2_id], [match.user2_id, match.user1_id]]) {
+      // Check no existing pending nudge for this user
+      const existing = await pgQueryOne<any>(
+        "SELECT id FROM match_nudges WHERE match_id = $1 AND user_id = $2 AND status = 'pending'",
+        [matchId, targetUserId]
+      );
+      if (existing) {
+        results.push({ user_id: targetUserId, skipped: true, reason: "pending nudge exists" });
+        continue;
+      }
+      const nudge = await pgQueryOne<any>(
+        `INSERT INTO match_nudges (match_id, user_id, partner_id, nudge_type) VALUES ($1, $2, $3, 'assistance') RETURNING *`,
+        [matchId, targetUserId, partnerId]
+      );
+      results.push({ user_id: targetUserId, nudge });
+    }
+    return res.json({ success: true, results });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /admin/nudges/:id — Admin deletes a pending nudge
+app.delete("/admin/nudges/:id", async (req, res) => {
+  try {
+    const nudgeId = parseInt(req.params.id, 10);
+    const nudge = await pgQueryOne<any>("SELECT * FROM match_nudges WHERE id = $1", [nudgeId]);
+    if (!nudge) return res.status(404).json({ error: "Nudge not found" });
+    if (nudge.status !== "pending") return res.status(400).json({ error: "Can only delete pending nudges" });
+    await pgQueryOne("DELETE FROM match_nudges WHERE id = $1", [nudgeId]);
+    return res.json({ ok: true });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -5224,8 +5325,6 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
     const hasProfileDetails = !!(
       profileRow?.age && profileRow?.city && profileRow?.height &&
       profileRow?.looking_for_gender &&
-      profileRow?.desired_age_min && profileRow?.desired_age_max &&
-      profileRow?.desired_height_min && profileRow?.desired_height_max &&
       photoCount >= 1
     );
     const analysisRunCount = profileRow?.analysis_run_count ?? 0;
@@ -5287,7 +5386,7 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
 
     // Check for active nudge (check-in flow for unresponsive match partner)
     const activeNudge = await pgQueryOne<any>(
-      `SELECT mn.id, mn.match_id, mn.partner_id, mn.status,
+      `SELECT mn.id, mn.match_id, mn.partner_id, mn.status, mn.nudge_type,
         p.first_name as partner_name, p.gender as partner_gender
        FROM match_nudges mn
        JOIN users p ON p.id = mn.partner_id
@@ -5325,6 +5424,13 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
     );
     const showSurveyBanner = !surveyRow?.completed && !surveyBannerDismissed?.survey_banner_dismissed && !!joinedBeforeSurveyCutoff?.eligible;
 
+    // Pool profile count for status card (only query if user is in pool or all chats done)
+    let poolProfileCount = 0;
+    if (profileRow?.in_matching_pool || (chatClosed && cogClosed && hasTasteInfo)) {
+      const poolCount = await pgQueryOne<{ cnt: number }>("SELECT COUNT(*)::int AS cnt FROM users WHERE in_matching_pool = TRUE");
+      poolProfileCount = poolCount?.cnt ?? 0;
+    }
+
     return res.json({
       has_cognitive: cogClosed,
       cognitive_count: cognitiveCount,
@@ -5356,7 +5462,9 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
         match_id: activeNudge.match_id,
         partner_name: activeNudge.partner_name,
         partner_gender: activeNudge.partner_gender,
+        nudge_type: activeNudge.nudge_type || "check_in",
       } : null,
+      pool_profile_count: poolProfileCount,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -5544,6 +5652,14 @@ app.post("/new-chat/message", aiLimiter, requireAuth, async (req, res) => {
       "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES ($1, 'assistant', $2, $3)",
       [user_id, reply, guide]
     );
+
+    // Notify admin when user adds info post-close (non-blocking)
+    if (guide === "new_chat" && closingStage >= 3) {
+      pgQueryAll(
+        `INSERT INTO bug_reports (user_id, report_text) VALUES ($1, $2)`,
+        [user_id, `[post_close_update] ${chatUser?.first_name || "משתמש"} הוסיף/ה מידע אחרי סגירת שיחה: "${message.substring(0, 120)}${message.length > 120 ? "..." : ""}"`]
+      ).catch(() => {});
+    }
 
     // Trigger async summarization if enough messages accumulated (non-blocking)
     if (guide === "new_chat") {

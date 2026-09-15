@@ -474,7 +474,7 @@ export async function buildChatPrompt(
   }
 
   // Q&A channels — separate chats for "about me", "how system works", "questions", "insights discussion"
-  const QA_CHANNELS = ["qa_about_me", "qa_system", "qa_general", "qa_insights"];
+  const QA_CHANNELS = ["qa_about_me", "qa_system", "qa_general", "qa_insights", "qa_status", "qa_search", "qa_refine"];
   if (QA_CHANNELS.includes(channel)) {
     let contextBlock = "";
     if (channel === "qa_about_me" || channel === "qa_insights") {
@@ -730,6 +730,14 @@ export async function buildChatPrompt(
 - **השתמש במידע שניתן לך** (כולל ידע שנשלף על One, סטטוס המשתמש, קונטקסט) כדי לענות בצורה מדויקת. אל תאמר "אני לא יודע" אם התשובה נמצאת שם.
 - **כשמשתמש שואל על התאמה ספציפית** — גם אם אין לך פרטים על המועמד, אתה כן יודע מה בדרך כלל אומרת התאמה ב-One: שנבדקו עשרות ממדים, שעברה סף, ומה הממדים. השתמש בזה כדי להסביר מה חיובי, בלי להמציא פרטים ספציפיים על המועמד.
 - ענה בשפה אנושית, אינטליגנטית ובגובה העיניים. לא שיווקית, לא מתנשאת.${exAcquaintanceNote}${adminConversationNote}`;
+
+      // Inject user's trait profile for status/search/system questions
+      if (channel === "qa_system" || channel === "qa_status" || channel === "qa_search" || channel === "qa_refine") {
+        const richProfile = await formatRichProfileForChat(userId);
+        if (richProfile.trim()) {
+          contextBlock += "\n\n## נתוני הפרופיל האישיותי של המשתמש (לשימוש בתשובה על 'מה אתה מחפש לי')\n" + richProfile;
+        }
+      }
     }
     const systemPrompt = contextBlock + "\n\n" + genderInstruction + coupleInstruction + agentContextBlock + liveStateBlock + ragContextBlock;
     return { systemPrompt, intent: "general" as ChatIntent, phase: detectPhase(messageCount), closingStage: 0 };

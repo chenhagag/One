@@ -472,6 +472,6 @@ function buildRichEmail(title: string, bodyHtml: string, ctaText: string): strin
   <div style="text-align: center; margin: 28px 0;">
     <a href="https://joinone.io" style="display:inline-block;background-color:#7b5fa3;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:15px">${ctaText}</a>
   </div>
-  <p style="font-size: 12px; color: #999; text-align: center;">צוות One</p>
+  <p style="font-size: 12px; color: #999; text-align: center;">One</p>
 </div>` + EMAIL_FOOTER;
 }

@@ -266,6 +266,21 @@ export interface AgentSafeLiveState {
   waitingForRating: boolean;       // waiting_first/second_rating with sent_for_rating_to = user
   selfFrozen: boolean;             // user paused their own matching
   profileComplete: boolean;
+  matchCardConsent: string | null;  // 'approved' | 'declined' | null
+  poolProfileCount: number;        // total profiles in matching pool
+  missingFields: string[];         // which profile fields are missing (empty if complete)
+  userDetails: {                   // basic profile details for AI context
+    age: number | null;
+    city: string | null;
+    height: number | null;
+    gender: string | null;
+    looking_for_gender: string | null;
+    desired_age_min: number | null;
+    desired_age_max: number | null;
+    desired_height_min: number | null;
+    desired_height_max: number | null;
+    desired_location_range: string | null;
+  };
   agentContext: string | null;     // manual admin notes — always passed through
 }
 
@@ -278,7 +293,7 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
   const pool = getPool();
 
   // Parallel queries for all live state data
-  const [userRow, channelCounts, photoCount, matchInfo] = await Promise.all([
+  const [userRow, channelCounts, photoCount, matchInfo, poolCount, pendingRating, profileFields] = await Promise.all([
     // User basics
     pool.query<{
       in_matching_pool: boolean;
@@ -289,10 +304,12 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
       created_at: string;
       user_status: string | null;
       self_frozen: boolean;
+      match_card_consent: string | null;
     }>(
       `SELECT in_matching_pool, auto_analyzed, analysis_completed,
               profile_complete, agent_context, created_at, user_status,
-              COALESCE(self_frozen, FALSE) as self_frozen
+              COALESCE(self_frozen, FALSE) as self_frozen,
+              match_card_consent
        FROM users WHERE id = $1`,
       [userId]
     ).then(r => r.rows[0]),
@@ -320,6 +337,36 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
        ORDER BY m.created_at DESC LIMIT 5`,
       [userId]
     ).then(r => r.rows),
+
+    // Pool profile count
+    pool.query<{ cnt: string }>(
+      `SELECT COUNT(*)::text AS cnt FROM users WHERE in_matching_pool = TRUE`
+    ).then(r => Number(r.rows[0]?.cnt || 0)),
+
+    // Pending rating — same query as /new-chat/status (reliable)
+    pool.query<{ id: number }>(
+      `SELECT id FROM matches
+       WHERE sent_for_rating_to = $1
+         AND sent_for_rating_at IS NOT NULL
+         AND status IN ('waiting_first_rating', 'waiting_second_rating')
+       LIMIT 1`,
+      [userId]
+    ).then(r => r.rows[0] || null),
+
+    // Profile fields for missing field detection + AI context
+    pool.query<{
+      age: number | null; city: string | null; height: number | null;
+      gender: string | null; looking_for_gender: string | null;
+      desired_age_min: number | null; desired_age_max: number | null;
+      desired_height_min: number | null; desired_height_max: number | null;
+      desired_location_range: string | null;
+    }>(
+      `SELECT age, city, height, gender, looking_for_gender,
+              desired_age_min, desired_age_max, desired_height_min, desired_height_max,
+              desired_location_range
+       FROM users WHERE id = $1`,
+      [userId]
+    ).then(r => r.rows[0]),
   ]);
 
   if (!userRow) {
@@ -335,6 +382,10 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
       waitingForRating: false,
       selfFrozen: false,
       profileComplete: false,
+      matchCardConsent: null,
+      poolProfileCount: 0,
+      missingFields: [],
+      userDetails: { age: null, city: null, height: null, gender: null, looking_for_gender: null, desired_age_min: null, desired_age_max: null, desired_height_min: null, desired_height_max: null, desired_location_range: null },
       agentContext: null,
     };
   }
@@ -376,10 +427,7 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
   const matchesBeingReviewed = matchInfo.some(m =>
     ["potential_match", "pre_match", "waiting_for_photo", "waiting_for_response"].includes(m.status)
   );
-  const waitingForRating = matchInfo.some(m =>
-    (m.status === "waiting_first_rating" || m.status === "waiting_second_rating")
-    && m.sent_for_rating_to === userId
-  );
+  const waitingForRating = !!pendingRating;
 
   // Self-declined matches count
   const selfDeclined = await pool.query<{ cnt: string }>(
@@ -404,6 +452,29 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
     waitingForRating,
     selfFrozen: userRow.self_frozen,
     profileComplete: userRow.profile_complete ?? false,
+    matchCardConsent: userRow.match_card_consent ?? null,
+    poolProfileCount: 0, // Hidden until critical mass — see project_pool_count_display.md
+    missingFields: (() => {
+      const missing: string[] = [];
+      if (!profileFields?.age) missing.push("גיל");
+      if (!profileFields?.city) missing.push("עיר");
+      if (!profileFields?.height) missing.push("גובה");
+      if (!profileFields?.looking_for_gender) missing.push("מגדר מבוקש");
+      if (photoCount === 0) missing.push("תמונה");
+      return missing;
+    })(),
+    userDetails: {
+      age: profileFields?.age ?? null,
+      city: profileFields?.city ?? null,
+      height: profileFields?.height ?? null,
+      gender: profileFields?.gender ?? null,
+      looking_for_gender: profileFields?.looking_for_gender ?? null,
+      desired_age_min: profileFields?.desired_age_min ?? null,
+      desired_age_max: profileFields?.desired_age_max ?? null,
+      desired_height_min: profileFields?.desired_height_min ?? null,
+      desired_height_max: profileFields?.desired_height_max ?? null,
+      desired_location_range: profileFields?.desired_location_range ?? null,
+    },
     agentContext: userRow.agent_context,
   };
 }
@@ -420,19 +491,49 @@ export function formatLiveStateForPrompt(state: AgentSafeLiveState): string {
   ].join(" | ");
 
   const lines = [
-    `[סטטוס משתמש — השתמש רק אם נשאלת, אל תציין ביוזמתך]`,
+    `[סטטוס משתמש — נתונים עדכניים. אם יש סתירה בין הנתונים כאן לבין תשובות ישנות בהיסטוריית השיחה, הנתונים כאן מעודכנים יותר ויש לתת להם עדיפות. אל תציין ביוזמתך.]`,
     `שלב: ${state.stage}`,
     `שיחות: ${channels}`,
     `תמונות: ${state.photoCount} | ניתוח: ${state.hasAnalysis ? "הושלם" : "טרם"}`,
     `ימים במערכת: ${state.daysInSystem}`,
   ];
 
+  // User profile details
+  const d = state.userDetails;
+  if (d.age || d.city || d.height) {
+    const parts: string[] = [];
+    if (d.age) parts.push(`גיל: ${d.age}`);
+    if (d.city) parts.push(`עיר: ${d.city}`);
+    if (d.height) parts.push(`גובה: ${d.height}`);
+    if (d.gender) parts.push(`מגדר: ${d.gender === "woman" ? "אישה" : "גבר"}`);
+    if (d.looking_for_gender) parts.push(`מחפש/ת: ${d.looking_for_gender === "woman" ? "נשים" : d.looking_for_gender === "man" ? "גברים" : d.looking_for_gender}`);
+    lines.push(parts.join(" | "));
+  }
+  if (d.desired_age_min || d.desired_age_max) {
+    lines.push(`טווח גיל רצוי: ${d.desired_age_min ?? "?"}-${d.desired_age_max ?? "?"}`);
+  }
+  if (d.desired_height_min || d.desired_height_max) {
+    lines.push(`טווח גובה רצוי: ${d.desired_height_min ?? "?"}-${d.desired_height_max ?? "?"}`);
+  }
+  if (d.desired_location_range) {
+    const locMap: Record<string, string> = { my_city: "העיר שלי", my_area: "האזור שלי", bit_further: "קצת רחוק יותר", whole_country: "כל הארץ" };
+    lines.push(`טווח מיקום רצוי: ${locMap[d.desired_location_range] || d.desired_location_range}`);
+  }
+
+  if (state.matchCardConsent !== "approved") {
+    lines.push("כרטיס התאמה: לא אושר — יש להפנות לאישור כרטיס כדי שנוכל לשלוח התאמות");
+  }
+
   if (state.selfFrozen) lines.push("חיפוש מושהה: כן (המשתמש/ת הקפיא/ה בעצמו/ה)");
   if (state.hasActiveMatch) lines.push("התאמה פעילה: כן");
   if (state.waitingForRating) lines.push("ממתין לדירוג: כן");
   if (state.matchesBeingReviewed) lines.push("התאמות בבדיקה: כן");
   if (state.matchesSelfDeclined > 0) lines.push(`התאמות שפסלת: ${state.matchesSelfDeclined}`);
-  if (!state.profileComplete) lines.push("פרטי פתיחה: חסרים");
+  if (!state.profileComplete && state.missingFields.length > 0) {
+    lines.push(`פרטי פתיחה חסרים: ${state.missingFields.join(", ")} — יש להפנות למסך "הפרטים שלי"`);
+  } else if (!state.profileComplete) {
+    lines.push("פרטי פתיחה: חסרים");
+  }
 
   return lines.join("\n");
 }

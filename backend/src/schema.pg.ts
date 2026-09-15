@@ -1012,8 +1012,18 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       deleted_by        TEXT DEFAULT 'user',
       chat_count        INTEGER DEFAULT 0,
       was_in_pool       BOOLEAN DEFAULT FALSE,
-      had_insights      BOOLEAN DEFAULT FALSE
+      had_insights      BOOLEAN DEFAULT FALSE,
+      delete_reason     TEXT
     );
+  `);
+
+  // Migration: add delete_reason to deleted_users
+  await pool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'deleted_users' AND column_name = 'delete_reason') THEN
+        ALTER TABLE deleted_users ADD COLUMN delete_reason TEXT;
+      END IF;
+    END $$;
   `);
 
   // Error logs — captures frontend + backend errors for monitoring
@@ -1226,6 +1236,7 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       help_options    TEXT[],
       free_text       TEXT,
       admin_seen      BOOLEAN DEFAULT FALSE,
+      nudge_type      TEXT DEFAULT 'check_in',
       created_at      TIMESTAMPTZ DEFAULT NOW(),
       responded_at    TIMESTAMPTZ
     );
@@ -1270,6 +1281,15 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
     DO $$ BEGIN
       IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='push_notifications') THEN
         ALTER TABLE users ADD COLUMN push_notifications BOOLEAN DEFAULT TRUE;
+      END IF;
+    END $$;
+  `);
+
+  // ── nudge_type column on match_nudges ──
+  await pool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='match_nudges' AND column_name='nudge_type') THEN
+        ALTER TABLE match_nudges ADD COLUMN nudge_type TEXT DEFAULT 'check_in';
       END IF;
     END $$;
   `);

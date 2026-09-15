@@ -2924,10 +2924,18 @@ ${footer}`)
         const qaSystemMsgs = transcript.messages.filter((m: any) => m.chat_type === "qa_system");
         const qaGeneralMsgs = transcript.messages.filter((m: any) => m.chat_type === "qa_general");
         const qaInsightsMsgs = transcript.messages.filter((m: any) => m.chat_type === "qa_insights");
+        const qaStatusMsgs = transcript.messages.filter((m: any) => m.chat_type === "qa_status");
+        const qaSearchMsgs = transcript.messages.filter((m: any) => m.chat_type === "qa_search");
         if (qaAboutMeMsgs.length > 0) channelGroups.push({ key: "qa_about_me", label: `מה למדת עליי (${qaAboutMeMsgs.length})`, color: "#10b981", msgs: qaAboutMeMsgs });
         if (qaSystemMsgs.length > 0) channelGroups.push({ key: "qa_system", label: `איך המערכת עובדת (${qaSystemMsgs.length})`, color: "#14b8a6", msgs: qaSystemMsgs });
+        if (qaStatusMsgs.length > 0) channelGroups.push({ key: "qa_status", label: `מה הסטטוס שלי (${qaStatusMsgs.length})`, color: "#06b6d4", msgs: qaStatusMsgs });
+        if (qaSearchMsgs.length > 0) channelGroups.push({ key: "qa_search", label: `מה מחפש לי (${qaSearchMsgs.length})`, color: "#a855f7", msgs: qaSearchMsgs });
         if (qaGeneralMsgs.length > 0) channelGroups.push({ key: "qa_general", label: `שאלות ותשובות (${qaGeneralMsgs.length})`, color: "#8b5cf6", msgs: qaGeneralMsgs });
         if (qaInsightsMsgs.length > 0) channelGroups.push({ key: "qa_insights", label: `דיון תובנות (${qaInsightsMsgs.length})`, color: "#f97316", msgs: qaInsightsMsgs });
+        const qaRefineMsgs = transcript.messages.filter((m: any) => m.chat_type === "qa_refine");
+        if (qaRefineMsgs.length > 0) channelGroups.push({ key: "qa_refine", label: `הוספה/חידוד (${qaRefineMsgs.length})`, color: "#f59e0b", msgs: qaRefineMsgs });
+        const matchFeedbackMsgs = transcript.messages.filter((m: any) => m.chat_type === "match_feedback");
+        if (matchFeedbackMsgs.length > 0) channelGroups.push({ key: "match_feedback", label: `ביטולי התאמה (${matchFeedbackMsgs.length})`, color: "#ef4444", msgs: matchFeedbackMsgs });
 
         const filteredMsgs = transcriptTab === "all" ? transcript.messages
           : (channelGroups.find(g => g.key === transcriptTab)?.msgs || transcript.messages);
@@ -4763,6 +4771,18 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                         } catch (err: any) { alert("שגיאה: " + (err.message || "unknown")); }
                       }}
                     >שלח בירור ל-{matchDetail.user2_name}</button>
+                    <button
+                      style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#8b5cf6", color: "#fff" }}
+                      onClick={async () => {
+                        if (!confirm(`לשלוח סיוע לשתי המשתמשות בהתאמה #${matchDetail.match_id}?`)) return;
+                        try {
+                          await apiFetch(`/admin/matches/${matchDetail.match_id}/send-assistance`, {
+                            method: "POST", headers: { "Content-Type": "application/json" },
+                          });
+                          alert("סיוע נשלח לשתי המשתמשות");
+                        } catch (err: any) { alert("שגיאה: " + (err.message || "unknown")); }
+                      }}
+                    >שלח סיוע לשתיהן</button>
                   </>
                 )}
                 {(matchDetail.match_status === "waiting_first_rating" || matchDetail.match_status === "waiting_second_rating") && matchDetail.user1_photo_count === 0 && matchDetail.user2_photo_count === 0 && (
@@ -5025,10 +5045,14 @@ const FEEDBACK_CATEGORIES: Record<string, { icon: string; label: string; color: 
   idea: { icon: "💡", label: "רעיון", color: "#f59e0b" },
   general: { icon: "💬", label: "שיתוף", color: "#6366f1" },
   request: { icon: "⚙️", label: "בקשה", color: "#3b82f6" },
+  system: { icon: "⚙️", label: "מערכת", color: "#9ca3af" },
+  post_close_update: { icon: "⚙️", label: "מערכת", color: "#9ca3af" },
+  match_report: { icon: "⚙️", label: "מערכת", color: "#9ca3af" },
 };
+const SYSTEM_CATEGORIES = ["system", "post_close_update", "match_report"];
 
 function parseFeedbackCategory(text: string): { category: string | null; body: string } {
-  const match = text.match(/^\[(bug|idea|general|request)\]\s*/);
+  const match = text.match(/^\[(bug|idea|general|request|system|post_close_update|match_report)\]\s*/);
   if (match) return { category: match[1], body: text.slice(match[0].length) };
   return { category: null, body: text };
 }
@@ -5332,7 +5356,10 @@ function BugReportsTab() {
 
   if (loading) return <p>Loading...</p>;
 
-  const filtered = filterCat === "all" ? reports : reports.filter(r => parseFeedbackCategory(r.report_text).category === filterCat);
+  const filtered = filterCat === "all" ? reports
+    : filterCat === "users" ? reports.filter(r => !SYSTEM_CATEGORIES.includes(parseFeedbackCategory(r.report_text).category || ""))
+    : filterCat === "system_all" ? reports.filter(r => SYSTEM_CATEGORIES.includes(parseFeedbackCategory(r.report_text).category || ""))
+    : reports.filter(r => parseFeedbackCategory(r.report_text).category === filterCat);
 
   return (
     <div>
@@ -5340,20 +5367,15 @@ function BugReportsTab() {
 
       {/* Filter chips */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
-        <button
-          style={{ padding: "4px 12px", fontSize: 12, borderRadius: 12, border: filterCat === "all" ? "1px solid #6366f1" : "1px solid #ddd", background: filterCat === "all" ? "#f0f0ff" : "#fff", color: filterCat === "all" ? "#6366f1" : "#666", cursor: "pointer", fontWeight: filterCat === "all" ? 600 : 400 }}
-          onClick={() => setFilterCat("all")}
-        >הכל ({reports.length})</button>
-        {Object.entries(FEEDBACK_CATEGORIES).map(([key, cat]) => {
-          const count = reports.filter(r => parseFeedbackCategory(r.report_text).category === key).length;
-          return (
-            <button
-              key={key}
-              style={{ padding: "4px 12px", fontSize: 12, borderRadius: 12, border: filterCat === key ? `1px solid ${cat.color}` : "1px solid #ddd", background: filterCat === key ? `${cat.color}15` : "#fff", color: filterCat === key ? cat.color : "#666", cursor: "pointer", fontWeight: filterCat === key ? 600 : 400 }}
-              onClick={() => setFilterCat(key)}
-            >{cat.icon} {cat.label} ({count})</button>
-          );
-        })}
+        {(() => {
+          const userCount = reports.filter(r => !SYSTEM_CATEGORIES.includes(parseFeedbackCategory(r.report_text).category || "")).length;
+          const sysCount = reports.filter(r => SYSTEM_CATEGORIES.includes(parseFeedbackCategory(r.report_text).category || "")).length;
+          return (<>
+            <button style={{ padding: "4px 12px", fontSize: 12, borderRadius: 12, border: filterCat === "all" ? "1px solid #6366f1" : "1px solid #ddd", background: filterCat === "all" ? "#f0f0ff" : "#fff", color: filterCat === "all" ? "#6366f1" : "#666", cursor: "pointer", fontWeight: filterCat === "all" ? 600 : 400 }} onClick={() => setFilterCat("all")}>הכל ({reports.length})</button>
+            <button style={{ padding: "4px 12px", fontSize: 12, borderRadius: 12, border: filterCat === "users" ? "1px solid #8b5cf6" : "1px solid #ddd", background: filterCat === "users" ? "#f5f3ff" : "#fff", color: filterCat === "users" ? "#8b5cf6" : "#666", cursor: "pointer", fontWeight: filterCat === "users" ? 600 : 400 }} onClick={() => setFilterCat("users")}>👤 משתמשים ({userCount})</button>
+            <button style={{ padding: "4px 12px", fontSize: 12, borderRadius: 12, border: filterCat === "system_all" ? "1px solid #9ca3af" : "1px solid #ddd", background: filterCat === "system_all" ? "#f9fafb" : "#fff", color: filterCat === "system_all" ? "#6b7280" : "#666", cursor: "pointer", fontWeight: filterCat === "system_all" ? 600 : 400 }} onClick={() => setFilterCat("system_all")}>⚙️ מערכת ({sysCount})</button>
+          </>);
+        })()}
       </div>
 
       {filtered.length === 0 ? (
@@ -6256,6 +6278,7 @@ function OutreachLogTab() {
                   dismissed: { label: "בוטל", bg: "#f3f4f6", color: "#374151" },
                 };
                 const si = nudgeStatusMap[nd.status] || { label: nd.status, bg: "#f3f4f6", color: "#374151" };
+                const isAssistanceNudge = nd.nudge_type === "assistance";
                 const optionLabels: Record<string, string> = {
                   continue_here: "להמשיך כאן",
                   coordinate_time: "תיאום זמן",
@@ -6281,7 +6304,10 @@ function OutreachLogTab() {
                       <td style={s.td}>{nd.user_name} ({nd.user_id})</td>
                       <td style={s.td}>{nd.partner_name} ({nd.partner_id})</td>
                       <td style={{ ...s.td, whiteSpace: "nowrap" }}>{fmtDate(nd.created_at)}</td>
-                      <td style={s.td}><span style={{ background: si.bg, color: si.color, padding: "2px 8px", borderRadius: 4, fontSize: 12, fontWeight: 600 }}>{si.label}</span></td>
+                      <td style={s.td}>
+                        <span style={{ background: si.bg, color: si.color, padding: "2px 8px", borderRadius: 4, fontSize: 12, fontWeight: 600 }}>{si.label}</span>
+                        {isAssistanceNudge && <span style={{ background: "#ede9fe", color: "#6d28d9", padding: "2px 6px", borderRadius: 4, fontSize: 10, fontWeight: 600, marginRight: 4 }}>סיוע</span>}
+                      </td>
                       <td style={{ ...s.td, maxWidth: 250 }}>
                         <span style={{ fontSize: 12 }}>{responseShort}</span>
                         {hasResponse && <span style={{ fontSize: 10, color: "#9ca3af", marginRight: 4 }}>{isExpanded ? " ▲" : " ▼"}</span>}
@@ -6289,13 +6315,26 @@ function OutreachLogTab() {
                       <td style={s.td}>
                         {isUnseen && (
                           <button
-                            style={{ padding: "4px 10px", fontSize: 11, border: "1px solid #d1d5db", borderRadius: 4, cursor: "pointer", background: "#fff" }}
+                            style={{ padding: "4px 10px", fontSize: 11, border: "1px solid #d1d5db", borderRadius: 4, cursor: "pointer", background: "#fff", marginLeft: 4 }}
                             onClick={async (e) => {
                               e.stopPropagation();
                               await apiFetch(`/admin/nudges/${nd.id}/mark-seen`, { method: "POST" });
                               setNudges(prev => prev.map(n => n.id === nd.id ? { ...n, admin_seen: true } : n));
                             }}
                           >ראיתי</button>
+                        )}
+                        {nd.status === "pending" && (
+                          <button
+                            style={{ padding: "4px 10px", fontSize: 11, border: "1px solid #fca5a5", borderRadius: 4, cursor: "pointer", background: "#fff", color: "#dc2626" }}
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (!confirm("למחוק בירור זה?")) return;
+                              try {
+                                await apiFetch(`/admin/nudges/${nd.id}`, { method: "DELETE" });
+                                setNudges(prev => prev.filter(n => n.id !== nd.id));
+                              } catch (err: any) { alert("שגיאה: " + (err.message || "unknown")); }
+                            }}
+                          >מחק</button>
                         )}
                       </td>
                     </tr>
@@ -6378,6 +6417,7 @@ function DeletedUsersTab() {
               <th style={s.th}>הודעות</th>
               <th style={s.th}>במאגר</th>
               <th style={s.th}>תובנות</th>
+              <th style={s.th}>סיבה</th>
             </tr>
           </thead>
           <tbody>
@@ -6394,16 +6434,17 @@ function DeletedUsersTab() {
                 <td style={s.td}>{fmtDateTime(r.deleted_at)}</td>
                 <td style={s.td}>
                   <span style={{
-                    background: r.deleted_by === "user" ? "#fef3c7" : "#fee2e2",
-                    color: r.deleted_by === "user" ? "#92400e" : "#991b1b",
+                    background: (r.deleted_by === "user" || r.deleted_by === "self") ? "#fef3c7" : "#fee2e2",
+                    color: (r.deleted_by === "user" || r.deleted_by === "self") ? "#92400e" : "#991b1b",
                     borderRadius: 4, padding: "2px 6px", fontSize: 11, fontWeight: 600,
                   }}>
-                    {r.deleted_by === "user" ? "משתמש" : "אדמין"}
+                    {(r.deleted_by === "user" || r.deleted_by === "self") ? "משתמש" : "אדמין"}
                   </span>
                 </td>
                 <td style={s.td}>{r.chat_count}</td>
                 <td style={s.td}>{r.was_in_pool ? "V" : "—"}</td>
                 <td style={s.td}>{r.had_insights ? "V" : "—"}</td>
+                <td style={s.td}>{r.delete_reason ? <span title={r.delete_reason} style={{ fontSize: 11, color: "#6b7280", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "inline-block" }}>{r.delete_reason}</span> : "—"}</td>
               </tr>
             ))}
           </tbody>
