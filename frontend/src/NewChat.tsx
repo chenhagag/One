@@ -390,7 +390,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [bugText, setBugText] = useState("");
   const [bugSent, setBugSent] = useState(false);
   const [feedbackCategory, setFeedbackCategory] = useState<string>("");
-  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; admin_message_type: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null; has_past_matches: boolean; show_survey_banner: boolean; survey_partial: boolean; self_frozen: boolean; active_nudge: { id: number; match_id: number; partner_name: string; partner_gender: string } | null; pool_profile_count: number }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, admin_message_type: null, pending_rating: false, in_matching_pool: false, match_card_consent: null, has_past_matches: false, show_survey_banner: false, survey_partial: false, self_frozen: false, active_nudge: null, pool_profile_count: 0 });
+  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; admin_message_type: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null; has_past_matches: boolean; show_survey_banner: boolean; survey_partial: boolean; self_frozen: boolean; active_nudge: { id: number; match_id: number; partner_name: string; partner_gender: string; nudge_type?: string } | null; pool_profile_count: number }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, admin_message_type: null, pending_rating: false, in_matching_pool: false, match_card_consent: null, has_past_matches: false, show_survey_banner: false, survey_partial: false, self_frozen: false, active_nudge: null, pool_profile_count: 0 });
   const [systemQuestion, setSystemQuestion] = useState<{ id: number; question_text: string } | null>(null);
   const [answeredQuestion, setAnsweredQuestion] = useState<{ question_text: string; answer: string } | null>(null);
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
@@ -1944,12 +1944,21 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               {/* Match nudge — check-in flow for unresponsive match partner */}
               {screen === "home" && recommendations.active_nudge && (() => {
                 const n = recommendations.active_nudge!;
+                const isAssistance = n.nudge_type === "assistance";
                 const isFemale = (recommendations.gender || user.gender) === "woman";
                 const gn = (m: string, f: string) => isFemale ? f : m;
                 const partnerIsFemale = n.partner_gender === "woman";
                 const pgn = (m: string, f: string) => partnerIsFemale ? f : m;
+                const bothFemale = isFemale && partnerIsFemale;
+                const bothMale = !isFemale && !partnerIsFemale;
 
-                const helpOptionsA = [
+                const helpOptionsA = isAssistance ? [
+                  { key: "continue_here", label: `הולך טוב, ${bothFemale ? "ממשיכות" : bothMale ? "ממשיכים" : "ממשיכים"} להתכתב כאן.` },
+                  { key: "coordinate_time", label: `${gn("אשמח", "אשמח")} ש-One ${gn("יעזור", "יעזור")} לתאם זמן שבו ${bothFemale ? "שתינו פנויות" : bothMale ? "שנינו פנויים" : gn("שנינו פנויים", "שתינו פנויות")} להתכתב כאן.` },
+                  { key: "whatsapp", label: `${gn("אשמח", "אשמח")} לעבור לווטסאפ, אם גם ${pgn("הוא מעוניין", "היא מעוניינת")}.` },
+                  { key: "date", label: `${gn("אשמח", "אשמח")} ש-One ${gn("יעזור", "יעזור")} לתאם ${gn("לנו", "לנו")} דייט 🙂` },
+                  { key: "other", label: "משהו אחר" },
+                ] : [
                   { key: "continue_here", label: `אני ${gn("מעדיף", "מעדיפה")} להמשיך להתכתב כאן.` },
                   { key: "coordinate_time", label: `${gn("אשמח", "אשמח")} ש-One ${gn("יעזור", "יעזור")} לתאם זמן שבו ${gn("שנינו פנויים", "שתינו פנויות")} להתכתב כאן.` },
                   { key: "whatsapp", label: `${gn("אשמח", "אשמח")} לעבור לווטסאפ, אם גם ${pgn("הוא מעוניין", "היא מעוניינת")}.` },
@@ -2027,8 +2036,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
                     <div style={{ background: "#fff", borderRadius: 14, padding: "18px 20px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #e5e7eb" }}>
 
-                      {/* Step 1: Did you see the message? */}
-                      {nudgeStep === 1 && (
+                      {/* Step 1: Did you see the message? (check_in only) */}
+                      {nudgeStep === 1 && !isAssistance && (
                         <>
                           <p style={{ fontSize: 14, color: "#1a1a2e", lineHeight: 1.8, margin: 0, fontWeight: 500 }}>
                             היי 🙂 רצינו לוודא שהכול תקין עם ההתאמה שלך עם {n.partner_name}.
@@ -2051,11 +2060,14 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                         </>
                       )}
 
-                      {/* Step 2: Help options */}
-                      {nudgeStep === 2 && (
+                      {/* Help options — step 2 for check_in, step 1 for assistance */}
+                      {((nudgeStep === 2 && !isAssistance) || (nudgeStep === 1 && isAssistance)) && (
                         <>
                           <p style={{ fontSize: 14, color: "#1a1a2e", lineHeight: 1.8, margin: "0 0 4px", fontWeight: 500 }}>
-                            האם יש משהו שיכול לעזור {gn("לכם", "לכן")} להמשיך להכיר?
+                            {isAssistance
+                              ? `איך הולך לך בהיכרות עם ${n.partner_name}? ${gn("תרצה", "תרצי")} ש־One ${gn("יעזור", "יעזור")} ${bothFemale ? "לכן" : bothMale ? "לכם" : gn("לכם", "לכן")} לעשות את הצעד הבא?`
+                              : `האם יש משהו שיכול לעזור ${gn("לכם", "לכן")} להמשיך להכיר?`
+                            }
                           </p>
                           <p style={{ fontSize: 12, color: "#9ca3af", margin: "0 0 12px" }}>
                             אפשר לבחור יותר מאפשרות אחת.
@@ -2082,14 +2094,14 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                             )}
                             <div style={{ height: 1, background: "#e5e7eb", margin: "6px 0" }} />
                             {helpOptionsB.map(opt => (
-                              <label key={opt.key} style={{ display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer", opacity: isGroupA ? 0.4 : 1, padding: "6px 0" }}>
+                              <label key={opt.key} style={{ display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer", opacity: isGroupA ? 0.4 : 1, padding: "6px 0", fontSize: 12 }}>
                                 <input
                                   type="checkbox"
                                   checked={nudgeSelectedOptions.includes(opt.key)}
                                   onChange={() => handleOptionToggle(opt.key)}
-                                  style={{ marginTop: 3, accentColor: "#6366f1" }}
+                                  style={{ marginTop: 3, accentColor: "#9ca3af" }}
                                 />
-                                <span style={{ fontSize: 13, color: "#1a1a2e", lineHeight: 1.6 }}>{opt.label}</span>
+                                <span style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6 }}>{opt.label}</span>
                               </label>
                             ))}
                           </div>
@@ -2122,7 +2134,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           {nudgeConfirmationType === "chat_only" && (
                             <>
                               <p style={{ fontSize: 14, color: "#1a1a2e", lineHeight: 1.8, margin: 0, fontWeight: 500 }}>
-                                מעולה! ההודעה של {n.partner_name} ממתינה לך 🙂
+                                {isAssistance ? `מעולה! שמחים לשמוע 🙂` : `מעולה! ההודעה של ${n.partner_name} ממתינה לך 🙂`}
                               </p>
                               <button
                                 onClick={() => { clearNudge(); setScreen("match_hub"); }}

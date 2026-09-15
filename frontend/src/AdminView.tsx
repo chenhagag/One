@@ -4771,6 +4771,18 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                         } catch (err: any) { alert("שגיאה: " + (err.message || "unknown")); }
                       }}
                     >שלח בירור ל-{matchDetail.user2_name}</button>
+                    <button
+                      style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#8b5cf6", color: "#fff" }}
+                      onClick={async () => {
+                        if (!confirm(`לשלוח סיוע לשתי המשתמשות בהתאמה #${matchDetail.match_id}?`)) return;
+                        try {
+                          await apiFetch(`/admin/matches/${matchDetail.match_id}/send-assistance`, {
+                            method: "POST", headers: { "Content-Type": "application/json" },
+                          });
+                          alert("סיוע נשלח לשתי המשתמשות");
+                        } catch (err: any) { alert("שגיאה: " + (err.message || "unknown")); }
+                      }}
+                    >שלח סיוע לשתיהן</button>
                   </>
                 )}
                 {(matchDetail.match_status === "waiting_first_rating" || matchDetail.match_status === "waiting_second_rating") && matchDetail.user1_photo_count === 0 && matchDetail.user2_photo_count === 0 && (
@@ -6266,6 +6278,7 @@ function OutreachLogTab() {
                   dismissed: { label: "בוטל", bg: "#f3f4f6", color: "#374151" },
                 };
                 const si = nudgeStatusMap[nd.status] || { label: nd.status, bg: "#f3f4f6", color: "#374151" };
+                const isAssistanceNudge = nd.nudge_type === "assistance";
                 const optionLabels: Record<string, string> = {
                   continue_here: "להמשיך כאן",
                   coordinate_time: "תיאום זמן",
@@ -6291,7 +6304,10 @@ function OutreachLogTab() {
                       <td style={s.td}>{nd.user_name} ({nd.user_id})</td>
                       <td style={s.td}>{nd.partner_name} ({nd.partner_id})</td>
                       <td style={{ ...s.td, whiteSpace: "nowrap" }}>{fmtDate(nd.created_at)}</td>
-                      <td style={s.td}><span style={{ background: si.bg, color: si.color, padding: "2px 8px", borderRadius: 4, fontSize: 12, fontWeight: 600 }}>{si.label}</span></td>
+                      <td style={s.td}>
+                        <span style={{ background: si.bg, color: si.color, padding: "2px 8px", borderRadius: 4, fontSize: 12, fontWeight: 600 }}>{si.label}</span>
+                        {isAssistanceNudge && <span style={{ background: "#ede9fe", color: "#6d28d9", padding: "2px 6px", borderRadius: 4, fontSize: 10, fontWeight: 600, marginRight: 4 }}>סיוע</span>}
+                      </td>
                       <td style={{ ...s.td, maxWidth: 250 }}>
                         <span style={{ fontSize: 12 }}>{responseShort}</span>
                         {hasResponse && <span style={{ fontSize: 10, color: "#9ca3af", marginRight: 4 }}>{isExpanded ? " ▲" : " ▼"}</span>}
@@ -6299,13 +6315,26 @@ function OutreachLogTab() {
                       <td style={s.td}>
                         {isUnseen && (
                           <button
-                            style={{ padding: "4px 10px", fontSize: 11, border: "1px solid #d1d5db", borderRadius: 4, cursor: "pointer", background: "#fff" }}
+                            style={{ padding: "4px 10px", fontSize: 11, border: "1px solid #d1d5db", borderRadius: 4, cursor: "pointer", background: "#fff", marginLeft: 4 }}
                             onClick={async (e) => {
                               e.stopPropagation();
                               await apiFetch(`/admin/nudges/${nd.id}/mark-seen`, { method: "POST" });
                               setNudges(prev => prev.map(n => n.id === nd.id ? { ...n, admin_seen: true } : n));
                             }}
                           >ראיתי</button>
+                        )}
+                        {nd.status === "pending" && (
+                          <button
+                            style={{ padding: "4px 10px", fontSize: 11, border: "1px solid #fca5a5", borderRadius: 4, cursor: "pointer", background: "#fff", color: "#dc2626" }}
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (!confirm("למחוק בירור זה?")) return;
+                              try {
+                                await apiFetch(`/admin/nudges/${nd.id}`, { method: "DELETE" });
+                                setNudges(prev => prev.filter(n => n.id !== nd.id));
+                              } catch (err: any) { alert("שגיאה: " + (err.message || "unknown")); }
+                            }}
+                          >מחק</button>
                         )}
                       </td>
                     </tr>
