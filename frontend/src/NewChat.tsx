@@ -2570,8 +2570,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               {screen === "chat" && <div ref={messagesEndRef} />}
             </div>
 
-            {/* Suggestions — only on home screen */}
-            {screen === "home" && (() => {
+            {/* Suggestions — only on home screen, after recommendations loaded */}
+            {screen === "home" && recommendations.chat_count >= 0 && (() => {
               const chatDone = closedChannels["new_chat"] || false;
               const hasMessages = (channelMessages["new_chat"]?.length ?? 0) > 0;
               const allChatsComplete = chatDone && recommendations.has_cognitive && recommendations.has_taste_info;
