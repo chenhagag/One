@@ -2545,13 +2545,13 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 {/* Step bubbles — cognitive & taste (or pool-specific replacements) */}
                 {recommendations.in_matching_pool && allChatsComplete ? (<>
                   {/* Pool user: replace completed step bubbles with useful options */}
-                  <button style={styles.qaBubble} onClick={() => {
+                  <button style={{ ...styles.qaBubble, opacity: sending ? 0.5 : 1 }} disabled={sending} onClick={() => {
                     if (channelMessages["qa_status"]?.length > 0) { setChannel("qa_status"); setScreen("chat"); }
                     else { sendMessage("מה הסטטוס שלי?", "qa_status"); }
                   }}>
                     <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}><IconImg src="/icons/Question.png" size={16} /></span> מה הסטטוס שלי?
                   </button>
-                  <button style={styles.qaBubble} onClick={() => {
+                  <button style={{ ...styles.qaBubble, opacity: sending ? 0.5 : 1 }} disabled={sending} onClick={() => {
                     const msg = isFemale ? "אני רוצה להוסיף או לחדד משהו לגבי עצמי או מה שאני מחפשת" : "אני רוצה להוסיף או לחדד משהו לגבי עצמי או מה שאני מחפש";
                     sendMessage(msg, "new_chat");
                   }}>
