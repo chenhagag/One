@@ -36,6 +36,20 @@ const QA_OPTIONS: { icon: string; text: string; channel: string; requiresAnalysi
   { icon: "/icons/aboutMe.png", text: "מה למדת עליי עד עכשיו?", channel: "qa_about_me", requiresAnalysis: true },
 ];
 
+const CHANNEL_DISPLAY: { key: string; name: string }[] = [
+  { key: "new_chat", name: "שיחת היכרות" },
+  { key: "new_chat_cognitive", name: "סגנון חשיבה" },
+  { key: "new_chat_taste", name: "בדיקת טעם" },
+  { key: "qa_status", name: "מה הסטטוס שלי" },
+  { key: "qa_search", name: "מה אתה מחפש לי" },
+  { key: "qa_refine", name: "הוספה וחידוד" },
+  { key: "qa_system", name: "איך המערכת עובדת" },
+  { key: "qa_general", name: "שאלות ותשובות" },
+  { key: "qa_about_me", name: "מה למדת עליי" },
+  { key: "qa_insights", name: "דיון על התובנות" },
+];
+const CHANNEL_NAME_MAP: Record<string, string> = Object.fromEntries(CHANNEL_DISPLAY.map(c => [c.key, c.name]));
+
 const SIDEBAR_ITEMS: { icon: string; label: string; action?: string }[] = [
   { icon: "/icons/HowItWorks.png", label: "איך המערכת עובדת?", action: "how_it_works" },
   { icon: "/icons/Profile.png", label: "הפרטים שלי", action: "profile_edit" },
@@ -409,6 +423,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [insightInitialView, setInsightInitialView] = useState<"main" | "mbti" | "values" | "bigfive" | "enneagram" | "attachment">("main");
   const [insightResetKey, setInsightResetKey] = useState(0);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [chatListOpen, setChatListOpen] = useState(true);
   const [nudgeStep, setNudgeStep] = useState<1 | 2 | 3>(1);
   const [nudgeSelectedOptions, setNudgeSelectedOptions] = useState<string[]>([]);
   const [nudgeFreeText, setNudgeFreeText] = useState("");
@@ -810,18 +825,49 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             <span>מסך ראשי</span>
           </button>
 
-          {/* Back to chat — only shown if general chat has started */}
-          {(channelMessages["new_chat"]?.length > 0) && (
-            <button
-              style={screen === "chat" && channel === "new_chat" ? styles.sidebarItemActive : styles.sidebarItem}
-              onClick={() => { setChannel("new_chat"); setScreen("chat"); setMenuOpen(false); }}
-            >
-              <IconImg src="/icons/backToConversation.png" />
-              <span style={{ flex: 1 }}>חזרה לשיחה</span>
-              {/* Sidebar badge: completed channel indicator */}
-              {closedChannels["new_chat"] && <span style={styles.completedBadge}>✓</span>}
-            </button>
-          )}
+          {/* Chat list — all channels with messages */}
+          {(() => {
+            const activeChannels = CHANNEL_DISPLAY.filter(c => (channelMessages[c.key]?.length || 0) > 0);
+            if (activeChannels.length === 0) return null;
+            return (
+              <>
+                <button
+                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px 4px", border: "none", background: "transparent", cursor: "pointer", width: "100%", fontSize: 11, color: "#888", fontWeight: 600, letterSpacing: 0.3 }}
+                  onClick={() => setChatListOpen(p => !p)}
+                >
+                  <IconImg src="/icons/backToConversation.png" size={14} />
+                  <span style={{ flex: 1, textAlign: "right" }}>שיחות</span>
+                  <span style={{ fontSize: 10, transition: "transform 0.2s", transform: chatListOpen ? "rotate(0deg)" : "rotate(-90deg)" }}>▾</span>
+                </button>
+                {chatListOpen && activeChannels.map(c => {
+                  const msgs = channelMessages[c.key] || [];
+                  const lastMsg = msgs[msgs.length - 1];
+                  const preview = lastMsg ? (lastMsg.content.length > 30 ? lastMsg.content.slice(0, 30) + "…" : lastMsg.content) : "";
+                  const isActive = screen === "chat" && channel === c.key;
+                  const isClosed = !!closedChannels[c.key];
+                  return (
+                    <button
+                      key={c.key}
+                      style={{
+                        display: "flex", flexDirection: "column", alignItems: "stretch",
+                        padding: "6px 12px 6px 8px", marginRight: 6, border: "none",
+                        background: isActive ? "#f5f5f7" : "transparent", borderRadius: 6,
+                        cursor: "pointer", textAlign: "right", gap: 1,
+                      }}
+                      onClick={() => { setChannel(c.key); setScreen("chat"); setMenuOpen(false); }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <span style={{ fontSize: 12, fontWeight: isActive ? 600 : 500, color: isActive ? "#6366f1" : "#444", flex: 1 }}>{c.name}</span>
+                        {isClosed && <span style={{ fontSize: 10, color: "#22c55e", fontWeight: 700 }}>✓</span>}
+                      </div>
+                      {preview && <span style={{ fontSize: 10, color: "#9ca3af", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.3 }}>{preview}</span>}
+                    </button>
+                  );
+                })}
+                <div style={{ height: 1, background: "#e5e7eb", margin: "6px 12px" }} />
+              </>
+            );
+          })()}
 
           {/* Other sidebar items */}
           {SIDEBAR_ITEMS.map((item, i) => (
@@ -922,7 +968,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           </button>
           <span style={{ ...styles.headerTitle, flex: 1 }}>
             {screen === "home" ? <img src="/nameLogoTrans.png" alt="One" style={{ height: 16, objectFit: "contain", display: "block" }} /> :
-             screen === "chat" ? (channel === "new_chat" ? "שיחת היכרות" : channel === "new_chat_cognitive" ? "סגנון חשיבה" : channel === "new_chat_taste" ? "בדיקת טעם" : channel === "qa_about_me" ? "מה למדת עליי" : channel === "qa_system" ? "איך המערכת עובדת" : channel === "qa_general" ? "שאלות ותשובות" : channel === "qa_insights" ? "דיון על התובנות" : "שיחה") :
+             screen === "chat" ? (CHANNEL_NAME_MAP[channel] || "שיחה") :
              screen === "profile_edit" ? "הפרטים שלי" :
              screen === "insights" ? "תובנות על עצמי" :
              screen === "match_chat" ? "שיחה" :
@@ -2136,12 +2182,19 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                               <p style={{ fontSize: 14, color: "#1a1a2e", lineHeight: 1.8, margin: 0, fontWeight: 500 }}>
                                 {isAssistance ? `מעולה! שמחים לשמוע 🙂` : `מעולה! ההודעה של ${n.partner_name} ממתינה לך 🙂`}
                               </p>
-                              <button
-                                onClick={() => { clearNudge(); setScreen("match_hub"); }}
-                                style={{ display: "block", margin: "12px auto 0", padding: "8px 24px", fontSize: 13, fontWeight: 600, color: "#fff", background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)", border: "none", borderRadius: 8, cursor: "pointer" }}
-                              >
-                                {gn("פתח", "פתחי")} את השיחה 💬
-                              </button>
+                              {isAssistance ? (
+                                <button
+                                  onClick={clearNudge}
+                                  style={{ display: "block", margin: "12px auto 0", padding: "6px 20px", fontSize: 13, color: "#7c6fae", background: "none", border: "1px solid #e0ddf5", borderRadius: 8, cursor: "pointer", fontWeight: 500 }}
+                                >סגור</button>
+                              ) : (
+                                <button
+                                  onClick={() => { clearNudge(); setScreen("match_hub"); }}
+                                  style={{ display: "block", margin: "12px auto 0", padding: "8px 24px", fontSize: 13, fontWeight: 600, color: "#fff", background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)", border: "none", borderRadius: 8, cursor: "pointer" }}
+                                >
+                                  {gn("פתח", "פתחי")} את השיחה 💬
+                                </button>
+                              )}
                             </>
                           )}
                           {nudgeConfirmationType === "not_interested" && (
