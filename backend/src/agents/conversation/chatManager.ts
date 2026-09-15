@@ -474,7 +474,7 @@ export async function buildChatPrompt(
   }
 
   // Q&A channels — separate chats for "about me", "how system works", "questions", "insights discussion"
-  const QA_CHANNELS = ["qa_about_me", "qa_system", "qa_general", "qa_insights", "qa_status", "qa_search", "qa_refine"];
+  const QA_CHANNELS = ["qa_about_me", "qa_system", "qa_general", "qa_insights", "qa_status", "qa_search", "qa_refine", "qa_match_feedback"];
   if (QA_CHANNELS.includes(channel)) {
     let contextBlock = "";
     if (channel === "qa_about_me" || channel === "qa_insights") {
@@ -732,11 +732,21 @@ export async function buildChatPrompt(
 - ענה בשפה אנושית, אינטליגנטית ובגובה העיניים. לא שיווקית, לא מתנשאת.${exAcquaintanceNote}${adminConversationNote}`;
 
       // Inject user's trait profile for status/search/system questions
-      if (channel === "qa_system" || channel === "qa_status" || channel === "qa_search" || channel === "qa_refine") {
+      if (channel === "qa_system" || channel === "qa_status" || channel === "qa_search" || channel === "qa_refine" || channel === "qa_match_feedback") {
         const richProfile = await formatRichProfileForChat(userId);
         if (richProfile.trim()) {
           contextBlock += "\n\n## נתוני הפרופיל האישיותי של המשתמש (לשימוש בתשובה על 'מה אתה מחפש לי')\n" + richProfile;
         }
+      }
+      if (channel === "qa_match_feedback") {
+        contextBlock += `\n\n## הנחיות לערוץ זה (qa_match_feedback)
+המשתמש/ת דיווח/ה שההתאמה התקדמה לעולם האמיתי. זה ערוץ ייעודי לשמוע איך הולך.
+- התעניין/י בחום ובאופן תומך איך ההיכרות מתקדמת.
+- שאל/י אם ההתאמה מרגישה מדויקת — האם קלענו לטעם?
+- אם כן — שמח/י איתם, שאל/י מה הכי הפתיע אותם בהתאמה.
+- אם לא כל כך — שאל/י בעדינות מה היה אפשר לדייק, מה היו מחפשים אחרת. זה מידע חשוב שיעזור אם יחזרו לחיפוש.
+- אל תלחיצ/י ואל תשפוט/י. שיחה חמה ותומכת.
+- אל תציין/י שקיבלת הנחיה או שזה ערוץ מיוחד. פשוט התעניין/י באופן טבעי.`;
       }
     }
     const systemPrompt = contextBlock + "\n\n" + genderInstruction + coupleInstruction + agentContextBlock + liveStateBlock + ragContextBlock;

@@ -47,6 +47,7 @@ const CHANNEL_DISPLAY: { key: string; name: string }[] = [
   { key: "qa_general", name: "שאלות ותשובות" },
   { key: "qa_about_me", name: "מה למדת עליי" },
   { key: "qa_insights", name: "דיון על התובנות" },
+  { key: "qa_match_feedback", name: "איך ההתאמה" },
 ];
 const CHANNEL_NAME_MAP: Record<string, string> = Object.fromEntries(CHANNEL_DISPLAY.map(c => [c.key, c.name]));
 
@@ -380,6 +381,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
     qa_status: [],
     qa_search: [],
     qa_refine: [],
+    qa_match_feedback: [],
   });
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -428,7 +430,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [nudgeSelectedOptions, setNudgeSelectedOptions] = useState<string[]>([]);
   const [nudgeFreeText, setNudgeFreeText] = useState("");
   const [nudgeSubmitting, setNudgeSubmitting] = useState(false);
-  const [nudgeConfirmationType, setNudgeConfirmationType] = useState<"unseen" | "help" | "chat_only" | "not_interested" | "not_available" | null>(null);
+  const [nudgeConfirmationType, setNudgeConfirmationType] = useState<"unseen" | "help" | "chat_only" | "not_interested" | "not_available" | "moved_offline" | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const loadGenRef = useRef(0); // Generation counter to prevent stale loadRecommendations responses
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -1995,6 +1997,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   { key: "coordinate_time", label: `${gn("אשמח", "אשמח")} ש-One ${gn("יעזור", "יעזור")} לתאם זמן שבו ${bothFemale ? "שתינו פנויות" : bothMale ? "שנינו פנויים" : gn("שנינו פנויים", "שתינו פנויות")} להתכתב כאן.` },
                   { key: "whatsapp", label: `${gn("אשמח", "אשמח")} לעבור לווטסאפ, אם גם ${pgn("הוא מעוניין", "היא מעוניינת")}.` },
                   { key: "date", label: `${gn("אשמח", "אשמח")} ש-One ${gn("יעזור", "יעזור")} לתאם ${gn("לנו", "לנו")} דייט 🙂` },
+                  { key: "moved_offline", label: "הכול מצוין, כבר עברנו לדבר בעולם האמיתי 🙂" },
                   { key: "other", label: "משהו אחר" },
                 ] : [
                   { key: "continue_here", label: `אני ${gn("מעדיף", "מעדיפה")} להמשיך להתכתב כאן.` },
@@ -2038,6 +2041,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       setNudgeConfirmationType("not_interested");
                     } else if (nudgeSelectedOptions.includes("not_available")) {
                       setNudgeConfirmationType("not_available");
+                    } else if (nudgeSelectedOptions.includes("moved_offline")) {
+                      setNudgeConfirmationType("moved_offline");
                     } else if (nudgeSelectedOptions.length === 1 && nudgeSelectedOptions[0] === "continue_here") {
                       setNudgeConfirmationType("chat_only");
                     } else {
@@ -2224,6 +2229,34 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                                   style={{ padding: "8px 20px", fontSize: 13, fontWeight: 500, color: "#7c6fae", background: "none", border: "1px solid #e0ddf5", borderRadius: 8, cursor: "pointer" }}
                                 >סגור</button>
                               </div>
+                            </>
+                          )}
+                          {nudgeConfirmationType === "moved_offline" && (
+                            <>
+                              <p style={{ fontSize: 15, color: "#1a1a2e", lineHeight: 1.8, margin: 0, fontWeight: 600, textAlign: "center" }}>
+                                שמחים מאוד לשמוע! 🎉
+                              </p>
+                              <p style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.7, margin: "8px 0 0", textAlign: "center" }}>
+                                נשמח לשמוע איך הולך — זה עוזר לנו לדייק את ההתאמות עבור כולם.
+                              </p>
+                              <button
+                                onClick={() => {
+                                  clearNudge();
+                                  const msg = "היי, רציתי לספר שעברנו לדבר בעולם האמיתי 🙂";
+                                  if (channelMessages["qa_match_feedback"]?.length > 0) {
+                                    setChannel("qa_match_feedback"); setScreen("chat");
+                                  } else {
+                                    sendMessage(msg, "qa_match_feedback");
+                                  }
+                                }}
+                                style={{ display: "block", margin: "14px auto 0", padding: "10px 24px", fontSize: 13, fontWeight: 600, color: "#fff", background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)", border: "none", borderRadius: 8, cursor: "pointer" }}
+                              >
+                                {gn("אשמח", "אשמח")} לשתף איך הולך
+                              </button>
+                              <button
+                                onClick={clearNudge}
+                                style={{ display: "block", margin: "8px auto 0", padding: "6px 20px", fontSize: 12, color: "#9ca3af", background: "none", border: "none", cursor: "pointer" }}
+                              >אולי אחר כך</button>
                             </>
                           )}
                           {/* Auto-dismiss for unseen/help after viewing */}

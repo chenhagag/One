@@ -4786,6 +4786,10 @@ app.post("/users/:id/nudge-response", requireUserAuth, async (req, res) => {
           contextLines.push(`המשתמש/ת ${gn("מעוניין", "מעוניינת")} שנעזור לתאם דייט עם ${partnerName}.`);
           contextLines.push(`הנחיה: שאל/י מתי ${gn("מתאים לו", "מתאים לה")} (ימים/שעות) ובאיזה אזור ${gn("נוח לו", "נוח לה")} להיפגש. אמור/י ש${gn("אתה בודק", "את בודקת")} גם מול ${partnerName}.`);
         }
+        if (help_options.includes("moved_offline")) {
+          contextLines.push(`המשתמש/ת ${gn("דיווח", "דיווחה")} שההיכרות עם ${partnerName} התקדמה לעולם האמיתי!`);
+          contextLines.push(`הנחיה: המשתמש/ת עשוי/ה לפנות בערוץ qa_match_feedback. שם — ${gn("התעניין", "התעניני")} באופן חם איך הולך, ${gn("שאל", "שאלי")} אם ההתאמה מרגישה מדויקת, אם קלענו לטעם. אם לא — ${gn("שאל", "שאלי")} מה לדייק למקרה ש${gn("יחזור", "תחזור")} לחיפוש.`);
+        }
         if (help_options.includes("other")) {
           contextLines.push(`המשתמש/ת ${gn("ביקש", "ביקשה")} עזרה אחרת: "${free_text || "לא פורט"}".`);
           contextLines.push(`הנחיה: בדוק/י מה ניתן לעשות בנושא. אם לא בטוח/ה, אמור/י ש${gn("אתה מעביר", "את מעבירה")} את הבקשה לצוות.`);
