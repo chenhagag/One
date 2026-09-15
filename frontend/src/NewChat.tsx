@@ -646,21 +646,17 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
       .catch(() => {});
   }, [user.id]);
 
-  const prevMsgCountRef = useRef<number>(0);
-  useEffect(() => {
-    const count = (channelMessages[channel] || []).length;
-    if (screen === "chat" && count > prevMsgCountRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-    prevMsgCountRef.current = count;
-  }, [channelMessages, channel]);
+  // Scroll chat to bottom — called explicitly, never from useEffect on channelMessages
+  const scrollChatToBottom = (delay = 0) => {
+    const doScroll = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (delay > 0) setTimeout(doScroll, delay);
+    else doScroll();
+  };
 
-  // Also scroll to bottom when switching to chat screen (delay for DOM to settle on iOS)
+  // Scroll to bottom when switching to chat screen (delay for DOM to settle on iOS)
   useEffect(() => {
-    if (screen === "chat") {
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 150);
-    }
-  }, [screen]);
+    if (screen === "chat") scrollChatToBottom(150);
+  }, [screen, channel]);
 
   // iOS keyboard: scroll input into view when virtual keyboard opens
   useEffect(() => {
@@ -691,6 +687,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
     const channelMsgs = channelMessages[effectiveChannel] || [];
     const updatedMessages = [...channelMsgs, userMsg];
     setMessagesForChannel(effectiveChannel, () => updatedMessages);
+    scrollChatToBottom(50);
     setSending(true);
 
     const MAX_RETRIES = 2;
@@ -717,6 +714,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         const data = await r.json();
         if (data.reply) {
           setMessagesForChannel(effectiveChannel, prev => [...prev, { role: "assistant", content: data.reply }]);
+          scrollChatToBottom(50);
           if (data.closing_stage >= 3) {
             setClosedChannels(prev => ({ ...prev, [effectiveChannel]: true }));
             apiFetch(`/new-chat/status/${user.id}`).then(r => r.json()).then(d => {
