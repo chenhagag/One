@@ -419,7 +419,7 @@ export async function getAgentSafeLiveState(userId: number): Promise<AgentSafeLi
   );
   const waitingForRating = matchInfo.some(m =>
     (m.status === "waiting_first_rating" || m.status === "waiting_second_rating")
-    && m.sent_for_rating_to === userId
+    && Number(m.sent_for_rating_to) === userId
   );
 
   // Self-declined matches count

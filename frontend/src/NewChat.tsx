@@ -363,6 +363,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
     qa_system: [],
     qa_general: [],
     qa_insights: [],
+    qa_status: [],
+    qa_search: [],
   });
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -595,6 +597,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           qa_system: [],
           qa_general: [],
           qa_insights: [],
+          qa_status: [],
+          qa_search: [],
         };
         for (const m of data.messages) {
           const ct = m.chat_type as string;
