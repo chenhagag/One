@@ -646,8 +646,13 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
       .catch(() => {});
   }, [user.id]);
 
+  const prevMsgCountRef = useRef<number>(0);
   useEffect(() => {
-    if (screen === "chat") messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const count = (channelMessages[channel] || []).length;
+    if (screen === "chat" && count > prevMsgCountRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+    prevMsgCountRef.current = count;
   }, [channelMessages, channel]);
 
   // Also scroll to bottom when switching to chat screen (delay for DOM to settle on iOS)
@@ -2564,7 +2569,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 </div>
               )}
 
-              <div ref={messagesEndRef} />
+              {screen === "chat" && <div ref={messagesEndRef} />}
             </div>
 
             {/* Suggestions — only on home screen */}
@@ -2577,12 +2582,11 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               return (
               <>
               <div className="nc-suggestions" style={{ ...styles.suggestions, ...(allChatsComplete ? { gap: 6 } : {}) }}>
-                {/* Main chat button */}
+                {/* Main chat button — hidden when closed (available via chat menu) */}
+                {!chatDone && (
                 <button style={{
                   ...(allChatsComplete ? styles.qaBubble : styles.suggestionBtn),
-                  ...(chatDone
-                    ? { borderColor: "#22c55e", color: "#22c55e" }
-                    : { background: "#8b7ba8", color: "#fff", border: "1px solid #8b7ba8" }),
+                  ...{ background: "#8b7ba8", color: "#fff", border: "1px solid #8b7ba8" },
                 }} onClick={() => {
                   setChannel("new_chat");
                   if (!hasMessages) {
@@ -2595,8 +2599,9 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   }
                   setScreen("chat");
                 }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}>{chatDone ? <IconImg src="/icons/backToConversation.png" size={16} /> : <IconImg src="/icons/StartConversationPurple.png" size={16} />}</span> {chatDone ? "חזרה לשיחה" : hasMessages ? "בוא נמשיך" : "בוא נתחיל"}
+                  <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}><IconImg src={hasMessages ? "/icons/backToConversation.png" : "/icons/StartConversationPurple.png"} size={16} /></span> {hasMessages ? "בוא נמשיך" : "בוא נתחיל"}
                 </button>
+                )}
 
                 {/* Step bubbles — cognitive & taste (or pool-specific replacements) */}
                 {recommendations.in_matching_pool && allChatsComplete ? (<>
@@ -2618,8 +2623,9 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 </>) : (
                   STEP_OPTIONS.map((s, i) => {
                     const isChannelDone = closedChannels[s.channel] || (s.channel === "new_chat_cognitive" && recommendations.has_cognitive) || (s.channel === "new_chat_taste" && recommendations.has_taste_info);
+                    if (isChannelDone) return null; // Hidden when closed — available via chat menu
                     return (
-                    <button key={`step-${i}`} style={{ ...(allChatsComplete ? styles.qaBubble : styles.suggestionBtn), ...(isChannelDone ? { borderColor: "#22c55e", color: "#22c55e" } : {}) }} onClick={() => {
+                    <button key={`step-${i}`} style={allChatsComplete ? styles.qaBubble : styles.suggestionBtn} onClick={() => {
                       if (channelMessages[s.channel]?.length > 0) {
                         setChannel(s.channel);
                         setScreen("chat");
@@ -2627,7 +2633,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                         sendMessage(s.text, s.channel);
                       }
                     }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle", opacity: 0.8 }}>{isChannelDone ? "✓" : <IconImg src={s.icon} size={16} />}</span> {s.text}
+                      <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle", opacity: 0.8 }}><IconImg src={s.icon} size={16} /></span> {s.text}
                     </button>
                     );
                   })
