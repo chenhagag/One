@@ -423,7 +423,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [insightInitialView, setInsightInitialView] = useState<"main" | "mbti" | "values" | "bigfive" | "enneagram" | "attachment">("main");
   const [insightResetKey, setInsightResetKey] = useState(0);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [chatListOpen, setChatListOpen] = useState(true);
+  const [chatListOpen, setChatListOpen] = useState(false);
   const [nudgeStep, setNudgeStep] = useState<1 | 2 | 3>(1);
   const [nudgeSelectedOptions, setNudgeSelectedOptions] = useState<string[]>([]);
   const [nudgeFreeText, setNudgeFreeText] = useState("");
@@ -647,7 +647,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   }, [user.id]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (screen === "chat") messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [channelMessages, channel]);
 
   // Also scroll to bottom when switching to chat screen (delay for DOM to settle on iOS)
@@ -832,39 +832,28 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             return (
               <>
                 <button
-                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px 4px", border: "none", background: "transparent", cursor: "pointer", width: "100%", fontSize: 11, color: "#888", fontWeight: 600, letterSpacing: 0.3 }}
+                  style={{ ...styles.sidebarItem, opacity: 1, gap: 8 }}
                   onClick={() => setChatListOpen(p => !p)}
                 >
-                  <IconImg src="/icons/backToConversation.png" size={14} />
-                  <span style={{ flex: 1, textAlign: "right" }}>שיחות</span>
-                  <span style={{ fontSize: 10, transition: "transform 0.2s", transform: chatListOpen ? "rotate(0deg)" : "rotate(-90deg)" }}>▾</span>
+                  <IconImg src="/icons/backToConversation.png" />
+                  <span style={{ flex: 1 }}>שיחות</span>
+                  <span style={{ fontSize: 10, color: "#999", transition: "transform 0.2s", transform: chatListOpen ? "rotate(0deg)" : "rotate(-90deg)" }}>▾</span>
                 </button>
                 {chatListOpen && activeChannels.map(c => {
-                  const msgs = channelMessages[c.key] || [];
-                  const lastMsg = msgs[msgs.length - 1];
-                  const preview = lastMsg ? (lastMsg.content.length > 30 ? lastMsg.content.slice(0, 30) + "…" : lastMsg.content) : "";
                   const isActive = screen === "chat" && channel === c.key;
                   const isClosed = !!closedChannels[c.key];
                   return (
                     <button
                       key={c.key}
-                      style={{
-                        display: "flex", flexDirection: "column", alignItems: "stretch",
-                        padding: "6px 12px 6px 8px", marginRight: 6, border: "none",
-                        background: isActive ? "#f5f5f7" : "transparent", borderRadius: 6,
-                        cursor: "pointer", textAlign: "right", gap: 1,
-                      }}
+                      style={isActive ? { ...styles.sidebarItemActive, paddingRight: 24 } : { ...styles.sidebarItem, paddingRight: 24 }}
                       onClick={() => { setChannel(c.key); setScreen("chat"); setMenuOpen(false); }}
                     >
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <span style={{ fontSize: 12, fontWeight: isActive ? 600 : 500, color: isActive ? "#6366f1" : "#444", flex: 1 }}>{c.name}</span>
-                        {isClosed && <span style={{ fontSize: 10, color: "#22c55e", fontWeight: 700 }}>✓</span>}
-                      </div>
-                      {preview && <span style={{ fontSize: 10, color: "#9ca3af", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.3 }}>{preview}</span>}
+                      <span style={{ flex: 1 }}>{c.name}</span>
+                      {isClosed && <span style={styles.completedBadge}>✓</span>}
                     </button>
                   );
                 })}
-                <div style={{ height: 1, background: "#e5e7eb", margin: "6px 12px" }} />
+                <div style={{ height: 1, background: "#e5e7eb", margin: "4px 12px" }} />
               </>
             );
           })()}
