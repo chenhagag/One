@@ -4743,48 +4743,94 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                 {matchDetail.match_status === "in_match" && matchDetail.match_card_sent_at && (
                   <span style={{ fontSize: 12, color: "#28a745", fontWeight: 600 }}>✓ כרטיס נשלח</span>
                 )}
-                {matchDetail.match_status === "in_match" && (
-                  <>
-                    <button
-                      style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#f59e0b", color: "#fff" }}
-                      onClick={async () => {
-                        if (!confirm(`לשלוח בירור ל-${matchDetail.user1_name}?`)) return;
-                        try {
-                          await apiFetch(`/admin/matches/${matchDetail.match_id}/nudge`, {
-                            method: "POST", headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ user_id: matchDetail.user_id }),
-                          });
-                          alert("בירור נשלח בהצלחה");
-                        } catch (err: any) { alert("שגיאה: " + (err.message || "unknown")); }
-                      }}
-                    >שלח בירור ל-{matchDetail.user1_name}</button>
-                    <button
-                      style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#f59e0b", color: "#fff" }}
-                      onClick={async () => {
-                        if (!confirm(`לשלוח בירור ל-${matchDetail.user2_name}?`)) return;
-                        try {
-                          await apiFetch(`/admin/matches/${matchDetail.match_id}/nudge`, {
-                            method: "POST", headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ user_id: matchDetail.candidate_user_id }),
-                          });
-                          alert("בירור נשלח בהצלחה");
-                        } catch (err: any) { alert("שגיאה: " + (err.message || "unknown")); }
-                      }}
-                    >שלח בירור ל-{matchDetail.user2_name}</button>
-                    <button
-                      style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#8b5cf6", color: "#fff" }}
-                      onClick={async () => {
-                        if (!confirm(`לשלוח סיוע לשתי המשתמשות בהתאמה #${matchDetail.match_id}?`)) return;
-                        try {
-                          await apiFetch(`/admin/matches/${matchDetail.match_id}/send-assistance`, {
-                            method: "POST", headers: { "Content-Type": "application/json" },
-                          });
-                          alert("סיוע נשלח לשתי המשתמשות");
-                        } catch (err: any) { alert("שגיאה: " + (err.message || "unknown")); }
-                      }}
-                    >שלח סיוע לשתיהן</button>
-                  </>
-                )}
+                {matchDetail.match_status === "in_match" && (() => {
+                  const nudges: any[] = matchDetail.pending_nudges || [];
+                  const u1Nudge = nudges.find((n: any) => n.user_id === matchDetail.user_id);
+                  const u2Nudge = nudges.find((n: any) => n.user_id === matchDetail.candidate_user_id);
+                  const hasAssistance = nudges.some((n: any) => n.nudge_type === "assistance");
+
+                  const deleteAndResend = async (nudgeId: number, then: () => Promise<void>) => {
+                    try {
+                      await apiFetch(`/admin/nudges/${nudgeId}`, { method: "DELETE" });
+                      await then();
+                    } catch (err: any) { alert("שגיאה: " + (err.message || "unknown")); }
+                  };
+
+                  const sendNudge = async (userId: number, userName: string) => {
+                    if (!confirm(`לשלוח בירור ל-${userName}?`)) return;
+                    try {
+                      await apiFetch(`/admin/matches/${matchDetail.match_id}/nudge`, {
+                        method: "POST", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ user_id: userId }),
+                      });
+                      setMatchDetail((prev: any) => prev ? { ...prev, pending_nudges: [...(prev.pending_nudges || []), { user_id: userId, nudge_type: "check_in", status: "pending" }] } : prev);
+                    } catch (err: any) { alert("שגיאה: " + (err.message || "unknown")); }
+                  };
+
+                  const sendAssistance = async () => {
+                    if (!confirm(`לשלוח סיוע לשתי המשתמשות בהתאמה #${matchDetail.match_id}?`)) return;
+                    try {
+                      await apiFetch(`/admin/matches/${matchDetail.match_id}/send-assistance`, {
+                        method: "POST", headers: { "Content-Type": "application/json" },
+                      });
+                      setMatchDetail((prev: any) => prev ? { ...prev, pending_nudges: [
+                        ...(prev.pending_nudges || []),
+                        { user_id: prev.user_id, nudge_type: "assistance", status: "pending" },
+                        { user_id: prev.candidate_user_id, nudge_type: "assistance", status: "pending" },
+                      ] } : prev);
+                    } catch (err: any) { alert("שגיאה: " + (err.message || "unknown")); }
+                  };
+
+                  return (
+                    <>
+                      {/* User 1 nudge */}
+                      {u1Nudge ? (
+                        <span style={{ fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <span style={{ color: u1Nudge.nudge_type === "assistance" ? "#7c3aed" : "#d97706" }}>
+                            📩 {u1Nudge.nudge_type === "assistance" ? "סיוע" : "בירור"} נשלח ל{matchDetail.user1_name}
+                          </span>
+                          <button
+                            style={{ padding: "2px 6px", fontSize: 10, border: "1px solid #d1d5db", borderRadius: 3, cursor: "pointer", background: "#fff", color: "#555" }}
+                            onClick={() => deleteAndResend(u1Nudge.id, () => sendNudge(matchDetail.user_id, matchDetail.user1_name))}
+                          >↻ שלח שוב</button>
+                        </span>
+                      ) : (
+                        <button
+                          style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#f59e0b", color: "#fff" }}
+                          onClick={() => sendNudge(matchDetail.user_id, matchDetail.user1_name)}
+                        >שלח בירור ל-{matchDetail.user1_name}</button>
+                      )}
+
+                      {/* User 2 nudge */}
+                      {u2Nudge ? (
+                        <span style={{ fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <span style={{ color: u2Nudge.nudge_type === "assistance" ? "#7c3aed" : "#d97706" }}>
+                            📩 {u2Nudge.nudge_type === "assistance" ? "סיוע" : "בירור"} נשלח ל{matchDetail.user2_name}
+                          </span>
+                          <button
+                            style={{ padding: "2px 6px", fontSize: 10, border: "1px solid #d1d5db", borderRadius: 3, cursor: "pointer", background: "#fff", color: "#555" }}
+                            onClick={() => deleteAndResend(u2Nudge.id, () => sendNudge(matchDetail.candidate_user_id, matchDetail.user2_name))}
+                          >↻ שלח שוב</button>
+                        </span>
+                      ) : (
+                        <button
+                          style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#f59e0b", color: "#fff" }}
+                          onClick={() => sendNudge(matchDetail.candidate_user_id, matchDetail.user2_name)}
+                        >שלח בירור ל-{matchDetail.user2_name}</button>
+                      )}
+
+                      {/* Assistance button */}
+                      {hasAssistance ? (
+                        <span style={{ fontSize: 11, color: "#7c3aed" }}>📩 סיוע נשלח לשתיהן</span>
+                      ) : (
+                        <button
+                          style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#8b5cf6", color: "#fff" }}
+                          onClick={sendAssistance}
+                        >שלח סיוע לשתיהן</button>
+                      )}
+                    </>
+                  );
+                })()}
                 {(matchDetail.match_status === "waiting_first_rating" || matchDetail.match_status === "waiting_second_rating") && matchDetail.user1_photo_count === 0 && matchDetail.user2_photo_count === 0 && (
                   <button
                     style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#d97706", color: "#fff" }}
