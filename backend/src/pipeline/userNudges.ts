@@ -11,6 +11,7 @@
  * - Otherwise → email (if email_updates enabled)
  * - Deduplication via notification_log event_type (numbered: nudge_not_started_1, _2, etc.)
  *
+ * Only runs in production (NODE_ENV=production) to avoid spamming staging test accounts.
  * Called by jobRunner on a daily schedule.
  */
 
@@ -58,7 +59,6 @@ function gn(gender: string | null, m: string, f: string): string {
 // ── Check how many nudges of this type were already sent ─────────
 
 async function nudgesSentCount(userId: number, eventPrefix: string): Promise<number> {
-  // Count successful nudges matching prefix (e.g. "nudge_not_started_1", "nudge_not_started_2")
   const row = await pgQueryOne<{ count: string }>(
     `SELECT COUNT(*) AS count FROM notification_log
      WHERE user_id = $1 AND event_type LIKE $2 AND success = TRUE`,
@@ -97,10 +97,8 @@ function getDueNudgeIndex(
   const now = new Date();
   const daysSinceRegistration = (now.getTime() - registrationDate.getTime()) / (1000 * 60 * 60 * 24);
 
-  // Already sent all nudges in the schedule
   if (alreadySent >= schedule.length) return null;
 
-  // Check if the next nudge is due (user has been registered long enough)
   const nextNudgeIndex = alreadySent;
   const daysRequired = schedule[nextNudgeIndex];
 
@@ -134,8 +132,8 @@ async function sendWelcomeNudges(): Promise<NudgeCategoryResult> {
     const name = user.first_name || "";
 
     const payload: NotifyPayload = {
-      title: `${g("ברוך הבא", "ברוכה הבאה")} ל-One!`,
-      body: `היי${name ? " " + name : ""}, ${g("שמחים שהצטרפת", "שמחים שהצטרפת")}. ${g("כנס", "כנסי")} כדי להתחיל את השיחה ולמצוא את ההתאמה ${g("שלך", "שלך")}.`,
+      title: `${g("ברוך הבא", "ברוכה הבאה")} ל-One`,
+      body: `היי${name ? " " + name : ""}, ${g("שמחים שהצטרפת", "שמחים שהצטרפת")}. ${g("כנס", "כנסי")} כדי להתחיל את שיחות ההיכרות — זה הבסיס לחיפוש ההתאמות.`,
       event_type: "welcome",
       emailHtml: buildWelcomeEmail(name, user.gender),
     };
@@ -186,7 +184,6 @@ async function sendNotStartedNudges(): Promise<NudgeCategoryResult> {
     const nudgeNumber = dueIndex + 1;
     const eventType = `nudge_not_started_${nudgeNumber}`;
 
-    // Double-check this specific nudge wasn't sent
     if (await wasNudgeSent(user.id, eventType)) {
       result.skipped++;
       continue;
@@ -277,6 +274,16 @@ async function sendIncompleteNudges(): Promise<NudgeCategoryResult> {
 // ── Main: run all nudges ─────────────────────────────────────────
 
 export async function runUserNudges(): Promise<NudgeResult> {
+  // Only run in production — staging has real emails on test accounts
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[nudges] Skipping nudges (not production)");
+    return {
+      welcome: { sent: 0, skipped: 0, errors: 0, users: [] },
+      not_started: { sent: 0, skipped: 0, errors: 0, users: [] },
+      incomplete: { sent: 0, skipped: 0, errors: 0, users: [] },
+    };
+  }
+
   console.log("[nudges] Starting user nudge run...");
 
   const welcome = await sendWelcomeNudges();
@@ -307,26 +314,26 @@ function getNotStartedContent(
   switch (nudgeNumber) {
     case 1:
       return {
-        title: `${g("מחכים לך", "מחכים לך")} ב-One`,
-        body: `${hey}, ${g("רצינו", "רצינו")} לבדוק שהכול בסדר. ${g("כנס", "כנסי")} כדי להתחיל את השיחה — זה לוקח כמה דקות.`,
+        title: `התחלת התהליך ב-One`,
+        body: `${hey}, ${g("נרשמת", "נרשמת")} ל-One אבל עוד לא ${g("התחלת", "התחלת")} את השיחה. ${g("כנס", "כנסי")} כדי להתחיל — זה לוקח כמה דקות.`,
         emailHtml: buildNotStartedEmail(nudgeNumber, name, gender),
       };
     case 2:
       return {
-        title: `עוד לא ${g("התחלת", "התחלת")}? אנחנו כאן`,
-        body: `${hey}, השיחה ב-One קצרה ונעימה. ${g("כנס", "כנסי")} כשנוח ${g("לך", "לך")} — אנחנו ${g("מחכים", "מחכים")}.`,
+        title: `שיחת ההיכרות ב-One`,
+        body: `${hey}, שיחת ההיכרות היא הבסיס לחיפוש ההתאמות. ${g("כנס", "כנסי")} כשנוח ${g("לך", "לך")} — זה קצר ופשוט.`,
         emailHtml: buildNotStartedEmail(nudgeNumber, name, gender),
       };
     case 3:
       return {
-        title: `${hey}, ${g("שמרנו לך", "שמרנו לך")} מקום`,
-        body: `ב-One אפשר להתחיל בכל רגע. השיחה ${g("מחכה לך", "מחכה לך")} — ${g("כנס", "כנסי")} כש${g("מתאים לך", "מתאים לך")}.`,
+        title: `One — התהליך ${g("שלך", "שלך")} מחכה`,
+        body: `${hey}, ב-One אפשר להתחיל בכל רגע. השיחה ${g("מחכה לך", "מחכה לך")} — ${g("כנס", "כנסי")} כש${g("מתאים לך", "מתאים לך")}.`,
         emailHtml: buildNotStartedEmail(nudgeNumber, name, gender),
       };
     default: // 4
       return {
         title: `תזכורת אחרונה מ-One`,
-        body: `${hey}, עדיין ${g("שמרנו לך", "שמרנו לך")} את המקום. ${g("כנס", "כנסי")} להתחיל — אחרי זה אנחנו מטפלים בהכול.`,
+        body: `${hey}, עדיין אפשר להתחיל את התהליך ב-One. ${g("כנס", "כנסי")} — אחרי שיחה קצרה, אנחנו מטפלים בהכול.`,
         emailHtml: buildNotStartedEmail(nudgeNumber, name, gender),
       };
   }
@@ -343,26 +350,26 @@ function getIncompleteContent(
   switch (nudgeNumber) {
     case 1:
       return {
-        title: `${g("חסר", "חסרה")} לנו ב-One`,
-        body: `${hey}, ${g("התחלת", "התחלת")} את התהליך ו${g("נשמח שתמשיך", "נשמח שתמשיכי")}. ככל שנכיר אותך יותר, ההתאמה תהיה מדויקת יותר.`,
+        title: `השלמת התהליך ב-One`,
+        body: `${hey}, ${g("התחלת", "התחלת")} את התהליך ב-One אבל עוד לא ${g("השלמת", "השלמת")}. השלמת השיחות תאפשר ${g("לך", "לך")} להצטרף למאגר ההתאמות.`,
         emailHtml: buildIncompleteEmail(nudgeNumber, name, gender),
       };
     case 2:
       return {
-        title: `השיחה ${g("שלך", "שלך")} ב-One ${g("מחכה לך", "מחכה לך")}`,
-        body: `${hey}, אפשר להמשיך מאיפה ש${g("הפסקת", "הפסקת")} — הכול שמור. ${g("כנס", "כנסי")} כש${g("מתאים לך", "מתאים לך")}.`,
+        title: `ההתאמה ${g("שלך", "שלך")} ב-One`,
+        body: `${hey}, כל מה ש${g("עשית", "עשית")} ב-One נשמר. ${g("כנס", "כנסי")} להמשיך מאותה נקודה — ככל שנכיר אותך יותר, ההתאמה תהיה מדויקת יותר.`,
         emailHtml: buildIncompleteEmail(nudgeNumber, name, gender),
       };
     case 3:
       return {
-        title: `עוד קצת ו${g("סיימת", "סיימת")}`,
+        title: `עוד קצת ו${g("סיימת", "סיימת")} ב-One`,
         body: `${hey}, ${g("נשאר לך", "נשאר לך")} עוד קצת עד שנוכל להתחיל לחפש ${g("לך", "לך")} התאמה. ${g("כנס", "כנסי")} להמשיך.`,
         emailHtml: buildIncompleteEmail(nudgeNumber, name, gender),
       };
     default: // 4
       return {
         title: `תזכורת אחרונה מ-One`,
-        body: `${hey}, ${g("התחלת", "התחלת")} תהליך ב-One ו${g("נשמח שתסיים", "נשמח שתסיימי")}. אחרי זה נוכל למצוא ${g("לך", "לך")} את ההתאמה הכי מדויקת.`,
+        body: `${hey}, ${g("התחלת", "התחלת")} תהליך ב-One. אחרי שנכיר אותך לעומק, נוכל למצוא ${g("לך", "לך")} את ההתאמה המדויקת ביותר.`,
         emailHtml: buildIncompleteEmail(nudgeNumber, name, gender),
       };
   }
@@ -391,10 +398,10 @@ function ctaButton(text: string): string {
 function buildWelcomeEmail(name: string, gender: string | null): string {
   const g = (m: string, f: string) => gn(gender, m, f);
   return wrapEmail(`
-    <h2 style="font-size: 20px; margin: 0 0 16px;">${g("ברוך הבא", "ברוכה הבאה")} ל-One!</h2>
+    <h2 style="font-size: 20px; margin: 0 0 16px;">${g("ברוך הבא", "ברוכה הבאה")} ל-One</h2>
     <p>היי${name ? " " + name : ""},</p>
-    <p>${g("שמחים שהצטרפת", "שמחים שהצטרפת")} אלינו. One היא מערכת התאמות זוגיות שמבוססת על שיחה אישית — ככל שנכיר אותך יותר, כך נוכל למצוא ${g("לך", "לך")} את ההתאמה המדויקת ביותר.</p>
-    <p>${g("כנס", "כנסי")} כדי להתחיל את השיחה. זה לוקח כמה דקות, ואפשר תמיד לחזור ולהמשיך.</p>
+    <p>${g("שמחים שהצטרפת", "שמחים שהצטרפת")}. One מוצאת ${g("לך", "לך")} התאמה זוגית על בסיס שיחת היכרות אישית — ככל שנכיר אותך יותר, כך נוכל למצוא ${g("לך", "לך")} את ההתאמה המדויקת ביותר.</p>
+    <p>השיחה לוקחת כמה דקות, ואפשר תמיד לחזור ולהמשיך מאותה נקודה.</p>
     ${ctaButton(g("כנס", "כנסי") + " להתחיל")}
     <p>בברכה,<br>צוות One</p>
   `);
@@ -406,37 +413,35 @@ function buildNotStartedEmail(nudgeNumber: number, name: string, gender: string 
 
   const bodies: Record<number, string> = {
     1: `
-      <h2 style="font-size: 20px; margin: 0 0 16px;">${g("מחכים לך", "מחכים לך")} ב-One</h2>
+      <h2 style="font-size: 20px; margin: 0 0 16px;">התחלת התהליך ב-One</h2>
       <p>${hey},</p>
-      <p>${g("רצינו", "רצינו")} לבדוק שהכול בסדר. ${g("נרשמת", "נרשמת")} ל-One אבל עוד לא ${g("התחלת", "התחלת")} את השיחה.</p>
-      <p>התהליך פשוט — ${g("כנס", "כנסי")} ל-One ו${g("התחל", "התחילי")} לדבר. ככל שנכיר אותך יותר, כך ההתאמה תהיה מדויקת יותר.</p>
-      <p>אם ${g("נתקלת", "נתקלת")} בבעיה טכנית או שמשהו לא ברור — ${g("כתוב", "כתבי")} לנו, נשמח לעזור.</p>
+      <p>${g("נרשמת", "נרשמת")} ל-One, אבל עוד לא ${g("התחלת", "התחלת")} את שיחת ההיכרות.</p>
+      <p>שיחת ההיכרות היא הבסיס לחיפוש ההתאמות: היא עוזרת ל-One להבין מי ${g("אתה", "את")}, מה חשוב ${g("לך", "לך")} בזוגיות ומה הטעם ${g("שלך", "שלך")}. זה לוקח כמה דקות, ואפשר תמיד לחזור ולהמשיך.</p>
+      <p>אם ${g("נתקלת", "נתקלת")} בבעיה — ${g("כתוב", "כתבי")} לנו, נשמח לעזור.</p>
       ${ctaButton(g("כנס", "כנסי") + " להתחיל")}
     `,
     2: `
-      <h2 style="font-size: 20px; margin: 0 0 16px;">עוד לא ${g("התחלת", "התחלת")}? אנחנו כאן</h2>
+      <h2 style="font-size: 20px; margin: 0 0 16px;">שיחת ההיכרות ב-One</h2>
       <p>${hey},</p>
-      <p>השיחה ב-One קצרה ונעימה — כמה דקות של שיחה פתוחה, ואנחנו מטפלים בשאר.</p>
-      <p>${g("כנס", "כנסי")} כשנוח ${g("לך", "לך")}. אנחנו ${g("מחכים", "מחכים")}.</p>
+      <p>שיחת ההיכרות היא הבסיס לחיפוש ההתאמות ב-One. היא קצרה ופשוטה — כמה דקות של שיחה פתוחה, ואנחנו מטפלים בשאר.</p>
+      <p>${g("כנס", "כנסי")} כשנוח ${g("לך", "לך")}.</p>
       ${ctaButton(g("כנס", "כנסי") + " להתחיל")}
     `,
     3: `
-      <h2 style="font-size: 20px; margin: 0 0 16px;">${g("שמרנו לך", "שמרנו לך")} מקום ב-One</h2>
+      <h2 style="font-size: 20px; margin: 0 0 16px;">One — התהליך ${g("שלך", "שלך")} מחכה</h2>
       <p>${hey},</p>
-      <p>ב-One אפשר להתחיל בכל רגע — אין לחץ, אין דדליין. השיחה ${g("מחכה לך", "מחכה לך")}.</p>
-      <p>${g("כנס", "כנסי")} כש${g("מתאים לך", "מתאים לך")}.</p>
+      <p>ב-One אפשר להתחיל בכל רגע. שיחת ההיכרות ${g("מחכה לך", "מחכה לך")} — ${g("כנס", "כנסי")} כש${g("מתאים לך", "מתאים לך")}.</p>
       ${ctaButton(g("כנס", "כנסי") + " להתחיל")}
     `,
     4: `
       <h2 style="font-size: 20px; margin: 0 0 16px;">תזכורת אחרונה מ-One</h2>
       <p>${hey},</p>
-      <p>זו התזכורת האחרונה שלנו. עדיין ${g("שמרנו לך", "שמרנו לך")} את המקום ב-One.</p>
-      <p>אם ${g("תרצה", "תרצי")} להתחיל — אנחנו כאן. ${g("כנס", "כנסי")} ואנחנו נטפל בהכול.</p>
+      <p>זו התזכורת האחרונה שלנו. עדיין אפשר להתחיל את התהליך ב-One — אחרי שיחה קצרה, אנחנו מטפלים בהכול.</p>
       ${ctaButton(g("כנס", "כנסי") + " להתחיל")}
     `,
   };
 
-  return wrapEmail(bodies[nudgeNumber] || bodies[4]!);
+  return wrapEmail((bodies[nudgeNumber] || bodies[4]!) + `<p>בברכה,<br>צוות One</p>`);
 }
 
 function buildIncompleteEmail(nudgeNumber: number, name: string, gender: string | null): string {
@@ -445,33 +450,33 @@ function buildIncompleteEmail(nudgeNumber: number, name: string, gender: string 
 
   const bodies: Record<number, string> = {
     1: `
-      <h2 style="font-size: 20px; margin: 0 0 16px;">${g("חסר", "חסרה")} לנו ב-One</h2>
+      <h2 style="font-size: 20px; margin: 0 0 16px;">השלמת התהליך ב-One</h2>
       <p>${hey},</p>
-      <p>${g("התחלת", "התחלת")} את התהליך ב-One ו${g("נשמח שתמשיך", "נשמח שתמשיכי")}. יש עוד כמה נושאים שנרצה להכיר אותך דרכם כדי לדייק את ההתאמה.</p>
-      <p>אפשר לחזור בכל רגע ולהמשיך מאיפה ש${g("הפסקת", "הפסקת")} — השיחה שמורה ומחכה ${g("לך", "לך")}.</p>
-      ${ctaButton(g("כנס", "כנסי") + " להמשיך")}
+      <p>${g("נרשמת", "נרשמת")} ל-One, אבל עדיין לא ${g("השלמת", "השלמת")} את שיחות ההיכרות.</p>
+      <p>השיחות הן הבסיס לחיפוש ההתאמות: הן עוזרות ל-One להבין מי ${g("אתה", "את")}, מה חשוב ${g("לך", "לך")} בזוגיות ומה הטעם ${g("שלך", "שלך")}. השלמת התהליך תאפשר ${g("לך", "לך")} להצטרף למאגר, שבו One ${g("מחפש", "מחפשת")} ${g("עבורך", "עבורך")} התאמות — בלי ש${g("תצטרך", "תצטרכי")} לחפש ${g("בעצמך", "בעצמך")}.</p>
+      <p>כל מה שכבר ${g("עשית", "עשית")} נשמר, ואפשר להמשיך מאותה נקודה.</p>
+      ${ctaButton("להמשך התהליך")}
     `,
     2: `
-      <h2 style="font-size: 20px; margin: 0 0 16px;">השיחה ${g("שלך", "שלך")} ב-One ${g("מחכה לך", "מחכה לך")}</h2>
+      <h2 style="font-size: 20px; margin: 0 0 16px;">ההתאמה ${g("שלך", "שלך")} ב-One</h2>
       <p>${hey},</p>
-      <p>הכול שמור ואפשר להמשיך מאיפה ש${g("הפסקת", "הפסקת")}. ${g("כנס", "כנסי")} כש${g("מתאים לך", "מתאים לך")} — אין לחץ.</p>
-      ${ctaButton(g("כנס", "כנסי") + " להמשיך")}
+      <p>כל מה ש${g("עשית", "עשית")} ב-One נשמר ואפשר להמשיך מאותה נקודה. ככל שנכיר אותך יותר, ההתאמה תהיה מדויקת יותר.</p>
+      <p>${g("כנס", "כנסי")} כשנוח ${g("לך", "לך")}.</p>
+      ${ctaButton("להמשך התהליך")}
     `,
     3: `
-      <h2 style="font-size: 20px; margin: 0 0 16px;">עוד קצת ו${g("סיימת", "סיימת")}</h2>
+      <h2 style="font-size: 20px; margin: 0 0 16px;">עוד קצת ו${g("סיימת", "סיימת")} ב-One</h2>
       <p>${hey},</p>
       <p>${g("נשאר לך", "נשאר לך")} עוד קצת עד שנוכל להתחיל לחפש ${g("לך", "לך")} התאמה. ככל שנכיר אותך יותר, כך ההתאמה תהיה מדויקת יותר.</p>
-      <p>${g("כנס", "כנסי")} להמשיך — זה שווה את זה.</p>
-      ${ctaButton(g("כנס", "כנסי") + " להמשיך")}
+      ${ctaButton("להמשך התהליך")}
     `,
     4: `
       <h2 style="font-size: 20px; margin: 0 0 16px;">תזכורת אחרונה מ-One</h2>
       <p>${hey},</p>
-      <p>זו התזכורת האחרונה שלנו. ${g("התחלת", "התחלת")} תהליך ב-One ו${g("נשמח שתסיים", "נשמח שתסיימי")}.</p>
-      <p>אחרי שנכיר אותך לעומק, נוכל למצוא ${g("לך", "לך")} את ההתאמה הכי מדויקת.</p>
-      ${ctaButton(g("כנס", "כנסי") + " להמשיך")}
+      <p>${g("התחלת", "התחלת")} תהליך ב-One. אחרי שנכיר אותך לעומק, נוכל למצוא ${g("לך", "לך")} את ההתאמה המדויקת ביותר. כל מה ש${g("עשית", "עשית")} נשמר.</p>
+      ${ctaButton("להמשך התהליך")}
     `,
   };
 
-  return wrapEmail(bodies[nudgeNumber] || bodies[4]!);
+  return wrapEmail((bodies[nudgeNumber] || bodies[4]!) + `<p>בברכה,<br>צוות One</p>`);
 }
