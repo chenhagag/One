@@ -112,14 +112,14 @@ function getDueNudgeIndex(
   return null;
 }
 
-/** Check if ANY nudge was sent to this user today (prevents multiple nudges per run) */
-async function wasAnyNudgeSentToday(userId: number): Promise<boolean> {
+/** Check if ANY nudge was sent to this user in the last 3 days (minimum gap between nudges) */
+async function wasNudgeSentRecently(userId: number): Promise<boolean> {
   const row = await pgQueryOne<{ id: number }>(
     `SELECT id FROM notification_log
      WHERE user_id = $1 AND success = TRUE
        AND event_type IN ('welcome', 'nudge_not_started_1', 'nudge_not_started_2', 'nudge_not_started_3', 'nudge_not_started_4',
                           'nudge_incomplete_1', 'nudge_incomplete_2', 'nudge_incomplete_3', 'nudge_incomplete_4')
-       AND sent_at > NOW() - INTERVAL '23 hours'
+       AND sent_at > NOW() - INTERVAL '3 days'
      LIMIT 1`,
     [userId]
   );
@@ -146,7 +146,7 @@ async function sendWelcomeNudges(): Promise<NudgeCategoryResult> {
       result.skipped++;
       continue;
     }
-    if (await wasAnyNudgeSentToday(user.id)) {
+    if (await wasNudgeSentRecently(user.id)) {
       result.skipped++;
       continue;
     }
@@ -213,7 +213,7 @@ async function sendNotStartedNudges(): Promise<NudgeCategoryResult> {
       result.skipped++;
       continue;
     }
-    if (await wasAnyNudgeSentToday(user.id)) {
+    if (await wasNudgeSentRecently(user.id)) {
       result.skipped++;
       continue;
     }
@@ -278,7 +278,7 @@ async function sendIncompleteNudges(): Promise<NudgeCategoryResult> {
       result.skipped++;
       continue;
     }
-    if (await wasAnyNudgeSentToday(user.id)) {
+    if (await wasNudgeSentRecently(user.id)) {
       result.skipped++;
       continue;
     }
