@@ -99,6 +99,9 @@ function getDueNudgeIndex(
 
   if (alreadySent >= schedule.length) return null;
 
+  // Only send the NEXT nudge in sequence — never skip ahead.
+  // If a user registered 20 days ago and got 0 nudges, they only get nudge #1 now.
+  // They'll get #2 in the next daily run (tomorrow).
   const nextNudgeIndex = alreadySent;
   const daysRequired = schedule[nextNudgeIndex];
 
@@ -107,6 +110,20 @@ function getDueNudgeIndex(
   }
 
   return null;
+}
+
+/** Check if ANY nudge was sent to this user today (prevents multiple nudges per run) */
+async function wasAnyNudgeSentToday(userId: number): Promise<boolean> {
+  const row = await pgQueryOne<{ id: number }>(
+    `SELECT id FROM notification_log
+     WHERE user_id = $1 AND success = TRUE
+       AND event_type IN ('welcome', 'nudge_not_started_1', 'nudge_not_started_2', 'nudge_not_started_3', 'nudge_not_started_4',
+                          'nudge_incomplete_1', 'nudge_incomplete_2', 'nudge_incomplete_3', 'nudge_incomplete_4')
+       AND sent_at > NOW() - INTERVAL '23 hours'
+     LIMIT 1`,
+    [userId]
+  );
+  return !!row;
 }
 
 // ── Nudge 1: Welcome (one-time) ──────────────────────────────────
@@ -126,6 +143,10 @@ async function sendWelcomeNudges(): Promise<NudgeCategoryResult> {
 
   for (const user of candidates) {
     if (await wasNudgeSent(user.id, "welcome")) {
+      result.skipped++;
+      continue;
+    }
+    if (await wasAnyNudgeSentToday(user.id)) {
       result.skipped++;
       continue;
     }
@@ -192,6 +213,10 @@ async function sendNotStartedNudges(): Promise<NudgeCategoryResult> {
       result.skipped++;
       continue;
     }
+    if (await wasAnyNudgeSentToday(user.id)) {
+      result.skipped++;
+      continue;
+    }
 
     const g = (m: string, f: string) => gn(user.gender, m, f);
     const name = user.first_name || "";
@@ -250,6 +275,10 @@ async function sendIncompleteNudges(): Promise<NudgeCategoryResult> {
     const eventType = `nudge_incomplete_${nudgeNumber}`;
 
     if (await wasNudgeSent(user.id, eventType)) {
+      result.skipped++;
+      continue;
+    }
+    if (await wasAnyNudgeSentToday(user.id)) {
       result.skipped++;
       continue;
     }
