@@ -16,7 +16,8 @@ import {
   queryAll as pgQueryAll,
 } from "../db.pg";
 import { computeCoverage, updateUserReadiness } from "../agents/conversation";
-import { generateInsights } from "./generateInsights";
+// NOTE: Insights generation is now handled manually by Claude agent (daily pipeline run).
+// The auto-generated insights were too generic. See Docs/insights-writing-guide.md.
 
 export interface CompletionResult {
   insights: { generated: boolean; skipped?: boolean; skipped_reason?: string };
@@ -38,17 +39,12 @@ export async function runCompletionPipeline(
     email: { sent: false },
   };
 
-  // ── Step 1: Generate insights ─────────────────────────────────
-  // This is critical — if it fails, we stop (don't mark analysis_completed)
-  console.log(`[pipeline] User ${userId}: step 1 — generating insights...`);
-  const insightsResult = await generateInsights(userId);
-  result.insights = {
-    generated: !insightsResult.skipped,
-    skipped: insightsResult.skipped,
-    skipped_reason: insightsResult.skipped_reason,
-  };
-  await updateJobStep(jobId, "insights");
-  console.log(`[pipeline] User ${userId}: insights done (generated=${!insightsResult.skipped})`);
+  // ── Step 1: Skip insights — handled by Claude agent daily run ──
+  // Auto-generated insights were too generic. Claude writes them manually
+  // during the daily pipeline run. See Docs/insights-writing-guide.md.
+  result.insights = { generated: false, skipped: true, skipped_reason: "manual_by_claude_agent" };
+  await updateJobStep(jobId, "insights_skipped");
+  console.log(`[pipeline] User ${userId}: insights skipped (handled by Claude agent)`);
 
   // ── Step 2: Skip marking analysis_completed — admin reviews first
   // (analysis_completed stays FALSE until admin manually approves)

@@ -4393,6 +4393,28 @@ app.get("/admin/user-management", async (_req, res) => {
       ORDER BY user_id, sent_at DESC
     `);
 
+    // Auto-nudge history per user (from notification_log)
+    let nudgeMap: Record<number, { last_nudge_event: string; last_nudge_at: string; nudge_count: number }> = {};
+    try {
+      const nudgeStats = await pgQueryAll<any>(`
+        SELECT user_id, event_type, sent_at,
+          COUNT(*) OVER (PARTITION BY user_id) as nudge_count,
+          ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY sent_at DESC) as rn
+        FROM notification_log
+        WHERE event_type LIKE 'welcome%' OR event_type LIKE 'nudge_%'
+        AND success = TRUE
+      `);
+      for (const row of nudgeStats) {
+        if (parseInt(row.rn) === 1) {
+          nudgeMap[row.user_id] = {
+            last_nudge_event: row.event_type,
+            last_nudge_at: row.sent_at,
+            nudge_count: parseInt(row.nudge_count),
+          };
+        }
+      }
+    } catch { /* notification_log may not exist yet */ }
+
     // Build lookup maps
     const chatMap: Record<number, Record<string, number>> = {};
     for (const row of chatStats) {
@@ -4507,6 +4529,10 @@ app.get("/admin/user-management", async (_req, res) => {
         cognitive_score: u.cognitive_score ?? null,
         photo_count: u.photo_count || 0,
         has_profile_details: !!(u.age && u.city && (u.photo_count || 0) >= 1),
+        // Auto-nudge status
+        last_nudge_event: nudgeMap[u.id]?.last_nudge_event || null,
+        last_nudge_at: nudgeMap[u.id]?.last_nudge_at || null,
+        nudge_count: nudgeMap[u.id]?.nudge_count || 0,
       };
     });
 

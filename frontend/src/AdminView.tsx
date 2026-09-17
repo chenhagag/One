@@ -5963,6 +5963,13 @@ function UserManagementTab() {
                   {u.last_email_sent ? fmtDateTime(u.last_email_sent) : "לא נשלח"}
                 </span>
               </div>
+
+              {u.nudge_count > 0 && <div style={st.col}>
+                <div style={st.label}>תזכורות אוטומטיות</div>
+                <span style={{ fontSize: 12, color: "#7b5fa3" }}>
+                  {u.nudge_count}× | {u.last_nudge_event?.replace("nudge_", "").replace(/_/g, " ")} | {u.last_nudge_at ? timeAgo(u.last_nudge_at) : ""}
+                </span>
+              </div>}
             </div>
           </div>
         );

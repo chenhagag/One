@@ -19,11 +19,14 @@ import {
 } from "../db.pg";
 import { runCompletionPipeline } from "./completionPipeline";
 import { analyzeUserPhotos } from "./photoAnalysis";
+import { runUserNudges } from "./userNudges";
 
 const JOB_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const RECONCILE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const NUDGE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 let intervalHandle: ReturnType<typeof setInterval> | null = null;
 let reconcileHandle: ReturnType<typeof setInterval> | null = null;
+let nudgeHandle: ReturnType<typeof setInterval> | null = null;
 
 // ── Job creation ─────────────────────────────────────────────────
 
@@ -279,6 +282,20 @@ export function startJobRunner(): void {
       console.error("[jobRunner] Reconciliation error:", err.message);
     });
   }, RECONCILE_INTERVAL_MS);
+
+  // Daily user nudges (welcome, not-started, incomplete reminders)
+  // Run once on startup after 60s, then every 24h
+  setTimeout(() => {
+    runUserNudges().catch(err => {
+      console.error("[jobRunner] Initial nudge run error:", err.message);
+    });
+  }, 60000);
+
+  nudgeHandle = setInterval(() => {
+    runUserNudges().catch(err => {
+      console.error("[jobRunner] Nudge run error:", err.message);
+    });
+  }, NUDGE_INTERVAL_MS);
 }
 
 export function stopJobRunner(): void {
@@ -289,6 +306,10 @@ export function stopJobRunner(): void {
   if (reconcileHandle) {
     clearInterval(reconcileHandle);
     reconcileHandle = null;
+  }
+  if (nudgeHandle) {
+    clearInterval(nudgeHandle);
+    nudgeHandle = null;
   }
   console.log("[jobRunner] Pipeline job runner stopped");
 }
