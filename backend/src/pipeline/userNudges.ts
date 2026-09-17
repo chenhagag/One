@@ -118,6 +118,7 @@ async function sendWelcomeNudges(): Promise<NudgeCategoryResult> {
     SELECT id, first_name, gender, email, created_at
     FROM users
     WHERE test_user_type IS NULL
+      AND partner_name IS NULL
       AND created_at < NOW() - INTERVAL '1 hour'
       AND created_at > NOW() - INTERVAL '14 days'
   `, []);
@@ -164,6 +165,7 @@ async function sendNotStartedNudges(): Promise<NudgeCategoryResult> {
     SELECT u.id, u.first_name, u.gender, u.email, u.created_at
     FROM users u
     WHERE u.test_user_type IS NULL
+      AND u.partner_name IS NULL
       AND u.created_at < NOW() - INTERVAL '48 hours'
       AND u.created_at > NOW() - INTERVAL '30 days'
       AND NOT EXISTS (
@@ -221,6 +223,7 @@ async function sendIncompleteNudges(): Promise<NudgeCategoryResult> {
     SELECT u.id, u.first_name, u.gender, u.email, u.created_at
     FROM users u
     WHERE u.test_user_type IS NULL
+      AND u.partner_name IS NULL
       AND u.created_at < NOW() - INTERVAL '7 days'
       AND u.created_at > NOW() - INTERVAL '60 days'
       AND u.in_matching_pool = FALSE
