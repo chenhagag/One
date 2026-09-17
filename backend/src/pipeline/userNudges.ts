@@ -97,16 +97,23 @@ function getDueNudgeIndex(
   const now = new Date();
   const daysSinceRegistration = (now.getTime() - registrationDate.getTime()) / (1000 * 60 * 60 * 24);
 
-  if (alreadySent >= schedule.length) return null;
+  // Still going through the schedule
+  if (alreadySent < schedule.length) {
+    const nextNudgeIndex = alreadySent;
+    const daysRequired = schedule[nextNudgeIndex];
+    if (daysSinceRegistration >= daysRequired) {
+      return nextNudgeIndex;
+    }
+    return null;
+  }
 
-  // Only send the NEXT nudge in sequence — never skip ahead.
-  // If a user registered 20 days ago and got 0 nudges, they only get nudge #1 now.
-  // They'll get #2 in the next daily run (tomorrow).
-  const nextNudgeIndex = alreadySent;
-  const daysRequired = schedule[nextNudgeIndex];
-
-  if (daysSinceRegistration >= daysRequired) {
-    return nextNudgeIndex;
+  // Past the schedule — repeat the last nudge every 14 days.
+  // E.g. schedule ends at day 35, so repeats at day 49, 63, 77...
+  const lastScheduledDay = schedule[schedule.length - 1];
+  const extraNudges = alreadySent - schedule.length;
+  const nextRepeatDay = lastScheduledDay + (extraNudges + 1) * 14;
+  if (daysSinceRegistration >= nextRepeatDay) {
+    return schedule.length - 1; // reuse the last nudge content
   }
 
   return null;
@@ -117,8 +124,7 @@ async function wasNudgeSentRecently(userId: number): Promise<boolean> {
   const row = await pgQueryOne<{ id: number }>(
     `SELECT id FROM notification_log
      WHERE user_id = $1 AND success = TRUE
-       AND event_type IN ('welcome', 'nudge_not_started_1', 'nudge_not_started_2', 'nudge_not_started_3', 'nudge_not_started_4',
-                          'nudge_incomplete_1', 'nudge_incomplete_2', 'nudge_incomplete_3', 'nudge_incomplete_4')
+       AND (event_type = 'welcome' OR event_type LIKE 'nudge_not_started_%' OR event_type LIKE 'nudge_incomplete_%')
        AND sent_at > NOW() - INTERVAL '3 days'
      LIMIT 1`,
     [userId]
@@ -190,7 +196,6 @@ async function sendNotStartedNudges(): Promise<NudgeCategoryResult> {
       AND u.partner_name IS NULL
       AND COALESCE(u.self_frozen, FALSE) = FALSE
       AND u.created_at < NOW() - INTERVAL '48 hours'
-      AND u.created_at > NOW() - INTERVAL '30 days'
       AND NOT EXISTS (
         SELECT 1 FROM conversation_messages cm
         WHERE cm.user_id = u.id AND cm.role = 'user'
@@ -206,8 +211,10 @@ async function sendNotStartedNudges(): Promise<NudgeCategoryResult> {
       continue;
     }
 
-    const nudgeNumber = dueIndex + 1;
-    const eventType = `nudge_not_started_${nudgeNumber}`;
+    // Use sentCount+1 for event_type so repeats get unique IDs (5, 6, 7...)
+    const eventType = `nudge_not_started_${sentCount + 1}`;
+    // Content uses dueIndex+1 (capped to schedule length) for the template
+    const contentNumber = Math.min(dueIndex + 1, NOT_STARTED_SCHEDULE.length);
 
     if (await wasNudgeSent(user.id, eventType)) {
       result.skipped++;
@@ -220,7 +227,7 @@ async function sendNotStartedNudges(): Promise<NudgeCategoryResult> {
 
     const g = (m: string, f: string) => gn(user.gender, m, f);
     const name = user.first_name || "";
-    const { title, body, emailHtml } = getNotStartedContent(nudgeNumber, name, user.gender);
+    const { title, body, emailHtml } = getNotStartedContent(contentNumber, name, user.gender);
 
     const payload: NotifyPayload = { title, body, event_type: eventType, emailHtml };
 
@@ -228,7 +235,7 @@ async function sendNotStartedNudges(): Promise<NudgeCategoryResult> {
       const res = await notifyUser(user.id, payload);
       if (res.success) {
         result.sent++;
-        result.users.push(`${name || "?"} (${user.id}) [#${nudgeNumber}]`);
+        result.users.push(`${name || "?"} (${user.id}) [#${sentCount + 1}]`);
       } else {
         result.errors++;
       }
@@ -253,7 +260,6 @@ async function sendIncompleteNudges(): Promise<NudgeCategoryResult> {
       AND u.partner_name IS NULL
       AND COALESCE(u.self_frozen, FALSE) = FALSE
       AND u.created_at < NOW() - INTERVAL '7 days'
-      AND u.created_at > NOW() - INTERVAL '60 days'
       AND u.in_matching_pool = FALSE
       AND u.admin_processing_done = FALSE
       AND EXISTS (
@@ -271,8 +277,8 @@ async function sendIncompleteNudges(): Promise<NudgeCategoryResult> {
       continue;
     }
 
-    const nudgeNumber = dueIndex + 1;
-    const eventType = `nudge_incomplete_${nudgeNumber}`;
+    const eventType = `nudge_incomplete_${sentCount + 1}`;
+    const contentNumber = Math.min(dueIndex + 1, INCOMPLETE_SCHEDULE.length);
 
     if (await wasNudgeSent(user.id, eventType)) {
       result.skipped++;
@@ -285,7 +291,7 @@ async function sendIncompleteNudges(): Promise<NudgeCategoryResult> {
 
     const g = (m: string, f: string) => gn(user.gender, m, f);
     const name = user.first_name || "";
-    const { title, body, emailHtml } = getIncompleteContent(nudgeNumber, name, user.gender);
+    const { title, body, emailHtml } = getIncompleteContent(contentNumber, name, user.gender);
 
     const payload: NotifyPayload = { title, body, event_type: eventType, emailHtml };
 
@@ -293,7 +299,7 @@ async function sendIncompleteNudges(): Promise<NudgeCategoryResult> {
       const res = await notifyUser(user.id, payload);
       if (res.success) {
         result.sent++;
-        result.users.push(`${name || "?"} (${user.id}) [#${nudgeNumber}]`);
+        result.users.push(`${name || "?"} (${user.id}) [#${sentCount + 1}]`);
       } else {
         result.errors++;
       }
