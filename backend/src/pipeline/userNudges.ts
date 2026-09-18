@@ -143,6 +143,7 @@ async function sendWelcomeNudges(): Promise<NudgeCategoryResult> {
     WHERE test_user_type IS NULL
       AND partner_name IS NULL
       AND COALESCE(self_frozen, FALSE) = FALSE
+      AND COALESCE(gender, '') != 'man' AND COALESCE(looking_for_gender, '') != 'man'
       AND created_at < NOW() - INTERVAL '1 hour'
       AND created_at > NOW() - INTERVAL '14 days'
   `, []);
@@ -195,6 +196,7 @@ async function sendNotStartedNudges(): Promise<NudgeCategoryResult> {
     WHERE u.test_user_type IS NULL
       AND u.partner_name IS NULL
       AND COALESCE(u.self_frozen, FALSE) = FALSE
+      AND COALESCE(u.gender, '') != 'man' AND COALESCE(u.looking_for_gender, '') != 'man'
       AND u.created_at < NOW() - INTERVAL '48 hours'
       AND NOT EXISTS (
         SELECT 1 FROM conversation_messages cm
@@ -259,6 +261,7 @@ async function sendIncompleteNudges(): Promise<NudgeCategoryResult> {
     WHERE u.test_user_type IS NULL
       AND u.partner_name IS NULL
       AND COALESCE(u.self_frozen, FALSE) = FALSE
+      AND COALESCE(u.gender, '') != 'man' AND COALESCE(u.looking_for_gender, '') != 'man'
       AND u.created_at < NOW() - INTERVAL '7 days'
       AND u.in_matching_pool = FALSE
       AND u.admin_processing_done = FALSE
