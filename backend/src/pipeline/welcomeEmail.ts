@@ -51,6 +51,11 @@ export async function sendPoolWelcomeEmail(userId: number): Promise<WelcomeEmail
     return { sent: false, skipped_reason: "no_email" };
   }
 
+  const domain = user.email.split("@")[1]?.toLowerCase();
+  if (domain === "test.com") {
+    return { sent: false, skipped_reason: "blocked_test_domain" };
+  }
+
   const isFemale = user.gender === "woman";
   const gn = (m: string, f: string) => isFemale ? f : m;
 

@@ -226,6 +226,12 @@ async function sendEmail(
     return logAndReturn(userId, payload, "email", false, "resend_not_configured");
   }
 
+  // Block fake/test email domains
+  const domain = email.split("@")[1]?.toLowerCase();
+  if (domain === "test.com") {
+    return logAndReturn(userId, payload, "email", false, "blocked_test_domain");
+  }
+
   const html =
     payload.emailHtml ||
     buildNotificationEmail(payload.title, payload.body);
