@@ -1294,6 +1294,20 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
     END $$;
   `);
 
+  // ── System activity log (unified log for all automated jobs) ──
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS system_activity_log (
+      id           SERIAL PRIMARY KEY,
+      job_type     TEXT NOT NULL,
+      user_id      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      user_name    TEXT,
+      action       TEXT NOT NULL,
+      details      TEXT,
+      created_at   TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_system_activity_log_created ON system_activity_log(created_at DESC);
+  `);
+
   // ── Reanalysis tracking columns on users ──
   await pool.query(`
     DO $$ BEGIN

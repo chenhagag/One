@@ -13,7 +13,7 @@ import AdminPipeline from "./AdminPipeline";
  * - Matches
  */
 
-type Tab = "overview" | "users" | "traits" | "look_traits" | "matches" | "candidates" | "bugs" | "card_requests" | "errors" | "email" | "analytics" | "user_mgmt" | "outreach" | "deleted_users" | "survey";
+type Tab = "overview" | "users" | "traits" | "look_traits" | "matches" | "candidates" | "bugs" | "card_requests" | "errors" | "email" | "analytics" | "user_mgmt" | "outreach" | "deleted_users" | "survey" | "system_log";
 
 const s: Record<string, React.CSSProperties> = {
   heading: { marginTop: 0, marginBottom: 8, fontSize: 22 },
@@ -418,6 +418,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
           ["outreach", "יומן פניות"],
           ["deleted_users", "משתמשים שנמחקו"],
           ["survey", "סקר"],
+          ["system_log", "לוג מערכת"],
         ] as [Tab, string][]).map(([key, label]) => (
           <button
             key={key}
@@ -450,6 +451,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
       {tab === "outreach" && <OutreachLogTab />}
       {tab === "deleted_users" && <DeletedUsersTab />}
       {tab === "survey" && <SurveyAdminTab />}
+      {tab === "system_log" && <SystemActivityLogTab />}
     </div>
   );
 }
@@ -6806,6 +6808,94 @@ function SurveyAdminTab() {
             </div>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+// ── System Activity Log Tab ─────────────────────────────────────
+
+function SystemActivityLogTab() {
+  const [entries, setEntries] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<string>("all");
+
+  useEffect(() => {
+    loadLog();
+  }, []);
+
+  async function loadLog() {
+    setLoading(true);
+    try {
+      const data = await apiFetch("/api/admin/system-activity-log?limit=200");
+      setEntries(data);
+    } catch (err) {
+      console.error("Failed to load system activity log:", err);
+    }
+    setLoading(false);
+  }
+
+  const filtered = filter === "all" ? entries : entries.filter((e: any) => e.job_type === filter);
+
+  const jobTypes = [...new Set(entries.map((e: any) => e.job_type))];
+
+  const jobIcon: Record<string, string> = {
+    reanalysis: "🔄",
+    nudge: "📩",
+    completion: "✅",
+    photo_analysis: "📷",
+  };
+
+  const formatTime = (d: string) => {
+    const date = new Date(d);
+    return date.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
+  };
+
+  // Group by date
+  const grouped: Record<string, any[]> = {};
+  for (const entry of filtered) {
+    const day = new Date(entry.created_at).toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" });
+    if (!grouped[day]) grouped[day] = [];
+    grouped[day].push(entry);
+  }
+
+  return (
+    <div style={{ padding: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+        <h3 style={{ margin: 0 }}>לוג מערכת</h3>
+        <button onClick={loadLog} style={{ fontSize: 12, padding: "4px 10px", cursor: "pointer" }}>↻ רענן</button>
+      </div>
+
+      <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
+        <button
+          onClick={() => setFilter("all")}
+          style={{ padding: "4px 12px", fontSize: 12, cursor: "pointer", borderRadius: 6, border: "1px solid #ccc", background: filter === "all" ? "#7c3aed" : "#fff", color: filter === "all" ? "#fff" : "#333" }}
+        >הכל</button>
+        {jobTypes.map((jt: string) => (
+          <button
+            key={jt}
+            onClick={() => setFilter(jt)}
+            style={{ padding: "4px 12px", fontSize: 12, cursor: "pointer", borderRadius: 6, border: "1px solid #ccc", background: filter === jt ? "#7c3aed" : "#fff", color: filter === jt ? "#fff" : "#333" }}
+          >{jobIcon[jt] || "⚙️"} {jt}</button>
+        ))}
+      </div>
+
+      {loading ? <div>טוען...</div> : filtered.length === 0 ? <div style={{ color: "#888" }}>אין רשומות</div> : (
+        Object.entries(grouped).map(([day, items]) => (
+          <div key={day} style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#555", marginBottom: 6, borderBottom: "1px solid #eee", paddingBottom: 4 }}>{day}</div>
+            {items.map((e: any) => (
+              <div key={e.id} style={{ display: "flex", gap: 10, alignItems: "baseline", fontSize: 13, padding: "4px 0", borderBottom: "1px solid #f5f5f5" }}>
+                <span style={{ color: "#888", minWidth: 42, fontSize: 12 }}>{formatTime(e.created_at)}</span>
+                <span style={{ fontSize: 14 }}>{jobIcon[e.job_type] || "⚙️"}</span>
+                <span style={{ color: "#7c3aed", fontWeight: 500, minWidth: 80 }}>{e.job_type}</span>
+                {e.user_id && <span style={{ color: "#666" }}>#{e.user_id} {e.user_name || ""}</span>}
+                <span style={{ fontWeight: 500 }}>{e.action}</span>
+                {e.details && <span style={{ color: "#888" }}>— {e.details}</span>}
+              </div>
+            ))}
+          </div>
+        ))
       )}
     </div>
   );

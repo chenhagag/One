@@ -20,6 +20,7 @@ import {
   queryAll as pgQueryAll,
 } from "../db.pg";
 import { notifyUser, NotifyPayload } from "../notifications";
+import { logActivity } from "./activityLog";
 
 // ── Nudge schedules ──────────────────────────────────────────────
 
@@ -173,6 +174,7 @@ async function sendWelcomeNudges(): Promise<NudgeCategoryResult> {
       if (res.success) {
         result.sent++;
         result.users.push(`${name || "?"} (${user.id})`);
+        logActivity("nudge", user.id, name, "welcome", `${res.channel}`).catch(() => {});
       } else {
         result.errors++;
       }
@@ -238,6 +240,7 @@ async function sendNotStartedNudges(): Promise<NudgeCategoryResult> {
       if (res.success) {
         result.sent++;
         result.users.push(`${name || "?"} (${user.id}) [#${sentCount + 1}]`);
+        logActivity("nudge", user.id, name, `not_started_${sentCount + 1}`, `${res.channel}`).catch(() => {});
       } else {
         result.errors++;
       }
@@ -303,6 +306,7 @@ async function sendIncompleteNudges(): Promise<NudgeCategoryResult> {
       if (res.success) {
         result.sent++;
         result.users.push(`${name || "?"} (${user.id}) [#${sentCount + 1}]`);
+        logActivity("nudge", user.id, name, `incomplete_${sentCount + 1}`, `${res.channel}`).catch(() => {});
       } else {
         result.errors++;
       }

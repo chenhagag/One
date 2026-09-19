@@ -4569,6 +4569,33 @@ app.post("/admin/users/:id/system-question", async (req, res) => {
   return res.json(row);
 });
 
+// GET /admin/system-activity-log — Unified log of automated system jobs
+app.get("/admin/system-activity-log", async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
+    const offset = parseInt(req.query.offset as string) || 0;
+    const jobType = req.query.job_type as string || null;
+
+    const whereClause = jobType ? "WHERE job_type = $3" : "";
+    const params: any[] = [limit, offset];
+    if (jobType) params.push(jobType);
+
+    const rows = await pgQueryAll(
+      `SELECT id, job_type, user_id, user_name, action, details, created_at
+       FROM system_activity_log
+       ${whereClause}
+       ORDER BY created_at DESC
+       LIMIT $1 OFFSET $2`,
+      params
+    );
+
+    return res.json(rows);
+  } catch (err: any) {
+    console.error("[admin] system-activity-log error:", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /admin/outreach-log — All ratings sent + all system questions (historical)
 app.get("/admin/outreach-log", async (_req, res) => {
   try {

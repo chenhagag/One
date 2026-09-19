@@ -24,6 +24,7 @@ import db from "../db";
 import { buildAnalysisTranscript } from "../agents/conversation/analysisHelpers";
 import { runAnalysisAgent, runSingleGroupAnalysis, buildAnalysisInput, saveAnalysisToDb, saveAnalysisRun } from "../agents/analysis";
 import { updateCognitiveScore } from "../cognitiveScore";
+import { logActivity } from "./activityLog";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -129,6 +130,9 @@ async function checkAndReanalyze(user: ReanalysisCandidate): Promise<boolean> {
     "UPDATE users SET last_analysis_at = NOW(), updated_at = NOW() WHERE id = $1",
     [userId]
   );
+
+  // Log activity
+  await logActivity("reanalysis", userId, first_name, action.type === "full" ? "ניתוח מלא" : `ניתוח ${action.group}`, action.reason);
 
   return true;
 }
