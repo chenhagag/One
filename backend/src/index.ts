@@ -4394,7 +4394,8 @@ app.get("/admin/user-management", async (_req, res) => {
         u.couple_insights, u.personal_insights_short, u.personal_insights_full,
         u.user_status, u.email_updates, u.partner_name, u.match_card_consent, u.match_card_restrictions,
         u.photo_ai_consent,
-        (SELECT COUNT(*)::int FROM user_photos WHERE user_id = u.id) AS photo_count
+        (SELECT COUNT(*)::int FROM user_photos WHERE user_id = u.id) AS photo_count,
+        (SELECT COUNT(*)::int FROM user_look_traits WHERE user_id = u.id) AS look_trait_count
       FROM users u
       ORDER BY u.created_at DESC
     `);
@@ -4585,6 +4586,7 @@ app.get("/admin/user-management", async (_req, res) => {
         cognitive_score: u.cognitive_score ?? null,
         photo_count: u.photo_count || 0,
         photo_ai_consent: u.photo_ai_consent ?? null,
+        look_trait_count: u.look_trait_count || 0,
         has_profile_details: !!(u.age && u.city && (u.photo_count || 0) >= 1),
         // Auto-nudge status
         last_nudge_event: nudgeMap[u.id]?.last_nudge_event || null,
