@@ -6827,8 +6827,9 @@ function SystemActivityLogTab() {
   async function loadLog() {
     setLoading(true);
     try {
-      const data = await apiFetch("/api/admin/system-activity-log?limit=200");
-      setEntries(data);
+      const res = await apiFetch("/admin/system-activity-log?limit=200");
+      const data = await res.json();
+      setEntries(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Failed to load system activity log:", err);
     }
