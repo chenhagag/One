@@ -4624,6 +4624,19 @@ app.post("/admin/users/:id/system-question", async (req, res) => {
   return res.json(row);
 });
 
+// POST /admin/run-photo-nudges — Manually trigger photo nudge run
+app.post("/admin/run-photo-nudges", async (_req, res) => {
+  try {
+    // Temporarily bypass production check by calling the function directly
+    const { runPhotoNudges } = require("./pipeline/photoNudges");
+    const result = await runPhotoNudges(true); // pass force=true to skip env check
+    return res.json({ success: true, result });
+  } catch (err: any) {
+    console.error("[admin] Manual photo nudge run error:", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /admin/system-activity-log — Unified log of automated system jobs
 app.get("/admin/system-activity-log", async (req, res) => {
   try {

@@ -387,14 +387,14 @@ async function promoteBlindMatchPairs(): Promise<number> {
 
 // ── Main: run photo nudges ──────────────────────────────────────
 
-export async function runPhotoNudges(): Promise<PhotoNudgeResult> {
+export async function runPhotoNudges(force = false): Promise<PhotoNudgeResult> {
   const result: PhotoNudgeResult = {
     step1: 0, step2: 0, step3_reminder: 0, step3_blind: 0, step4: 0,
     blind_promoted: 0, errors: 0,
   };
 
-  // Only run in production
-  if (process.env.NODE_ENV !== "production") {
+  // Only run in production (unless forced by admin)
+  if (!force && process.env.NODE_ENV !== "production") {
     console.log("[photoNudges] Skipping (not production)");
     return result;
   }
@@ -413,9 +413,10 @@ export async function runPhotoNudges(): Promise<PhotoNudgeResult> {
     WHERE m.status = 'waiting_for_photo'
       AND COALESCE(cm.internal_profile_score, 0) >= 72
       AND (SELECT COUNT(*) FROM user_photos WHERE user_id = u.id) = 0
-      AND u.test_user_type IS NULL
       AND u.partner_name IS NULL
+      AND COALESCE(u.test_user_type, '') != 'Couple Tester'
       AND COALESCE(u.self_frozen, FALSE) = FALSE
+      AND COALESCE(u.email, '') NOT LIKE '%@test.com'
   `);
 
   for (const user of candidates) {
@@ -490,11 +491,17 @@ export async function runPhotoNudges(): Promise<PhotoNudgeResult> {
     console.error("[photoNudges] Error promoting blind matches:", err.message);
   }
 
+  const total = result.step1 + result.step2 + result.step3_reminder + result.step3_blind + result.step4;
+  const summary = `candidates: ${candidates.length}, sent: ${total}, blind_promoted: ${result.blind_promoted}, errors: ${result.errors}`;
+
   console.log(
     `[photoNudges] Done. Step1: ${result.step1}, Step2: ${result.step2}, ` +
     `Reminder: ${result.step3_reminder}, Blind: ${result.step3_blind}, ` +
     `Step4: ${result.step4}, BlindPromoted: ${result.blind_promoted}, Errors: ${result.errors}`
   );
+
+  // Always log run to system_activity_log (even if nothing sent)
+  logActivity("photo_nudge_run", null, null, "daily_run", summary).catch(() => {});
 
   return result;
 }

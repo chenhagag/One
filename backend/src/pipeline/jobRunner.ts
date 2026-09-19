@@ -299,20 +299,6 @@ export function startJobRunner(): void {
     });
   }, RECONCILE_INTERVAL_MS);
 
-  // Daily user nudges (welcome, not-started, incomplete reminders)
-  // Run once on startup after 60s, then every 24h
-  setTimeout(() => {
-    runUserNudges().catch(err => {
-      console.error("[jobRunner] Initial nudge run error:", err.message);
-    });
-  }, 60000);
-
-  nudgeHandle = setInterval(() => {
-    runUserNudges().catch(err => {
-      console.error("[jobRunner] Nudge run error:", err.message);
-    });
-  }, NUDGE_INTERVAL_MS);
-
   // Daily reanalysis scan (check for users needing re-analysis based on new QA messages)
   // Run once on startup after 90s, then every 24h
   setTimeout(() => {
@@ -327,19 +313,35 @@ export function startJobRunner(): void {
     });
   }, REANALYSIS_INTERVAL_MS);
 
-  // Daily photo nudges (photo request reminders + blind match questions)
-  // Run once on startup after 120s, then every 24h
-  setTimeout(() => {
-    runPhotoNudges().catch(err => {
-      console.error("[jobRunner] Initial photo nudge run error:", err.message);
-    });
-  }, 120000);
+  // All nudges run at 12:00 PM Israel time (reasonable hour for receiving emails)
+  const msToNudges = msUntilNextRun(12);
+  const hoursToNudges = Math.round(msToNudges / 1000 / 60 / 60 * 10) / 10;
+  console.log(`[jobRunner] All nudges scheduled in ${hoursToNudges}h (12:00 Israel)`);
 
-  photoNudgeHandle = setInterval(() => {
+  setTimeout(() => {
+    // Photo nudges first
     runPhotoNudges().catch(err => {
       console.error("[jobRunner] Photo nudge run error:", err.message);
     });
-  }, PHOTO_NUDGE_INTERVAL_MS);
+    // User nudges 30s later
+    setTimeout(() => {
+      runUserNudges().catch(err => {
+        console.error("[jobRunner] Nudge run error:", err.message);
+      });
+    }, 30000);
+
+    // Repeat every 24h
+    photoNudgeHandle = setInterval(() => {
+      runPhotoNudges().catch(err => {
+        console.error("[jobRunner] Photo nudge run error:", err.message);
+      });
+    }, PHOTO_NUDGE_INTERVAL_MS);
+    nudgeHandle = setInterval(() => {
+      runUserNudges().catch(err => {
+        console.error("[jobRunner] Nudge run error:", err.message);
+      });
+    }, NUDGE_INTERVAL_MS);
+  }, msToNudges);
 
   // Daily matching at 4:00 AM Israel time
   const msToFirstRun = msUntilNextRun(4);

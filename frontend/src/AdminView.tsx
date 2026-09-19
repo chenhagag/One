@@ -6882,6 +6882,7 @@ function SystemActivityLogTab() {
     completion: "✅",
     photo_analysis: "📷",
     photo_promotion: "📸",
+    photo_nudge_run: "📋",
   };
 
   const formatTime = (d: string) => {
