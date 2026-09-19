@@ -363,6 +363,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
   const [cardRequests, setCardRequests] = useState<any[]>([]);
   const [newCardRequestCount, setNewCardRequestCount] = useState(0);
   const [blindMatchCount, setBlindMatchCount] = useState(0);
+  const [blindQuestionLogCount, setBlindQuestionLogCount] = useState(0);
 
   // Check for new bug reports on mount
   useEffect(() => {
@@ -395,6 +396,16 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
     }).catch(() => {});
   }, []);
 
+  // Check for blind match question log entries on mount
+  useEffect(() => {
+    apiFetch("/admin/system-activity-log?limit=50&job_type=nudge").then(r => r.json()).then((data: any[]) => {
+      if (!Array.isArray(data)) return;
+      const lastSeen = localStorage.getItem("admin_system_log_last_seen") || "1970-01-01";
+      const newCount = data.filter(e => e.action === "photo_blind_question" && e.created_at > lastSeen).length;
+      if (newCount > 0) setBlindQuestionLogCount(newCount);
+    }).catch(() => {});
+  }, []);
+
   function handleTabClick(key: Tab) {
     if (key === "bugs") {
       localStorage.setItem("admin_bugs_last_seen", new Date().toISOString());
@@ -407,6 +418,10 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
     if (key === "candidates" && blindMatchCount > 0) {
       localStorage.setItem("admin_blind_match_last_seen", new Date().toISOString());
       setBlindMatchCount(0);
+    }
+    if (key === "system_log" && blindQuestionLogCount > 0) {
+      localStorage.setItem("admin_system_log_last_seen", new Date().toISOString());
+      setBlindQuestionLogCount(0);
     }
     setTab(key);
   }
@@ -449,6 +464,9 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
             )}
             {key === "candidates" && blindMatchCount > 0 && (
               <span style={{ marginRight: 4, marginLeft: 4, background: "#6d28d9", color: "#fff", borderRadius: 20, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>👁️‍🗨️ {blindMatchCount}</span>
+            )}
+            {key === "system_log" && blindQuestionLogCount > 0 && (
+              <span style={{ marginRight: 4, marginLeft: 4, background: "#6d28d9", color: "#fff", borderRadius: 20, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>👁️‍🗨️ {blindQuestionLogCount}</span>
             )}
           </button>
         ))}
@@ -6863,6 +6881,7 @@ function SystemActivityLogTab() {
     nudge: "📩",
     completion: "✅",
     photo_analysis: "📷",
+    photo_promotion: "📸",
   };
 
   const formatTime = (d: string) => {
@@ -6903,8 +6922,10 @@ function SystemActivityLogTab() {
         Object.entries(grouped).map(([day, items]) => (
           <div key={day} style={{ marginBottom: 20 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: "#555", marginBottom: 6, borderBottom: "1px solid #eee", paddingBottom: 4 }}>{day}</div>
-            {items.map((e: any) => (
-              <div key={e.id} style={{ display: "flex", gap: 10, alignItems: "baseline", fontSize: 13, padding: "4px 0", borderBottom: "1px solid #f5f5f5" }}>
+            {items.map((e: any) => {
+              const isBlindQuestion = e.action === "photo_blind_question";
+              return (
+              <div key={e.id} style={{ display: "flex", gap: 10, alignItems: "baseline", fontSize: 13, padding: isBlindQuestion ? "6px 8px" : "4px 0", borderBottom: "1px solid #f5f5f5", background: isBlindQuestion ? "#ede9fe" : "transparent", borderRadius: isBlindQuestion ? 6 : 0, marginBottom: isBlindQuestion ? 4 : 0 }}>
                 <span style={{ color: "#888", minWidth: 42, fontSize: 12 }}>{formatTime(e.created_at)}</span>
                 <span style={{ fontSize: 14 }}>{jobIcon[e.job_type] || "⚙️"}</span>
                 <span style={{ color: "#7c3aed", fontWeight: 500, minWidth: 80 }}>{e.job_type}</span>
@@ -6912,7 +6933,8 @@ function SystemActivityLogTab() {
                 <span style={{ fontWeight: 500 }}>{e.action}</span>
                 {e.details && <span style={{ color: "#888" }}>— {e.details}</span>}
               </div>
-            ))}
+              );
+            })}
           </div>
         ))
       )}
