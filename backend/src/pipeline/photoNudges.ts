@@ -423,6 +423,12 @@ export async function runPhotoNudges(): Promise<PhotoNudgeResult> {
       // Double-check: user still has no photos
       if (await userHasPhotos(user.user_id)) continue;
 
+      // Skip if admin already sent a photo request manually (treat as step 1 already done)
+      const manualRequest = await pgQueryOne<{ photo_request_sent_at: string | null }>(
+        "SELECT photo_request_sent_at FROM users WHERE id = $1",
+        [user.user_id]
+      );
+
       const { step, lastSentAt, blindQuestionSent } = await getPhotoNudgeStep(user.user_id);
 
       // Flow completed + 14 days passed → can restart
@@ -437,7 +443,16 @@ export async function runPhotoNudges(): Promise<PhotoNudgeResult> {
         continue;
       }
 
-      if (step === 0) {
+      if (step === 0 && manualRequest?.photo_request_sent_at) {
+        // Admin already sent manually — treat as step 1 done, use manual date for timing
+        // Continue to step 2+ based on manual send date
+        const manualDate = new Date(manualRequest.photo_request_sent_at);
+        if (daysSince(manualDate) >= 2) {
+          if (await sendReminder(user, 2)) result.step2++;
+          else result.errors++;
+        }
+        // else: not enough time passed since manual send, skip
+      } else if (step === 0) {
         // Not started: send step 1
         if (await sendStep1(user)) result.step1++;
         else result.errors++;
