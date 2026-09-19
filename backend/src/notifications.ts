@@ -76,6 +76,12 @@ export async function notifyUser(
   userId: number,
   payload: NotifyPayload
 ): Promise<NotifyResult> {
+  // Block ALL notifications in non-production environments
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`[notifications] BLOCKED (not production) user=${userId} event=${payload.event_type}`);
+    return { channel: "none", success: false, error: "blocked_non_production" };
+  }
+
   // 1. Load user preferences
   const user = await pgQueryOne<{
     email: string | null;
@@ -122,6 +128,12 @@ export async function sendPushOnly(
   userId: number,
   payload: NotifyPayload
 ): Promise<NotifyResult> {
+  // Block ALL notifications in non-production environments
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`[notifications] BLOCKED (not production) user=${userId} event=${payload.event_type}`);
+    return { channel: "none", success: false, error: "blocked_non_production" };
+  }
+
   const tokens = await pgQueryAll<{ id: number; token: string }>(
     "SELECT id, token FROM fcm_tokens WHERE user_id = $1 AND permission_status = 'granted'",
     [userId]
