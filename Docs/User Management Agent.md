@@ -1,7 +1,9 @@
 # User Management Agent — One
 
 ## מטרה
-סוכן שמנהל את מחזור החיים של משתמשים — מרגע ההרשמה ועד הכניסה למאגר ההתאמות. הסוכן רץ דרך Claude Code, קורא את מצב המשתמשים מה-API/DB, מבצע פעולות, ומייצר דו"חות.
+סוכן שמנהל את מחזור החיים של משתמשים — מרגע ההרשמה ועד הכניסה למאגר ההתאמות. הסוכן רץ דרך Claude Code בהפעלה ידנית, קורא את מצב המשתמשים מה-API/DB, מבצע פעולות, ומייצר דו"חות.
+
+**הבחנה חשובה**: סוכן זה הוא לא לוגיקת מערכת קבועה. הוא Claude שאתה מריץ ידנית. לתיעוד של כל התהליכים האוטומטיים (jobRunner, nudges, auto-analysis וכו') — ראה `Docs/System Jobs.md`.
 
 ---
 
@@ -17,14 +19,21 @@
 - שומר ל-DB: `personal_insights_short`, `personal_insights_full`, `insights_pre_completion`
 - **חשוב**: התובנות נכתבות ע"י Claude, לא ע"י GPT-4o (הפקה אוטומטית בוטלה)
 
-#### 1.2 סריקת תקלות בשיחות (TODO — עתידי)
+#### 1.2 בדיקת תובנות אחרי reanalysis
+- סורק משתמשים שה-`last_analysis_at` שלהם חדש יותר מה-`insights_updated_at`
+- לכל אחד: קורא את ההתכתבות האחרונה (qa_about_me / qa_refine)
+- מחליט אם התובנות צריכות עדכון בהתאם למידע החדש
+- אם כן — כותב תובנות מעודכנות לפי `Docs/insights-writing-guide.md`
+- אם לא — מדווח "תובנות עדכניות, לא צריך שינוי"
+
+#### 1.3 סריקת תקלות בשיחות (TODO — עתידי)
 - סריקת שיחות חדשות/שהשתנו
 - זיהוי: הפניות לאפליקציות אחרות, "אני צ'אטבוט", שאלות חוזרות, תקיעות, שגיאות
 
-#### 1.3 דיווח משתמשים לא פעילים (TODO — עתידי)
+#### 1.4 דיווח משתמשים לא פעילים (TODO — עתידי)
 - 7+ ימים בלי כניסה + תהליך לא שלם
 
-#### 1.4 סריקת דיווחי באגים (TODO — עתידי)
+#### 1.5 סריקת דיווחי באגים (TODO — עתידי)
 - bug_reports חדשים שלא טופלו
 
 ### 2. ריצה שבועית — "בוא נעשה ניהול שבועי"
@@ -72,23 +81,19 @@
 
 ---
 
-## פעולות אוטומטיות (רצות בלי סוכן)
+## פעולות אוטומטיות (לוגיקת מערכת קבועה)
 
-| פעולה | איפה | מתי |
-|-------|-------|------|
-| Completion pipeline | jobRunner (כל 2 דק') | משתמש סיים הכל → כניסה למאגר (בלי תובנות) |
-| Photo analysis | jobRunner + reconciliation יומית | ניתוח תמונות למי שנתן הסכמה |
-| Auto-analysis (traits) | בסיום שיחה כללית | שתי ריצות ניתוח traits אוטומטיות |
-| Welcome email + nudges | backend cron יומי | ברוכים הבאים / תזכורת 48 שעות / תזכורת שבוע |
+תיעוד מלא: `Docs/System Jobs.md`
 
-### מיילים/התראות אוטומטיים — לוגיקה
-| תנאי | פעולה | ערוץ |
-|-------|--------|------|
-| נרשם + לא קיבל welcome | ברוכים הבאים | push (אם יש token) / מייל (אם אין) |
-| 48+ שעות, 0 הודעות | "בואי נתחיל" | push / מייל |
-| 7+ ימים, לא השלים | "בואי נמשיך" | push / מייל |
-
-בחירת ערוץ: בדיקה ב-`fcm_tokens` אם יש token פעיל + `push_notifications = TRUE` → push. אחרת → מייל (אם `email_updates = TRUE`). נרשם ב-`notification_log` + `email_log` למניעת כפילויות.
+סיכום קצר:
+| פעולה | תזמון | מה עושה |
+|-------|--------|---------|
+| jobRunner | כל 2 דק' | completion pipeline + photo analysis |
+| Photo reconciliation | יומי | סורק מי צריך ניתוח תמונות |
+| User nudges | יומי | welcome / not_started / incomplete |
+| Auto-analysis | event | Run #1 בסיום צ'אט כללי, Run #2 בסיום הכל |
+| Summarizer | event | כל 8 הודעות → שליפת מידע מובנה |
+| Reanalysis scan | יומי | בדיקת qa_about_me + qa_refine → reanalysis |
 
 ---
 
@@ -176,6 +181,33 @@ WHERE id = $4
 | `POST /admin/users/:id/pipeline-action` | פעולות pipeline |
 | `POST /admin/users/:id/update-checklist` | עדכון צ'קליסט |
 | `POST /admin/users/:id/reanalyze` | הרצת ניתוח |
+
+---
+
+## תוכנית עבודה — שלבים
+
+### הושלם
+- [x] **תובנות ע"י Claude** — completion pipeline לא מפיק תובנות אוטומטית. Claude כותב בריצה יומית לפי `Docs/insights-writing-guide.md`
+- [x] **Nudges אוטומטיים** — welcome + not_started (יום 2/5/10/20) + incomplete (יום 7/12/20/35), חוזר כל 14 יום. Push עם fallback למייל. מרווח מינימלי 3 ימים. מסנן זוגות, frozen, test users
+- [x] **Admin pipeline** — מציג תזכורות אוטומטיות (כמה, מתי, איזה סוג)
+- [x] **תיעוד** — insights-writing-guide.md, User Management Agent.md, System Jobs.md, CLAUDE.md מעודכן
+- [x] **אפיון reanalysis** — לוגיקה מוגדרת, חלוקה ברורה בין לוגיקת מערכת לסוכן
+- [x] **Reanalysis Scan** — `pipeline/reanalysisScan.ts`, cron יומי ב-jobRunner. qa_about_me (5-7→mbti, 8+→מלא), qa_refine (3-7→general, 8+→מלא). backfill + concurrency guard + last_analysis_at בכל endpoints
+
+### הבא בתור
+- [ ] **בדיקת תובנות אחרי reanalysis** — סוכן ניהול (Claude):
+  - בריצה יומית: מזהה משתמשים ש-`last_analysis_at > insights_updated_at`
+  - קורא התכתבות אחרונה, מחליט אם תובנות צריכות עדכון
+
+### עתידי
+- [ ] **AI intent detection** — להחליף את ה-regex בזיהוי AI לכל הודעה (~$0.001/הודעה). ייתן: דיוק בבחירת פרומפטים, סיווג מדויק לקבוצת traits, חיסכון בניתוחים מיותרים. **חסם**: latency של 200-500ms לכל הודעה (פתרון: סיווג post-hoc)
+- [ ] **פרומפט "מידע והעדפות כלליות"** — כשייבנה, יחליף את קבוצת "general" בניתוח חוזר של qa_refine
+- [ ] **סריקת תקלות בשיחות** — הפניות לאפליקציות, "אני צ'אטבוט", שאלות חוזרות, תקיעות
+- [ ] **דיווח משתמשים לא פעילים** — 7+ ימים בלי כניסה + לא השלימו
+- [ ] **סריקת דיווחי באגים** — bug_reports חדשים
+- [ ] **סיכום שבועי** — כמה הצטרפו, סיימו, נכנסו למאגר
+- [ ] **ניתוח חיצוני אוטומטי** — GPT-4o Vision על תמונות → look traits
+- [ ] **מעבר אוטומטי ל"טופל"** — אחרי nudge + insights + pool entry
 
 ---
 

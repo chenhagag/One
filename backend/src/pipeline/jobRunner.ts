@@ -20,13 +20,16 @@ import {
 import { runCompletionPipeline } from "./completionPipeline";
 import { analyzeUserPhotos } from "./photoAnalysis";
 import { runUserNudges } from "./userNudges";
+import { runReanalysisScan } from "./reanalysisScan";
 
 const JOB_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const RECONCILE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const NUDGE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const REANALYSIS_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 let intervalHandle: ReturnType<typeof setInterval> | null = null;
 let reconcileHandle: ReturnType<typeof setInterval> | null = null;
 let nudgeHandle: ReturnType<typeof setInterval> | null = null;
+let reanalysisHandle: ReturnType<typeof setInterval> | null = null;
 
 // ── Job creation ─────────────────────────────────────────────────
 
@@ -296,6 +299,20 @@ export function startJobRunner(): void {
       console.error("[jobRunner] Nudge run error:", err.message);
     });
   }, NUDGE_INTERVAL_MS);
+
+  // Daily reanalysis scan (check for users needing re-analysis based on new QA messages)
+  // Run once on startup after 90s, then every 24h
+  setTimeout(() => {
+    runReanalysisScan().catch(err => {
+      console.error("[jobRunner] Initial reanalysis scan error:", err.message);
+    });
+  }, 90000);
+
+  reanalysisHandle = setInterval(() => {
+    runReanalysisScan().catch(err => {
+      console.error("[jobRunner] Reanalysis scan error:", err.message);
+    });
+  }, REANALYSIS_INTERVAL_MS);
 }
 
 export function stopJobRunner(): void {
@@ -310,6 +327,10 @@ export function stopJobRunner(): void {
   if (nudgeHandle) {
     clearInterval(nudgeHandle);
     nudgeHandle = null;
+  }
+  if (reanalysisHandle) {
+    clearInterval(reanalysisHandle);
+    reanalysisHandle = null;
   }
   console.log("[jobRunner] Pipeline job runner stopped");
 }

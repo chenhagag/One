@@ -28,9 +28,9 @@ async function runAnalysis(userId: number, runNumber: number): Promise<void> {
   try {
     console.log(`[auto-analysis] User ${userId}: starting run #${runNumber}...`);
 
-    // Increment run count immediately to prevent duplicate triggers
+    // Increment run count immediately to prevent duplicate triggers + set last_analysis_at
     await pgQueryAll(
-      "UPDATE users SET auto_analyzed = TRUE, analysis_run_count = $2 WHERE id = $1",
+      "UPDATE users SET auto_analyzed = TRUE, analysis_run_count = $2, last_analysis_at = NOW() WHERE id = $1",
       [userId, runNumber]
     );
 

@@ -1293,4 +1293,23 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       END IF;
     END $$;
   `);
+
+  // ── Reanalysis tracking columns on users ──
+  await pool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='last_analysis_at') THEN
+        ALTER TABLE users ADD COLUMN last_analysis_at TIMESTAMPTZ;
+        -- Backfill: set last_analysis_at for already-analyzed users so reanalysis scan
+        -- doesn't count old messages. Use updated_at as best approximation.
+        UPDATE users SET last_analysis_at = updated_at
+        WHERE COALESCE(analysis_run_count, 0) >= 1 AND last_analysis_at IS NULL;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='insights_updated_at') THEN
+        ALTER TABLE users ADD COLUMN insights_updated_at TIMESTAMPTZ;
+        -- Backfill: set insights_updated_at for users who already have insights
+        UPDATE users SET insights_updated_at = updated_at
+        WHERE personal_insights_full IS NOT NULL AND insights_updated_at IS NULL;
+      END IF;
+    END $$;
+  `);
 }

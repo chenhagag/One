@@ -281,7 +281,7 @@ ${fullTranscript}`;
 
   await pgQueryAll(
     `UPDATE users SET personal_insights_short = $1, personal_insights_full = $2,
-     insights_pre_completion = $3, updated_at = NOW() WHERE id = $4`,
+     insights_pre_completion = $3, insights_updated_at = NOW(), updated_at = NOW() WHERE id = $4`,
     [parsed.summary_short, parsed.summary_full, preCompletion, userId]
   );
 

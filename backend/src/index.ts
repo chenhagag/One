@@ -2068,8 +2068,10 @@ app.patch("/admin/users/:id", async (req, res) => {
     values.push(false);
   }
 
-  // Auto-manage insights_pre_completion when personal_insights_full is updated
+  // Auto-manage insights_pre_completion + insights_updated_at when personal_insights_full is updated
   if ("personal_insights_full" in req.body && req.body.personal_insights_full) {
+    updates.push(`insights_updated_at = $${i++}`);
+    values.push(new Date().toISOString());
     const counts = await pgQueryOne<any>(`
       SELECT
         (SELECT COUNT(*) FROM conversation_messages WHERE user_id = $1 AND guide = 'new_chat_cognitive') as cog_count,
@@ -2260,7 +2262,7 @@ app.post("/users/:id/reset-data", requireUserAuth, async (req, res) => {
     `UPDATE users SET is_matchable = FALSE, in_matching_pool = FALSE, auto_analyzed = FALSE,
      analysis_run_count = 0, analysis_completed = FALSE, insights_pre_completion = NULL,
      cognitive_score = NULL, personal_insights_short = NULL, personal_insights_full = NULL,
-     couple_insights = NULL, self_frozen = FALSE
+     couple_insights = NULL, self_frozen = FALSE, last_analysis_at = NULL, insights_updated_at = NULL
      WHERE id = $1`,
     [userId]
   );
@@ -3098,7 +3100,7 @@ app.post("/admin/users/:id/reanalyze", aiLimiter, async (req, res) => {
     const cov = await computeCoverage(db, user_id);
     const cogScore = await updateCognitiveScore(user_id);
     await pgQueryAll(
-      "UPDATE users SET readiness_score = $1, is_matchable = $2, updated_at = NOW() WHERE id = $3",
+      "UPDATE users SET readiness_score = $1, is_matchable = $2, last_analysis_at = NOW(), updated_at = NOW() WHERE id = $3",
       [cov.readiness_score, cov.ready_for_matching, user_id]
     );
 
@@ -3173,6 +3175,9 @@ app.post("/admin/users/:id/reanalyze-group", aiLimiter, async (req, res) => {
 
     // Update cognitive score if cognitive group was re-run
     if (group === "cognitive") await updateCognitiveScore(user_id);
+
+    // Update last_analysis_at so reanalysis scan counts only newer messages
+    await pgQueryAll("UPDATE users SET last_analysis_at = NOW(), updated_at = NOW() WHERE id = $1", [user_id]);
 
     console.log(`[reanalyze-group] User ${user_id}: group "${group}" done — ${result.internal_saved} internal, ${result.external_saved} external`);
     return res.json(result);
