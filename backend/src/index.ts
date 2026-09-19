@@ -3463,6 +3463,32 @@ async function reconcileMatchStatuses(): Promise<{ frozen: number; unfrozen: num
     }
   }
 
+  // 3. potential_match / expanded_potential_match where a user has no photos → waiting_for_photo
+  const photoCheckMatches = await pgQueryAll<{ id: number; user1_id: number; user2_id: number }>(
+    `SELECT m.id, m.user1_id, m.user2_id FROM matches m
+     WHERE m.status IN ('potential_match', 'expanded_potential_match')
+       AND (
+         (SELECT COUNT(*) FROM user_photos WHERE user_id = m.user1_id) = 0
+         OR (SELECT COUNT(*) FROM user_photos WHERE user_id = m.user2_id) = 0
+       )`
+  );
+  let waitingPhoto = 0;
+  for (const m of photoCheckMatches) {
+    await pgQueryAll(
+      "UPDATE matches SET status = 'waiting_for_photo', updated_at = NOW() WHERE id = $1",
+      [m.id]
+    );
+    waitingPhoto++;
+  }
+
+  // 4. waiting_for_photo where both users now have photos → potential_match
+  const { promoteAllWaitingMatches } = await import("./pipeline/photoMatchPromotion");
+  const promotedFromWaiting = await promoteAllWaitingMatches();
+
+  if (waitingPhoto > 0 || promotedFromWaiting > 0) {
+    console.log(`[reconcile] Photo status: ${waitingPhoto} → waiting_for_photo, ${promotedFromWaiting} → potential_match`);
+  }
+
   console.log(`[reconcile] Frozen ${frozen}, unfrozen ${unfrozen}`);
   return { frozen, unfrozen };
 }
