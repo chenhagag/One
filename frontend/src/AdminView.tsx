@@ -6900,9 +6900,21 @@ function SystemActivityLogTab() {
 
   return (
     <div style={{ padding: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         <h3 style={{ margin: 0 }}>לוג מערכת</h3>
         <button onClick={loadLog} style={{ fontSize: 12, padding: "4px 10px", cursor: "pointer" }}>↻ רענן</button>
+        <button
+          onClick={async () => {
+            if (!confirm("להריץ photo nudges עכשיו?")) return;
+            try {
+              const res = await apiFetch("/admin/run-photo-nudges", { method: "POST" });
+              const data = await res.json();
+              alert(`סיום: ${JSON.stringify(data.result || data.error)}`);
+              loadLog();
+            } catch (err: any) { alert("שגיאה: " + err.message); }
+          }}
+          style={{ fontSize: 11, padding: "4px 10px", cursor: "pointer", background: "#7b5fa3", color: "#fff", border: "none", borderRadius: 6 }}
+        >▶ הרץ photo nudges</button>
       </div>
 
       <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
