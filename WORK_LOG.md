@@ -9,11 +9,11 @@
 | # | משימה | סטטוס | סיבה |
 |---|--------|--------|------|
 | 1 | **דף נחיתה + דפי הסבר משכנעים** | ❌ טרם התחיל | אין הרשמות = אין משמעות לכל השאר |
-| 2 | **חוויית המתנה חיה** | ❌ טרם התחיל | שמי שנרשמה לא תעזוב — timeline, תובנות מתגלגלות, עדכוני סטטוס |
+| 2 | **חוויית המתנה חיה** | ✅ V1 הושלם | כרטיס סטטוס חי, באבלים חכמים, AI חכם יותר |
 | 3 | **אוטומציה של pipeline** | ❌ טרם התחיל | סקיילינג — מייל pool אוטומטי, matching אוטומטי, אישור אנליזה |
 | 4 | **בדיקת אפליקציית Android** | ❌ טרם התחיל | לוודא שהכל עובד לפני פרסום |
 | 5 | **דיוק ציוני התאמה** | 🔄 בתהליך | פרומפט סגנון (17 תכונות נותרו) + calibration — לסמוך על תוצאות בלי בדיקה ידנית |
-| 6 | **באגי מחיקת חשבון** | ❌ טרם התחיל | לא blocking ללאנץ' |
+| 6 | **באגי מחיקת חשבון** | ✅ הושלם | מודאל 3 אפשרויות + מסך פרידה + שמירת דיווחים |
 
 ### עקרונות לספרינט
 - **לא לשבור דברים** — שינויים קטנים וממוקדים, לא refactors
@@ -22,7 +22,198 @@
 
 ---
 
-## TODO — Account Deletion Overhaul (Lower Priority)
+## Latest Session: 2026-09-19 (Reanalysis Scan + System Activity Log + Photo Management)
+
+### ✅ עלה לפרודקשן (staging + production)
+
+#### Reanalysis Scan — ניתוח מחדש אוטומטי (`pipeline/reanalysisScan.ts`)
+- **Cron יומי** שבודק הודעות חדשות ב-`qa_about_me` ו-`qa_refine` מאז הניתוח האחרון
+- `qa_about_me`: 5-7 הודעות user → reanalyze MBTI בלבד, 8+ → ניתוח מלא
+- `qa_refine`: 3-7 הודעות → reanalyze "general" בלבד, 8+ → ניתוח מלא
+- Concurrency guard מונע ריצה כפולה
+- עמודות חדשות: `last_analysis_at`, `insights_updated_at` ב-users
+- Backfill migration למשתמשים קיימים
+- `last_analysis_at` מתעדכן בכל endpoints: auto-analysis, admin reanalyze, reanalyze-group, reset-analysis
+
+#### System Activity Log — לוג מערכת מאוחד
+- **טבלה `system_activity_log`** — job_type, user_id, user_name, action, details, created_at
+- **Helper `activityLog.ts`** — `logActivity()` לכל ה-system jobs
+- **טאב "לוג מערכת" באדמין** — מקובץ לפי תאריך, סינון לפי סוג (reanalysis/nudge/photo)
+- Nudges כותבים ללוג בכל שליחה מוצלחת (סוג + ערוץ push/email)
+- Reanalysis scan כותב ללוג בכל ניתוח מחדש
+
+#### ניהול תמונות ו-matches
+- **`waiting_for_photo` אוטומטי** — יצירת match חדש (batch + individual) בודקת תמונות, חסר → waiting_for_photo
+- **Reconcile** — `reconcileMatchStatuses()` מוריד matches קיימים ל-waiting_for_photo אם חסרה תמונה
+- **Photo Match Promotion** (`pipeline/photoMatchPromotion.ts`) — כשמשתמש מעלה תמונה, בודק matches בסטטוס waiting_for_photo ומקדם ל-potential_match אם לשניהם יש תמונות. רץ גם ב-upload trigger וגם ב-reconciliation יומי
+- **סקשן "תמונה ללא אישור ניתוח"** ב-admin pipeline — משתמשים עם תמונות אבל בלי photo_ai_consent
+- **Default photo AI consent** — צ'קבוקס מסומן דיפולטית בהעלאה ראשונה
+
+#### תיעוד חדש
+- `Docs/System Jobs.md` — תיעוד מלא של כל לוגיקת המערכת הקבועה (6 תהליכים)
+- `Docs/User Management Agent.md` — מעודכן: הבחנה סוכן ניהול ↔ לוגיקת מערכת, reanalysis הושלם
+
+#### קבצים שהשתנו/נוצרו
+- `backend/src/pipeline/reanalysisScan.ts` (חדש)
+- `backend/src/pipeline/activityLog.ts` (חדש)
+- `backend/src/pipeline/photoMatchPromotion.ts` (חדש)
+- `backend/src/pipeline/jobRunner.ts` — cron reanalysis + photo promotion
+- `backend/src/pipeline/userNudges.ts` — activity logging
+- `backend/src/pipeline/generateInsights.ts` — insights_updated_at
+- `backend/src/agents/conversation/autoAnalysis.ts` — last_analysis_at
+- `backend/src/schema.pg.ts` — system_activity_log + last_analysis_at + insights_updated_at
+- `backend/src/index.ts` — waiting_for_photo logic, reconcile, system-activity-log endpoint
+- `frontend/src/AdminView.tsx` — טאב לוג מערכת
+- `frontend/src/AdminPipeline.tsx` — סקשן תמונה ללא אישור
+- `frontend/src/ProfileEdit.tsx` — default AI consent
+- `Docs/System Jobs.md` (חדש)
+- `Docs/User Management Agent.md` (מעודכן)
+
+### TODO לסשן הבא
+- בדיקת תובנות אחרי reanalysis (סוכן ניהול — Claude)
+- AI intent detection עתידי (להחליף regex)
+- פרומפט "מידע והעדפות כלליות" — יחליף "general" ב-qa_refine
+- דף נחיתה + דפי הסבר משכנעים
+- אוטומציה של pipeline
+- בדיקת אפליקציית Android
+- דיוק ציוני התאמה (17 תכונות סגנון)
+
+---
+
+## Previous Session: 2026-09-15 (Chat Menu + Assistance/Nudge System + Status Fixes)
+
+### ✅ עלה לפרודקשן (staging + production)
+
+#### תפריט שיחות (GPT-style)
+- **סקשן "שיחות" בסיידבר** — רשימה של כל ערוצי השיחה שיש בהם הודעות
+- סגור כברירת מחדל, נפתח בלחיצה (toggle עם ▾)
+- כל ערוץ מציג שם + ✓ אם סגור, הערוץ הפעיל מודגש בסגול
+- עובד גם במובייל (סיידבר overlay) וגם בדסקטופ
+- `CHANNEL_DISPLAY` + `CHANNEL_NAME_MAP` — מפה אחידה לשמות ערוצים (DRY עם כותרת header)
+- **תיקון סקרול**: הסרת useEffect על channelMessages, סקרול רק בקריאה מפורשת (שליחת הודעה / קבלת תשובה / מעבר מסך)
+- **תיקון overflow סיידבר**: `overflowY: auto` — מנע קפיצת דף כשרשימת שיחות ארוכה
+- **בועות שיחה סגורות מוסתרות** — ראשי/קוגניטיבי/טעם נעלמות מהמסך הראשי כשסגורות, זמינות דרך תפריט
+
+#### מערכת סיוע (חדש)
+- **"שלח סיוע לשתיהן"** — כפתור סגול באדמין, שולח nudge מסוג `assistance` לשני הצדדים
+- סיוע מדלג על שלב 1 (ראית הודעה?) → ישר לשאלת עזרה
+- טקסט: "איך הולך לך בהיכרות עם [שם]? תרצי ש-One יעזור לכן לעשות את הצעד הבא?"
+- אופציה ראשונה: "הולך טוב, ממשיכות להתכתב כאן" (מותאם מגדרית)
+- אופציות "לא מעוניינת" פחות בולטות (פונט קטן, צבע אפור)
+- **"הכול מצוין, כבר עברנו לדבר בעולם האמיתי"** — אופציה חדשה (סיוע בלבד)
+  - מסך אישור: "שמחים מאוד לשמוע! 🎉" + כפתור לפתיחת צ'אט פידבק
+  - ערוץ חדש `qa_match_feedback` — AI שואל בחום איך הולך, אם קלענו לטעם, מה לדייק
+
+#### מחיקת בירור + סטטוס באדמין
+- **מחיקת בירור ממתין** — כפתור "מחק" אדום ב-outreach log
+- **סטטוס שליחה** — כפתורי בירור/סיוע מתחלפים ל"📩 נשלח ל[שם]" אחרי שליחה
+- **"↻ שלח שוב"** — מוחק קיים ושולח חדש
+- תג "סיוע" סגול ב-outreach log לזיהוי סוג
+
+#### הזרקת תשובת בירור/סיוע ל-AI
+- תשובת משתמש/ת מתורגמת אוטומטית להנחיות ב-`agent_context`
+- לכל אופציה (דייט, ווטסאפ, תיאום שיחה, עולם אמיתי) — הנחיות ספציפיות
+- ווטסאפ: בודק מספר שמור, מבקש אישור מפורש
+- סעיף חדש "סיוע בהתאמה פעילה" ב-context-system-info.txt
+
+#### תיקוני סטטוס מסך ראשי
+- **הסתרת "החיפוש שלך פעיל"** למשתמשים בהתאמה פעילה או בדירוג ממתין
+- **כרטיס סטטוס למשתמשות במאגר עם שיחות לא שלמות** — מציג "החיפוש שלך פעיל" + הנחיה להשלים שיחות + כרטיס תובנות
+- **תיקון CLS** — בועות suggestions מוצגות רק אחרי טעינת recommendations
+
+#### DB
+- עמודה `nudge_type` ב-`match_nudges` (`check_in` / `assistance`)
+
+#### קבצים שהשתנו
+- `frontend/src/NewChat.tsx` — תפריט שיחות, סקרול, בועות, סטטוס, סיוע UI
+- `frontend/src/AdminView.tsx` — כפתורי סיוע/מחיקה/סטטוס באדמין
+- `backend/src/index.ts` — endpoints סיוע/מחיקה, agent context injection, pending_nudges in detail
+- `backend/src/schema.pg.ts` — nudge_type column + migration
+- `backend/src/agents/conversation/chatManager.ts` — qa_match_feedback channel
+- `backend/src/agents/conversation/prompts/context-system-info.txt` — הנחיות סיוע
+
+### סנכרון staging ↔ production
+- שני הענפים זהים
+
+### TODO לסשן הבא
+- הצגת מספר פרופילים במאגר כשיהיה critical mass (שמור בזיכרון: project_pool_count_display.md)
+- דף נחיתה + דפי הסבר משכנעים
+- אוטומציה של pipeline
+- בדיקת אפליקציית Android
+- דיוק ציוני התאמה (17 תכונות סגנון)
+
+---
+
+## Previous Session: 2026-09-12→15 (Account Deletion + Waiting Experience + AI Context)
+
+### ✅ עלה לפרודקשן (staging + production)
+
+#### שדרוג מחיקת חשבון
+- **מודאל 3 אפשרויות** — הקפאה / מחיקת נתונים / מחיקת חשבון (במקום שני סקשנים נפרדים)
+- **שלב "האם בטוח/ה?"** — לפני מחיקת נתונים ולפני מחיקת חשבון
+- **מסך פרידה** — "תודה שהיית חלק מ-One" אחרי מחיקת חשבון
+- **שדה סיבה** — textarea לא חובה, נשמר ב-`delete_reason` (עמודה חדשה ב-`deleted_users`)
+- **דיווחים נשמרים** — `bug_reports` לא נמחקים כשמשתמש מוחק חשבון (FK SET NULL)
+- **באג deleted_by** — `"self"` מוצג כ"משתמש" באדמין (לא "אדמין")
+- **תיקון reset-data** — מאפס גם `analysis_completed`, `insights_pre_completion`, `self_frozen`
+- **עמודות חדשות באדמין** — "סיבה" בטבלת משתמשים שנמחקו
+
+#### חוויית המתנה — כרטיס סטטוס חי
+- **has_profile_details מרוכך** — לא דורש `desired_age/height` ranges (matching יש defaults)
+- **כרטיס סטטוס** — 🟢 נקודה ירוקה פועמת + "החיפוש שלך פעיל" למשתמשות במאגר
+- **מצב בדיקה** — ⏳ "הפרופיל שלך בבדיקה" למי שלא במאגר עדיין
+- **מספר פרופילים** — מוסתר מ-UI ומ-AI עד critical mass (שמור בזיכרון)
+
+#### באבלים חכמים למשתמשות במאגר
+- **"מה הסטטוס שלי?"** → ערוץ `qa_status` נפרד (מחליף cognitive ✓)
+- **"רוצה להוסיף או לחדד משהו"** → ערוץ `qa_refine` נפרד (מחליף taste ✓)
+- **"מה בדיוק אתה מחפש לי?"** → ערוץ `qa_search` נפרד (מחליף QA ישן)
+- כל באבל שותל הודעה בפעם ראשונה, פותח היסטוריה קיימת אח"כ
+- סקר חלקי ("המשיכו למלא") הועבר למטה מתחת לתובנות
+
+#### AI חכם יותר
+- **פרטי משתמש ב-liveState** — גיל, עיר, גובה, מגדר, העדפות טווחים
+- **matchCardConsent ב-liveState** — AI מפנה לאשר כרטיס
+- **waitingForRating** — תוקן (שאילתה ייעודית), AI מודיע על דירוג ממתין כעדיפות 1
+- **שדות חסרים ספציפיים** — "חסר: גובה" במקום סתם "פרטים חסרים"
+- **Prompt D (post-close)** — AI מקבל מידע חדש בברכה במקום לדחות
+- **פרופיל אישיותי** מוזרק ל-`qa_system`, `qa_status`, `qa_search`, `qa_refine`
+- **context-system-info.txt** — הנחיות מובנות בסדר עדיפויות לשאלות סטטוס
+- **עדיפות liveState** — נתונים עדכניים מקבלים עדיפות על היסטוריית שיחה
+- **agent context** — משולב בתשובות סטטוס באופן טבעי
+
+#### Admin
+- **התראה post-close** — כשמשתמש מוסיף מידע אחרי סגירת שיחה → `[post_close_update]`
+- **באג שאלת מערכת** — שאלה שנענתה לא מופיעה שוב כשחוזרים למסך הראשי
+- **טאבים חדשים** — qa_status, qa_search, qa_refine, match_feedback באדמין
+- **match_feedback** — לא נופל יותר ל"מעבדת אישיות", מופיע כ"ביטולי התאמה"
+- **סינון דיווחים** — הכל / משתמשים / מערכת (3 כפתורים פשוטים)
+- **AI disclaimer** — "AI שעלול לטעות לפעמים"
+
+#### קבצים שהשתנו
+- `backend/src/index.ts` — delete/reset endpoints, post-close notification, pool count, has_profile_details
+- `backend/src/schema.pg.ts` — `delete_reason` column + migration
+- `backend/src/rag.ts` — liveState: userDetails, matchCardConsent, poolProfileCount, missingFields, pendingRating
+- `backend/src/agents/conversation/chatManager.ts` — qa_status, qa_search, qa_refine channels + rich profile injection
+- `backend/src/agents/conversation/promptTemplates.ts` — Prompt D accepts new info
+- `backend/src/agents/conversation/prompts/context-system-info.txt` — priority-ordered status guidance
+- `frontend/src/NewChat.tsx` — deletion modal, status card, smart bubbles, pulse animation, survey link moved
+- `frontend/src/AdminView.tsx` — deleted_by fix, delete_reason column, new channel tabs, feedback filters
+
+### סנכרון staging ↔ production
+- שני הענפים זהים
+
+### TODO לסשן הבא (archived — see latest session above)
+- ~~תפריט שיחות כמו GPT/Gemini~~ ✅ הושלם
+- הצגת מספר פרופילים במאגר כשיהיה critical mass
+- דף נחיתה + דפי הסבר משכנעים
+- אוטומציה של pipeline
+- בדיקת אפליקציית Android
+- דיוק ציוני התאמה (17 תכונות סגנון)
+
+---
+
+## TODO — Account Deletion Overhaul (DONE — see session above)
 
 Discovered 2026-09-08: user רוני (208) deleted herself, displayed as "admin deletion" due to bug. Investigation revealed multiple issues.
 
@@ -50,7 +241,7 @@ Discovered 2026-09-08: user רוני (208) deleted herself, displayed as "admin 
 
 ---
 
-## Latest Session: 2026-09-10 (Push Notification System)
+## Previous Session: 2026-09-10 (Push Notification System)
 
 ### ✅ קומט (לא נדחף עדיין)
 
