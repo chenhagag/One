@@ -42,6 +42,7 @@ import { trackTokens } from "./tokenTracker";
 import { requireAuth, optionalAuth, requireUserAuth, requireAdmin } from "./auth";
 import { generateInsights as generateInsightsFn } from "./pipeline/generateInsights";
 import { startJobRunner, createJob as createPipelineJob, requeueOrCreateJob as requeueOrCreateJobFn, processPendingJobs as processPendingJobsFn } from "./pipeline/jobRunner";
+import { promoteUserWaitingMatches } from "./pipeline/photoMatchPromotion";
 import { notifyUser, sendPushOnly, registerToken, unregisterToken, syncPermissionStatus, hasPushTokens, notifyMatchCardSent, notifyNewMessage, notifySentForRating, notifyAdminMessage } from "./notifications";
 
 dotenv.config();
@@ -1017,6 +1018,11 @@ app.post("/users/:id/photos", requireUserAuth, (req, res, next) => {
       console.error(`[photo-upload] Failed to create photo analysis job for user ${userId}:`, err.message);
     });
   }
+
+  // Check if any waiting_for_photo matches can be promoted
+  promoteUserWaitingMatches(userId).catch(err => {
+    console.error(`[photo-upload] Failed to check waiting matches for user ${userId}:`, err.message);
+  });
 
   return res.json({
     filename: req.file.filename,
@@ -4343,6 +4349,7 @@ app.get("/admin/user-management", async (_req, res) => {
         u.analysis_run_count, u.analysis_completed,
         u.couple_insights, u.personal_insights_short, u.personal_insights_full,
         u.user_status, u.email_updates, u.partner_name, u.match_card_consent, u.match_card_restrictions,
+        u.photo_ai_consent,
         (SELECT COUNT(*)::int FROM user_photos WHERE user_id = u.id) AS photo_count
       FROM users u
       ORDER BY u.created_at DESC
@@ -4533,6 +4540,7 @@ app.get("/admin/user-management", async (_req, res) => {
         desired_location_range: u.desired_location_range || null,
         cognitive_score: u.cognitive_score ?? null,
         photo_count: u.photo_count || 0,
+        photo_ai_consent: u.photo_ai_consent ?? null,
         has_profile_details: !!(u.age && u.city && (u.photo_count || 0) >= 1),
         // Auto-nudge status
         last_nudge_event: nudgeMap[u.id]?.last_nudge_event || null,

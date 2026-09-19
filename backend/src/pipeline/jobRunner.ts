@@ -21,6 +21,7 @@ import { runCompletionPipeline } from "./completionPipeline";
 import { analyzeUserPhotos } from "./photoAnalysis";
 import { runUserNudges } from "./userNudges";
 import { runReanalysisScan } from "./reanalysisScan";
+import { promoteAllWaitingMatches } from "./photoMatchPromotion";
 
 const JOB_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const RECONCILE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -273,16 +274,22 @@ export function startJobRunner(): void {
     });
   }, JOB_POLL_INTERVAL_MS);
 
-  // Daily photo reconciliation (run once on startup after 30s, then every 24h)
+  // Daily photo reconciliation + match promotion (run once on startup after 30s, then every 24h)
   setTimeout(() => {
     reconcilePhotoJobs().catch(err => {
       console.error("[jobRunner] Initial reconciliation error:", err.message);
+    });
+    promoteAllWaitingMatches().catch(err => {
+      console.error("[jobRunner] Initial photo match promotion error:", err.message);
     });
   }, 30000);
 
   reconcileHandle = setInterval(() => {
     reconcilePhotoJobs().catch(err => {
       console.error("[jobRunner] Reconciliation error:", err.message);
+    });
+    promoteAllWaitingMatches().catch(err => {
+      console.error("[jobRunner] Photo match promotion error:", err.message);
     });
   }, RECONCILE_INTERVAL_MS);
 

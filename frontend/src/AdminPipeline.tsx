@@ -62,6 +62,7 @@ interface PipelineUser {
   pool_email_pending: boolean;
   partner_name: string | null;
   photo_count: number;
+  photo_ai_consent: boolean | null;
   has_profile_details: boolean;
 }
 
@@ -407,6 +408,28 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
           ))}
         </div>
       )}
+
+      {/* Photos without consent */}
+      {(() => {
+        const noConsent = users.filter(u => u.photo_count >= 1 && !u.photo_ai_consent && !u.test_user_type);
+        if (!noConsent.length) return null;
+        return (
+          <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 12, padding: 16, marginBottom: 20 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#92400e", marginBottom: 8 }}>📷 תמונה ללא אישור ניתוח ({noConsent.length})</div>
+            <div style={{ fontSize: 12, color: "#92400e", marginBottom: 10 }}>משתמשים שהעלו תמונה אבל לא אישרו ניתוח AI</div>
+            {noConsent.map(u => (
+              <div key={u.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 0", borderBottom: "1px solid #fde68a", fontSize: 13 }}>
+                <span style={{ color: "#92400e", fontWeight: 600, cursor: "pointer", textDecoration: "underline" }} onClick={() => onSelectUser(u.id)}>
+                  #{u.id} {u.first_name}
+                </span>
+                <span style={{ color: "#b45309" }}>{u.photo_count} תמונות</span>
+                <span style={{ color: "#b45309" }}>{u.gender === "woman" ? "👩" : "👨"}</span>
+                {u.in_matching_pool && <span style={{ color: "#059669", fontSize: 11 }}>במאגר</span>}
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Stages */}
       {STAGE_CONFIG.map(stageConf => (
