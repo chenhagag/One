@@ -13,7 +13,6 @@
  *
  * After reanalysis, updates `last_analysis_at` so future scans only count new messages.
  *
- * Only runs in production (NODE_ENV=production).
  * Called by jobRunner on a daily schedule.
  */
 
@@ -47,11 +46,6 @@ let scanRunning = false;
 // ── Main scan ────────────────────────────────────────────────────
 
 export async function runReanalysisScan(): Promise<void> {
-  if (process.env.NODE_ENV !== "production") {
-    console.log("[reanalysis-scan] Skipping — not production");
-    return;
-  }
-
   if (scanRunning) {
     console.log("[reanalysis-scan] Skipping — previous scan still running");
     return;

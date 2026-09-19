@@ -90,7 +90,7 @@
 
 **תזמון**: יומי (כל 24 שעות, 90 שניות אחרי boot)
 **מה עושה**: סורק הודעות חדשות בערוצי QA ומריץ ניתוח מחדש
-**רק בפרודקשן**: `NODE_ENV === 'production'`
+**רץ בכל סביבה**: staging + production (לא שולח הודעות למשתמשים, רק מעדכן traits)
 
 ### DB — עמודות חדשות ב-users:
 - `last_analysis_at TIMESTAMPTZ` — מתי רץ ניתוח אחרון (auto-analysis / reanalysis / admin reanalyze)
