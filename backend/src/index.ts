@@ -4615,11 +4615,11 @@ app.get("/admin/user-management", async (_req, res) => {
 // POST /admin/users/:id/system-question — Send a question to a user
 app.post("/admin/users/:id/system-question", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
-  const { question_text } = req.body;
+  const { question_text, context } = req.body;
   if (!question_text) return res.status(400).json({ error: "question_text required" });
   const row = await pgQueryOne<any>(
-    `INSERT INTO system_questions (user_id, question_text) VALUES ($1, $2) RETURNING *`,
-    [userId, question_text]
+    `INSERT INTO system_questions (user_id, question_text, context) VALUES ($1, $2, $3) RETURNING *`,
+    [userId, question_text, context || null]
   );
   return res.json(row);
 });
@@ -5039,6 +5039,20 @@ app.post("/system-question/answer", requireAuth, async (req: any, res) => {
     "UPDATE system_questions SET answer = $1, answered_at = NOW() WHERE id = $2",
     [answer, question_id]
   );
+
+  // If this is a blind_match question and answer is positive → update consent
+  const questionData = await pgQueryOne<{ user_id: number; context: string | null }>(
+    "SELECT user_id, context FROM system_questions WHERE id = $1",
+    [question_id]
+  );
+  if (questionData?.context === "blind_match" && (answer === "כן אין בעיה" || answer === "אפשרי")) {
+    await pgQueryOne(
+      "UPDATE users SET blind_match_consent = TRUE WHERE id = $1",
+      [questionData.user_id]
+    );
+    console.log(`[system-question] User ${questionData.user_id} consented to blind match via system question`);
+  }
+
   return res.json({ ok: true });
 });
 
@@ -5321,6 +5335,15 @@ app.get("/admin/auth-alerts", async (_req, res) => {
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
+});
+
+// GET /admin/blind-match-count — Count of blind_match_candidate matches (for badge)
+app.get("/admin/blind-match-count", async (_req, res) => {
+  const row = await pgQueryOne<{ count: string; newest: string | null }>(`
+    SELECT COUNT(*) AS count, MAX(updated_at) AS newest
+    FROM matches WHERE status = 'blind_match_candidate'
+  `);
+  return res.json({ count: row ? parseInt(row.count, 10) : 0, newest: row?.newest || null });
 });
 
 // GET /admin/card-requests — Users with match card restrictions

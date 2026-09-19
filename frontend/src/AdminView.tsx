@@ -362,6 +362,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
   const [newBugCount, setNewBugCount] = useState(0);
   const [cardRequests, setCardRequests] = useState<any[]>([]);
   const [newCardRequestCount, setNewCardRequestCount] = useState(0);
+  const [blindMatchCount, setBlindMatchCount] = useState(0);
 
   // Check for new bug reports on mount
   useEffect(() => {
@@ -384,6 +385,16 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
     }).catch(() => {});
   }, []);
 
+  // Check for blind match candidates on mount
+  useEffect(() => {
+    apiFetch("/admin/blind-match-count").then(r => r.json()).then((data: any) => {
+      if (data?.count) {
+        const lastSeen = localStorage.getItem("admin_blind_match_last_seen") || "1970-01-01";
+        if (data.newest && data.newest > lastSeen) setBlindMatchCount(data.count);
+      }
+    }).catch(() => {});
+  }, []);
+
   function handleTabClick(key: Tab) {
     if (key === "bugs") {
       localStorage.setItem("admin_bugs_last_seen", new Date().toISOString());
@@ -392,6 +403,10 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
     if (key === "card_requests") {
       localStorage.setItem("admin_card_requests_last_seen", new Date().toISOString());
       setNewCardRequestCount(0);
+    }
+    if (key === "candidates" && blindMatchCount > 0) {
+      localStorage.setItem("admin_blind_match_last_seen", new Date().toISOString());
+      setBlindMatchCount(0);
     }
     setTab(key);
   }
@@ -431,6 +446,9 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
             )}
             {key === "card_requests" && newCardRequestCount > 0 && (
               <span style={{ marginRight: 4, marginLeft: 4, background: "#dc2626", color: "#fff", borderRadius: 20, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>{newCardRequestCount}</span>
+            )}
+            {key === "candidates" && blindMatchCount > 0 && (
+              <span style={{ marginRight: 4, marginLeft: 4, background: "#6d28d9", color: "#fff", borderRadius: 20, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>👁️‍🗨️ {blindMatchCount}</span>
             )}
           </button>
         ))}

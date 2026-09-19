@@ -64,6 +64,41 @@
 
 ---
 
+## 3b. Photo Nudges (`pipeline/photoNudges.ts`)
+
+**תזמון**: יומי (כל 24 שעות, 120 שניות אחרי boot)
+**מה עושה**: שולח תזכורות להעלאת תמונה למשתמשים עם matches ב-`waiting_for_photo`
+
+### תנאי כניסה:
+- match בסטטוס `waiting_for_photo`
+- `internal_profile_score >= 72` ב-candidate_matches
+- למשתמש אין תמונות
+- לא test user, לא frozen, לא couple
+
+### לוח זמנים (per-user, לא per-match):
+| שלב | תזמון | פעולה | תנאי |
+|------|--------|-------|-------|
+| 1 | יום 0 | admin_message + push/email | כניסה ראשונה לזרימה |
+| 2 | +2 ימים | push/email תזכורת | עדיין אין תמונה |
+| 3a | +7 ימים | push/email תזכורת | צד אחד בלי תמונה |
+| 3b | +5 ימים | system_question "התאמה עיוורת?" | **שתי הצדדים** בלי תמונה |
+| 4 | +14 ימים | push/email תזכורת אחרונה | רק נתיב 3a |
+
+### התאמה עיוורת:
+- שאלת מערכת עם `context = 'blind_match'`
+- תשובה "כן אין בעיה" או "אפשרי" → `blind_match_consent = TRUE` על המשתמש
+- שני הצדדים אישרו → match עובר ל-`blind_match_candidate`
+- badge סגול 👁️‍🗨️ בטאב Candidate Matches באדמין
+
+### כללים:
+- **Per-user**: משתמש מקבל flow אחד, לא הודעה נפרדת לכל match
+- **עצירה**: רק כשמעלה תמונה
+- **הפעלה מחדש**: 14 יום אחרי ה-nudge האחרון, אם עדיין אין תמונה ויש match מתאים
+- **מעקב**: `notification_log` עם event_types: `photo_request_1..4`, `photo_blind_question`
+- **לוג**: `system_activity_log` לכל שליחה + קידום לעיוורת
+
+---
+
 ## 4. Auto-Analysis (`agents/conversation/autoAnalysis.ts`)
 
 **תזמון**: event-triggered (לא cron)
@@ -132,7 +167,30 @@
 
 ---
 
-## 7. Match Photo Status (`reconcileMatchStatuses` + photo upload)
+## 7. Daily Matching (`pipeline/dailyMatching.ts`)
+
+**תזמון**: יומי בשעה 4:00 לפנות בוקר (שעון ישראל)
+**מה עושה**: ריצה מלאה של אלגוריתם ההתאמות
+
+### תהליך:
+1. `runStage1()` — בניית candidate pairs (סינון לפי גיל/מגדר/מיקום)
+2. `runStage2()` — חישוב ציונים לכל pair
+3. `reconcileMatchStatuses()` — freeze/unfreeze + photo status
+
+### תזמון:
+- `setTimeout` מחושב לשעה 4:00 Israel time (`Asia/Jerusalem`)
+- אחרי ריצה ראשונה → חוזר כל 24 שעות
+
+### לוג:
+`system_activity_log` עם job_type `"matching"` — מספר pairs, scored, frozen, unfrozen
+
+### TODO עתידי:
+- per-user trigger על: כניסה למאגר, reanalysis, שינוי פרטים, העלאת תמונה
+- גישה: requalify+reconcile בלבד (לא Stage 1+2 מלא שהוא כבד)
+
+---
+
+## 8. Match Photo Status (`reconcileMatchStatuses` + photo upload)
 
 **תזמון**: event-triggered (בכל requalify / reconcile + photo upload)
 **מה עושה**: שני כיוונים:
@@ -161,8 +219,8 @@
 | job_type | מתי |
 |----------|------|
 | `reanalysis` | כל ניתוח מחדש (חלקי או מלא) |
-| `nudge` | כל nudge שנשלח בהצלחה (welcome / not_started / incomplete + ערוץ) |
-| `photo_promotion` | כל match שעבר מ-waiting_for_photo ל-potential_match |
+| `nudge` | כל nudge שנשלח בהצלחה (welcome / not_started / incomplete / photo_request / photo_blind_question + ערוץ) |
+| `photo_promotion` | כל match שעבר מ-waiting_for_photo ל-potential_match, או ל-blind_match_candidate |
 
 ### צפייה:
 - Endpoint: `GET /admin/system-activity-log?limit=200&job_type=nudge`

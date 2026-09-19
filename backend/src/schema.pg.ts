@@ -724,6 +724,7 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       answered_at     TIMESTAMPTZ,
       admin_seen      BOOLEAN DEFAULT FALSE,
       admin_seen_at   TIMESTAMPTZ,
+      context         TEXT,
       created_at      TIMESTAMPTZ DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS idx_system_questions_user ON system_questions(user_id);
@@ -1326,4 +1327,15 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       END IF;
     END $$;
   `);
+
+  // Migration: add context column to system_questions (for blind_match auto-consent)
+  try {
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='system_questions' AND column_name='context') THEN
+          ALTER TABLE system_questions ADD COLUMN context TEXT;
+        END IF;
+      END $$;
+    `);
+  } catch (e) { /* column may already exist */ }
 }

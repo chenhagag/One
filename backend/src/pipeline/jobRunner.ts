@@ -23,17 +23,20 @@ import { runUserNudges } from "./userNudges";
 import { runReanalysisScan } from "./reanalysisScan";
 import { promoteAllWaitingMatches } from "./photoMatchPromotion";
 import { runDailyMatching, msUntilNextRun, setReconcileFn } from "./dailyMatching";
+import { runPhotoNudges } from "./photoNudges";
 
 const JOB_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const RECONCILE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const NUDGE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const REANALYSIS_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MATCHING_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const PHOTO_NUDGE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 let intervalHandle: ReturnType<typeof setInterval> | null = null;
 let reconcileHandle: ReturnType<typeof setInterval> | null = null;
 let nudgeHandle: ReturnType<typeof setInterval> | null = null;
 let reanalysisHandle: ReturnType<typeof setInterval> | null = null;
 let matchingHandle: ReturnType<typeof setInterval> | null = null;
+let photoNudgeHandle: ReturnType<typeof setInterval> | null = null;
 
 // ── Job creation ─────────────────────────────────────────────────
 
@@ -324,6 +327,20 @@ export function startJobRunner(): void {
     });
   }, REANALYSIS_INTERVAL_MS);
 
+  // Daily photo nudges (photo request reminders + blind match questions)
+  // Run once on startup after 120s, then every 24h
+  setTimeout(() => {
+    runPhotoNudges().catch(err => {
+      console.error("[jobRunner] Initial photo nudge run error:", err.message);
+    });
+  }, 120000);
+
+  photoNudgeHandle = setInterval(() => {
+    runPhotoNudges().catch(err => {
+      console.error("[jobRunner] Photo nudge run error:", err.message);
+    });
+  }, PHOTO_NUDGE_INTERVAL_MS);
+
   // Daily matching at 4:00 AM Israel time
   const msToFirstRun = msUntilNextRun(4);
   const hoursToFirstRun = Math.round(msToFirstRun / 1000 / 60 / 60 * 10) / 10;
@@ -362,6 +379,10 @@ export function stopJobRunner(): void {
   if (matchingHandle) {
     clearInterval(matchingHandle);
     matchingHandle = null;
+  }
+  if (photoNudgeHandle) {
+    clearInterval(photoNudgeHandle);
+    photoNudgeHandle = null;
   }
   console.log("[jobRunner] Pipeline job runner stopped");
 }
