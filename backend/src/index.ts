@@ -42,6 +42,7 @@ import { trackTokens } from "./tokenTracker";
 import { requireAuth, optionalAuth, requireUserAuth, requireAdmin } from "./auth";
 import { generateInsights as generateInsightsFn } from "./pipeline/generateInsights";
 import { startJobRunner, createJob as createPipelineJob, requeueOrCreateJob as requeueOrCreateJobFn, processPendingJobs as processPendingJobsFn } from "./pipeline/jobRunner";
+import { setReconcileFn } from "./pipeline/dailyMatching";
 import { promoteUserWaitingMatches } from "./pipeline/photoMatchPromotion";
 import { notifyUser, sendPushOnly, registerToken, unregisterToken, syncPermissionStatus, hasPushTokens, notifyMatchCardSent, notifyNewMessage, notifySentForRating, notifyAdminMessage } from "./notifications";
 
@@ -6060,6 +6061,7 @@ app.listen(PORT, () => {
       console.log("[pg] ready");
 
       // Start pipeline job runner (polls for pending completion/photo jobs)
+      setReconcileFn(reconcileMatchStatuses);
       startJobRunner();
     } catch (err: any) {
       console.error("[pg] init failed:", err.message);

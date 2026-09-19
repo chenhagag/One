@@ -22,15 +22,18 @@ import { analyzeUserPhotos } from "./photoAnalysis";
 import { runUserNudges } from "./userNudges";
 import { runReanalysisScan } from "./reanalysisScan";
 import { promoteAllWaitingMatches } from "./photoMatchPromotion";
+import { runDailyMatching, msUntilNextRun, setReconcileFn } from "./dailyMatching";
 
 const JOB_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const RECONCILE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const NUDGE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const REANALYSIS_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const MATCHING_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 let intervalHandle: ReturnType<typeof setInterval> | null = null;
 let reconcileHandle: ReturnType<typeof setInterval> | null = null;
 let nudgeHandle: ReturnType<typeof setInterval> | null = null;
 let reanalysisHandle: ReturnType<typeof setInterval> | null = null;
+let matchingHandle: ReturnType<typeof setInterval> | null = null;
 
 // ── Job creation ─────────────────────────────────────────────────
 
@@ -320,6 +323,23 @@ export function startJobRunner(): void {
       console.error("[jobRunner] Reanalysis scan error:", err.message);
     });
   }, REANALYSIS_INTERVAL_MS);
+
+  // Daily matching at 4:00 AM Israel time
+  const msToFirstRun = msUntilNextRun(4);
+  const hoursToFirstRun = Math.round(msToFirstRun / 1000 / 60 / 60 * 10) / 10;
+  console.log(`[jobRunner] Daily matching scheduled in ${hoursToFirstRun}h`);
+
+  setTimeout(() => {
+    runDailyMatching().catch(err => {
+      console.error("[jobRunner] Daily matching error:", err.message);
+    });
+    // After first run, repeat every 24h
+    matchingHandle = setInterval(() => {
+      runDailyMatching().catch(err => {
+        console.error("[jobRunner] Daily matching error:", err.message);
+      });
+    }, MATCHING_INTERVAL_MS);
+  }, msToFirstRun);
 }
 
 export function stopJobRunner(): void {
@@ -338,6 +358,10 @@ export function stopJobRunner(): void {
   if (reanalysisHandle) {
     clearInterval(reanalysisHandle);
     reanalysisHandle = null;
+  }
+  if (matchingHandle) {
+    clearInterval(matchingHandle);
+    matchingHandle = null;
   }
   console.log("[jobRunner] Pipeline job runner stopped");
 }
