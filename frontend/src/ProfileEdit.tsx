@@ -41,7 +41,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
   const [selectedPhotoId, setSelectedPhotoId] = useState<number | null>(null);
   const [showPhotoConsent, setShowPhotoConsent] = useState(false);
   const [consentProfile, setConsentProfile] = useState(false);
-  const [consentAI, setConsentAI] = useState(false);
+  const [consentAI, setConsentAI] = useState(true);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [photoConsentGiven, setPhotoConsentGiven] = useState(false);
   const [uploading, setUploading] = useState(false);

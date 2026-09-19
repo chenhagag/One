@@ -2949,7 +2949,15 @@ app.post("/admin/requalify-matches", async (_req, res) => {
     );
     let promoted = 0;
     for (const c of toPromote) {
-      const matchStatus = (c.location_expanded || c.age_expanded) ? 'expanded_potential_match' : 'potential_match';
+      let matchStatus = (c.location_expanded || c.age_expanded) ? 'expanded_potential_match' : 'potential_match';
+      // Check if both users have photos — if not, set waiting_for_photo
+      const photoCounts = await pgQueryOne<{ u1: number; u2: number }>(
+        `SELECT
+           (SELECT COUNT(*)::int FROM user_photos WHERE user_id = $1) AS u1,
+           (SELECT COUNT(*)::int FROM user_photos WHERE user_id = $2) AS u2`,
+        [c.user_id, c.candidate_user_id]
+      );
+      if (!photoCounts || photoCounts.u1 < 1 || photoCounts.u2 < 1) matchStatus = 'waiting_for_photo';
       await pgQueryAll(
         `INSERT INTO matches (user1_id, user2_id, match_score, status, location_expanded, age_expanded)
          VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -2983,7 +2991,17 @@ app.post("/admin/candidate-matches/:id/promote", async (req, res) => {
     );
     if (existingMatch) return res.status(400).json({ error: `Match already exists (id=${existingMatch.id})` });
 
-    const matchStatus = targetStatus || ((cm.location_expanded || cm.age_expanded) ? "expanded_potential_match" : "potential_match");
+    let matchStatus = targetStatus || ((cm.location_expanded || cm.age_expanded) ? "expanded_potential_match" : "potential_match");
+    // Check if both users have photos — if not, set waiting_for_photo (unless admin specified a target status)
+    if (!targetStatus) {
+      const photoCounts = await pgQueryOne<{ u1: number; u2: number }>(
+        `SELECT
+           (SELECT COUNT(*)::int FROM user_photos WHERE user_id = $1) AS u1,
+           (SELECT COUNT(*)::int FROM user_photos WHERE user_id = $2) AS u2`,
+        [cm.user_id, cm.candidate_user_id]
+      );
+      if (!photoCounts || photoCounts.u1 < 1 || photoCounts.u2 < 1) matchStatus = 'waiting_for_photo';
+    }
     await pgQueryAll(
       `INSERT INTO matches (user1_id, user2_id, match_score, status, location_expanded, age_expanded)
        VALUES ($1, $2, $3, $4, $5, $6)`,
