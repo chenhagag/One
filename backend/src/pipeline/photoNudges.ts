@@ -37,6 +37,7 @@ interface PhotoNudgeCandidate {
 }
 
 interface PhotoNudgeResult {
+  candidates: number;
   step1: number;
   step2: number;
   step3_reminder: number;
@@ -44,6 +45,7 @@ interface PhotoNudgeResult {
   step4: number;
   blind_promoted: number;
   errors: number;
+  errorDetails: string[];
 }
 
 // ── Gender helper ────────────────────────────────────────────────
@@ -211,7 +213,7 @@ function buildBlindMatchQuestion(name: string, gender: string | null): string {
 
 // ── Step 1: Set admin_message + send notification ────────────────
 
-async function sendStep1(user: PhotoNudgeCandidate): Promise<boolean> {
+async function sendStep1(user: PhotoNudgeCandidate): Promise<true | string> {
   const otherHas = await otherSideHasPhoto(user.user_id);
   const message = buildPhotoRequestMessage(user.gender, user.looking_for_gender, otherHas);
 
@@ -250,15 +252,15 @@ async function sendStep1(user: PhotoNudgeCandidate): Promise<boolean> {
       logActivity("nudge", user.user_id, name, "photo_request_1", `${res.channel}`).catch(() => {});
       return true;
     }
+    return `step1 notify failed: ${res.error || res.channel}`;
   } catch (err: any) {
-    console.error(`[photoNudges] Step 1 error for user ${user.user_id}:`, err.message);
+    return `step1 exception: ${err.message}`;
   }
-  return false;
 }
 
 // ── Steps 2-4: Send reminder notification ────────────────────────
 
-async function sendReminder(user: PhotoNudgeCandidate, stepNumber: number): Promise<boolean> {
+async function sendReminder(user: PhotoNudgeCandidate, stepNumber: number): Promise<true | string> {
   const name = user.first_name || "";
   const g = (m: string, f: string) => gn(user.gender, m, f);
 
@@ -275,15 +277,15 @@ async function sendReminder(user: PhotoNudgeCandidate, stepNumber: number): Prom
       logActivity("nudge", user.user_id, name, `photo_request_${stepNumber}`, `${res.channel}`).catch(() => {});
       return true;
     }
+    return `step${stepNumber} notify failed: ${res.error || res.channel}`;
   } catch (err: any) {
-    console.error(`[photoNudges] Step ${stepNumber} error for user ${user.user_id}:`, err.message);
+    return `step${stepNumber} exception: ${err.message}`;
   }
-  return false;
 }
 
 // ── Step 3b: Send blind match question ──────────────────────────
 
-async function sendBlindMatchQuestion(user: PhotoNudgeCandidate): Promise<boolean> {
+async function sendBlindMatchQuestion(user: PhotoNudgeCandidate): Promise<true | string> {
   const name = user.first_name || "";
   const questionText = buildBlindMatchQuestion(name, user.gender);
 
@@ -319,10 +321,10 @@ async function sendBlindMatchQuestion(user: PhotoNudgeCandidate): Promise<boolea
       logActivity("nudge", user.user_id, name, "photo_blind_question", `${res.channel}`).catch(() => {});
       return true;
     }
+    return `blind_question notify failed: ${res.error || res.channel}`;
   } catch (err: any) {
-    console.error(`[photoNudges] Blind question error for user ${user.user_id}:`, err.message);
+    return `blind_question exception: ${err.message}`;
   }
-  return false;
 }
 
 function buildBlindQuestionEmail(name: string, gender: string | null, questionText: string): string {
@@ -389,8 +391,8 @@ async function promoteBlindMatchPairs(): Promise<number> {
 
 export async function runPhotoNudges(force = false): Promise<PhotoNudgeResult> {
   const result: PhotoNudgeResult = {
-    step1: 0, step2: 0, step3_reminder: 0, step3_blind: 0, step4: 0,
-    blind_promoted: 0, errors: 0,
+    candidates: 0, step1: 0, step2: 0, step3_reminder: 0, step3_blind: 0, step4: 0,
+    blind_promoted: 0, errors: 0, errorDetails: [],
   };
 
   // Only run in production (unless forced by admin)
@@ -419,6 +421,8 @@ export async function runPhotoNudges(force = false): Promise<PhotoNudgeResult> {
       AND COALESCE(u.email, '') NOT LIKE '%@test.com'
   `);
 
+  result.candidates = candidates.length;
+
   for (const user of candidates) {
     try {
       // Double-check: user still has no photos
@@ -433,54 +437,48 @@ export async function runPhotoNudges(force = false): Promise<PhotoNudgeResult> {
       const { step, lastSentAt, blindQuestionSent } = await getPhotoNudgeStep(user.user_id);
 
       // Flow completed + 14 days passed → can restart
+      // Helper: track send result
+      const track = (res: true | string, successKey: keyof PhotoNudgeResult) => {
+        if (res === true) { (result as any)[successKey]++; }
+        else {
+          result.errors++;
+          result.errorDetails.push(`user ${user.user_id} (${user.first_name || "?"}): ${res}`);
+        }
+      };
+
       if (step >= 4 || (blindQuestionSent && step >= 3)) {
         if (lastSentAt && daysSince(lastSentAt) >= 14) {
-          // Restart: treat as step 0
           if (await hasQualifyingMatch(user.user_id)) {
-            if (await sendStep1(user)) result.step1++;
-            else result.errors++;
+            track(await sendStep1(user), "step1");
           }
         }
         continue;
       }
 
       if (step === 0 && manualRequest?.photo_request_sent_at) {
-        // Admin already sent manually — treat as step 1 done, use manual date for timing
-        // Continue to step 2+ based on manual send date
         const manualDate = new Date(manualRequest.photo_request_sent_at);
         if (daysSince(manualDate) >= 2) {
-          if (await sendReminder(user, 2)) result.step2++;
-          else result.errors++;
+          track(await sendReminder(user, 2), "step2");
         }
-        // else: not enough time passed since manual send, skip
       } else if (step === 0) {
-        // Not started: send step 1
-        if (await sendStep1(user)) result.step1++;
-        else result.errors++;
+        track(await sendStep1(user), "step1");
       } else if (step === 1 && lastSentAt && daysSince(lastSentAt) >= 2) {
-        // Step 1 done, 2+ days passed: send step 2
-        if (await sendReminder(user, 2)) result.step2++;
-        else result.errors++;
+        track(await sendReminder(user, 2), "step2");
       } else if (step === 2 && lastSentAt && daysSince(lastSentAt) >= 3) {
-        // Step 2 done, check path
         const bothNoPhoto = await hasBothSidesNoPhotoMatch(user.user_id);
         if (bothNoPhoto && daysSince(lastSentAt) >= 3) {
-          // Both sides no photo → blind match question (day 5 from start)
-          if (await sendBlindMatchQuestion(user)) result.step3_blind++;
-          else result.errors++;
+          track(await sendBlindMatchQuestion(user), "step3_blind");
         } else if (daysSince(lastSentAt) >= 5) {
-          // One side has photo → reminder (day 7 from start)
-          if (await sendReminder(user, 3)) result.step3_reminder++;
-          else result.errors++;
+          track(await sendReminder(user, 3), "step3_reminder");
         }
       } else if (step === 3 && !blindQuestionSent && lastSentAt && daysSince(lastSentAt) >= 7) {
-        // Step 3a done (reminder path), 7+ days passed → last reminder (day 14)
-        if (await sendReminder(user, 4)) result.step4++;
-        else result.errors++;
+        track(await sendReminder(user, 4), "step4");
       }
     } catch (err: any) {
-      console.error(`[photoNudges] Error processing user ${user.user_id}:`, err.message);
+      const detail = `user ${user.user_id} (${user.first_name || "?"}): ${err.message}`;
+      console.error(`[photoNudges] Error processing ${detail}`);
       result.errors++;
+      result.errorDetails.push(detail);
     }
   }
 
@@ -492,7 +490,8 @@ export async function runPhotoNudges(force = false): Promise<PhotoNudgeResult> {
   }
 
   const total = result.step1 + result.step2 + result.step3_reminder + result.step3_blind + result.step4;
-  const summary = `candidates: ${candidates.length}, sent: ${total}, blind_promoted: ${result.blind_promoted}, errors: ${result.errors}`;
+  const errorSummary = result.errorDetails.length > 0 ? ` | errors: ${result.errorDetails.join("; ")}` : "";
+  const summary = `candidates: ${result.candidates}, sent: ${total}, blind_promoted: ${result.blind_promoted}, errors: ${result.errors}${errorSummary}`;
 
   console.log(
     `[photoNudges] Done. Step1: ${result.step1}, Step2: ${result.step2}, ` +
