@@ -30,10 +30,17 @@
 
 ---
 
-## 2. Photo Reconciliation
+## 2. Photo Reconciliation + Match Promotion
 
-**תזמון**: יומי (כל 24 שעות)
-**מה עושה**: סורק משתמשים עם `photo_ai_consent = TRUE` + `analysis_run_count >= 2` + תמונות שלא נותחו → יוצר `photo_analysis` jobs
+**תזמון**: יומי (כל 24 שעות, 30 שניות אחרי boot)
+**מה עושה**: שני תהליכים שרצים יחד:
+
+### 2a. Photo Analysis Reconciliation
+סורק משתמשים עם `photo_ai_consent = TRUE` + `analysis_run_count >= 2` + תמונות שלא נותחו → יוצר `photo_analysis` jobs
+
+### 2b. Photo Match Promotion (`pipeline/photoMatchPromotion.ts`)
+סורק matches בסטטוס `waiting_for_photo` — אם לשני הצדדים יש תמונות → מקדם ל-`potential_match`.
+גם נקרא מ-photo upload endpoint (תגובה מיידית) וגם מ-`reconcileMatchStatuses()` (בעת requalify).
 
 ---
 
@@ -122,6 +129,44 @@
 ### TODO עתידי:
 - כשייבנה פרומפט "מידע והעדפות כלליות" → יחליף את קבוצת `"general"` ב-qa_refine
 - AI intent detection — סיווג חכם של כל הודעה (איזו קבוצת traits מושפעת, ~$0.001/הודעה)
+
+---
+
+## 7. Match Photo Status (`reconcileMatchStatuses` + photo upload)
+
+**תזמון**: event-triggered (בכל requalify / reconcile + photo upload)
+**מה עושה**: שני כיוונים:
+
+### הורדה: potential_match → waiting_for_photo
+- `reconcileMatchStatuses()` בודק matches קיימים בסטטוס `potential_match` / `expanded_potential_match`
+- אם לאחד הצדדים אין תמונות → מוריד ל-`waiting_for_photo`
+- גם ביצירת match חדש (batch + individual promote) — בודק תמונות לפני INSERT
+
+### קידום: waiting_for_photo → potential_match
+- Photo upload endpoint קורא ל-`promoteUserWaitingMatches(userId)` מיד אחרי העלאה
+- Daily reconciliation job רץ `promoteAllWaitingMatches()` כ-safety net
+- כל קידום מתועד ב-`system_activity_log`
+
+---
+
+## 8. System Activity Log (`pipeline/activityLog.ts`)
+
+**תזמון**: passive (נכתב ע"י שאר ה-jobs)
+**מה עושה**: לוג מאוחד לכל הפעולות האוטומטיות
+
+### טבלה: `system_activity_log`
+`id, job_type, user_id, user_name, action, details, created_at`
+
+### מי כותב:
+| job_type | מתי |
+|----------|------|
+| `reanalysis` | כל ניתוח מחדש (חלקי או מלא) |
+| `nudge` | כל nudge שנשלח בהצלחה (welcome / not_started / incomplete + ערוץ) |
+| `photo_promotion` | כל match שעבר מ-waiting_for_photo ל-potential_match |
+
+### צפייה:
+- Endpoint: `GET /admin/system-activity-log?limit=200&job_type=nudge`
+- טאב "לוג מערכת" באדמין — מקובץ לפי תאריך, סינון לפי סוג
 
 ---
 

@@ -94,6 +94,9 @@
 | Auto-analysis | event | Run #1 בסיום צ'אט כללי, Run #2 בסיום הכל |
 | Summarizer | event | כל 8 הודעות → שליפת מידע מובנה |
 | Reanalysis scan | יומי | בדיקת qa_about_me + qa_refine → reanalysis |
+| Photo match promotion | יומי + event | waiting_for_photo → potential_match כשיש תמונות |
+| Match photo check | event (requalify) | potential_match → waiting_for_photo כשחסרה תמונה |
+| System activity log | passive | לוג מאוחד לכל הפעולות האוטומטיות |
 
 ---
 
@@ -181,6 +184,7 @@ WHERE id = $4
 | `POST /admin/users/:id/pipeline-action` | פעולות pipeline |
 | `POST /admin/users/:id/update-checklist` | עדכון צ'קליסט |
 | `POST /admin/users/:id/reanalyze` | הרצת ניתוח |
+| `GET /admin/system-activity-log` | לוג מערכת (פעולות אוטומטיות) |
 
 ---
 
@@ -193,6 +197,8 @@ WHERE id = $4
 - [x] **תיעוד** — insights-writing-guide.md, User Management Agent.md, System Jobs.md, CLAUDE.md מעודכן
 - [x] **אפיון reanalysis** — לוגיקה מוגדרת, חלוקה ברורה בין לוגיקת מערכת לסוכן
 - [x] **Reanalysis Scan** — `pipeline/reanalysisScan.ts`, cron יומי ב-jobRunner. qa_about_me (5-7→mbti, 8+→מלא), qa_refine (3-7→general, 8+→מלא). backfill + concurrency guard + last_analysis_at בכל endpoints
+- [x] **System Activity Log** — טבלת `system_activity_log` + helper `activityLog.ts` + טאב "לוג מערכת" באדמין. nudges + reanalysis + photo promotion מתועדים
+- [x] **Photo Match Management** — waiting_for_photo אוטומטי ביצירת match + reconcile. קידום ל-potential_match כשתמונות מועלות. סקשן "חסרים מאפיינים חיצוניים" ב-admin pipeline עם כפתור "טופל"
 
 ### הבא בתור
 - [ ] **בדיקת תובנות אחרי reanalysis** — סוכן ניהול (Claude):
