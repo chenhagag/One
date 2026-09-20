@@ -6997,6 +6997,7 @@ function SystemActivityLogTab() {
     photo_nudge_run: "📋",
     message_nudge_run: "💬",
     system_question: "❓",
+    rating_nudge_run: "⭐",
   };
 
   const formatTime = (d: string) => {
@@ -7041,6 +7042,18 @@ function SystemActivityLogTab() {
           }}
           style={{ fontSize: 11, padding: "4px 10px", cursor: "pointer", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 6 }}
         >▶ הרץ message nudges</button>
+        <button
+          onClick={async () => {
+            if (!confirm("להריץ rating nudges עכשיו?")) return;
+            try {
+              const res = await apiFetch("/admin/run-rating-nudges", { method: "POST" });
+              const data = await res.json();
+              alert(`סיום: ${JSON.stringify(data.result || data.error)}`);
+              loadLog();
+            } catch (err: any) { alert("שגיאה: " + err.message); }
+          }}
+          style={{ fontSize: 11, padding: "4px 10px", cursor: "pointer", background: "#f59e0b", color: "#fff", border: "none", borderRadius: 6 }}
+        >▶ הרץ rating nudges</button>
       </div>
 
       <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>

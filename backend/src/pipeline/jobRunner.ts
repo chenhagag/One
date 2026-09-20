@@ -25,6 +25,7 @@ import { promoteAllWaitingMatches } from "./photoMatchPromotion";
 import { runDailyMatching, msUntilNextRun, setReconcileFn } from "./dailyMatching";
 import { runPhotoNudges } from "./photoNudges";
 import { runMessageNudges } from "./messageNudges";
+import { runRatingNudges } from "./ratingNudges";
 
 const JOB_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const RECONCILE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -33,6 +34,7 @@ const REANALYSIS_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MATCHING_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const PHOTO_NUDGE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MESSAGE_NUDGE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const RATING_NUDGE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 let intervalHandle: ReturnType<typeof setInterval> | null = null;
 let reconcileHandle: ReturnType<typeof setInterval> | null = null;
 let nudgeHandle: ReturnType<typeof setInterval> | null = null;
@@ -40,6 +42,7 @@ let reanalysisHandle: ReturnType<typeof setInterval> | null = null;
 let matchingHandle: ReturnType<typeof setInterval> | null = null;
 let photoNudgeHandle: ReturnType<typeof setInterval> | null = null;
 let messageNudgeHandle: ReturnType<typeof setInterval> | null = null;
+let ratingNudgeHandle: ReturnType<typeof setInterval> | null = null;
 
 // ── Job creation ─────────────────────────────────────────────────
 
@@ -338,6 +341,12 @@ export function startJobRunner(): void {
         console.error("[jobRunner] Message nudge run error:", err.message);
       });
     }, 60000);
+    // Rating nudges 90s later
+    setTimeout(() => {
+      runRatingNudges().catch(err => {
+        console.error("[jobRunner] Rating nudge run error:", err.message);
+      });
+    }, 90000);
 
     // Repeat every 24h
     photoNudgeHandle = setInterval(() => {
@@ -355,6 +364,11 @@ export function startJobRunner(): void {
         console.error("[jobRunner] Message nudge run error:", err.message);
       });
     }, MESSAGE_NUDGE_INTERVAL_MS);
+    ratingNudgeHandle = setInterval(() => {
+      runRatingNudges().catch(err => {
+        console.error("[jobRunner] Rating nudge run error:", err.message);
+      });
+    }, RATING_NUDGE_INTERVAL_MS);
   }, msToNudges);
 
   // Daily matching at 4:00 AM Israel time
@@ -403,6 +417,10 @@ export function stopJobRunner(): void {
   if (messageNudgeHandle) {
     clearInterval(messageNudgeHandle);
     messageNudgeHandle = null;
+  }
+  if (ratingNudgeHandle) {
+    clearInterval(ratingNudgeHandle);
+    ratingNudgeHandle = null;
   }
   console.log("[jobRunner] Pipeline job runner stopped");
 }

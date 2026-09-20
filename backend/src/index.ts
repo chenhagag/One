@@ -3580,6 +3580,16 @@ app.post("/matches/:id/rate", requireAuth, async (req, res) => {
     } else {
       // User rated positively → they're done, unfreeze their other matches
       await unfreezeUserMatchesSafe(user_id, match.id);
+
+      // Auto-send rating to the other side
+      const otherUserId = user_id === match.user1_id ? match.user2_id : match.user1_id;
+      await pgQueryAll(
+        "UPDATE matches SET sent_for_rating_at = NOW(), sent_for_rating_to = $1, updated_at = NOW() WHERE id = $2",
+        [otherUserId, match.id]
+      );
+      await freezeUserMatches(otherUserId, match.id);
+      notifySentForRating(otherUserId).catch(() => {});
+      console.log(`[rating] Auto-sent rating to other side: user ${otherUserId} for match #${match.id}`);
     }
     return res.json({ match_id: match.id, new_status: newStatus, rated_by: user_id });
   }
@@ -4693,10 +4703,22 @@ app.post("/admin/run-photo-nudges", async (_req, res) => {
 app.post("/admin/run-message-nudges", async (_req, res) => {
   try {
     const { runMessageNudges } = require("./pipeline/messageNudges");
-    const result = await runMessageNudges(true); // pass force=true to skip env check
+    const result = await runMessageNudges(true);
     return res.json({ success: true, result });
   } catch (err: any) {
     console.error("[admin] Manual message nudge run error:", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /admin/run-rating-nudges — Manually trigger rating nudge run
+app.post("/admin/run-rating-nudges", async (_req, res) => {
+  try {
+    const { runRatingNudges } = require("./pipeline/ratingNudges");
+    const result = await runRatingNudges(true);
+    return res.json({ success: true, result });
+  } catch (err: any) {
+    console.error("[admin] Manual rating nudge run error:", err.message);
     return res.status(500).json({ error: err.message });
   }
 });
