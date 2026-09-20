@@ -5022,7 +5022,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                           method: "PATCH", headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({
                             admin_message: text,
-                            admin_message_type: "question",
+                            admin_message_type: "conversation",
                             admin_message_match_id: matchDetail.match_id,
                           }),
                         });
@@ -6192,6 +6192,8 @@ function OutreachLogTab() {
 
   const filteredQuestions = questionFilter === "pending"
     ? questions.filter(q => !q.answer)
+    : questionFilter === "answered"
+    ? questions.filter(q => !!q.answer)
     : questions;
 
   const filteredNudges = nudgeFilter === "pending"
@@ -6261,7 +6263,10 @@ function OutreachLogTab() {
       {/* Section 2: System Questions */}
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-          <h3 style={{ margin: 0 }}>שאלות מערכת ({filteredQuestions.length})</h3>
+          {(() => {
+            const unseenAnswers = questions.filter((q: any) => q.answer && !q.admin_seen).length;
+            return <h3 style={{ margin: 0 }}>שאלות מערכת ({filteredQuestions.length}){unseenAnswers > 0 && <span style={{ marginRight: 8, background: "#dc2626", color: "#fff", borderRadius: 20, padding: "2px 8px", fontSize: 12, fontWeight: 700 }}>{unseenAnswers} תשובות חדשות</span>}</h3>;
+          })()}
           <button
             style={{ ...s.tab, ...(questionFilter === "all" ? s.tabActive : {}), padding: "4px 10px", fontSize: 12 }}
             onClick={() => setQuestionFilter("all")}
@@ -6270,6 +6275,10 @@ function OutreachLogTab() {
             style={{ ...s.tab, ...(questionFilter === "pending" ? s.tabActive : {}), padding: "4px 10px", fontSize: 12 }}
             onClick={() => setQuestionFilter("pending")}
           >ממתינים</button>
+          <button
+            style={{ ...s.tab, ...(questionFilter === "answered" ? s.tabActive : {}), padding: "4px 10px", fontSize: 12 }}
+            onClick={() => setQuestionFilter("answered" as any)}
+          >ענו</button>
         </div>
         <div style={s.scrollWrap}>
           <table style={s.table}>
@@ -6287,8 +6296,9 @@ function OutreachLogTab() {
             <tbody>
               {filteredQuestions.map((q: any) => {
                 const seen = q.user_last_visit && q.created_at && new Date(q.user_last_visit) > new Date(q.created_at);
+                const hasUnseenAnswer = q.answer && !q.admin_seen;
                 return (
-                <tr key={q.id}>
+                <tr key={q.id} style={hasUnseenAnswer ? { background: "#fef3c7" } : undefined}>
                   <td style={s.td}>{q.first_name} ({q.user_id})</td>
                   <td style={{ ...s.td, maxWidth: 300, whiteSpace: "normal", wordBreak: "break-word" }}>{q.question_text}</td>
                   <td style={{ ...s.td, whiteSpace: "nowrap" }}>{fmtDate(q.created_at)}</td>
@@ -6296,6 +6306,15 @@ function OutreachLogTab() {
                   <td style={{ ...s.td, whiteSpace: "nowrap" }}>{fmtDate(q.answered_at)}</td>
                   <td style={s.td}>{seen ? <span style={{ color: "#16a34a", fontWeight: 600, fontSize: 12 }}>נכנס/ה ✓</span> : <span style={{ color: "#9ca3af", fontSize: 12 }}>לא נכנס/ה</span>}</td>
                   <td style={s.td}>
+                    {hasUnseenAnswer && (
+                      <button
+                        style={{ padding: "2px 8px", fontSize: 11, border: "1px solid #d1d5db", borderRadius: 4, cursor: "pointer", background: "#fff", color: "#374151", marginLeft: 4 }}
+                        onClick={async () => {
+                          await apiFetch(`/admin/system-questions/${q.id}/mark-seen`, { method: "POST" });
+                          setQuestions(prev => prev.map((x: any) => x.id === q.id ? { ...x, admin_seen: true } : x));
+                        }}
+                      >ראיתי</button>
+                    )}
                     <span style={{ cursor: "pointer", fontSize: 11, opacity: 0.5, marginLeft: 6 }} onClick={async () => {
                       if (!confirm(`למחוק את השאלה "${q.question_text.substring(0, 40)}..."?`)) return;
                       await apiFetch(`/admin/system-questions/${q.id}`, { method: "DELETE" });
@@ -6977,6 +6996,7 @@ function SystemActivityLogTab() {
     photo_promotion: "📸",
     photo_nudge_run: "📋",
     message_nudge_run: "💬",
+    system_question: "❓",
   };
 
   const formatTime = (d: string) => {

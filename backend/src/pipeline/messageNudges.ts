@@ -274,7 +274,7 @@ export async function runMessageNudges(force = false): Promise<MessageNudgeResul
     }
   }
 
-  // ─── Part 2: Unanswered admin_messages (type=question) ──────
+  // ─── Part 2: Unanswered admin_messages (type=conversation) ──
 
   const unansweredMessages = await pgQueryAll<UnansweredAdminMessage>(`
     SELECT u.id AS user_id, u.admin_message, u.admin_message_match_id,
@@ -282,7 +282,7 @@ export async function runMessageNudges(force = false): Promise<MessageNudgeResul
     FROM users u
     WHERE u.admin_message IS NOT NULL
       AND u.admin_message != ''
-      AND u.admin_message_type = 'question'
+      AND u.admin_message_type IN ('question', 'conversation')
       AND u.admin_message_dismissed = FALSE
       AND u.admin_message_responded_at IS NULL
       AND u.admin_message_sent_at IS NOT NULL

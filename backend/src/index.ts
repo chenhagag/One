@@ -45,6 +45,7 @@ import { startJobRunner, createJob as createPipelineJob, requeueOrCreateJob as r
 import { setReconcileFn } from "./pipeline/dailyMatching";
 import { promoteUserWaitingMatches } from "./pipeline/photoMatchPromotion";
 import { notifyUser, sendPushOnly, registerToken, unregisterToken, syncPermissionStatus, hasPushTokens, notifyMatchCardSent, notifyNewMessage, notifySentForRating, notifyAdminMessage, notifySystemQuestion } from "./notifications";
+import { logActivity } from "./pipeline/activityLog";
 
 dotenv.config();
 
@@ -4669,6 +4670,10 @@ app.post("/admin/users/:id/system-question", async (req, res) => {
     console.error("[system-question] notification error:", err.message)
   );
 
+  // Log to activity log
+  const userName = (await pgQueryOne<{ first_name: string }>("SELECT first_name FROM users WHERE id = $1", [userId]))?.first_name || "?";
+  logActivity("system_question", userId, userName, "sent", `שאלה: "${question_text.substring(0, 60)}"${match_id ? ` (match #${match_id})` : ""}`).catch(() => {});
+
   return res.json(row);
 });
 
@@ -5118,8 +5123,8 @@ app.post("/system-question/answer", requireAuth, async (req: any, res) => {
   );
 
   // If this is a blind_match question and answer is positive → update consent
-  const questionData = await pgQueryOne<{ user_id: number; context: string | null }>(
-    "SELECT user_id, context FROM system_questions WHERE id = $1",
+  const questionData = await pgQueryOne<{ user_id: number; context: string | null; question_text: string }>(
+    "SELECT user_id, context, question_text FROM system_questions WHERE id = $1",
     [question_id]
   );
   if (questionData?.context === "blind_match" && (answer === "כן אין בעיה" || answer === "אפשרי")) {
@@ -5128,6 +5133,12 @@ app.post("/system-question/answer", requireAuth, async (req: any, res) => {
       [questionData.user_id]
     );
     console.log(`[system-question] User ${questionData.user_id} consented to blind match via system question`);
+  }
+
+  // Log answer to activity log
+  if (questionData) {
+    const userName = (await pgQueryOne<{ first_name: string }>("SELECT first_name FROM users WHERE id = $1", [questionData.user_id]))?.first_name || "?";
+    logActivity("system_question", questionData.user_id, userName, "answered", `תשובה: "${answer}" | שאלה: "${questionData.question_text.substring(0, 60)}"`).catch(() => {});
   }
 
   return res.json({ ok: true });
