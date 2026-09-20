@@ -4943,6 +4943,99 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
               </div>
             )}
 
+            {/* Questions/messages from match */}
+            {matchDetail.match_id && (
+              <div style={{ border: "1px solid #dbeafe", borderRadius: 8, padding: 16, marginBottom: 16, background: "#f0f7ff" }}>
+                <h4 style={{ margin: "0 0 12px", color: "#1e40af" }}>❓ שאלות/הודעות מתוך ההתאמה</h4>
+
+                {/* Existing match-linked questions */}
+                {(matchDetail.match_questions || []).length > 0 && (
+                  <div style={{ marginBottom: 12 }}>
+                    {(matchDetail.match_questions || []).map((q: any) => (
+                      <div key={q.id} style={{ padding: "8px 12px", marginBottom: 6, borderRadius: 6, background: q.answer ? "#dcfce7" : "#fff", border: `1px solid ${q.answer ? "#86efac" : "#e5e7eb"}`, fontSize: 12 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                          <span style={{ fontWeight: 600, color: "#1e40af" }}>שאלה סגורה ← {q.user_name}</span>
+                          <span style={{ color: "#9ca3af", fontSize: 11 }}>{new Date(q.created_at).toLocaleDateString("he-IL")}</span>
+                        </div>
+                        <p style={{ margin: "0 0 4px", color: "#374151" }}>{q.question_text}</p>
+                        {q.answer ? (
+                          <span style={{ fontWeight: 600, color: "#16a34a" }}>תשובה: {q.answer}</span>
+                        ) : (
+                          <span style={{ color: "#f59e0b", fontWeight: 600 }}>ממתין לתשובה</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Existing match-linked admin messages (open questions) */}
+                {(matchDetail.match_messages || []).length > 0 && (
+                  <div style={{ marginBottom: 12 }}>
+                    {(matchDetail.match_messages || []).map((m: any) => (
+                      <div key={m.id} style={{ padding: "8px 12px", marginBottom: 6, borderRadius: 6, background: m.admin_message_responded_at ? "#dcfce7" : "#fff", border: `1px solid ${m.admin_message_responded_at ? "#86efac" : "#e5e7eb"}`, fontSize: 12 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                          <span style={{ fontWeight: 600, color: "#6366f1" }}>שאלה פתוחה ← {m.first_name}</span>
+                          <span style={{ color: "#9ca3af", fontSize: 11 }}>{m.admin_message_sent_at ? new Date(m.admin_message_sent_at).toLocaleDateString("he-IL") : ""}</span>
+                        </div>
+                        <p style={{ margin: "0 0 4px", color: "#374151" }}>{m.admin_message}</p>
+                        {m.admin_message_responded_at ? (
+                          <span style={{ fontWeight: 600, color: "#16a34a" }}>הגיב/ה בשיחה ({new Date(m.admin_message_responded_at).toLocaleDateString("he-IL")})</span>
+                        ) : m.admin_message_dismissed ? (
+                          <span style={{ color: "#6b7280" }}>סימנ/ה כנקרא</span>
+                        ) : (
+                          <span style={{ color: "#f59e0b", fontWeight: 600 }}>ממתין לתשובה</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Send buttons */}
+                {[
+                  { userId: matchDetail.user_id, name: matchDetail.user1_name, gender: matchDetail.user1_gender },
+                  { userId: matchDetail.candidate_user_id, name: matchDetail.user2_name, gender: matchDetail.user2_gender },
+                ].map(u => (
+                  <div key={u.userId} style={{ marginBottom: 10, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "#1e40af", minWidth: 60 }}>{u.name}:</span>
+                    <button
+                      style={{ padding: "4px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#3b82f6", color: "#fff" }}
+                      onClick={async () => {
+                        const text = prompt(`שאלה סגורה ל${u.name}:`);
+                        if (!text) return;
+                        const optionsStr = prompt("אופציות (מופרדות בפסיק, ריק = ברירת מחדל):", "כן אין בעיה, אפשרי, לא");
+                        const options = optionsStr?.trim() ? optionsStr.split(",").map(s => s.trim()).filter(Boolean) : null;
+                        await apiFetch(`/admin/users/${u.userId}/system-question`, {
+                          method: "POST", headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ question_text: text, match_id: matchDetail.match_id, options }),
+                        });
+                        setMatchDetail((prev: any) => prev ? { ...prev, match_status: "waiting_for_response" } : prev);
+                        load();
+                        alert("השאלה נשלחה + notification!");
+                      }}
+                    >שאלה סגורה</button>
+                    <button
+                      style={{ padding: "4px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#6366f1", color: "#fff" }}
+                      onClick={async () => {
+                        const text = prompt(`הודעה/שאלה פתוחה ל${u.name}:`);
+                        if (!text) return;
+                        await apiFetch(`/admin/users/${u.userId}`, {
+                          method: "PATCH", headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            admin_message: text,
+                            admin_message_type: "question",
+                            admin_message_match_id: matchDetail.match_id,
+                          }),
+                        });
+                        setMatchDetail((prev: any) => prev ? { ...prev, match_status: "waiting_for_response" } : prev);
+                        load();
+                        alert("ההודעה נשלחה + notification!");
+                      }}
+                    >שאלה פתוחה</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Editable notes */}
             <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16 }}>
               <h4 style={{ margin: "0 0 8px" }}>הערות על ההתאמה</h4>
@@ -6883,6 +6976,7 @@ function SystemActivityLogTab() {
     photo_analysis: "📷",
     photo_promotion: "📸",
     photo_nudge_run: "📋",
+    message_nudge_run: "💬",
   };
 
   const formatTime = (d: string) => {
@@ -6915,6 +7009,18 @@ function SystemActivityLogTab() {
           }}
           style={{ fontSize: 11, padding: "4px 10px", cursor: "pointer", background: "#7b5fa3", color: "#fff", border: "none", borderRadius: 6 }}
         >▶ הרץ photo nudges</button>
+        <button
+          onClick={async () => {
+            if (!confirm("להריץ message nudges עכשיו?")) return;
+            try {
+              const res = await apiFetch("/admin/run-message-nudges", { method: "POST" });
+              const data = await res.json();
+              alert(`סיום: ${JSON.stringify(data.result || data.error)}`);
+              loadLog();
+            } catch (err: any) { alert("שגיאה: " + err.message); }
+          }}
+          style={{ fontSize: 11, padding: "4px 10px", cursor: "pointer", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 6 }}
+        >▶ הרץ message nudges</button>
       </div>
 
       <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>

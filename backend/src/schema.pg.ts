@@ -1338,4 +1338,29 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       END $$;
     `);
   } catch (e) { /* column may already exist */ }
+
+  // Migration: add match_id + options columns to system_questions
+  try {
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='system_questions' AND column_name='match_id') THEN
+          ALTER TABLE system_questions ADD COLUMN match_id INTEGER REFERENCES matches(id);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='system_questions' AND column_name='options') THEN
+          ALTER TABLE system_questions ADD COLUMN options JSONB;
+        END IF;
+      END $$;
+    `);
+  } catch (e) { /* columns may already exist */ }
+
+  // Migration: add admin_message_match_id to users (links open question to a match)
+  try {
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='admin_message_match_id') THEN
+          ALTER TABLE users ADD COLUMN admin_message_match_id INTEGER REFERENCES matches(id);
+        END IF;
+      END $$;
+    `);
+  } catch (e) { /* column may already exist */ }
 }

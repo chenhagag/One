@@ -44,7 +44,7 @@ import { generateInsights as generateInsightsFn } from "./pipeline/generateInsig
 import { startJobRunner, createJob as createPipelineJob, requeueOrCreateJob as requeueOrCreateJobFn, processPendingJobs as processPendingJobsFn } from "./pipeline/jobRunner";
 import { setReconcileFn } from "./pipeline/dailyMatching";
 import { promoteUserWaitingMatches } from "./pipeline/photoMatchPromotion";
-import { notifyUser, sendPushOnly, registerToken, unregisterToken, syncPermissionStatus, hasPushTokens, notifyMatchCardSent, notifyNewMessage, notifySentForRating, notifyAdminMessage } from "./notifications";
+import { notifyUser, sendPushOnly, registerToken, unregisterToken, syncPermissionStatus, hasPushTokens, notifyMatchCardSent, notifyNewMessage, notifySentForRating, notifyAdminMessage, notifySystemQuestion } from "./notifications";
 
 dotenv.config();
 
@@ -2045,7 +2045,7 @@ app.patch("/admin/users/:id", async (req, res) => {
     "email_updates", "whatsapp_updates", "whatsapp_phone", "in_matching_pool",
     "marital_status", "has_children", "religion", "smoker", "admin_message", "admin_notes", "admin_location_override",
     "match_card_consent", "match_card_restrictions", "photo_request_sent_at",
-    "agent_context", "admin_message_type", "blind_match_consent",
+    "agent_context", "admin_message_type", "blind_match_consent", "admin_message_match_id",
   ];
   const updates: string[] = [];
   const values: any[] = [];
@@ -2098,7 +2098,16 @@ app.patch("/admin/users/:id", async (req, res) => {
   // Notify user when admin sets a new message/question (non-blocking)
   if ("admin_message" in req.body && req.body.admin_message) {
     const msgType = req.body.admin_message_type || "info";
-    notifyAdminMessage(userId, msgType, req.body.admin_message).catch(() => {});
+    const matchLinked = !!req.body.admin_message_match_id;
+    notifyAdminMessage(userId, msgType, req.body.admin_message, matchLinked).catch(() => {});
+
+    // Auto-set match status to waiting_for_response when linked to a match
+    if (req.body.admin_message_match_id) {
+      pgQueryAll(
+        `UPDATE matches SET status = 'waiting_for_response', updated_at = NOW() WHERE id = $1`,
+        [req.body.admin_message_match_id]
+      ).catch(() => {});
+    }
   }
 
   const updated = await pgQueryOne<any>("SELECT * FROM users WHERE id = $1", [userId]);
@@ -3717,6 +3726,28 @@ app.get("/admin/candidate-matches/:id/detail", async (req, res) => {
     [cm.match_id]
   ) : [];
 
+  // Get match-linked questions (system_questions with match_id)
+  const matchQuestions = cm.match_id ? await pgQueryAll<any>(
+    `SELECT sq.id, sq.user_id, sq.question_text, sq.answer, sq.answered_at, sq.created_at, sq.options,
+            u.first_name as user_name
+     FROM system_questions sq JOIN users u ON u.id = sq.user_id
+     WHERE sq.match_id = $1 ORDER BY sq.created_at DESC`,
+    [cm.match_id]
+  ) : [];
+
+  // Get match-linked admin messages (open questions)
+  const matchMessages: any[] = [];
+  if (cm.match_id) {
+    for (const uid of [cm.user_id, cm.candidate_user_id]) {
+      const u = await pgQueryOne<any>(
+        `SELECT id, first_name, admin_message, admin_message_type, admin_message_sent_at, admin_message_dismissed, admin_message_responded_at, admin_message_match_id
+         FROM users WHERE id = $1 AND admin_message_match_id = $2`,
+        [uid, cm.match_id]
+      );
+      if (u) matchMessages.push(u);
+    }
+  }
+
   return res.json({
     ...cm,
     user1_photos: user1Photos.map((p: any) => `/uploads/${p.filename}`),
@@ -3724,6 +3755,8 @@ app.get("/admin/candidate-matches/:id/detail", async (req, res) => {
     user1_traits: user1Traits,
     user2_traits: user2Traits,
     pending_nudges: pendingNudges,
+    match_questions: matchQuestions,
+    match_messages: matchMessages,
   });
 });
 
@@ -4615,24 +4648,50 @@ app.get("/admin/user-management", async (_req, res) => {
 // POST /admin/users/:id/system-question — Send a question to a user
 app.post("/admin/users/:id/system-question", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
-  const { question_text, context } = req.body;
+  const { question_text, context, match_id, options } = req.body;
   if (!question_text) return res.status(400).json({ error: "question_text required" });
   const row = await pgQueryOne<any>(
-    `INSERT INTO system_questions (user_id, question_text, context) VALUES ($1, $2, $3) RETURNING *`,
-    [userId, question_text, context || null]
+    `INSERT INTO system_questions (user_id, question_text, context, match_id, options)
+     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    [userId, question_text, context || null, match_id || null, options ? JSON.stringify(options) : null]
   );
+
+  // Auto-set match status to waiting_for_response
+  if (match_id) {
+    await pgQueryAll(
+      `UPDATE matches SET status = 'waiting_for_response', updated_at = NOW() WHERE id = $1`,
+      [match_id]
+    );
+  }
+
+  // Send push + email notification (non-blocking)
+  notifySystemQuestion(userId, question_text, !!match_id).catch(err =>
+    console.error("[system-question] notification error:", err.message)
+  );
+
   return res.json(row);
 });
 
 // POST /admin/run-photo-nudges — Manually trigger photo nudge run
 app.post("/admin/run-photo-nudges", async (_req, res) => {
   try {
-    // Temporarily bypass production check by calling the function directly
     const { runPhotoNudges } = require("./pipeline/photoNudges");
     const result = await runPhotoNudges(true); // pass force=true to skip env check
     return res.json({ success: true, result });
   } catch (err: any) {
     console.error("[admin] Manual photo nudge run error:", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /admin/run-message-nudges — Manually trigger message nudge run
+app.post("/admin/run-message-nudges", async (_req, res) => {
+  try {
+    const { runMessageNudges } = require("./pipeline/messageNudges");
+    const result = await runMessageNudges(true); // pass force=true to skip env check
+    return res.json({ success: true, result });
+  } catch (err: any) {
+    console.error("[admin] Manual message nudge run error:", err.message);
     return res.status(500).json({ error: err.message });
   }
 });
@@ -5027,7 +5086,7 @@ app.get("/admin/users/:id/system-questions", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   if (!userId) return res.status(400).json({ error: "invalid id" });
   const rows = await pgQueryAll(
-    "SELECT id, question_text, answer, answered_at, admin_seen, created_at FROM system_questions WHERE user_id = $1 ORDER BY created_at DESC",
+    "SELECT id, question_text, answer, answered_at, admin_seen, created_at, match_id, options FROM system_questions WHERE user_id = $1 ORDER BY created_at DESC",
     [userId]
   );
   return res.json(rows);
@@ -5036,17 +5095,22 @@ app.get("/admin/users/:id/system-questions", async (req, res) => {
 // POST /system-question/answer — User answers a question (with ownership check)
 app.post("/system-question/answer", requireAuth, async (req: any, res) => {
   const { question_id, answer } = req.body;
-  const validAnswers = ["כן אין בעיה", "אפשרי", "לא"];
-  if (!validAnswers.includes(answer)) return res.status(400).json({ error: "invalid answer" });
 
   // Verify the question belongs to the authenticated user
+  const question = await pgQueryOne<{ user_id: number; options: string[] | null }>(
+    "SELECT user_id, options FROM system_questions WHERE id = $1",
+    [question_id]
+  );
   if (req.auth?.sub) {
     const authUser = await pgQueryOne<{ id: number }>("SELECT id FROM users WHERE supabase_uid = $1", [req.auth.sub]);
-    const question = await pgQueryOne<{ user_id: number }>("SELECT user_id FROM system_questions WHERE id = $1", [question_id]);
     if (!authUser || !question || question.user_id !== authUser.id) {
       return res.status(403).json({ error: "Access denied" });
     }
   }
+
+  // Validate answer against stored options or defaults
+  const validAnswers = question?.options || ["כן אין בעיה", "אפשרי", "לא"];
+  if (!validAnswers.includes(answer)) return res.status(400).json({ error: "invalid answer" });
 
   await pgQueryOne(
     "UPDATE system_questions SET answer = $1, answered_at = NOW() WHERE id = $2",
@@ -5539,8 +5603,8 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
     }
 
     // Active system question (latest unanswered)
-    const activeQuestion = await pgQueryOne<{ id: number; question_text: string }>(
-      "SELECT id, question_text FROM system_questions WHERE user_id = $1 AND answer IS NULL ORDER BY created_at DESC LIMIT 1",
+    const activeQuestion = await pgQueryOne<{ id: number; question_text: string; options: string[] | null }>(
+      "SELECT id, question_text, options FROM system_questions WHERE user_id = $1 AND answer IS NULL ORDER BY created_at DESC LIMIT 1",
       [userId]
     ) || null;
 

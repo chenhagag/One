@@ -407,8 +407,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [bugSent, setBugSent] = useState(false);
   const [feedbackCategory, setFeedbackCategory] = useState<string>("");
   const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; admin_message_type: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null; has_past_matches: boolean; show_survey_banner: boolean; survey_partial: boolean; self_frozen: boolean; active_nudge: { id: number; match_id: number; partner_name: string; partner_gender: string; nudge_type?: string } | null; pool_profile_count: number }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, admin_message_type: null, pending_rating: false, in_matching_pool: false, match_card_consent: null, has_past_matches: false, show_survey_banner: false, survey_partial: false, self_frozen: false, active_nudge: null, pool_profile_count: 0 });
-  const [systemQuestion, setSystemQuestion] = useState<{ id: number; question_text: string } | null>(null);
-  const [answeredQuestion, setAnsweredQuestion] = useState<{ question_text: string; answer: string } | null>(null);
+  const [systemQuestion, setSystemQuestion] = useState<{ id: number; question_text: string; options?: string[] | null } | null>(null);
+  const [answeredQuestion, setAnsweredQuestion] = useState<{ question_text: string; answer: string; options?: string[] | null } | null>(null);
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
   const [matchingProgress, setMatchingProgress] = useState<{ total_pool_profiles: number; scanned_profiles: number; status_text: string } | null>(null);
   const [activeMatchCard, setActiveMatchCard] = useState<{ match_id: number; data: any; partner_name: string; partner_age: number | null; partner_city: string | null; my_name: string; partner_photo: string | null; my_photo: string | null; is_blind_match?: boolean } | null>(null);
@@ -1799,12 +1799,12 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     </p>
                     {systemQuestion ? (
                       <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-                        {["כן אין בעיה", "אפשרי", "לא"].map(opt => (
+                        {(systemQuestion.options || ["כן אין בעיה", "אפשרי", "לא"]).map(opt => (
                           <button key={opt} onClick={async () => {
                             const q = systemQuestion;
                             await apiFetch(`/system-question/answer`, { method: "POST", body: JSON.stringify({ question_id: q.id, answer: opt }) });
                             setSystemQuestion(null);
-                            setAnsweredQuestion({ question_text: q.question_text, answer: opt });
+                            setAnsweredQuestion({ question_text: q.question_text, answer: opt, options: q.options });
                           }} style={{ padding: "8px 20px", borderRadius: 20, border: "none", background: "#8b7ba8", color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
                             {opt}
                           </button>
@@ -1813,7 +1813,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     ) : (
                       <div style={{ textAlign: "center" }}>
                         <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: 12 }}>
-                          {["כן אין בעיה", "אפשרי", "לא"].map(opt => (
+                          {(answeredQuestion!.options || ["כן אין בעיה", "אפשרי", "לא"]).map(opt => (
                             <span key={opt} style={{ padding: "8px 20px", borderRadius: 20, border: "1px solid #e5e7eb", background: opt === answeredQuestion!.answer ? "#8b7ba8" : "#f5f5f7", color: opt === answeredQuestion!.answer ? "#fff" : "#94a3b8", fontWeight: 600, fontSize: 13 }}>
                               {opt}
                             </span>

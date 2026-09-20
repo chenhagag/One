@@ -456,7 +456,7 @@ export async function notifySentForRating(userId: number): Promise<void> {
 
 // ── Trigger: Admin message / question ────────────────────────────
 
-export async function notifyAdminMessage(userId: number, messageType: string, messageText: string): Promise<void> {
+export async function notifyAdminMessage(userId: number, messageType: string, messageText: string, matchLinked = false): Promise<void> {
   const user = await getUserInfo(userId);
   if (!user) return;
   const g = (m: string, f: string) => gn(user.gender, m, f);
@@ -467,6 +467,10 @@ export async function notifyAdminMessage(userId: number, messageType: string, me
     ? "יש לנו שאלה קצרה — " + g("כנס", "כנסי") + " לענות"
     : g("כנס", "כנסי") + " לקרוא את ההודעה";
 
+  const matchIntro = matchLinked
+    ? `<p>אנחנו בודקות פוטנציאל של התאמה עבורך, ויש לנו שאלה קצרה שתעזור לנו לדייק אותה.</p>`
+    : "";
+
   await notifyUser(userId, {
     title,
     body: pushBody,
@@ -474,9 +478,37 @@ export async function notifyAdminMessage(userId: number, messageType: string, me
     emailHtml: buildRichEmail(
       title,
       `<p>היי ${user.first_name},</p>
-       <p>${messageText}</p>
-       ${isQuestion ? `<p>${g("כנס", "כנסי")} כדי לענות.</p>` : ""}`,
+       ${matchIntro}
+       <p>${messageText}</p>`,
       isQuestion ? g("כנס", "כנסי") + " לענות" : g("דבר", "דברי") + " איתי על זה"
+    ),
+  });
+}
+
+// ── Trigger: System question created ────────────────────────────
+
+export async function notifySystemQuestion(userId: number, questionText: string, matchLinked = false): Promise<void> {
+  const user = await getUserInfo(userId);
+  if (!user) return;
+  const g = (m: string, f: string) => gn(user.gender, m, f);
+
+  const title = "שאלה מ-One";
+  const pushBody = "יש לנו שאלה קצרה — " + g("כנס", "כנסי") + " לענות";
+
+  const matchIntro = matchLinked
+    ? `<p>אנחנו בודקות פוטנציאל של התאמה עבורך, ויש לנו שאלה קצרה שתעזור לנו לדייק אותה.</p>`
+    : "";
+
+  await notifyUser(userId, {
+    title,
+    body: pushBody,
+    event_type: "system_question",
+    emailHtml: buildRichEmail(
+      title,
+      `<p>היי ${user.first_name},</p>
+       ${matchIntro}
+       <p>${questionText}</p>`,
+      g("כנס", "כנסי") + " לענות"
     ),
   });
 }
