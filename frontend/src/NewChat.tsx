@@ -1802,7 +1802,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                         {(systemQuestion.options || ["כן אין בעיה", "אפשרי", "לא"]).map(opt => (
                           <button key={opt} onClick={async () => {
                             const q = systemQuestion;
-                            await apiFetch(`/system-question/answer`, { method: "POST", body: JSON.stringify({ question_id: q.id, answer: opt }) });
+                            const res = await apiFetch(`/system-question/answer`, { method: "POST", body: JSON.stringify({ question_id: q.id, answer: opt }) });
+                            if (!res.ok) { alert("שגיאה בשמירת התשובה"); return; }
                             setSystemQuestion(null);
                             setAnsweredQuestion({ question_text: q.question_text, answer: opt, options: q.options });
                           }} style={{ padding: "8px 20px", borderRadius: 20, border: "none", background: "#8b7ba8", color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>

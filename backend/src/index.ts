@@ -5101,14 +5101,15 @@ app.get("/admin/users/:id/system-questions", async (req, res) => {
 app.post("/system-question/answer", requireAuth, async (req: any, res) => {
   const { question_id, answer } = req.body;
 
-  // Verify the question belongs to the authenticated user
+  // Verify the question belongs to the authenticated user (admin can answer any)
   const question = await pgQueryOne<{ user_id: number; options: string[] | null }>(
     "SELECT user_id, options FROM system_questions WHERE id = $1",
     [question_id]
   );
   if (req.auth?.sub) {
-    const authUser = await pgQueryOne<{ id: number }>("SELECT id FROM users WHERE supabase_uid = $1", [req.auth.sub]);
-    if (!authUser || !question || question.user_id !== authUser.id) {
+    const authUser = await pgQueryOne<{ id: number; email: string }>("SELECT id, email FROM users WHERE supabase_uid = $1", [req.auth.sub]);
+    const isAdmin = authUser?.email === "chen.hagag@gmail.com";
+    if (!isAdmin && (!authUser || !question || question.user_id !== authUser.id)) {
       return res.status(403).json({ error: "Access denied" });
     }
   }
