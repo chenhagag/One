@@ -1374,4 +1374,15 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       END $$;
     `);
   } catch (e) { /* column may already exist */ }
+
+  // Migration: add entry_point to users (tracks which landing page user came from, e.g. 'forwomen')
+  try {
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='entry_point') THEN
+          ALTER TABLE users ADD COLUMN entry_point TEXT;
+        END IF;
+      END $$;
+    `);
+  } catch (e) { /* column may already exist */ }
 }

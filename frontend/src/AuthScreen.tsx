@@ -9,9 +9,10 @@ import type { User } from "./App";
 interface AuthScreenProps {
   onOtpSuccess?: (user: User, profileComplete: boolean) => void;
   notice?: string | null;
+  entryPoint?: string | null;
 }
 
-export default function AuthScreen({ onOtpSuccess, notice }: AuthScreenProps) {
+export default function AuthScreen({ onOtpSuccess, notice, entryPoint }: AuthScreenProps) {
   const [loading, setLoading] = useState<"google" | "apple" | null>(null);
   const [error, setError] = useState("");
   // Detect native: Capacitor runs on https://localhost (not http)
@@ -222,7 +223,26 @@ export default function AuthScreen({ onOtpSuccess, notice }: AuthScreenProps) {
   }
 
   // ── Landing page — before auth ──
+  const isForWomen = entryPoint === "forwomen";
+
   if (showLanding) {
+    // Steps content — different for forwomen vs general
+    const landingSteps = isForWomen ? [
+      { num: "1", text: "משוחחות עם ה-AI שלנו — מי את, מה חשוב לך בקשר, מה את מחפשת." },
+      { num: "2", text: "מקבלות תובנות: בסיום השיחה, תקבלי מפת אישיות מעמיקה — סגנון היקשרות, טיפוס MBTI, אניאגרם ועוד." },
+      { num: "3", text: "נכנסות למאגר: אנחנו בונות את הניתוח שלך ומדייקות את מה שאנחנו מחפשות עבורך, על בסיס תיאוריות פסיכולוגיות מוכחות." },
+      { num: "4", text: "ממתינות להתאמה: אנחנו לא מתפשרות על התאמות בינוניות. זה עשוי לקחת קצת זמן, אבל אנחנו מחפשות איכות, לא כמות." },
+      { num: "5", text: "מוודאות משיכה: כשתעלה התאמה פוטנציאלית, נשלח לך תמונה שלה — כדי לוודא שיש גם חיבור ויזואלי." },
+      { num: "6", text: "מתחילות להכיר: לאחר שקלול סופי, תקבלי את ההתאמה המדויקת ביותר עבורך — פנימית וחיצונית — ותוכלי לצאת לדרך." },
+    ] : [
+      { num: "1", text: "מנהלים שיחה: משוחחים עם ה-AI שלנו - מי אתם, מה חשוב לכם בקשר, מה אתם מחפשים." },
+      { num: "2", text: "מקבלים תובנות: בסיום השיחה, תקבלו מפת אישיות מעמיקה הרלוונטית למערכות יחסים (סגנון היקשרות, טיפוס MBTI, אניאגרם ועוד)." },
+      { num: "3", text: "נכנסים למאגר: אנחנו בונים את הניתוח שלכם ומדייקים את מה שאנחנו מחפשים עבורכם, על בסיס תיאוריות פסיכולוגיות מוכחות ונתונים של זוגות אמיתיים." },
+      { num: "4", text: "ממתינים להתאמה: אנחנו לא מתפשרים על התאמות בינוניות, זה עשוי לקחת קצת זמן, אבל אנחנו מחפשים איכות, לא כמות." },
+      { num: "5", text: "מוודאים משיכה: ברגע שתעלה התאמה פוטנציאלית, נשלח לכם תמונה שלהם לאישור, כדי לוודא שיש גם חיבור ויזואלי ומשיכה." },
+      { num: "6", text: "מתחילים להכיר: לאחר שקלול סופי של כל הנתונים, תקבלו את ההתאמה המדויקת ביותר עבורכם – פנימית וחיצונית – ותוכלו לצאת לדרך." },
+    ];
+
     return (
       <div style={{
         minHeight: "100dvh",
@@ -242,21 +262,20 @@ export default function AuthScreen({ onOtpSuccess, notice }: AuthScreenProps) {
           <img src="/nameLogoTrans.png" alt="One" style={{ height: 36, objectFit: "contain", marginBottom: 12 }} />
           <p style={{ fontSize: 15, color: "#555", textAlign: "center", margin: "0 0 32px" }}>Meet, as you are.</p>
 
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", margin: "0 0 20px", textAlign: "center" }}>
-            ברוכים הבאים ל-One
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", margin: "0 0 8px", textAlign: "center" }}>
+            {isForWomen ? "ברוכות הבאות ל-One" : "ברוכים הבאים ל-One"}
           </h2>
+          {isForWomen && (
+            <p style={{ fontSize: 14, color: "#6b5b8a", textAlign: "center", margin: "0 0 20px", lineHeight: 1.6 }}>
+              מערכת התאמה מבוססת AI, שנבנתה עבור נשים שמחפשות נשים.
+            </p>
+          )}
+          {!isForWomen && <div style={{ marginBottom: 12 }} />}
           <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 14px", textAlign: "right", width: "100%" }}>
             איך זה עובד?
           </p>
           <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
-            {[
-              { num: "1", text: "מנהלים שיחה: משוחחים עם ה-AI שלנו - מי אתם, מה חשוב לכם בקשר, מה אתם מחפשים." },
-              { num: "2", text: "מקבלים תובנות: בסיום השיחה, תקבלו מפת אישיות מעמיקה הרלוונטית למערכות יחסים (סגנון היקשרות, טיפוס MBTI, אניאגרם ועוד)." },
-              { num: "3", text: "נכנסים למאגר: אנחנו בונים את הניתוח שלכם ומדייקים את מה שאנחנו מחפשים עבורכם, על בסיס תיאוריות פסיכולוגיות מוכחות ונתונים של זוגות אמיתיים." },
-              { num: "4", text: "ממתינים להתאמה: אנחנו לא מתפשרים על התאמות בינוניות, זה עשוי לקחת קצת זמן, אבל אנחנו מחפשים איכות, לא כמות." },
-              { num: "5", text: "מוודאים משיכה: ברגע שתעלה התאמה פוטנציאלית, נשלח לכם תמונה שלהם לאישור, כדי לוודא שיש גם חיבור ויזואלי ומשיכה." },
-              { num: "6", text: "מתחילים להכיר: לאחר שקלול סופי של כל הנתונים, תקבלו את ההתאמה המדויקת ביותר עבורכם – פנימית וחיצונית – ותוכלו לצאת לדרך." },
-            ].map(step => (
+            {landingSteps.map(step => (
               <div key={step.num} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                 <span style={{
                   width: 24, height: 24, borderRadius: "50%", background: "#8b7ba8", color: "#fff",

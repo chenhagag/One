@@ -18,14 +18,16 @@ interface EnumOption {
 interface ProfileSetupProps {
   user: User;
   onComplete: (updatedUser: User) => void;
+  entryPoint?: string | null;
 }
 
-export default function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
+export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSetupProps) {
+  const isForWomen = entryPoint === "forwomen";
   // Don't pre-fill from user object — let user type their own name
   const [firstName, setFirstName] = useState("");
   const [age, setAge] = useState("");
-  const [gender, setGender] = useState("");
-  const [lookingForGender, setLookingForGender] = useState("");
+  const [gender, setGender] = useState(isForWomen ? "woman" : "");
+  const [lookingForGender, setLookingForGender] = useState(isForWomen ? "woman" : "");
   const [city, setCity] = useState("");
   const [height, setHeight] = useState("");
   const [selfStyle, setSelfStyle] = useState<string[]>([]);
@@ -106,6 +108,7 @@ export default function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
           whatsapp_updates: whatsappUpdates,
           whatsapp_phone: whatsappPhone.trim() || null,
           profile_complete: true,
+          entry_point: entryPoint || null,
         }),
       });
 
@@ -203,6 +206,7 @@ export default function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
             </div>
           </div>
 
+          {!isForWomen && <>
           <label style={s.label}>מגדר</label>
           <select style={s.select} value={gender} onChange={(e) => setGender(e.target.value)}>
             <option value="">בחר/י</option>
@@ -227,6 +231,7 @@ export default function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
               <option key={o.value} value={o.value}>{o.label_he}</option>
             ))}
           </select>
+          </>}
 
           <label style={s.label}>סטטוס</label>
           <select style={s.select} value={testUserType} onChange={(e) => { setTestUserType(e.target.value); if (e.target.value !== "Couple Tester") setPartnerName(""); }}>

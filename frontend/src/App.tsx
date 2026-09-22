@@ -267,6 +267,17 @@ export default function App() {
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [pendingSurvey] = useState(() => window.location.pathname === "/survey");
 
+  // ── Entry point detection (e.g. /forwomen) ────────────────
+  const [entryPoint] = useState<string | null>(() => {
+    const path = window.location.pathname.toLowerCase();
+    if (path === "/forwomen") {
+      localStorage.setItem("one_entry_point", "forwomen");
+      window.history.replaceState({}, "", "/");
+      return "forwomen";
+    }
+    return localStorage.getItem("one_entry_point");
+  });
+
   // ── Initialize error reporting ────────────────
   useEffect(() => { initErrorReporting(); }, []);
 
@@ -550,7 +561,7 @@ export default function App() {
 
       {/* Auth screen — OAuth buttons (new default landing) */}
       {(view === "landing" || view === "auth") && (
-        <AuthScreen onOtpSuccess={(u, p) => { setAuthNotice(null); handleAuthSuccess(u, p); }} notice={authNotice} />
+        <AuthScreen onOtpSuccess={(u, p) => { setAuthNotice(null); handleAuthSuccess(u, p); }} notice={authNotice} entryPoint={entryPoint} />
       )}
 
       {/* OAuth callback — handles redirect from Google/Apple */}
@@ -560,7 +571,7 @@ export default function App() {
 
       {/* Profile setup — after first OAuth sign-in */}
       {view === "profile_setup" && user && (
-        <ProfileSetup user={user} onComplete={handleProfileSetupComplete} />
+        <ProfileSetup user={user} onComplete={handleProfileSetupComplete} entryPoint={entryPoint} />
       )}
 
       {/* Consent — after profile setup, before entering app */}

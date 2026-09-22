@@ -2048,6 +2048,7 @@ app.patch("/admin/users/:id", async (req, res) => {
     "marital_status", "has_children", "religion", "smoker", "admin_message", "admin_notes", "admin_location_override",
     "match_card_consent", "match_card_restrictions", "photo_request_sent_at",
     "agent_context", "admin_message_type", "blind_match_consent", "admin_message_match_id",
+    "entry_point",
   ];
   const updates: string[] = [];
   const values: any[] = [];
