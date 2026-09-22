@@ -5,6 +5,7 @@ import { apiFetch } from "./lib/api";
 interface EnumOption { value: string; label_he: string; label_en: string; }
 
 export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User; onBack: () => void; onUserUpdate?: (u: User) => void }) {
+  const isWW = user.gender === "woman" && user.looking_for_gender === "woman";
   // About me
   const [firstName, setFirstName] = useState(user.first_name || "");
   const [age, setAge] = useState(user.age ? String(user.age) : "");
@@ -307,7 +308,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
         {/* ── About Me ── */}
         <div style={s.card}>
           <h3 style={s.cardTitle}>עליי</h3>
-          <p style={{ fontSize: 11, color: "#aaa", lineHeight: 1.5, margin: "-8px 0 14px" }}>הפרטים שלך לא חשופים למשתמשים אחרים. לקראת התאמה אפשרית — נציג את השם, הגיל והתמונה בלבד למועמדים הרלוונטיים.</p>
+          <p style={{ fontSize: 11, color: "#aaa", lineHeight: 1.5, margin: "-8px 0 14px" }}>{isWW ? "הפרטים שלך לא חשופים למשתמשות אחרות. לקראת התאמה אפשרית — נציג את השם, הגיל והתמונה בלבד למועמדות הרלוונטיות." : "הפרטים שלך לא חשופים למשתמשים אחרים. לקראת התאמה אפשרית — נציג את השם, הגיל והתמונה בלבד למועמדים הרלוונטיים."}</p>
 
           <label style={s.label}>שם</label>
           <input style={s.input} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
@@ -340,16 +341,16 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
         {/* ── Looking For / Couple Partner ── */}
         {isCouple ? (
           <div style={s.card}>
-            <h3 style={s.cardTitle}>{user.gender === "woman" ? "בן הזוג שלי" : "בת הזוג שלי"}</h3>
+            <h3 style={s.cardTitle}>{isWW ? "בת הזוג שלי" : user.gender === "woman" ? "בן הזוג שלי" : "בת הזוג שלי"}</h3>
             <p style={{ fontSize: 11, color: "#aaa", lineHeight: 1.5, margin: "-8px 0 14px" }}>
-              {user.gender === "woman" ? "שם בן הזוג כפי שרשום במערכת — כדי שנוכל לחבר ביניכם ולהציג תובנות זוגיות." : "שם בת הזוג כפי שרשום במערכת — כדי שנוכל לחבר ביניכם ולהציג תובנות זוגיות."}
+              {isWW ? "שם בת הזוג כפי שרשום במערכת — כדי שנוכל לחבר ביניכן ולהציג תובנות זוגיות." : user.gender === "woman" ? "שם בן הזוג כפי שרשום במערכת — כדי שנוכל לחבר ביניכם ולהציג תובנות זוגיות." : "שם בת הזוג כפי שרשום במערכת — כדי שנוכל לחבר ביניכם ולהציג תובנות זוגיות."}
             </p>
-            <label style={s.label}>{user.gender === "woman" ? "שם בן הזוג" : "שם בת הזוג"}</label>
-            <input style={s.input} type="text" value={partnerName} onChange={(e) => setPartnerName(e.target.value)} placeholder={user.gender === "woman" ? "הכניסי את שמו כפי שנרשם" : "הכנס את שמה כפי שנרשמה"} />
+            <label style={s.label}>{isWW ? "שם בת הזוג" : user.gender === "woman" ? "שם בן הזוג" : "שם בת הזוג"}</label>
+            <input style={s.input} type="text" value={partnerName} onChange={(e) => setPartnerName(e.target.value)} placeholder={isWW ? "הכניסי את שמה כפי שנרשמה" : user.gender === "woman" ? "הכניסי את שמו כפי שנרשם" : "הכנס את שמה כפי שנרשמה"} />
           </div>
         ) : (
           <div style={s.card}>
-            <h3 style={s.cardTitle}>מה אני מחפש/ת</h3>
+            <h3 style={s.cardTitle}>{isWW ? "מה אני מחפשת" : "מה אני מחפש/ת"}</h3>
             <p style={{ fontSize: 11, color: "#aaa", lineHeight: 1.5, margin: "-8px 0 14px" }}>הנתונים לא יופיעו בשום מקום — הם משמשים אותנו לסינון ראשוני של ההתאמות עבורך.</p>
 
             <label style={s.label}>מגדר מבוקש</label>

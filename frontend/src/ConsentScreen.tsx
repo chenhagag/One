@@ -13,6 +13,7 @@ export default function ConsentScreen({ user, onComplete }: ConsentScreenProps) 
   const [error, setError] = useState("");
 
   const f = user.gender === "woman"; // female text forms
+  const ww = user.gender === "woman" && user.looking_for_gender === "woman";
 
   async function handleAccept() {
     if (!checked) return;
@@ -77,7 +78,7 @@ export default function ConsentScreen({ user, onComplete }: ConsentScreenProps) 
           </p>
 
           <p style={{ margin: 0 }}>
-            המידע {f ? "שתשתפי" : "שתשתף"} לא יוצג למשתמשים אחרים, לא יימכר לצדדים שלישיים, ויישמר בהתאם לצורכי השירות.
+            המידע {f ? "שתשתפי" : "שתשתף"} לא יוצג {ww ? "למשתמשות אחרות" : "למשתמשים אחרים"}, לא יימכר לצדדים שלישיים, ויישמר בהתאם לצורכי השירות.
           </p>
 
           <p style={{ margin: 0 }}>
