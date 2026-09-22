@@ -1689,6 +1689,7 @@ async function deleteAllUserData(userId: number): Promise<void> {
     ["direct_messages", `DELETE FROM direct_messages WHERE match_id IN ${matchIds}`],
     ["typing_status", `DELETE FROM typing_status WHERE match_id IN ${matchIds}`],
     ["match_scores", `DELETE FROM match_scores WHERE match_id IN ${matchIds}`],
+    ["users.admin_message_match_id", `UPDATE users SET admin_message_match_id = NULL WHERE admin_message_match_id IN ${matchIds}`],
     ["matches", "DELETE FROM matches WHERE user1_id = $1 OR user2_id = $1"],
     ["candidate_matches", "DELETE FROM candidate_matches WHERE user_id = $1 OR candidate_user_id = $1"],
     ["users", "DELETE FROM users WHERE id = $1"],
