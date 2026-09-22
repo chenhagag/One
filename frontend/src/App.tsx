@@ -269,13 +269,18 @@ export default function App() {
 
   // ── Entry point detection (e.g. /forwomen) ────────────────
   const [entryPoint] = useState<string | null>(() => {
-    const path = window.location.pathname.replace(/^\/+/, "/").toLowerCase();
-    if (path === "/forwomen") {
+    const raw = window.location.pathname;
+    const path = raw.replace(/^\/+/, "/").toLowerCase();
+    console.log("[entryPoint] pathname:", raw, "normalized:", path);
+    if (path.startsWith("/forwomen")) {
       localStorage.setItem("one_entry_point", "forwomen");
       window.history.replaceState({}, "", "/");
+      console.log("[entryPoint] → forwomen (from URL)");
       return "forwomen";
     }
-    return localStorage.getItem("one_entry_point");
+    const stored = localStorage.getItem("one_entry_point");
+    if (stored) console.log("[entryPoint] → from localStorage:", stored);
+    return stored;
   });
 
   // ── Initialize error reporting ────────────────
