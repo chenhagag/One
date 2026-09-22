@@ -2976,18 +2976,14 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
   async function handleDeleteAccount() {
     setDeleting(true);
     try {
-      const res = await apiFetch(`/users/${user.id}/account`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: deleteReason.trim() || undefined }),
+      // Submit deletion request as a bug report (actual deletion handled by admin)
+      await apiFetch("/bug-reports", {
+        method: "POST",
+        body: JSON.stringify({
+          report_text: `[delete_request] ${deleteReason.trim() || "ללא סיבה"}`,
+        }),
       });
-      if (res.ok) {
-        setDeleteStep("goodbye");
-        setDeleting(false);
-        return;
-      } else {
-        alert("מחיקה נכשלה, נסו שוב");
-      }
+      setDeleteStep("goodbye");
     } catch {
       alert("שגיאת רשת, נסו שוב");
     } finally {
@@ -3474,18 +3470,16 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
                 <div style={{ textAlign: "center", padding: "20px 0" }}>
                   <div style={{ fontSize: 40, marginBottom: 16 }}>💜</div>
                   <h3 style={{ fontSize: 20, fontWeight: 700, color: "#111827", margin: "0 0 12px" }}>
-                    {isFemale ? "תודה שהיית חלק מ-One" : "תודה שהיית חלק מ-One"}
+                    בקשתך התקבלה
                   </h3>
                   <p style={{ fontSize: 14, color: "#6b7280", lineHeight: 1.7, margin: "0 0 8px" }}>
-                    החשבון נמחק בהצלחה.
+                    החשבון יימחק לצמיתות בהקדם.
                   </p>
                   <p style={{ fontSize: 14, color: "#6b7280", lineHeight: 1.7, margin: "0 0 24px" }}>
-                    {isFemale
-                      ? "אם תרצי לחזור בעתיד — תמיד אפשר להירשם מחדש. מקווים לראות אותך שוב 🤍"
-                      : "אם תרצה לחזור בעתיד — תמיד אפשר להירשם מחדש. מקווים לראות אותך שוב 🤍"}
+                    תודה שהיית חלק מ-One 🤍
                   </p>
                   <button
-                    onClick={() => { setShowDeleteModal(false); onLogout?.(); }}
+                    onClick={() => { setShowDeleteModal(false); }}
                     style={{
                       padding: "12px 32px", borderRadius: 10, background: "#111827",
                       color: "#fff", fontSize: 15, fontWeight: 600, border: "none",
