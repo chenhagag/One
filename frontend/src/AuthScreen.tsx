@@ -228,19 +228,19 @@ export default function AuthScreen({ onOtpSuccess, notice, entryPoint }: AuthScr
   if (showLanding) {
     // Steps content — different for forwomen vs general
     const landingSteps = isForWomen ? [
-      { num: "1", text: "משוחחות עם ה-AI שלנו — מי את, מה חשוב לך בקשר, מה את מחפשת." },
-      { num: "2", text: "מקבלות תובנות: בסיום השיחה, תקבלי מפת אישיות מעמיקה — סגנון היקשרות, טיפוס MBTI, אניאגרם ועוד." },
+      { num: "1", text: "משוחחות עם ה-AI שלנו - מי את, מה חשוב לך בקשר, מה את מחפשת." },
+      { num: "2", text: "מקבלות תובנות: בסיום השיחה, תקבלי מפת אישיות מעמיקה - סגנון היקשרות, טיפוס MBTI, אניאגרם ועוד." },
       { num: "3", text: "נכנסות למאגר: אנחנו בונות את הניתוח שלך ומדייקות את מה שאנחנו מחפשות עבורך, על בסיס תיאוריות פסיכולוגיות מוכחות." },
       { num: "4", text: "ממתינות להתאמה: אנחנו לא מתפשרות על התאמות בינוניות. זה עשוי לקחת קצת זמן, אבל אנחנו מחפשות איכות, לא כמות." },
-      { num: "5", text: "מוודאות משיכה: כשתעלה התאמה פוטנציאלית, נשלח לך תמונה שלה — כדי לוודא שיש גם חיבור ויזואלי." },
-      { num: "6", text: "מתחילות להכיר: לאחר שקלול סופי, תקבלי את ההתאמה המדויקת ביותר עבורך — פנימית וחיצונית — ותוכלי לצאת לדרך." },
+      { num: "5", text: "מוודאות משיכה: כשתעלה התאמה פוטנציאלית, נשלח לך תמונה שלה - כדי לוודא שיש גם חיבור ויזואלי." },
+      { num: "6", text: "מתחילות להכיר: לאחר שקלול סופי, תקבלי את ההתאמה המדויקת ביותר עבורך - פנימית וחיצונית - ותוכלי לצאת לדרך." },
     ] : [
       { num: "1", text: "מנהלים שיחה: משוחחים עם ה-AI שלנו - מי אתם, מה חשוב לכם בקשר, מה אתם מחפשים." },
       { num: "2", text: "מקבלים תובנות: בסיום השיחה, תקבלו מפת אישיות מעמיקה הרלוונטית למערכות יחסים (סגנון היקשרות, טיפוס MBTI, אניאגרם ועוד)." },
       { num: "3", text: "נכנסים למאגר: אנחנו בונים את הניתוח שלכם ומדייקים את מה שאנחנו מחפשים עבורכם, על בסיס תיאוריות פסיכולוגיות מוכחות ונתונים של זוגות אמיתיים." },
       { num: "4", text: "ממתינים להתאמה: אנחנו לא מתפשרים על התאמות בינוניות, זה עשוי לקחת קצת זמן, אבל אנחנו מחפשים איכות, לא כמות." },
       { num: "5", text: "מוודאים משיכה: ברגע שתעלה התאמה פוטנציאלית, נשלח לכם תמונה שלהם לאישור, כדי לוודא שיש גם חיבור ויזואלי ומשיכה." },
-      { num: "6", text: "מתחילים להכיר: לאחר שקלול סופי של כל הנתונים, תקבלו את ההתאמה המדויקת ביותר עבורכם – פנימית וחיצונית – ותוכלו לצאת לדרך." },
+      { num: "6", text: "מתחילים להכיר: לאחר שקלול סופי של כל הנתונים, תקבלו את ההתאמה המדויקת ביותר עבורכם - פנימית וחיצונית - ותוכלו לצאת לדרך." },
     ];
 
     return (
@@ -259,15 +259,14 @@ export default function AuthScreen({ onOtpSuccess, notice, entryPoint }: AuthScr
           display: "flex", flexDirection: "column", alignItems: "center",
           maxWidth: 480, width: "100%", direction: "rtl",
         }}>
-          <img src="/nameLogoTrans.png" alt="One" style={{ height: 36, objectFit: "contain", marginBottom: 12 }} />
-          <p style={{ fontSize: 15, color: "#555", textAlign: "center", margin: "0 0 32px" }}>Meet, as you are.</p>
+          <img src="/iconOnly.png" alt="One" style={{ height: 56, objectFit: "contain", marginBottom: 16 }} />
 
           <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", margin: "0 0 8px", textAlign: "center" }}>
             {isForWomen ? "ברוכות הבאות ל-One" : "ברוכים הבאים ל-One"}
           </h2>
           {isForWomen && (
             <p style={{ fontSize: 14, color: "#6b5b8a", textAlign: "center", margin: "0 0 20px", lineHeight: 1.6 }}>
-              מערכת התאמה מבוססת AI, שנבנתה עבור נשים שמחפשות נשים.
+              מערכת התאמה מבוססת AI, עבור נשים שמחפשות נשים.
             </p>
           )}
           {!isForWomen && <div style={{ marginBottom: 12 }} />}
@@ -290,7 +289,7 @@ export default function AuthScreen({ onOtpSuccess, notice, entryPoint }: AuthScr
             בהצלחה,<br />צוות One
           </p>
           <p style={{ fontSize: 12, color: "#888", textAlign: "center", margin: "0 0 24px", lineHeight: 1.7 }}>
-            נתקלתם בבעיה? דווחו לנו{" "}
+            {isForWomen ? "נתקלתן" : "נתקלתם"} בבעיה? דווחו לנו{" "}
             <a href="mailto:one-support@googlegroups.com" style={{ color: "#8b7ba8", fontWeight: 600 }}>במייל</a>
             {" "}או{" "}
             <a href="https://wa.me/972549037400" target="_blank" rel="noopener noreferrer" style={{ color: "#8b7ba8", fontWeight: 600 }}>בווטסאפ</a>
@@ -309,6 +308,9 @@ export default function AuthScreen({ onOtpSuccess, notice, entryPoint }: AuthScr
           >
             המשך לאפליקציה
           </button>
+          <p style={{ fontSize: 13, color: "#999", textAlign: "center", margin: "16px 0 0", letterSpacing: 0.5 }}>
+            One - Meet, as you are.
+          </p>
         </div>
       </div>
     );
