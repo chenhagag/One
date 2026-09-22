@@ -6209,8 +6209,8 @@ function OutreachLogTab() {
   const newNudges = nudges.filter((n: any) => !n.admin_seen && n.status !== "pending").length;
   const newMatchItems = newRatings + newNudges;
   const newQuestionAnswers = questions.filter((q: any) => q.answer && !q.admin_seen).length;
-  const newMessageResponses = adminMessages.filter((m: any) => m.admin_message_responded_at && !m.admin_message_response_seen).length;
-  const newQuestionItems = newQuestionAnswers + newMessageResponses;
+  const newOpenResponses = adminMessages.filter((m: any) => m.admin_message_type === "conversation" && m.admin_message_responded_at && !m.admin_message_response_seen).length;
+  const newQuestionItems = newQuestionAnswers + newOpenResponses;
   const newWhatsapp = whatsappPending.filter((w: any) => !w.whatsapp_handled).length;
 
   const topicBtnStyle = (active: boolean, count: number) => ({
@@ -6376,11 +6376,12 @@ function OutreachLogTab() {
         </div>
       </div>
 
-      {/* Section 3: Admin Messages */}
+      {/* Open Questions (admin_messages type=conversation) */}
       <div style={{ marginTop: 32 }}>
         {(() => {
-          const unseenResponses = adminMessages.filter((m: any) => m.admin_message_responded_at && !m.admin_message_response_seen).length;
-          return <h3 style={{ margin: "0 0 12px" }}>הודעות מערכת למשתמשים ({adminMessages.length}){unseenResponses > 0 && <span style={{ marginRight: 8, background: "#dc2626", color: "#fff", borderRadius: 20, padding: "2px 8px", fontSize: 12, fontWeight: 700 }}>{unseenResponses} תגובות חדשות</span>}</h3>;
+          const openQuestions = adminMessages.filter((m: any) => m.admin_message_type === "conversation");
+          const unseenOpen = openQuestions.filter((m: any) => m.admin_message_responded_at && !m.admin_message_response_seen).length;
+          return <h3 style={{ margin: "0 0 12px" }}>שאלות פתוחות ({openQuestions.length}){unseenOpen > 0 && <span style={{ marginRight: 8, background: "#dc2626", color: "#fff", borderRadius: 20, padding: "2px 8px", fontSize: 12, fontWeight: 700 }}>{unseenOpen} תגובות חדשות</span>}</h3>;
         })()}
         <div style={s.scrollWrap}>
           <table style={s.table}>
@@ -6388,14 +6389,13 @@ function OutreachLogTab() {
               <tr>
                 <th style={s.th}>משתמש/ת</th>
                 <th style={s.th}>הודעה</th>
-                <th style={s.th}>סוג</th>
                 <th style={s.th}>נשלחה</th>
                 <th style={s.th}>סטטוס</th>
                 <th style={s.th}>פעולה</th>
               </tr>
             </thead>
             <tbody>
-              {adminMessages.map((m: any) => {
+              {adminMessages.filter((m: any) => m.admin_message_type === "conversation").map((m: any) => {
                 const seen = m.user_last_visit && m.admin_message_sent_at && new Date(m.user_last_visit) > new Date(m.admin_message_sent_at);
                 const seenNoSentAt = !m.admin_message_sent_at && m.user_last_visit;
                 const dismissed = m.admin_message_dismissed;
@@ -6406,7 +6406,6 @@ function OutreachLogTab() {
                   <tr key={m.user_id} style={responded && !responseSeen ? { background: "#fef3c7" } : undefined}>
                     <td style={s.td}>{m.first_name} ({m.user_id})</td>
                     <td style={{ ...s.td, maxWidth: 350, whiteSpace: "normal", wordBreak: "break-word", fontSize: 11, lineHeight: "1.5" }}>{m.admin_message?.length > 80 ? m.admin_message.slice(0, 80) + "…" : m.admin_message || <span style={{ color: "#d1d5db" }}>—</span>}</td>
-                    <td style={s.td}>{isConversation ? <span style={{ color: "#7c3aed", fontSize: 11, fontWeight: 600 }}>שיחה</span> : <span style={{ color: "#9ca3af", fontSize: 11 }}>רגילה</span>}</td>
                     <td style={{ ...s.td, whiteSpace: "nowrap" }}>{fmtDate(m.admin_message_sent_at)}</td>
                     <td style={s.td}>
                       {responded
@@ -6444,8 +6443,60 @@ function OutreachLogTab() {
                   </tr>
                 );
               })}
-              {adminMessages.length === 0 && (
-                <tr><td colSpan={6} style={{ ...s.td, textAlign: "center", color: "#9ca3af" }}>אין הודעות פעילות</td></tr>
+              {adminMessages.filter((m: any) => m.admin_message_type === "conversation").length === 0 && (
+                <tr><td colSpan={5} style={{ ...s.td, textAlign: "center", color: "#9ca3af" }}>אין שאלות פתוחות</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Regular Messages (admin_messages type != conversation) */}
+      <div style={{ marginTop: 32 }}>
+        <h3 style={{ margin: "0 0 12px" }}>הודעות ({adminMessages.filter((m: any) => m.admin_message_type !== "conversation").length})</h3>
+        <div style={s.scrollWrap}>
+          <table style={s.table}>
+            <thead>
+              <tr>
+                <th style={s.th}>משתמש/ת</th>
+                <th style={s.th}>הודעה</th>
+                <th style={s.th}>נשלחה</th>
+                <th style={s.th}>סטטוס</th>
+                <th style={s.th}>פעולה</th>
+              </tr>
+            </thead>
+            <tbody>
+              {adminMessages.filter((m: any) => m.admin_message_type !== "conversation").map((m: any) => {
+                const seen = m.user_last_visit && m.admin_message_sent_at && new Date(m.user_last_visit) > new Date(m.admin_message_sent_at);
+                const dismissed = m.admin_message_dismissed;
+                return (
+                  <tr key={`info-${m.user_id}`}>
+                    <td style={s.td}>{m.first_name} ({m.user_id})</td>
+                    <td style={{ ...s.td, maxWidth: 350, whiteSpace: "normal", wordBreak: "break-word", fontSize: 11, lineHeight: "1.5" }}>{m.admin_message?.length > 80 ? m.admin_message.slice(0, 80) + "…" : m.admin_message || <span style={{ color: "#d1d5db" }}>—</span>}</td>
+                    <td style={{ ...s.td, whiteSpace: "nowrap" }}>{fmtDate(m.admin_message_sent_at)}</td>
+                    <td style={s.td}>
+                      {dismissed
+                        ? <span style={{ color: "#7c3aed", fontWeight: 600, fontSize: 12 }}>ראיתי ✓</span>
+                        : seen
+                        ? <span style={{ color: "#16a34a", fontWeight: 600, fontSize: 12 }}>נכנס/ה ✓</span>
+                        : <span style={{ color: "#9ca3af", fontSize: 12 }}>לא נכנס/ה</span>
+                      }
+                    </td>
+                    <td style={s.td}>
+                      <button
+                        style={{ padding: "3px 10px", fontSize: 11, border: "1px solid #d1d5db", borderRadius: 4, cursor: "pointer", background: "#fff", color: "#6b7280" }}
+                        onClick={async () => {
+                          if (!confirm(`להסיר את ההודעה של ${m.first_name}?`)) return;
+                          await apiFetch(`/admin/users/${m.user_id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin_message: null }) });
+                          setAdminMessages(prev => prev.filter(x => x.user_id !== m.user_id));
+                        }}
+                      >הסר</button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {adminMessages.filter((m: any) => m.admin_message_type !== "conversation").length === 0 && (
+                <tr><td colSpan={5} style={{ ...s.td, textAlign: "center", color: "#9ca3af" }}>אין הודעות</td></tr>
               )}
             </tbody>
           </table>

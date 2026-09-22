@@ -141,9 +141,10 @@ async function sendWelcomeNudges(): Promise<NudgeCategoryResult> {
   const candidates = await pgQueryAll<NudgeCandidate>(`
     SELECT id, first_name, gender, email, created_at
     FROM users
-    WHERE test_user_type IS NULL
+    WHERE COALESCE(test_user_type, '') != 'Couple Tester'
       AND partner_name IS NULL
       AND COALESCE(self_frozen, FALSE) = FALSE
+      AND COALESCE(email, '') NOT LIKE '%@test.com'
       AND COALESCE(gender, '') != 'man' AND COALESCE(looking_for_gender, '') != 'man'
       AND created_at < NOW() - INTERVAL '1 hour'
       AND created_at > NOW() - INTERVAL '14 days'
@@ -195,9 +196,10 @@ async function sendNotStartedNudges(): Promise<NudgeCategoryResult> {
   const candidates = await pgQueryAll<NudgeCandidate>(`
     SELECT u.id, u.first_name, u.gender, u.email, u.created_at
     FROM users u
-    WHERE u.test_user_type IS NULL
+    WHERE COALESCE(u.test_user_type, '') != 'Couple Tester'
       AND u.partner_name IS NULL
       AND COALESCE(u.self_frozen, FALSE) = FALSE
+      AND COALESCE(u.email, '') NOT LIKE '%@test.com'
       AND COALESCE(u.gender, '') != 'man' AND COALESCE(u.looking_for_gender, '') != 'man'
       AND u.created_at < NOW() - INTERVAL '48 hours'
       AND NOT EXISTS (
@@ -261,9 +263,10 @@ async function sendIncompleteNudges(): Promise<NudgeCategoryResult> {
   const candidates = await pgQueryAll<NudgeCandidate>(`
     SELECT u.id, u.first_name, u.gender, u.email, u.created_at
     FROM users u
-    WHERE u.test_user_type IS NULL
+    WHERE COALESCE(u.test_user_type, '') != 'Couple Tester'
       AND u.partner_name IS NULL
       AND COALESCE(u.self_frozen, FALSE) = FALSE
+      AND COALESCE(u.email, '') NOT LIKE '%@test.com'
       AND COALESCE(u.gender, '') != 'man' AND COALESCE(u.looking_for_gender, '') != 'man'
       AND u.created_at < NOW() - INTERVAL '7 days'
       AND u.in_matching_pool = FALSE
