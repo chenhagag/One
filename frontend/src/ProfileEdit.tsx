@@ -288,7 +288,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
 
           {photos.length === 0 && (
             <p style={{ fontSize: 13, color: "#999", textAlign: "center", marginTop: 12, marginBottom: 0 }}>
-              העלו תמונה אחת לפחות כדי להשלים את הפרופיל
+              {isWW ? "העלי תמונה אחת לפחות כדי להשלים את הפרופיל" : "העלו תמונה אחת לפחות כדי להשלים את הפרופיל"}
             </p>
           )}
           {photos.length > 0 && photos.length < 3 && (
@@ -299,9 +299,9 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
 
           <div style={{ background: "#f8f9fb", borderRadius: 10, padding: "14px 16px", marginTop: 16, fontSize: 12, color: "#555", lineHeight: 1.7 }}>
             <p style={{ fontWeight: 600, color: "#1a1a2e", margin: "0 0 8px", fontSize: 13 }}>איך המערכת משתמשת בתמונות?</p>
-            <p style={{ margin: "0 0 6px" }}>🔒 <strong>פרטיות מלאה:</strong> ב-One אין קטלוג ציבורי ואף אחד לא יכול "לדפדף" בנתונים שלך סתם כך.</p>
-            <p style={{ margin: "0 0 6px" }}>🎯 <strong>חשיפה מדויקת בלבד:</strong> התמונות (יחד עם השם והגיל) ייחשפו אך ורק בפני אנשים שהאלגוריתם כבר מצא עבורך כהתאמה פסיכולוגית ואישיותית עמוקה.</p>
-            <p style={{ margin: 0 }}>👁️ <strong>ניתוח מראה ואישור הדדי:</strong> המערכת תבצע בדיקת הלימה ויזואלית, ותעביר את התמונות לאישור דיסקרטי ושלבי של שני הצדדים. המשוב שלכם ילטש את ציון ההתאמה הסופי, כאשר אישור הדדי הוא תנאי חובה לפתיחת הקשר.</p>
+            <p style={{ margin: "0 0 6px" }}>🔒 <strong>פרטיות מלאה:</strong> ב-One אין קטלוג ציבורי ואף {isWW ? "אחת לא יכולה" : "אחד לא יכול"} "לדפדף" בנתונים שלך סתם כך.</p>
+            <p style={{ margin: "0 0 6px" }}>🎯 <strong>חשיפה מדויקת בלבד:</strong> התמונות (יחד עם השם והגיל) ייחשפו אך ורק בפני {isWW ? "מי" : "אנשים"} שהאלגוריתם כבר מצא עבורך כהתאמה פסיכולוגית ואישיותית עמוקה.</p>
+            <p style={{ margin: 0 }}>👁️ <strong>ניתוח מראה ואישור הדדי:</strong> המערכת תבצע בדיקת הלימה ויזואלית, ותעביר את התמונות לאישור דיסקרטי ושלבי של שני הצדדים. המשוב {isWW ? "שלכן" : "שלכם"} ילטש את ציון ההתאמה הסופי, כאשר אישור הדדי הוא תנאי חובה לפתיחת הקשר.</p>
           </div>
         </div>
 
@@ -318,17 +318,19 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
               <label style={s.label}>גיל</label>
               <input style={s.input} type="number" min="18" max="99" value={age} onChange={(e) => setAge(e.target.value)} />
             </div>
-            <div style={s.rowItem}>
+            {!isWW && <div style={s.rowItem}>
               <label style={s.label}>גובה (ס"מ)</label>
               <input style={s.input} type="number" min="120" max="220" value={height} onChange={(e) => setHeight(e.target.value)} />
-            </div>
+            </div>}
           </div>
 
+          {!isWW && <>
           <label style={s.label}>מגדר</label>
           <select style={s.select} value={gender} onChange={(e) => setGender(e.target.value)}>
             <option value="">בחר/י</option>
             {genderOptions.map((o) => <option key={o.value} value={o.value}>{o.label_he}</option>)}
           </select>
+          </>}
 
           <label style={s.label}>עיר</label>
           <input style={s.input} value={city} onChange={(e) => setCity(e.target.value)} list="city-list" autoComplete="off" />
@@ -353,11 +355,13 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
             <h3 style={s.cardTitle}>{isWW ? "מה אני מחפשת" : "מה אני מחפש/ת"}</h3>
             <p style={{ fontSize: 11, color: "#aaa", lineHeight: 1.5, margin: "-8px 0 14px" }}>הנתונים לא יופיעו בשום מקום — הם משמשים אותנו לסינון ראשוני של ההתאמות עבורך.</p>
 
+            {!isWW && <>
             <label style={s.label}>מגדר מבוקש</label>
             <select style={s.select} value={lookingForGender} onChange={(e) => setLookingForGender(e.target.value)}>
               <option value="">בחר/י</option>
               {lookingForOptions.map((o) => <option key={o.value} value={o.value}>{o.label_he}</option>)}
             </select>
+            </>}
 
             <label style={s.label}>טווח גילאים</label>
             <div style={s.row}>
@@ -373,6 +377,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
               {flexOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
 
+            {!isWW && <>
             <label style={s.label}>טווח גובה (ס"מ)</label>
             <div style={s.row}>
               <div style={s.rowItem}>
@@ -386,6 +391,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
             <select style={s.select} value={heightFlex} onChange={(e) => setHeightFlex(e.target.value)}>
               {flexOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
+            </>}
 
             <label style={s.label}>טווח מיקום</label>
             <select style={s.select} value={locationRange} onChange={(e) => setLocationRange(e.target.value)}>
@@ -404,10 +410,10 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
             <div style={{ flex: "1 1 45%", minWidth: 120 }}>
               <label style={{ fontSize: 11, color: "#888", marginBottom: 3, display: "block" }}>מצב משפחתי</label>
               <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0, color: maritalStatus ? undefined : "#aaa" }} value={maritalStatus} onChange={(e) => setMaritalStatus(e.target.value)}>
-                <option value="" disabled>בחר/י מצב משפחתי</option>
-                <option value="single">רווק/ה</option>
-                <option value="divorced">גרוש/ה</option>
-                <option value="married">נשוי/נשואה</option>
+                <option value="" disabled>{isWW ? "בחרי מצב משפחתי" : "בחר/י מצב משפחתי"}</option>
+                <option value="single">{isWW ? "רווקה" : "רווק/ה"}</option>
+                <option value="divorced">{isWW ? "גרושה" : "גרוש/ה"}</option>
+                <option value="married">{isWW ? "נשואה" : "נשוי/נשואה"}</option>
               </select>
             </div>
             <div style={{ flex: "1 1 45%", minWidth: 120 }}>
@@ -421,19 +427,19 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
             <div style={{ flex: "1 1 45%", minWidth: 120 }}>
               <label style={{ fontSize: 11, color: "#888", marginBottom: 3, display: "block" }}>דת</label>
               <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0, color: religion ? undefined : "#aaa" }} value={religion} onChange={(e) => setReligion(e.target.value)}>
-                <option value="" disabled>בחר/י דת</option>
-                <option value="jewish">יהודי/ה</option>
-                <option value="muslim">מוסלמי/ת</option>
-                <option value="christian">נוצרי/ה</option>
+                <option value="" disabled>{isWW ? "בחרי דת" : "בחר/י דת"}</option>
+                <option value="jewish">{isWW ? "יהודיה" : "יהודי/ה"}</option>
+                <option value="muslim">{isWW ? "מוסלמית" : "מוסלמי/ת"}</option>
+                <option value="christian">{isWW ? "נוצריה" : "נוצרי/ה"}</option>
                 <option value="other">אחר</option>
               </select>
             </div>
             <div style={{ flex: "1 1 45%", minWidth: 120 }}>
               <label style={{ fontSize: 11, color: "#888", marginBottom: 3, display: "block" }}>עישון</label>
               <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0, color: smoker === null ? "#aaa" : undefined }} value={smoker === null ? "" : smoker ? "yes" : "no"} onChange={(e) => setSmoker(e.target.value === "yes")}>
-                <option value="" disabled>מעשן/ת?</option>
-                <option value="no">לא מעשן/ת</option>
-                <option value="yes">מעשן/ת</option>
+                <option value="" disabled>{isWW ? "מעשנת?" : "מעשן/ת?"}</option>
+                <option value="no">{isWW ? "לא מעשנת" : "לא מעשן/ת"}</option>
+                <option value="yes">{isWW ? "מעשנת" : "מעשן/ת"}</option>
               </select>
             </div>
           </div>

@@ -19,6 +19,7 @@ export default function MatchCardConsentScreen({ user, onComplete, onShowExample
   const [savedUser, setSavedUser] = useState<any>(null);
 
   const f = user.gender === "woman";
+  const ww = user.gender === "woman" && user.looking_for_gender === "woman";
   const gn = (m: string, fem: string) => f ? fem : m;
 
   async function handleConsent(consent: "approved" | "declined") {
@@ -127,7 +128,7 @@ export default function MatchCardConsentScreen({ user, onComplete, onShowExample
         <div style={cardStyle}>
           <h3 style={cardTitleStyle}>מה זה כרטיס התאמה?</h3>
           <p style={cardTextStyle}>
-            כרטיס התאמה הוא הסבר אישי שנבנה כשנמצא התאמה רלוונטית {gn("עבורך", "עבורך")}. הוא נועד להראות לשני הצדדים למה חשבנו שכדאי שתכירו — מה יכול לחבר ביניכם, איפה יש פוטנציאל, ומה כדאי לשים לב אליו בתחילת ההיכרות.
+            כרטיס התאמה הוא הסבר אישי שנבנה כשנמצא התאמה רלוונטית {gn("עבורך", "עבורך")}. הוא נועד להראות לשני הצדדים למה חשבנו שכדאי שתכירו — מה יכול לחבר {ww ? "ביניכן" : "ביניכם"}, איפה יש פוטנציאל, ומה כדאי לשים לב אליו בתחילת ההיכרות.
           </p>
         </div>
 
@@ -135,7 +136,7 @@ export default function MatchCardConsentScreen({ user, onComplete, onShowExample
         <div style={cardStyle}>
           <h3 style={cardTitleStyle}>מה כלול בכרטיס?</h3>
           <p style={cardTextStyle}>
-            הכרטיס כולל מידע כללי ורלוונטי להתאמה בלבד: ערכים משותפים, סגנון תקשורת, דינמיקה אפשרית ביניכם, נקודות חיבור, וגם הצעה לאיך כדאי להתחיל את ההיכרות.
+            הכרטיס כולל מידע כללי ורלוונטי להתאמה בלבד: ערכים משותפים, סגנון תקשורת, דינמיקה אפשרית {ww ? "ביניכן" : "ביניכם"}, נקודות חיבור, וגם הצעה לאיך כדאי להתחיל את ההיכרות.
             <br /><br />
             <strong>אנחנו לא חושפים ציטוטים מהשיחות, מידע רגיש, או פרטים אישיים</strong> שאינם נחוצים להבנת ההתאמה.
           </p>
@@ -151,7 +152,7 @@ export default function MatchCardConsentScreen({ user, onComplete, onShowExample
 
         {/* View example button */}
         <button onClick={onShowExample} style={exampleBtnStyle}>
-          ראה דוגמה לכרטיס התאמה
+          {ww ? "ראי" : "ראה"} דוגמה לכרטיס התאמה
         </button>
 
         {/* Restrictions section */}

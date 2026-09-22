@@ -60,7 +60,7 @@ const SIDEBAR_ITEMS: { icon: string; label: string; action?: string }[] = [
   { icon: "/icons/settings.png", label: "הגדרות", action: "settings" },
 ];
 
-function HowItWorks() {
+function HowItWorks({ isWW }: { isWW?: boolean }) {
   return (
     <div style={{ direction: "rtl", background: "#f9fafb", minHeight: "100vh", fontFamily: "'Segoe UI', 'Arial', sans-serif" }}>
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "32px 24px" }}>
@@ -72,7 +72,7 @@ function HowItWorks() {
           <div style={{ marginBottom: 16 }}>
             <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 4px 0" }}>1. היכרות לעומק</p>
             <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, margin: 0 }}>
-              אנחנו מנהלים שיחה דינמית כדי להכיר אותך ברמה עמוקה. לא שאלון, אלא שיחה אמיתית שמטרתה להבין מה חשוב לך, איך אתה מעבד מידע, מה מניע אותך ומה הציפיות שלך מקשר.
+              אנחנו {isWW ? "מנהלות" : "מנהלים"} שיחה דינמית כדי להכיר אותך ברמה עמוקה. לא שאלון, אלא שיחה אמיתית שמטרתה להבין מה חשוב לך, איך {isWW ? "את מעבדת" : "אתה מעבד"} מידע, מה מניע אותך ומה הציפיות שלך מקשר.
             </p>
             <p style={{ fontSize: 12, color: "#888", lineHeight: 1.5, margin: "6px 0 0" }}>
               השיחה מחולקת לשלושה חלקים ממוקדים: צ'אט להיכרות כללית ובחינת דפוסים אישיותיים, ניתוח קוגניטיבי להבנת סגנון החשיבה באמצעות סימולציות, וכיול מדויק של הטעם האישי והציפיות שלך מהצד השני.
@@ -163,7 +163,7 @@ function HowItWorks() {
         <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 12, padding: "20px 24px" }}>
           <h3 style={{ fontSize: 16, fontWeight: 600, color: "#166534", margin: "0 0 10px 0" }}>איך ההתאמה עובדת</h3>
           <p style={{ fontSize: 13, color: "#3f6212", lineHeight: 1.7, margin: 0 }}>
-            ההתאמה מבוססת על שילוב חכם בין דמיון (למשל, ערכי ליבה קרובים) לבין השלמה (למשל, תכונות אופי ספציפיות שמאזנות זו את זו), לצד התחשבות מלאה בטעם האישי וברצונות שהגדרת. בנוסף, האלגוריתם אומן על דאטה של זוגות אמיתיים כדי ללמוד מה באמת מחבר בין אנשים ולכייל את המשקלים בהתאם.
+            ההתאמה מבוססת על שילוב חכם בין דמיון (למשל, ערכי ליבה קרובים) לבין השלמה (למשל, תכונות אופי ספציפיות שמאזנות זו את זו), לצד התחשבות מלאה בטעם האישי וברצונות {isWW ? "שהגדרת" : "שהגדרת"}. בנוסף, האלגוריתם אומן על דאטה של זוגות {isWW ? "אמיתיות" : "אמיתיים"} כדי ללמוד מה באמת מחבר ולכייל את המשקלים בהתאם.
           </p>
         </div>
       </div>
@@ -874,7 +874,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           })()}
 
           {/* Other sidebar items */}
-          {SIDEBAR_ITEMS.map((item, i) => (
+          {SIDEBAR_ITEMS
+          .filter(item => !(isWW && item.action === "taste_test"))
+          .map(item => isWW && item.action === "bug_report" ? { ...item, label: "עזרי לנו להשתפר" } : item)
+          .map((item, i) => (
             <button
               key={i}
               style={item.action ? (screen === item.action ? styles.sidebarItemActive : styles.sidebarItem) : { ...styles.sidebarItem, cursor: "default" }}
@@ -984,7 +987,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
              screen === "past_match_detail" ? (selectedPastMatch?._isPartnerProfile ? "פרופיל" : "התאמה קודמת") :
              screen === "couple_insights" ? "ניתוח זוגיות" :
              screen === "how_it_works" ? "איך המערכת עובדת?" :
-             screen === "bug_report" ? "עזרו לנו להשתפר" :
+             screen === "bug_report" ? (isWW ? "עזרי לנו להשתפר" : "עזרו לנו להשתפר") :
              screen === "settings" ? "הגדרות" :
              screen === "potential_matches" ? "בדיקת התאמה" : <img src="/nameLogoTrans.png" alt="One" style={{ height: 16, objectFit: "contain", display: "block" }} />}
           </span>
@@ -1018,7 +1021,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
         {screen === "how_it_works" && (
           <div className="nc-screen-fade" key="how_it_works" style={{ flex: 1, overflowY: "auto" }}>
-            <HowItWorks />
+            <HowItWorks isWW={isWW} />
           </div>
         )}
 
@@ -1051,7 +1054,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 ) : (
                   /* Feedback form */
                   <>
-                <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a2e", marginTop: 0, marginBottom: 6 }}>עזרו לנו להשתפר</h2>
+                <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a2e", marginTop: 0, marginBottom: 6 }}>{isWW ? "עזרי לנו להשתפר" : "עזרו לנו להשתפר"}</h2>
                 <p style={{ fontSize: 13, color: "#888", marginBottom: 20, marginTop: 0 }}>נשמח לשמוע מכם</p>
 
                 {/* Category chips */}
@@ -1338,7 +1341,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
               <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 12, padding: "14px 18px", marginBottom: 20 }}>
                 <p style={{ fontSize: 14, color: "#92400e", margin: 0, lineHeight: 1.7 }}>
-                  שימו לב — ביטול ההתאמה ישפיע על שני הצדדים. שניכם תחזרו למאגר ההתאמות.
+                  {isWW ? "שימי" : "שימו"} לב — ביטול ההתאמה ישפיע על שני הצדדים. {isWW ? "שתיכן תחזרו" : "שניכם תחזרו"} למאגר ההתאמות.
                   <br />ההתאמה תעבור לסטטוס "בוטלה" אצל שני הצדדים.
                 </p>
               </div>
@@ -1355,7 +1358,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               <textarea
                 value={cancelFeedback}
                 onChange={(e) => setCancelFeedback(e.target.value)}
-                placeholder="שתפו אותנו — מה לא עבד? מה נקח בחשבון להתאמה הבאה?"
+                placeholder={isWW ? "שתפי אותנו — מה לא עבד? מה נקח בחשבון להתאמה הבאה?" : "שתפו אותנו — מה לא עבד? מה נקח בחשבון להתאמה הבאה?"}
                 style={{
                   width: "100%", minHeight: 100, padding: "12px 14px",
                   borderRadius: 10, border: "1px solid #d4d0e8",
@@ -1391,7 +1394,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       בטוח/ה?
                     </p>
                     <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, margin: "0 0 20px" }}>
-                      ההתאמה תבוטל לשני הצדדים ושניכם תחזרו למאגר.
+                      ההתאמה תבוטל לשני הצדדים {isWW ? "ושתיכן תחזרו" : "ושניכם תחזרו"} למאגר.
                     </p>
                     <div style={{ display: "flex", gap: 10 }}>
                       <button
@@ -1754,9 +1757,9 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     const cogDone = isCouple ? recommendations.cognitive_count >= 3 : has_cognitive;
                     const tasteDone = isCouple ? has_taste_info : has_taste_info;
                     const bubbles: { icon: string; text: string; ch: string }[] = [];
-                    if (!cogDone && channel !== "new_chat_cognitive") bubbles.push({ icon: "/icons/thinkingType.png", text: "בוא נבין את סגנון החשיבה שלי", ch: "new_chat_cognitive" });
-                    if (!tasteDone && channel !== "new_chat_taste") bubbles.push({ icon: "/icons/myTaste.png", text: "נתח את הטעם שלי לעומק", ch: "new_chat_taste" });
-                    if (channel !== "new_chat" && !closedChannels["new_chat"] && (recommendations.summary_fields < 8)) bubbles.push({ icon: "/icons/Conversation.png", text: "בוא נמשיך להכיר", ch: "new_chat" });
+                    if (!cogDone && channel !== "new_chat_cognitive") bubbles.push({ icon: "/icons/thinkingType.png", text: isWW ? "בואי נבין את סגנון החשיבה שלי" : "בוא נבין את סגנון החשיבה שלי", ch: "new_chat_cognitive" });
+                    if (!tasteDone && channel !== "new_chat_taste") bubbles.push({ icon: "/icons/myTaste.png", text: isWW ? "נתחי את הטעם שלי לעומק" : "נתח את הטעם שלי לעומק", ch: "new_chat_taste" });
+                    if (channel !== "new_chat" && !closedChannels["new_chat"] && (recommendations.summary_fields < 8)) bubbles.push({ icon: "/icons/Conversation.png", text: isWW ? "בואי נמשיך להכיר" : "בוא נמשיך להכיר", ch: "new_chat" });
                     if (bubbles.length === 0) return null;
                     return (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginTop: 12 }}>
@@ -2338,7 +2341,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       ✕
                     </button>
                     <p style={{ fontSize: 14, color: "#3a3660", lineHeight: 1.7, margin: "0 0 6px", fontWeight: 600 }}>
-                      🤍 עזרו לנו להשתפר
+                      🤍 {isWW ? "עזרי לנו להשתפר" : "עזרו לנו להשתפר"}
                     </p>
                     <p style={{ fontSize: 13, color: "#555", lineHeight: 1.7, margin: "0 0 12px" }}>
                       לקראת המעבר מגרסת הבטא, נשמח מאוד לשמוע את דעתכם על החוויה עד כה.
@@ -2436,7 +2439,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 return (
                   <div style={styles.recommendationBlock}>
                     <p style={styles.recommendationText}>
-                      <span style={styles.recommendationBadge}>📊 איפה אנחנו עומדים?</span> עדיין לא התחלנו את שיחת ההיכרות. {gn("לחץ", "לחצי")} על <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => { setChannel("new_chat"); setScreen("chat"); }}>"בוא נתחיל"</span> כדי שנוכל {gn("להכיר אותך", "להכיר אותך")} ולהריץ חיפוש מדויק במאגר.
+                      <span style={styles.recommendationBadge}>{isWW ? "📊 איפה אנחנו עומדות?" : "📊 איפה אנחנו עומדים?"}</span> עדיין לא התחלנו את שיחת ההיכרות. {gn("לחץ", "לחצי")} על <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => { setChannel("new_chat"); setScreen("chat"); }}>{isWW ? "בואי נתחיל" : "בוא נתחיל"}</span> כדי שנוכל {gn("להכיר אותך", "להכיר אותך")} ולהריץ חיפוש מדויק במאגר.
                     </p>
                   </div>
                 );
@@ -2446,7 +2449,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 return (
                   <div style={styles.recommendationBlock}>
                     <p style={styles.recommendationText}>
-                      <span style={styles.recommendationBadge}>📊 איפה אנחנו עומדים?</span> עדיין אין לנו מספיק נתונים כדי להריץ חיפוש מדויק במאגר. {gn("לחץ", "לחצי")} על <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => { setChannel("new_chat"); setScreen("chat"); }}>"בוא נמשיך"</span> כדי להתקדם.
+                      <span style={styles.recommendationBadge}>{isWW ? "📊 איפה אנחנו עומדות?" : "📊 איפה אנחנו עומדים?"}</span> עדיין אין לנו מספיק נתונים כדי להריץ חיפוש מדויק במאגר. {gn("לחץ", "לחצי")} על <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => { setChannel("new_chat"); setScreen("chat"); }}>{isWW ? "בואי נמשיך" : "בוא נמשיך"}</span> כדי להתקדם.
                     </p>
                   </div>
                 );
@@ -2456,7 +2459,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 return (
                   <div style={styles.recommendationBlock}>
                     <p style={styles.recommendationText}>
-                      <span style={styles.recommendationBadge}>📊 איפה אנחנו עומדים?</span> שיחת ההיכרות הושלמה. {gn("היכנס", "היכנסי")} ל<span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => { if (channelMessages["new_chat_cognitive"]?.length > 0) { setChannel("new_chat_cognitive"); setScreen("chat"); } else { sendMessage("בוא נבין את סגנון החשיבה שלי", "new_chat_cognitive"); } }}>"בוא נבין את סגנון החשיבה שלי"</span> כדי שנוכל {gn("להכיר אותך", "להכיר אותך")} יותר לעומק ולדייק את ההתאמה.
+                      <span style={styles.recommendationBadge}>{isWW ? "📊 איפה אנחנו עומדות?" : "📊 איפה אנחנו עומדים?"}</span> שיחת ההיכרות הושלמה. {gn("היכנס", "היכנסי")} ל<span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => { if (channelMessages["new_chat_cognitive"]?.length > 0) { setChannel("new_chat_cognitive"); setScreen("chat"); } else { sendMessage(isWW ? "בואי נבין את סגנון החשיבה שלי" : "בוא נבין את סגנון החשיבה שלי", "new_chat_cognitive"); } }}>{isWW ? "בואי נבין את סגנון החשיבה שלי" : "בוא נבין את סגנון החשיבה שלי"}</span> כדי שנוכל {gn("להכיר אותך", "להכיר אותך")} יותר לעומק ולדייק את ההתאמה.
                     </p>
                   </div>
                 );
@@ -2466,7 +2469,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 return (
                   <div style={styles.recommendationBlock}>
                     <p style={styles.recommendationText}>
-                      <span style={styles.recommendationBadge}>📊 איפה אנחנו עומדים?</span> {gn("לחץ", "לחצי")} על <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => { if (channelMessages["new_chat_taste"]?.length > 0) { setChannel("new_chat_taste"); setScreen("chat"); } else { sendMessage("נתח את הטעם שלי לעומק", "new_chat_taste"); } }}>"נתח את הטעם שלי לעומק"</span> כדי שנוכל להבין את העדפות הטעם {gn("שלך", "שלך")}.
+                      <span style={styles.recommendationBadge}>{isWW ? "📊 איפה אנחנו עומדות?" : "📊 איפה אנחנו עומדים?"}</span> {gn("לחץ", "לחצי")} על <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => { if (channelMessages["new_chat_taste"]?.length > 0) { setChannel("new_chat_taste"); setScreen("chat"); } else { sendMessage("נתח את הטעם שלי לעומק", "new_chat_taste"); } }}>"נתח את הטעם שלי לעומק"</span> כדי שנוכל להבין את העדפות הטעם {gn("שלך", "שלך")}.
                     </p>
                   </div>
                 );
@@ -2764,7 +2767,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   }
                   setScreen("chat");
                 }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}><IconImg src={hasMessages ? "/icons/backToConversation.png" : "/icons/StartConversationPurple.png"} size={16} /></span> {hasMessages ? "בוא נמשיך" : "בוא נתחיל"}
+                  <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}><IconImg src={hasMessages ? "/icons/backToConversation.png" : "/icons/StartConversationPurple.png"} size={16} /></span> {hasMessages ? (isWW ? "בואי נמשיך" : "בוא נמשיך") : (isWW ? "בואי נתחיל" : "בוא נתחיל")}
                 </button>
                 )}
 
@@ -2789,16 +2792,19 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   STEP_OPTIONS.map((s, i) => {
                     const isChannelDone = closedChannels[s.channel] || (s.channel === "new_chat_cognitive" && recommendations.has_cognitive) || (s.channel === "new_chat_taste" && recommendations.has_taste_info);
                     if (isChannelDone) return null; // Hidden when closed — available via chat menu
+                    const wwText = s.channel === "new_chat_cognitive" ? "בואי נבין את סגנון החשיבה שלי"
+                      : s.channel === "new_chat_taste" ? "נתחי את הטעם שלי לעומק" : s.text;
+                    const displayText = isWW ? wwText : s.text;
                     return (
                     <button key={`step-${i}`} style={allChatsComplete ? styles.qaBubble : styles.suggestionBtn} onClick={() => {
                       if (channelMessages[s.channel]?.length > 0) {
                         setChannel(s.channel);
                         setScreen("chat");
                       } else {
-                        sendMessage(s.text, s.channel);
+                        sendMessage(displayText, s.channel);
                       }
                     }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle", opacity: 0.8 }}><IconImg src={s.icon} size={16} /></span> {s.text}
+                      <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle", opacity: 0.8 }}><IconImg src={s.icon} size={16} /></span> {displayText}
                     </button>
                     );
                   })
@@ -3018,7 +3024,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
             <input type="checkbox" checked={photoAI} disabled={saving || loading}
               onChange={(e) => { setPhotoAI(e.target.checked); saveSetting({ photo_ai_consent: e.target.checked }); }}
               style={checkboxStyle} />
-            <span>אני מאשר/ת ל־One להשתמש ב־AI כדי לנתח את תמונות הפרופיל שלי, לצורך שיפור התאמות ותובנות.</span>
+            <span>{isWW ? "אני מאשרת" : "אני מאשר/ת"} ל־One להשתמש ב־AI כדי לנתח את תמונות הפרופיל שלי, לצורך שיפור התאמות ותובנות.</span>
           </label>
           <p style={hintStyle}>ניתוח תמונות ב־AI הוא אופציונלי. ללא אישור, התמונות ישמשו להצגה בפרופיל בלבד.</p>
         </div>
@@ -3116,7 +3122,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
             <input type="checkbox" checked={emailUpdates} disabled={saving || loading}
               onChange={(e) => { setEmailUpdates(e.target.checked); saveSetting({ email_updates: e.target.checked }); }}
               style={checkboxStyle} />
-            <span>אני מאשר/ת קבלת עדכונים במייל על התאמות וחדשות</span>
+            <span>{isWW ? "אני מאשרת" : "אני מאשר/ת"} קבלת עדכונים במייל על התאמות וחדשות</span>
           </label>
           <label style={labelStyle}>
             <input type="checkbox" checked={whatsappUpdates} disabled={saving || loading}
@@ -3125,7 +3131,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
                 if (!e.target.checked) saveSetting({ whatsapp_updates: false });
               }}
               style={checkboxStyle} />
-            <span>אני מאשר/ת קבלת עדכונים בוואטסאפ</span>
+            <span>{isWW ? "אני מאשרת" : "אני מאשר/ת"} קבלת עדכונים בוואטסאפ</span>
           </label>
           {whatsappUpdates && (
             <div style={{ marginTop: 10, paddingRight: 28 }}>
