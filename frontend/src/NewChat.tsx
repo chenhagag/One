@@ -2977,9 +2977,10 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
     setDeleting(true);
     try {
       // Submit deletion request as a bug report (actual deletion handled by admin)
-      await apiFetch("/bug-reports", {
+      await apiFetch("/report-bug", {
         method: "POST",
         body: JSON.stringify({
+          user_id: user.id,
           report_text: `[delete_request] ${deleteReason.trim() || "ללא סיבה"}`,
         }),
       });
@@ -3479,7 +3480,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onL
                     תודה שהיית חלק מ-One 🤍
                   </p>
                   <button
-                    onClick={() => { setShowDeleteModal(false); }}
+                    onClick={() => { setShowDeleteModal(false); onLogout?.(); }}
                     style={{
                       padding: "12px 32px", borderRadius: 10, background: "#111827",
                       color: "#fff", fontSize: 15, fontWeight: 600, border: "none",
