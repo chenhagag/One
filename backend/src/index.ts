@@ -1703,6 +1703,9 @@ app.delete("/users/:id/account", requireUserAuth, async (req, res) => {
   await pgQueryAll("DELETE FROM user_photos WHERE user_id = $1", [userId]);
   // bug_reports: keep reports (FK ON DELETE SET NULL will nullify user_id)
   await pgQueryAll("DELETE FROM token_usage WHERE user_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM notification_log WHERE user_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM pipeline_jobs WHERE user_id = $1", [userId]);
+  await pgQueryAll("DELETE FROM match_nudges WHERE user_id = $1 OR partner_id = $1", [userId]);
   await pgQueryAll("DELETE FROM direct_messages WHERE match_id IN (SELECT id FROM matches WHERE user1_id = $1 OR user2_id = $1)", [userId]);
   await pgQueryAll("DELETE FROM typing_status WHERE match_id IN (SELECT id FROM matches WHERE user1_id = $1 OR user2_id = $1)", [userId]);
   await pgQueryAll("DELETE FROM match_scores WHERE match_id IN (SELECT id FROM matches WHERE user1_id = $1 OR user2_id = $1)", [userId]);
