@@ -1661,6 +1661,42 @@ app.get("/users/:id/conversation-history", requireUserAuth, async (req, res) => 
   });
 });
 
+/**
+ * Delete ALL data for a user across all FK-linked tables.
+ * Order matters: child tables first, then parent tables, then users.
+ */
+async function deleteAllUserData(userId: number): Promise<void> {
+  const matchIds = `(SELECT id FROM matches WHERE user1_id = $1 OR user2_id = $1)`;
+  const tables: [string, string][] = [
+    ["profiles", "DELETE FROM profiles WHERE user_id = $1"],
+    ["conversation_messages", "DELETE FROM conversation_messages WHERE user_id = $1"],
+    ["user_traits", "DELETE FROM user_traits WHERE user_id = $1"],
+    ["user_look_traits", "DELETE FROM user_look_traits WHERE user_id = $1"],
+    ["user_chat_summaries", "DELETE FROM user_chat_summaries WHERE user_id = $1"],
+    ["analysis_runs", "DELETE FROM analysis_runs WHERE user_id = $1"],
+    ["user_photos", "DELETE FROM user_photos WHERE user_id = $1"],
+    ["token_usage", "DELETE FROM token_usage WHERE user_id = $1"],
+    ["notification_log", "DELETE FROM notification_log WHERE user_id = $1"],
+    ["pipeline_jobs", "DELETE FROM pipeline_jobs WHERE user_id = $1"],
+    ["bug_reports", "DELETE FROM bug_reports WHERE user_id = $1"],
+    ["match_nudges", `DELETE FROM match_nudges WHERE user_id = $1 OR partner_id = $1`],
+    ["direct_messages", `DELETE FROM direct_messages WHERE match_id IN ${matchIds}`],
+    ["typing_status", `DELETE FROM typing_status WHERE match_id IN ${matchIds}`],
+    ["match_scores", `DELETE FROM match_scores WHERE match_id IN ${matchIds}`],
+    ["matches", "DELETE FROM matches WHERE user1_id = $1 OR user2_id = $1"],
+    ["candidate_matches", "DELETE FROM candidate_matches WHERE user_id = $1 OR candidate_user_id = $1"],
+    ["users", "DELETE FROM users WHERE id = $1"],
+  ];
+  for (const [table, sql] of tables) {
+    try {
+      await pgQueryAll(sql, [userId]);
+    } catch (e: any) {
+      console.error(`[deleteAllUserData] user=${userId} FAILED on ${table}:`, e.message);
+      throw e;
+    }
+  }
+}
+
 // DELETE /users/:id/account — User deletes their own account
 app.delete("/users/:id/account", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
@@ -1693,35 +1729,10 @@ app.delete("/users/:id/account", requireUserAuth, async (req, res) => {
     try { fs.unlinkSync(path.join(uploadsDir, photo.filename)); } catch {}
   }
 
-  // Hard delete (order matters due to FKs)
-  const deletes: [string, string][] = [
-    ["profiles", "DELETE FROM profiles WHERE user_id = $1"],
-    ["conversation_messages", "DELETE FROM conversation_messages WHERE user_id = $1"],
-    ["user_traits", "DELETE FROM user_traits WHERE user_id = $1"],
-    ["user_look_traits", "DELETE FROM user_look_traits WHERE user_id = $1"],
-    ["user_chat_summaries", "DELETE FROM user_chat_summaries WHERE user_id = $1"],
-    ["analysis_runs", "DELETE FROM analysis_runs WHERE user_id = $1"],
-    ["user_photos", "DELETE FROM user_photos WHERE user_id = $1"],
-    // bug_reports: keep reports (FK ON DELETE SET NULL will nullify user_id)
-    ["token_usage", "DELETE FROM token_usage WHERE user_id = $1"],
-    ["notification_log", "DELETE FROM notification_log WHERE user_id = $1"],
-    ["pipeline_jobs", "DELETE FROM pipeline_jobs WHERE user_id = $1"],
-    ["match_nudges", "DELETE FROM match_nudges WHERE user_id = $1 OR partner_id = $1"],
-    ["direct_messages", "DELETE FROM direct_messages WHERE match_id IN (SELECT id FROM matches WHERE user1_id = $1 OR user2_id = $1)"],
-    ["typing_status", "DELETE FROM typing_status WHERE match_id IN (SELECT id FROM matches WHERE user1_id = $1 OR user2_id = $1)"],
-    ["match_scores", "DELETE FROM match_scores WHERE match_id IN (SELECT id FROM matches WHERE user1_id = $1 OR user2_id = $1)"],
-    ["matches", "DELETE FROM matches WHERE user1_id = $1 OR user2_id = $1"],
-    ["candidate_matches", "DELETE FROM candidate_matches WHERE user_id = $1 OR candidate_user_id = $1"],
-    ["users", "DELETE FROM users WHERE id = $1"],
-  ];
-  for (const [table, sql] of deletes) {
-    try {
-      console.log(`[delete-account] user=${userId} deleting from ${table}...`);
-      await pgQueryAll(sql, [userId]);
-    } catch (e: any) {
-      console.error(`[delete-account] user=${userId} FAILED on ${table}:`, e.message);
-      return res.status(500).json({ error: `Failed to delete from ${table}: ${e.message}` });
-    }
+  try {
+    await deleteAllUserData(userId);
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
   }
 
   console.log(`[delete-account] user=${userId} deleted successfully`);
@@ -2244,36 +2255,11 @@ app.delete("/admin/users/:id", async (req, res) => {
     try { fs.unlinkSync(path.join(uploadsDir, photo.filename)); } catch {}
   }
 
-  // Delete from pg (order matters due to FKs)
-  const result = {
-    profiles: 0, messages: 0, traits: 0, lookTraits: 0, analysisRuns: 0,
-    matchScores: 0, matches: 0, candidates: 0,
-  };
-  result.profiles     = (await pgQueryAll("DELETE FROM profiles WHERE user_id = $1", [userId])).length;
-  result.messages     = (await pgQueryAll("DELETE FROM conversation_messages WHERE user_id = $1", [userId])).length;
-  result.traits       = (await pgQueryAll("DELETE FROM user_traits WHERE user_id = $1", [userId])).length;
-  result.lookTraits   = (await pgQueryAll("DELETE FROM user_look_traits WHERE user_id = $1", [userId])).length;
-  result.analysisRuns = (await pgQueryAll("DELETE FROM analysis_runs WHERE user_id = $1", [userId])).length;
-  result.matchScores  = (await pgQueryAll(
-    `DELETE FROM match_scores WHERE match_id IN
-     (SELECT id FROM matches WHERE user1_id = $1 OR user2_id = $1)`,
-    [userId]
-  )).length;
-  result.matches      = (await pgQueryAll(
-    "DELETE FROM matches WHERE user1_id = $1 OR user2_id = $1", [userId]
-  )).length;
-  result.candidates   = (await pgQueryAll(
-    "DELETE FROM candidate_matches WHERE user_id = $1 OR candidate_user_id = $1", [userId]
-  )).length;
-  // Delete from remaining FK tables before deleting the user row
-  await pgQueryAll("DELETE FROM user_photos WHERE user_id = $1", [userId]);
-  await pgQueryAll("DELETE FROM user_chat_summaries WHERE user_id = $1", [userId]);
-  await pgQueryAll("DELETE FROM bug_reports WHERE user_id = $1", [userId]);
-  await pgQueryAll("DELETE FROM token_usage WHERE user_id = $1", [userId]);
-  await pgQueryAll("DELETE FROM users WHERE id = $1", [userId]);
+  // Delete all user data (shared with self-delete handler)
+  await deleteAllUserData(userId);
 
   console.log(`[admin] Deleted user ${userId}`);
-  return res.json({ deleted: true, user_id: userId, ...result });
+  return res.json({ deleted: true, user_id: userId });
 });
 
 // POST /api/users/:id/reset-data — Delete all user data but keep account
