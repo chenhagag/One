@@ -41,7 +41,7 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
   const [testUserType, setTestUserType] = useState("User Experience Tester");
   const [partnerName, setPartnerName] = useState("");
   const [emailUpdates, setEmailUpdates] = useState(true);
-  const [whatsappUpdates, setWhatsappUpdates] = useState(false);
+  const [whatsappUpdates, setWhatsappUpdates] = useState(isForWomen ? true : false);
   const [whatsappPhone, setWhatsappPhone] = useState("");
 
   const [enums, setEnums] = useState<Record<string, EnumOption[]>>({});
@@ -177,7 +177,7 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
           <img src="/iconOnly.png" alt="" style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", marginBottom: 12 }} />
           <h2 style={{ marginTop: 0, marginBottom: 6, fontSize: 22, fontWeight: 700, color: "#1a1a2e" }}>נתוני פתיחה</h2>
           <p style={{ color: "#888", marginBottom: 0, marginTop: 0, fontSize: 14 }}>
-            כמה פרטים טכניים, כדי שהמערכת תדע לכוון לאנשים הרלוונטיים עבורך.
+            {isForWomen ? "כמה פרטים טכניים, כדי שנדע לכוון למי שרלוונטית עבורך." : "כמה פרטים טכניים, כדי שהמערכת תדע לכוון לאנשים הרלוונטיים עבורך."}
           </p>
         </div>
 
@@ -233,6 +233,7 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
           </select>
           </>}
 
+          {!isForWomen && <>
           <label style={s.label}>סטטוס</label>
           <select style={s.select} value={testUserType} onChange={(e) => { setTestUserType(e.target.value); if (e.target.value !== "Couple Tester") setPartnerName(""); }}>
             <option value="User Experience Tester">אני רווק/ה שמשתתף/ת ב-MVP</option>
@@ -251,9 +252,33 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
               />
             </>
           )}
+          </>}
+
+          {/* Notifications — inline for forwomen, separate section otherwise */}
+          {isForWomen && <div style={{ borderTop: "1px solid #e8e4ee", paddingTop: 16, marginTop: 8 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: "#1a1a2e", margin: "0 0 10px" }}>עדכונים והתראות</p>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 13, color: "#444", lineHeight: 1.6, marginBottom: 10 }}>
+              <input type="checkbox" checked={emailUpdates} onChange={e => setEmailUpdates(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }} />
+              <span>מעוניינת לקבל עדכונים במייל</span>
+            </label>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 13, color: "#444", lineHeight: 1.6 }}>
+              <input type="checkbox" checked={whatsappUpdates} onChange={e => setWhatsappUpdates(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }} />
+              <span>מעוניינת לקבל עדכונים גם ב-WhatsApp</span>
+            </label>
+            {whatsappUpdates && (
+              <input
+                style={{ ...s.input, marginTop: 10, marginBottom: 0 }}
+                type="tel"
+                value={whatsappPhone}
+                onChange={e => setWhatsappPhone(e.target.value)}
+                placeholder="מספר טלפון"
+                dir="ltr"
+              />
+            )}
+          </div>}
         </div>
 
-        <div style={{ ...s.section, background: "#f5f0fb", border: "1px solid #e8e0f0" }}>
+        {!isForWomen && <div style={{ ...s.section, background: "#f5f0fb", border: "1px solid #e8e0f0" }}>
           <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 12px" }}>עדכונים והתראות</p>
           <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 13, color: "#444", lineHeight: 1.6, marginBottom: 12 }}>
             <input type="checkbox" checked={emailUpdates} onChange={e => setEmailUpdates(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }} />
@@ -273,10 +298,10 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
               dir="ltr"
             />
           )}
-        </div>
+        </div>}
 
         <button style={s.btn} type="submit" disabled={loading}>
-          {loading ? "...שומר" : "בואו נתחיל"}
+          {loading ? "...שומר" : isForWomen ? "בואי נתחיל" : "בואו נתחיל"}
         </button>
 
         {error && <p style={s.error}>{error}</p>}
