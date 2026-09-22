@@ -306,7 +306,7 @@ export default function AuthScreen({ onOtpSuccess, notice, entryPoint }: AuthScr
               cursor: "pointer", fontFamily: "inherit", marginBottom: 8,
             }}
           >
-            המשך לאפליקציה
+            {isForWomen ? "המשיכי לאפליקציה" : "המשך לאפליקציה"}
           </button>
           <p style={{ fontSize: 13, color: "#999", textAlign: "center", margin: "16px 0 0", letterSpacing: 0.5 }}>
             One - Meet, as you are.

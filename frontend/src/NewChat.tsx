@@ -383,6 +383,9 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
     qa_refine: [],
     qa_match_feedback: [],
   });
+  // Woman-seeking-woman flag — used for feminine UI throughout
+  const isWW = user.gender === "woman" && user.looking_for_gender === "woman";
+
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1698,7 +1701,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 return (
                   <div style={styles.welcomeBlock}>
                     <img src="/iconOnly.png" alt="" style={styles.welcomeIcon} />
-                    <h2 style={styles.welcomeTitle}>ברוכים הבאים ל-One</h2>
+                    <h2 style={styles.welcomeTitle}>{isWW ? "ברוכות הבאות" : "ברוכים הבאים"} ל-One</h2>
                     <p style={styles.welcomeText}>
                       העוזר האישי שלך למציאת התאמה מדויקת ומשמעותית.
                     </p>
@@ -2353,7 +2356,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
                   <div style={{ background: "#f0eef8", borderRadius: 14, padding: "18px 20px", border: "1px solid #e0ddf5" }}>
                     <p style={{ fontSize: 14, color: "#3a3660", lineHeight: 1.8, margin: "0 0 12px", fontWeight: 500 }}>
-                      ברוכים הבאים למאגר של One
+                      {isWW ? "ברוכות הבאות" : "ברוכים הבאים"} למאגר של One
                     </p>
                     <p style={{ fontSize: 14, color: "#3a3660", lineHeight: 1.8, margin: "0 0 12px" }}>
                       אנחנו עדיין בשלב MVP ובונים את הקהילה שלנו צעד־צעד. ייתכן שייקח קצת זמן עד שנמצא התאמה מדויקת, אבל אנחנו מעדיפים לחכות להתאמה שיש לה באמת סיבה.
@@ -2873,7 +2876,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               <p style={{ fontSize: 11, color: "#bbb", lineHeight: 1.5, margin: "0 0 4px" }}>
                 המערכת נמצאת בגרסת הרצה ראשונית (MVP). הצ׳אט עדיין נמצא בשיפור, ולכן ייתכנו ניסוחים פחות מדויקים או טעויות נקודתיות.
               </p>
-              <p style={{ fontSize: 11, color: "#bbb", margin: "0 0 6px" }}>מוזמנים לשתף אותנו בתקלות, שאלות או כל דבר אחר:</p>
+              <p style={{ fontSize: 11, color: "#bbb", margin: "0 0 6px" }}>{isWW ? "מוזמנות" : "מוזמנים"} לשתף אותנו בתקלות, שאלות או כל דבר אחר:</p>
               <div style={{ display: "flex", justifyContent: "center", gap: 24 }}>
                 <div style={{ cursor: "pointer", opacity: 0.55, transition: "opacity 0.15s" }} onClick={() => setScreen("bug_report")} title="משוב">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8b7ba8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
