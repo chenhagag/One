@@ -1667,6 +1667,12 @@ app.get("/users/:id/conversation-history", requireUserAuth, async (req, res) => 
  */
 async function deleteAllUserData(userId: number): Promise<void> {
   const matchIds = `(SELECT id FROM matches WHERE user1_id = $1 OR user2_id = $1)`;
+  // Nullify references to this user in OTHER users' matches (blocked_by, sent_for_rating_to, cancelled_by)
+  const nullify: [string, string][] = [
+    ["matches.blocked_by", "UPDATE matches SET blocked_by = NULL WHERE blocked_by = $1 AND user1_id != $1 AND user2_id != $1"],
+    ["matches.sent_for_rating_to", "UPDATE matches SET sent_for_rating_to = NULL WHERE sent_for_rating_to = $1 AND user1_id != $1 AND user2_id != $1"],
+    ["matches.cancelled_by", "UPDATE matches SET cancelled_by = NULL WHERE cancelled_by = $1 AND user1_id != $1 AND user2_id != $1"],
+  ];
   const tables: [string, string][] = [
     ["profiles", "DELETE FROM profiles WHERE user_id = $1"],
     ["conversation_messages", "DELETE FROM conversation_messages WHERE user_id = $1"],
@@ -1687,6 +1693,14 @@ async function deleteAllUserData(userId: number): Promise<void> {
     ["candidate_matches", "DELETE FROM candidate_matches WHERE user_id = $1 OR candidate_user_id = $1"],
     ["users", "DELETE FROM users WHERE id = $1"],
   ];
+  for (const [col, sql] of nullify) {
+    try {
+      await pgQueryAll(sql, [userId]);
+    } catch (e: any) {
+      console.error(`[deleteAllUserData] user=${userId} FAILED nullifying ${col}:`, e.message);
+      throw e;
+    }
+  }
   for (const [table, sql] of tables) {
     try {
       await pgQueryAll(sql, [userId]);
@@ -1696,26 +1710,6 @@ async function deleteAllUserData(userId: number): Promise<void> {
     }
   }
 }
-
-// TEMP: Debug FK constraints blocking user deletion
-app.get("/debug/fk-constraints", async (_req, res) => {
-  try {
-    const rows = await pgQueryAll<any>(`
-      SELECT tc.table_name, kcu.column_name, rc.delete_rule
-      FROM information_schema.table_constraints tc
-      JOIN information_schema.key_column_usage kcu
-        ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
-      JOIN information_schema.referential_constraints rc
-        ON tc.constraint_name = rc.constraint_name AND tc.constraint_schema = rc.constraint_schema
-      JOIN information_schema.constraint_column_usage ccu
-        ON rc.unique_constraint_name = ccu.constraint_name AND rc.unique_constraint_schema = ccu.constraint_schema
-      WHERE ccu.table_name = 'users' AND ccu.column_name = 'id'
-        AND rc.delete_rule = 'NO ACTION'
-      ORDER BY tc.table_name
-    `);
-    res.json(rows);
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
-});
 
 // DELETE /users/:id/account — User deletes their own account
 app.delete("/users/:id/account", requireUserAuth, async (req, res) => {
