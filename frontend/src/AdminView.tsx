@@ -6124,7 +6124,7 @@ function OutreachLogTab() {
   const [nudgeFilter, setNudgeFilter] = useState<"all" | "pending">("all");
   const [whatsappFilter, setWhatsappFilter] = useState<"pending" | "all">("pending");
   const [expandedNudgeId, setExpandedNudgeId] = useState<number | null>(null);
-  const [activeSection, setActiveSection] = useState<"matches" | "questions" | "whatsapp">("matches");
+  const [activeSection, setActiveSection] = useState<string>("ratings");
 
   useEffect(() => {
     apiFetch("/admin/outreach-log")
@@ -6204,42 +6204,43 @@ function OutreachLogTab() {
     ? nudges.filter(n => n.status === "pending" || (!n.admin_seen && n.status !== "pending"))
     : nudges;
 
-  // New item counts per topic
+  // New item counts per tab
   const newRatings = ratings.filter((r: any) => !r.rating_admin_seen && (r.user1_rating || r.user2_rating)).length;
   const newNudges = nudges.filter((n: any) => !n.admin_seen && n.status !== "pending").length;
-  const newMatchItems = newRatings + newNudges;
   const newQuestionAnswers = questions.filter((q: any) => q.answer && !q.admin_seen).length;
   const newOpenResponses = adminMessages.filter((m: any) => m.admin_message_type === "conversation" && m.admin_message_responded_at && !m.admin_message_response_seen).length;
-  const newQuestionItems = newQuestionAnswers + newOpenResponses;
   const newWhatsapp = whatsappPending.filter((w: any) => !w.whatsapp_handled).length;
 
-  const topicBtnStyle = (active: boolean, count: number) => ({
-    padding: "8px 16px", fontSize: 13, fontWeight: 600 as const, cursor: "pointer",
-    border: active ? "2px solid #7b5fa3" : "1px solid #e5e7eb",
-    borderRadius: 8, background: active ? "#f5f0ff" : "#fff", color: active ? "#7b5fa3" : "#374151",
-    display: "inline-flex" as const, alignItems: "center" as const, gap: 6,
-  });
+  const tabs: { key: string; label: string; count: number }[] = [
+    { key: "ratings", label: "דירוגים", count: newRatings },
+    { key: "cancellations", label: "ביטולים", count: 0 },
+    { key: "nudges", label: "בירורים", count: newNudges },
+    { key: "questions", label: "שאלות", count: newQuestionAnswers },
+    { key: "open_questions", label: "שאלות פתוחות", count: newOpenResponses },
+    { key: "messages", label: "הודעות", count: 0 },
+    { key: "whatsapp", label: "וואטסאפ", count: newWhatsapp },
+  ];
 
   return (
     <div>
-      {/* Topic navigation */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-        <button style={topicBtnStyle(activeSection === "matches", newMatchItems)} onClick={() => setActiveSection("matches")}>
-          התאמות
-          {newMatchItems > 0 && <span style={{ background: "#dc2626", color: "#fff", borderRadius: 20, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>{newMatchItems}</span>}
-        </button>
-        <button style={topicBtnStyle(activeSection === "questions", newQuestionItems)} onClick={() => setActiveSection("questions")}>
-          שאלות והודעות
-          {newQuestionItems > 0 && <span style={{ background: "#dc2626", color: "#fff", borderRadius: 20, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>{newQuestionItems}</span>}
-        </button>
-        <button style={topicBtnStyle(activeSection === "whatsapp", newWhatsapp)} onClick={() => setActiveSection("whatsapp")}>
-          וואטסאפ
-          {newWhatsapp > 0 && <span style={{ background: "#25D366", color: "#fff", borderRadius: 20, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>{newWhatsapp}</span>}
-        </button>
+      {/* Tab navigation */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" }}>
+        {tabs.map(t => (
+          <button key={t.key} onClick={() => setActiveSection(t.key)} style={{
+            padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer",
+            border: activeSection === t.key ? "2px solid #7b5fa3" : "1px solid #e5e7eb",
+            borderRadius: 8, background: activeSection === t.key ? "#f5f0ff" : "#fff",
+            color: activeSection === t.key ? "#7b5fa3" : "#374151",
+            display: "inline-flex", alignItems: "center", gap: 5,
+          }}>
+            {t.label}
+            {t.count > 0 && <span style={{ background: t.key === "whatsapp" ? "#25D366" : "#dc2626", color: "#fff", borderRadius: 20, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>{t.count}</span>}
+          </button>
+        ))}
       </div>
 
-      {/* ═══ Topic: התאמות ═══ */}
-      {activeSection === "matches" && <>
+      {/* ═══ דירוגים ═══ */}
+      {activeSection === "ratings" && <>
 
       {/* Match Ratings */}
       <div style={{ marginBottom: 32 }}>
@@ -6301,7 +6302,7 @@ function OutreachLogTab() {
 
       </>}
 
-      {/* ═══ Topic: שאלות והודעות ═══ */}
+      {/* ═══ שאלות ═══ */}
       {activeSection === "questions" && <>
 
       {/* System Questions */}
@@ -6375,6 +6376,11 @@ function OutreachLogTab() {
           </table>
         </div>
       </div>
+
+      </>}
+
+      {/* ═══ שאלות פתוחות ═══ */}
+      {activeSection === "open_questions" && <>
 
       {/* Open Questions (admin_messages type=conversation) */}
       <div style={{ marginTop: 32 }}>
@@ -6451,6 +6457,11 @@ function OutreachLogTab() {
         </div>
       </div>
 
+      </>}
+
+      {/* ═══ הודעות ═══ */}
+      {activeSection === "messages" && <>
+
       {/* Regular Messages (admin_messages type != conversation) */}
       <div style={{ marginTop: 32 }}>
         <h3 style={{ margin: "0 0 12px" }}>הודעות ({adminMessages.filter((m: any) => m.admin_message_type !== "conversation").length})</h3>
@@ -6505,8 +6516,8 @@ function OutreachLogTab() {
 
       </>}
 
-      {/* ═══ Topic: התאמות (continued — cancellations) ═══ */}
-      {activeSection === "matches" && <>
+      {/* ═══ ביטולים ═══ */}
+      {activeSection === "cancellations" && <>
 
       {/* Cancellations */}
       <div style={{ marginTop: 32 }}>
@@ -6548,7 +6559,7 @@ function OutreachLogTab() {
 
       </>}
 
-      {/* ═══ Topic: וואטסאפ ═══ */}
+      {/* ═══ וואטסאפ ═══ */}
       {activeSection === "whatsapp" && <>
       {/* WhatsApp Pending */}
       {whatsappPending.length > 0 && (
@@ -6645,8 +6656,8 @@ function OutreachLogTab() {
       {whatsappPending.length === 0 && <p style={{ color: "#9ca3af", textAlign: "center" }}>אין התראות ממתינות לוואטסאפ</p>}
       </>}
 
-      {/* ═══ Topic: התאמות (continued — nudges) ═══ */}
-      {activeSection === "matches" && <>
+      {/* ═══ בירורים ═══ */}
+      {activeSection === "nudges" && <>
       {/* Match Nudges */}
       <div style={{ marginBottom: 32 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
