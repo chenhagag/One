@@ -380,7 +380,7 @@ function getNotStartedContent(
       };
     default: // 4
       return {
-        title: `תזכורת אחרונה`,
+        title: `תזכורת מ-One`,
         body: `${hey}, זו התזכורת האחרונה שלנו. עדיין אפשר להתחיל את שיחת ההיכרות — אחרי שנכיר אותך, אנחנו מטפלים בהכול.`,
         emailHtml: buildNotStartedEmail(nudgeNumber, name, gender),
       };
@@ -416,7 +416,7 @@ function getIncompleteContent(
       };
     default: // 4
       return {
-        title: `תזכורת אחרונה`,
+        title: `תזכורת מ-One`,
         body: `${hey}, זו התזכורת האחרונה שלנו. אחרי שנכיר אותך לעומק, נוכל למצוא ${g("לך", "לך")} את ההתאמה המדויקת ביותר. כל מה ש${g("עשית", "עשית")} נשמר.`,
         emailHtml: buildIncompleteEmail(nudgeNumber, name, gender),
       };
@@ -482,7 +482,7 @@ function buildNotStartedEmail(nudgeNumber: number, name: string, gender: string 
       ${ctaButton(g("כנס", "כנסי") + " להתחיל")}
     `,
     4: `
-      <h2 style="font-size: 20px; margin: 0 0 16px;">תזכורת אחרונה</h2>
+      <h2 style="font-size: 20px; margin: 0 0 16px;">תזכורת מ-One</h2>
       <p>${hey},</p>
       <p>זו התזכורת האחרונה שלנו. עדיין אפשר להתחיל את שיחת ההיכרות — אחרי שנכיר אותך, אנחנו מטפלים בהכול.</p>
       ${ctaButton(g("כנס", "כנסי") + " להתחיל")}
@@ -519,7 +519,7 @@ function buildIncompleteEmail(nudgeNumber: number, name: string, gender: string 
       ${ctaButton("להמשך התהליך")}
     `,
     4: `
-      <h2 style="font-size: 20px; margin: 0 0 16px;">תזכורת אחרונה</h2>
+      <h2 style="font-size: 20px; margin: 0 0 16px;">תזכורת מ-One</h2>
       <p>${hey},</p>
       <p>זו התזכורת האחרונה שלנו. אחרי שנכיר אותך לעומק, נוכל למצוא ${g("לך", "לך")} את ההתאמה המדויקת ביותר. כל מה ש${g("עשית", "עשית")} נשמר.</p>
       ${ctaButton("להמשך התהליך")}

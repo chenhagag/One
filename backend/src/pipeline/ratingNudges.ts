@@ -90,7 +90,8 @@ function buildRatingReminderEmail(name: string, gender: string | null): string {
   <h2 style="font-size: 20px; margin: 0 0 16px;">תזכורת מ-One</h2>
   <div style="font-size: 15px;">
     <p>היי ${name},</p>
-    <p>שלחנו לך התאמה פוטנציאלית — נשמח ${g("שתציץ", "שתציצי")} כשנוח לך.</p>
+    <p>מצאנו ${g("לך", "לך")} התאמה פוטנציאלית ב-One!</p>
+    <p>${g("כנס", "כנסי")} למערכת כדי לראות את הפרטים ${g("ולהגיב", "ולהגיב")}.</p>
   </div>
   <div style="text-align: center; margin: 28px 0;">
     <a href="https://joinone.io" style="display:inline-block;background-color:#7b5fa3;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:15px">${g("כנס", "כנסי")} לראות</a>

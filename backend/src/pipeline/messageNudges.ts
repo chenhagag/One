@@ -245,7 +245,11 @@ export async function runMessageNudges(force = false): Promise<MessageNudgeResul
 
   result.system_questions_checked = unansweredQuestions.length;
 
+  // Deduplicate: only process the OLDEST unanswered question per user
+  const seenUsers = new Set<number>();
   for (const q of unansweredQuestions) {
+    if (seenUsers.has(q.user_id)) continue;
+    seenUsers.add(q.user_id);
     try {
       const createdAt = new Date(q.created_at);
       const days = daysSince(createdAt);
