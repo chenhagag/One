@@ -2722,10 +2722,15 @@ app.get("/admin/matches", async (_req, res) => {
   const matches = await pgQueryAll(`
     SELECT m.*,
       u1.first_name as user1_name,
-      u2.first_name as user2_name
+      u2.first_name as user2_name,
+      cm.id as candidate_match_id
     FROM matches m
     JOIN users u1 ON u1.id = m.user1_id
     JOIN users u2 ON u2.id = m.user2_id
+    LEFT JOIN candidate_matches cm ON (
+      (cm.user_id = m.user1_id AND cm.candidate_user_id = m.user2_id) OR
+      (cm.user_id = m.user2_id AND cm.candidate_user_id = m.user1_id)
+    )
     ORDER BY m.created_at DESC
   `);
   return res.json(matches);

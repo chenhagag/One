@@ -3814,6 +3814,10 @@ function LookTraitDefsTab() {
 function MatchesTab() {
   const [allData, setAllData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showPast, setShowPast] = useState(false);
+  const [viewingCard, setViewingCard] = useState<any>(null);
+  const [viewingDetail, setViewingDetail] = useState<any>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   function load() {
     setLoading(true);
@@ -3826,58 +3830,190 @@ function MatchesTab() {
 
   useEffect(() => { load(); }, []);
 
-  // Show only active matches: pre_match and in_match
-  const data = allData.filter((m: any) => m.status === "pre_match" || m.status === "in_match");
+  const activeStatuses = ["pre_match", "in_match", "approved_by_both", "waiting_first_rating", "waiting_second_rating", "waiting_for_response", "waiting_for_photo", "potential_match", "expanded_potential_match", "blind_match_candidate"];
+  const active = allData.filter((m: any) => activeStatuses.includes(m.status));
+  const past = allData.filter((m: any) => !activeStatuses.includes(m.status));
 
   const statusColor = (status: string) => {
     if (status === "pre_match") return { ...s.badge, background: "#d4edda", color: "#155724" };
     if (status === "in_match") return { ...s.badge, background: "#cce5ff", color: "#004085" };
-    if (status === "rejected_by_users" || status === "cancelled") return { ...s.badge, background: "#f8d7da", color: "#721c24" };
+    if (status === "approved_by_both") return { ...s.badge, background: "#d1ecf1", color: "#0c5460" };
+    if (status === "rejected_by_users" || status === "cancelled" || status === "rejected_acquaintance") return { ...s.badge, background: "#f8d7da", color: "#721c24" };
+    if (status === "frozen") return { ...s.badge, background: "#e2e3e5", color: "#383d41" };
+    if (status.startsWith("waiting")) return { ...s.badge, background: "#fff3cd", color: "#856404" };
     return s.badge;
   };
 
-  if (loading) return <p style={s.loading}>Loading...</p>;
+  async function loadDetail(candidateMatchId: number) {
+    setDetailLoading(true);
+    try {
+      const res = await apiFetch(`/admin/candidate-matches/${candidateMatchId}/detail`);
+      const data = await res.json();
+      setViewingDetail(data);
+    } catch { }
+    setDetailLoading(false);
+  }
 
-  if (data.length === 0) {
+  function renderMatchRow(m: any) {
+    const hasCard = !!m.match_card_data;
+    const hasCandidateMatch = !!m.candidate_match_id;
     return (
-      <div style={{ textAlign: "center", padding: 40 }}>
-        <p style={{ color: "#888", fontSize: 14 }}>No active matches yet.</p>
-        <p style={{ color: "#aaa", fontSize: 12 }}>Run the matchmaking algorithm from the Candidate Matches tab to generate matches.</p>
-      </div>
+      <tr key={m.id}>
+        <td style={s.td}>{m.id}</td>
+        <td style={s.td}>{m.user1_name} (#{m.user1_id})</td>
+        <td style={s.td}>{m.user2_name} (#{m.user2_id})</td>
+        <td style={s.td}><strong>{m.match_score ?? "-"}</strong></td>
+        <td style={s.td}><span style={statusColor(m.status)}>{m.status}</span></td>
+        <td style={s.td}>{m.created_at?.slice(0, 10)}</td>
+        <td style={s.td}>
+          {hasCard && <button style={{ ...s.badge, background: "#e0d4f5", color: "#5b21b6", cursor: "pointer", border: "none", marginLeft: 4 }} onClick={() => setViewingCard(m)}>כרטיס</button>}
+          {hasCandidateMatch && <button style={{ ...s.badge, background: "#dbeafe", color: "#1e40af", cursor: "pointer", border: "none", marginLeft: 4 }} onClick={() => loadDetail(m.candidate_match_id)}>השוואה</button>}
+        </td>
+      </tr>
     );
   }
 
+  if (loading) return <p style={s.loading}>Loading...</p>;
+
   return (
     <div style={s.scrollWrap}>
-      <p style={s.sub}>{data.length} active matches</p>
-      <table style={s.table}>
-        <thead>
-          <tr>
-            <th style={s.th}>ID</th>
-            <th style={s.th}>User 1</th>
-            <th style={s.th}>User 2</th>
-            <th style={s.th}>Score</th>
-            <th style={s.th}>Status</th>
-            <th style={s.th}>Pair Priority</th>
-            <th style={s.th}>Final Priority</th>
-            <th style={s.th}>Created</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((m: any) => (
-            <tr key={m.id}>
-              <td style={s.td}>{m.id}</td>
-              <td style={s.td}>{m.user1_name} (#{m.user1_id})</td>
-              <td style={s.td}>{m.user2_name} (#{m.user2_id})</td>
-              <td style={s.td}><strong>{m.match_score ?? "-"}</strong></td>
-              <td style={s.td}><span style={statusColor(m.status)}>{m.status}</span></td>
-              <td style={s.td}>{m.pair_priority != null ? m.pair_priority : "-"}</td>
-              <td style={s.td}>{m.final_match_priority != null ? <strong>{m.final_match_priority}</strong> : "-"}</td>
-              <td style={s.td}>{m.created_at}</td>
+      {/* Active matches */}
+      <p style={s.sub}>{active.length} התאמות פעילות</p>
+      {active.length === 0 ? (
+        <p style={{ color: "#888", fontSize: 13, textAlign: "center", padding: 20 }}>אין התאמות פעילות</p>
+      ) : (
+        <table style={s.table}>
+          <thead>
+            <tr>
+              <th style={s.th}>ID</th>
+              <th style={s.th}>User 1</th>
+              <th style={s.th}>User 2</th>
+              <th style={s.th}>Score</th>
+              <th style={s.th}>Status</th>
+              <th style={s.th}>Created</th>
+              <th style={s.th}>Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>{active.map(renderMatchRow)}</tbody>
+        </table>
+      )}
+
+      {/* Past matches toggle */}
+      {past.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <button onClick={() => setShowPast(!showPast)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, fontWeight: 600, color: "#6366f1" }}>
+            {showPast ? "▾" : "▸"} התאמות קודמות ({past.length})
+          </button>
+          {showPast && (
+            <table style={{ ...s.table, marginTop: 8 }}>
+              <thead>
+                <tr>
+                  <th style={s.th}>ID</th>
+                  <th style={s.th}>User 1</th>
+                  <th style={s.th}>User 2</th>
+                  <th style={s.th}>Score</th>
+                  <th style={s.th}>Status</th>
+                  <th style={s.th}>Created</th>
+                  <th style={s.th}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>{past.map(renderMatchRow)}</tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* Match card modal */}
+      {viewingCard && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20 }} onClick={() => setViewingCard(null)}>
+          <div style={{ background: "#fff", borderRadius: 16, padding: "24px 28px", maxWidth: 600, width: "100%", maxHeight: "80vh", overflowY: "auto", direction: "rtl" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>כרטיס התאמה — {viewingCard.user1_name} ❤ {viewingCard.user2_name}</h3>
+              <button onClick={() => setViewingCard(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer" }}>✕</button>
+            </div>
+            {(() => {
+              const card = typeof viewingCard.match_card_data === "string" ? JSON.parse(viewingCard.match_card_data) : viewingCard.match_card_data;
+              if (!card) return <p>אין נתוני כרטיס</p>;
+              return (
+                <div style={{ fontSize: 14, lineHeight: 1.8, color: "#333" }}>
+                  {card.introSummary && <p style={{ marginBottom: 16 }}>{card.introSummary}</p>}
+                  {card.connectionPoints?.map((cp: any, i: number) => (
+                    <div key={i} style={{ marginBottom: 12 }}>
+                      <strong style={{ color: "#6366f1" }}>{cp.title}</strong>
+                      <p style={{ margin: "4px 0 0" }}>{cp.text}</p>
+                    </div>
+                  ))}
+                  {card.dateIdea && <div style={{ marginBottom: 12 }}><strong style={{ color: "#059669" }}>רעיון לדייט:</strong> {card.dateIdea}</div>}
+                  {card.caveat && <div style={{ marginBottom: 12 }}><strong style={{ color: "#d97706" }}>שימו לב:</strong> {card.caveat}</div>}
+                  {card.closing && <p style={{ marginTop: 16, fontStyle: "italic", color: "#666" }}>{card.closing}</p>}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* Candidate match detail modal */}
+      {(viewingDetail || detailLoading) && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20 }} onClick={() => { setViewingDetail(null); }}>
+          <div style={{ background: "#fff", borderRadius: 16, padding: "24px 28px", maxWidth: 900, width: "100%", maxHeight: "85vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+            {detailLoading ? <p>Loading...</p> : viewingDetail ? (
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{viewingDetail.user1_name} vs {viewingDetail.user2_name} — השוואת נתונים</h3>
+                  <button onClick={() => setViewingDetail(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer" }}>✕</button>
+                </div>
+                {/* Scores summary */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 20 }}>
+                  {[
+                    ["Final", viewingDetail.final_score],
+                    ["Internal", viewingDetail.internal_score],
+                    ["Profile", viewingDetail.profile_score],
+                    ["Cognitive", viewingDetail.score_cognitive],
+                    ["Emotional", viewingDetail.score_emotional_social],
+                    ["Communication", viewingDetail.score_communication],
+                    ["Big Five", viewingDetail.score_big_five],
+                    ["Schwartz", viewingDetail.score_schwartz],
+                    ["MBTI", viewingDetail.score_mbti],
+                    ["Style", viewingDetail.score_style],
+                    ["Enneagram", viewingDetail.score_enneagram],
+                    ["Vibe", viewingDetail.score_vibe],
+                  ].map(([label, val]) => (
+                    <div key={label as string} style={{ background: "#f9fafb", borderRadius: 8, padding: "8px 10px", textAlign: "center" }}>
+                      <div style={{ fontSize: 11, color: "#888" }}>{label}</div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: val != null && (val as number) >= 70 ? "#28a745" : val != null && (val as number) >= 50 ? "#856404" : "#dc3545" }}>
+                        {val != null ? (val as number).toFixed(1) : "-"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* Trait comparison */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+                  {[
+                    { name: viewingDetail.user1_name, traits: viewingDetail.user1_traits },
+                    { name: viewingDetail.user2_name, traits: viewingDetail.user2_traits },
+                  ].map((side) => (
+                    <div key={side.name}>
+                      <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>{side.name}</h4>
+                      {side.traits && Object.entries(side.traits).map(([group, traits]: [string, any]) => (
+                        <div key={group} style={{ marginBottom: 12 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: "#6366f1", marginBottom: 4 }}>{group}</div>
+                          {(traits as any[]).map((t: any) => (
+                            <div key={t.trait_key} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, padding: "2px 0" }}>
+                              <span>{t.trait_name || t.trait_key}</span>
+                              <span style={{ fontWeight: 600, color: t.score >= 65 ? "#28a745" : t.score <= 35 ? "#dc3545" : "#333" }}>{t.score?.toFixed(0)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
