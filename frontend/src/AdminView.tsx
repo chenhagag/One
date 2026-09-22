@@ -3830,9 +3830,10 @@ function MatchesTab() {
 
   useEffect(() => { load(); }, []);
 
-  const activeStatuses = ["pre_match", "in_match", "approved_by_both", "waiting_first_rating", "waiting_second_rating", "waiting_for_response", "waiting_for_photo", "potential_match", "expanded_potential_match", "blind_match_candidate"];
-  const active = allData.filter((m: any) => activeStatuses.includes(m.status));
-  const past = allData.filter((m: any) => !activeStatuses.includes(m.status));
+  // Only show matches that reached in_match (card sent) — current or past
+  const matchesWithCard = allData.filter((m: any) => m.status === "in_match" || m.match_card_sent_at);
+  const active = matchesWithCard.filter((m: any) => m.status === "in_match");
+  const past = matchesWithCard.filter((m: any) => m.status !== "in_match");
 
   const statusColor = (status: string) => {
     if (status === "pre_match") return { ...s.badge, background: "#d4edda", color: "#155724" };

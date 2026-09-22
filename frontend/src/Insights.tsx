@@ -77,7 +77,27 @@ const MBTI_RELATIONSHIP_DETAIL: Record<string, string> = {
   ESTP: "בזוגיות, ESTP מביא הרפתקה ואנרגיה. הוא חי ברגע ומחפש חוויות. האתגר — לא תמיד מוכן לשיחות רגשיות עמוקות, וצריך ללמוד את זה.",
 };
 
+const MBTI_RELATIONSHIP_DETAIL_F: Record<string, string> = {
+  INFP: "בזוגיות, INFP מחפשת חיבור רגשי עמוק ואותנטיות מוחלטת. היא זקוקה לבת זוג שמבינה את עולמה הפנימי העשיר ומכבדת את הצורך שלה במרחב. היא נוטה להרמוניה אבל גם לאידיאליזם — מה שיכול ליצור מתח כשהמציאות לא עומדת בציפיות.",
+  ENFP: "בזוגיות, ENFP מביאה אנרגיה, יצירתיות והתלהבות. היא מחפשת עומק רגשי אבל גם ריגוש והרפתקה. היא זקוקה לבת זוג שתיתן לה מרחב להיות ספונטנית, אבל גם תעגן אותה כשהיא מתפזרת.",
+  INFJ: "בזוגיות, INFJ מחפשת חיבור עמוק ומשמעותי. היא אינטואיטיבית ומבינה את בת הזוג לפני שהיא מסבירה. היא זקוקה למישהי שמעריכה את העומק שלה ולא נבהלת מהרגישות.",
+  ENFJ: "בזוגיות, ENFJ היא שותפה מסורה שמשקיעה עמוקות. היא קוראת אנשים מצוין ודואגת שבת הזוג תרגיש אהובה. האתגר שלה — לפעמים שמה את הצרכים של השנייה לפני שלה.",
+  INTJ: "בזוגיות, INTJ מחפשת שותפות אינטלקטואלית. היא נאמנה ומחויבת אבל לא מביעה רגשות בקלות. היא זקוקה לבת זוג שמעריכה עצמאות ולא דורשת הפגנות רגשיות תמידיות.",
+  ENTJ: "בזוגיות, ENTJ מובילה ובונה. היא מחויבת ומשקיעה אבל גם דורשת. היא זקוקה לבת זוג שמכבדת את האמביציות שלה אבל גם יודעת להאט אותה ולהזכיר שיש חיים מעבר להישגים.",
+  INTP: "בזוגיות, INTP מביאה נאמנות שקטה ועומק אינטלקטואלי. היא לא הכי טבעית בביטוי רגשות אבל כשהיא אוהבת — זה עמוק ואמיתי. היא זקוקה לבת זוג סבלנית שמבינה שחוסר ביטוי לא אומר חוסר רגש.",
+  ENTP: "בזוגיות, ENTP מביאה ריגוש ודיונים אינסופיים. היא מחפשת שותפה שתאתגר אותה אינטלקטואלית. האתגר שלה — לפעמים מעדיפה ויכוח על פני פשרה, וצריכה ללמוד לשמוע גם כשלא מסכימה.",
+  ISFJ: "בזוגיות, ISFJ היא שותפה מסורה ונאמנה. היא דואגת לפרטים הקטנים ובונה בית חם. היא זקוקה לבת זוג שמעריכה את ההשקעה שלה ולא לוקחת אותה כמובנת מאליה.",
+  ESFJ: "בזוגיות, ESFJ מביאה חמימות ותחושת שייכות. היא מתמסרת ומשקיעה במערכת היחסים. האתגר שלה — לפעמים רגישה מדי לביקורת וזקוקה לאישור שהיא עושה טוב.",
+  ISTJ: "בזוגיות, ISTJ היא סלע. אמינה, עקבית ומחויבת. היא לא הכי ספונטנית אבל אפשר לסמוך עליה בעיניים עצומות. היא זקוקה לבת זוג שמעריכה יציבות ולא צריכה הפתעות כל יום.",
+  ESTJ: "בזוגיות, ESTJ מובילה ומארגנת. היא שותפה אמינה שדואגת שהכל עובד. האתגר שלה — לפעמים שולטת מדי ושוכחת לשאול מה בת הזוג רוצה.",
+  ISFP: "בזוגיות, ISFP מביאה רגישות ותשומת לב. היא חיה לפי הערכים שלה ומחפשת אותנטיות. היא זקוקה לבת זוג שנותנת מרחב ולא לוחצת מדי.",
+  ESFP: "בזוגיות, ESFP מביאה שמחת חיים ואנרגיה. היא חיה ברגע ומחפשת חוויות משותפות. האתגר שלה — תכנון לטווח ארוך ושיחות קשות.",
+  ISTP: "בזוגיות, ISTP מביאה רוגע ופרקטיות. היא לא מדברת הרבה אבל כשהיא שם — היא באמת שם. זקוקה למרחב ולבת זוג שלא דורשת דיבורים כל הזמן.",
+  ESTP: "בזוגיות, ESTP מביאה הרפתקה ואנרגיה. היא חיה ברגע ומחפשת חוויות. האתגר — לא תמיד מוכנה לשיחות רגשיות עמוקות, וצריכה ללמוד את זה.",
+};
+
 const MBTI_EXPLANATION = "MBTI (Myers-Briggs Type Indicator) הוא מודל אישיות שמחלק אנשים ל-16 טיפוסים על פי 4 ממדים: האם אתה מופנה פנימה או החוצה (I/E), איך אתה קולט מידע (S/N), איך אתה מקבל החלטות (T/F), ואיך אתה מעדיף לתכנן את חייך (J/P). ב-One אנחנו משתמשים בו בעיקר ככלי עזר שמפרק את האישיות לממדים שימושיים של עיבוד מידע וקבלת החלטות.";
+const MBTI_EXPLANATION_F = "MBTI (Myers-Briggs Type Indicator) הוא מודל אישיות שמחלק אנשים ל-16 טיפוסים על פי 4 ממדים: האם את מופנית פנימה או החוצה (I/E), איך את קולטת מידע (S/N), איך את מקבלת החלטות (T/F), ואיך את מעדיפה לתכנן את חייך (J/P). ב-One אנחנו משתמשות בו בעיקר ככלי עזר שמפרק את האישיות לממדים שימושיים של עיבוד מידע וקבלת החלטות.";
 
 const SCHWARTZ_EXPLANATION = "תיאוריית הערכים של שוורץ (Schwartz) היא מודל מחקרי שממפה ערכי ליבה בסיסיים המנחים התנהגות. הערכים מסודרים במעגל — ערכים סמוכים משתלבים, ערכים מנוגדים עלולים ליצור מתח. הלימה בערכים מרכזיים מנבאת יציבות זוגית ארוכת טווח.";
 
@@ -105,6 +125,28 @@ const BIG_FIVE_RELATIONSHIP: Record<string, { high: string; low: string }> = {
     low: "עוצמת תגובה רגשית נמוכה — ויסות רגשי חזק, מתמודד עם לחצים ברוגע. בזוגיות זה מביא עוגן ויציבות, אבל חשוב לא לזלזל ברגשות של בן/בת הזוג שעשויים לחוות דברים בעוצמה גדולה יותר.",
   },
 };
+const BIG_FIVE_RELATIONSHIP_F: Record<string, { high: string; low: string }> = {
+  extraversion: {
+    high: "מוחצנות גבוהה — מחפשת אינטראקציה ושיתוף. מתאימה לבת זוג שאוהבת חברה, או שמאזנת עם שקט ומרחב אישי.",
+    low: "מוחצנות נמוכה — מעדיפה עומק על פני רוחב. מתאימה לבת זוג שמכבדת את הצורך בזמן לעצמה ולא לוחצת לחיי חברה אינטנסיביים.",
+  },
+  conscientiousness: {
+    high: "מצפוניות גבוהה — מאורגנת ומחויבת. בזוגיות זה מביא יציבות, אבל צריך גמישות כשבת הזוג פחות מתוכננת.",
+    low: "מצפוניות נמוכה — ספונטנית וגמישה. בזוגיות זה מביא כיף והפתעות, אבל צריך שהצד השני לא יתסכל מחוסר תוכניות.",
+  },
+  agreeableness: {
+    high: "נעימות גבוהה — אמפתית ומפשרת. בזוגיות זה יוצר הרמוניה, אבל חשוב לא לוותר תמיד על הצרכים שלך.",
+    low: "נעימות נמוכה — ישירה ועצמאית בדעותיה. בזוגיות זה מביא כנות, אבל צריך ללמוד לפשר.",
+  },
+  openness_to_experience: {
+    high: "פתיחות גבוהה — סקרנית ויצירתית. בזוגיות זה מביא חידוש וריגוש, אבל צריך שותפה שמוכנה לזרום.",
+    low: "פתיחות נמוכה — מעדיפה מוכר ויציב. בזוגיות זה מביא ביטחון, אבל צריך מרחב לחידושים קטנים.",
+  },
+  neuroticism: {
+    high: "עוצמת תגובה רגשית גבוהה — חווה רגשות בעוצמה ומודעות רבה. בזוגיות, זה מאפשר חיבור רגשי עמוק ואמפתיה. חשוב לבנות תקשורת פתוחה עם בת הזוג ולמצוא דרכים משותפות לווסת רגעי מתח.",
+    low: "עוצמת תגובה רגשית נמוכה — ויסות רגשי חזק, מתמודדת עם לחצים ברוגע. בזוגיות זה מביא עוגן ויציבות, אבל חשוב לא לזלזל ברגשות של בת הזוג שעשויה לחוות דברים בעוצמה גדולה יותר.",
+  },
+};
 
 function getTraitLevel(score: number): { label: string; color: string } {
   if (score >= 65) return { label: "גבוה", color: "#22c55e" };
@@ -124,6 +166,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
   const [profile, setProfile] = useState<DetailedProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [gender, setGender] = useState<string | null>(null);
+  const [lookingForGender, setLookingForGender] = useState<string | null>(null);
   const [detailView, setDetailView] = useState<"main" | "mbti" | "values" | "bigfive" | "enneagram" | "attachment" | "personal_full">(initialView || "main");
   const [personalInsights, setPersonalInsights] = useState<{ short: string | null; full: string | null; analysis_completed: boolean }>({ short: null, full: null, analysis_completed: false });
 
@@ -155,7 +198,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
       .finally(() => setLoading(false));
     apiFetch(`/users/${user.id}`)
       .then(r => r.json())
-      .then(u => { if (u.gender) setGender(u.gender); })
+      .then(u => { if (u.gender) setGender(u.gender); if (u.looking_for_gender) setLookingForGender(u.looking_for_gender); })
       .catch(() => {});
     apiFetch(`/users/${user.id}/personal-insights`)
       .then(r => r.json())
@@ -164,6 +207,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
   }, [user.id]);
 
   const isFemale = gender === "woman";
+  const isWW = gender === "woman" && lookingForGender === "woman";
   const g = (male: string, female: string) => isFemale ? female : male;
 
   const hasData = profile && (profile.mbti?.type || profile.allValues?.length > 0 || profile.allBigFive?.length > 0 || profile.enneagram?.primaryType || profile.attachment?.dominant);
@@ -197,7 +241,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
   if (detailView === "mbti" && profile?.mbti?.type) {
     const type = profile.mbti.type;
     const compat = MBTI_COMPATIBILITY[type];
-    const relDetail = MBTI_RELATIONSHIP_DETAIL[type];
+    const relDetail = (isWW ? MBTI_RELATIONSHIP_DETAIL_F : MBTI_RELATIONSHIP_DETAIL)[type];
     return (
       <div style={s.container}><div style={s.content}>
         <button style={s.backBtn} onClick={() => setDetailView("main")}>← חזרה לתובנות</button>
@@ -224,7 +268,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
 
         <div style={s.explainCard}>
           <p style={s.explainTitle}>מהו MBTI?</p>
-          <p style={s.explainText}>{MBTI_EXPLANATION}</p>
+          <p style={s.explainText}>{isWW ? MBTI_EXPLANATION_F : MBTI_EXPLANATION}</p>
         </div>
 
         {relDetail && (
@@ -340,7 +384,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
           <p style={{ fontSize: 15, fontWeight: 600, color: "#1a1a2e", margin: "0 0 10px" }}>כל התכונות {g("שלך", "שלך")}</p>
           {profile.allBigFive.map(v => {
             const level = getTraitLevel(v.score);
-            const relData = BIG_FIVE_RELATIONSHIP[v.name];
+            const relData = (isWW ? BIG_FIVE_RELATIONSHIP_F : BIG_FIVE_RELATIONSHIP)[v.name];
             const relText = v.score >= 55 ? relData?.high : relData?.low;
             return (
               <div key={v.name} style={{ marginBottom: 14 }}>
@@ -389,7 +433,10 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
 
         <div style={s.explainCard}>
           <p style={s.explainTitle}>מהו אניאגרם?</p>
-          <p style={s.explainText}>האניאגרם הוא מודל אישיות עתיק שמתאר 9 טיפוסים בסיסיים של מוטיבציה פנימית. בניגוד ל-MBTI שמתמקד באיך אתה חושב, האניאגרם מתמקד בלמה אתה עושה מה שאתה עושה — המוטיבציה העמוקה שמניעה אותך. כל אדם מזוהה עם טיפוס ראשי ו"כנף" (טיפוס שכן שמשפיע).</p>
+          <p style={s.explainText}>{isWW
+            ? "האניאגרם הוא מודל אישיות עתיק שמתאר 9 טיפוסים בסיסיים של מוטיבציה פנימית. בניגוד ל-MBTI שמתמקד באיך את חושבת, האניאגרם מתמקד בלמה את עושה מה שאת עושה — המוטיבציה העמוקה שמניעה אותך. כל אדם מזוהה עם טיפוס ראשי ו\"כנף\" (טיפוס שכן שמשפיע)."
+            : "האניאגרם הוא מודל אישיות עתיק שמתאר 9 טיפוסים בסיסיים של מוטיבציה פנימית. בניגוד ל-MBTI שמתמקד באיך אתה חושב, האניאגרם מתמקד בלמה אתה עושה מה שאתה עושה — המוטיבציה העמוקה שמניעה אותך. כל אדם מזוהה עם טיפוס ראשי ו\"כנף\" (טיפוס שכן שמשפיע)."
+          }</p>
         </div>
 
         {ennea.allTypes.length > 0 && (
@@ -440,7 +487,10 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
 
         <div style={s.explainCard}>
           <p style={s.explainTitle}>מהו סגנון התקשרות?</p>
-          <p style={s.explainText}>תיאוריית ההתקשרות מתארת את הדרך שבה אנחנו ניגשים למערכות יחסים קרובות. סגנון ההתקשרות נוצר בילדות ומשפיע על איך אנחנו מתנהלים בזוגיות — כמה אנחנו נוחים עם קרבה, איך אנחנו מגיבים לריחוק, ומה אנחנו צריכים כדי להרגיש בטוחים.</p>
+          <p style={s.explainText}>{isWW
+            ? "תיאוריית ההתקשרות מתארת את הדרך שבה אנחנו ניגשות למערכות יחסים קרובות. סגנון ההתקשרות נוצר בילדות ומשפיע על איך אנחנו מתנהלות בזוגיות — כמה אנחנו נוחות עם קרבה, איך אנחנו מגיבות לריחוק, ומה אנחנו צריכות כדי להרגיש בטוחות."
+            : "תיאוריית ההתקשרות מתארת את הדרך שבה אנחנו ניגשים למערכות יחסים קרובות. סגנון ההתקשרות נוצר בילדות ומשפיע על איך אנחנו מתנהלים בזוגיות — כמה אנחנו נוחים עם קרבה, איך אנחנו מגיבים לריחוק, ומה אנחנו צריכים כדי להרגיש בטוחים."
+          }</p>
         </div>
 
         <div style={s.card}>
