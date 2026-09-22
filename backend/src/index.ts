@@ -1697,6 +1697,26 @@ async function deleteAllUserData(userId: number): Promise<void> {
   }
 }
 
+// TEMP: Debug FK constraints blocking user deletion
+app.get("/debug/fk-constraints", async (_req, res) => {
+  try {
+    const rows = await pgQueryAll<any>(`
+      SELECT tc.table_name, kcu.column_name, rc.delete_rule
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.key_column_usage kcu
+        ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
+      JOIN information_schema.referential_constraints rc
+        ON tc.constraint_name = rc.constraint_name AND tc.constraint_schema = rc.constraint_schema
+      JOIN information_schema.constraint_column_usage ccu
+        ON rc.unique_constraint_name = ccu.constraint_name AND rc.unique_constraint_schema = ccu.constraint_schema
+      WHERE ccu.table_name = 'users' AND ccu.column_name = 'id'
+        AND rc.delete_rule = 'NO ACTION'
+      ORDER BY tc.table_name
+    `);
+    res.json(rows);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 // DELETE /users/:id/account — User deletes their own account
 app.delete("/users/:id/account", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
