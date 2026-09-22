@@ -18,6 +18,7 @@ import {
   queryAll as pgQueryAll,
 } from "../db.pg";
 import { trackTokens } from "../tokenTracker";
+import { upsertUserInsights } from "../rag";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -286,6 +287,11 @@ ${fullTranscript}`;
   );
 
   console.log(`[generateInsights] User ${userId}: insights saved (pre_completion=${preCompletion})`);
+
+  // Auto-upsert insights into RAG knowledge_chunks (non-blocking — failure won't break insights)
+  upsertUserInsights(userId, parsed.summary_full).catch(err => {
+    console.error(`[generateInsights] RAG upsert failed for user ${userId}:`, err.message);
+  });
 
   return {
     summary_short: parsed.summary_short,

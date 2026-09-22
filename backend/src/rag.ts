@@ -248,6 +248,45 @@ export async function deactivateChunk(id: number): Promise<void> {
   );
 }
 
+/**
+ * Upsert a single insights chunk for a user.
+ * Called automatically when insights are written/updated.
+ *
+ * Strategy: upsert the new chunk FIRST (so there's always an active version),
+ * then deactivate any old insight chunks with different titles (cleanup from seedKnowledge).
+ */
+export async function upsertUserInsights(userId: number, insightsText: string): Promise<void> {
+  const INSIGHTS_TITLE = "user_insights_full";
+
+  // Step 1: Upsert the current insights chunk
+  const newId = await upsertChunk({
+    scope: "user",
+    userId,
+    category: "insights",
+    title: INSIGHTS_TITLE,
+    content: insightsText,
+    sourceType: "one_inference",
+  });
+
+  // Step 2: Deactivate any OTHER insight chunks for this user (old paragraph-based chunks from seedKnowledge)
+  await getPool().query(
+    `UPDATE knowledge_chunks SET active = FALSE, updated_at = NOW()
+     WHERE scope = 'user' AND user_id = $1 AND category = 'insights' AND id != $2`,
+    [userId, newId]
+  );
+}
+
+/**
+ * Deactivate all insight chunks for a user (when insights are cleared).
+ */
+export async function deactivateUserInsightChunks(userId: number): Promise<void> {
+  await getPool().query(
+    `UPDATE knowledge_chunks SET active = FALSE, updated_at = NOW()
+     WHERE scope = 'user' AND user_id = $1 AND category = 'insights'`,
+    [userId]
+  );
+}
+
 // ── Live State (not RAG — direct DB) ───────────────────────────────
 
 export interface AgentSafeLiveState {

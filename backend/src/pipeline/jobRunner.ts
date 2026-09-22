@@ -26,6 +26,7 @@ import { runDailyMatching, msUntilNextRun, setReconcileFn } from "./dailyMatchin
 import { runPhotoNudges } from "./photoNudges";
 import { runMessageNudges } from "./messageNudges";
 import { runRatingNudges } from "./ratingNudges";
+import { upsertUserInsights } from "../rag";
 
 const JOB_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const RECONCILE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -266,6 +267,38 @@ export async function reconcilePhotoJobs(): Promise<number> {
   return created;
 }
 
+// ── Insights RAG chunk reconciliation ────────────────────────────
+
+/**
+ * Find users who have personal_insights_full in DB but no active RAG chunk,
+ * and create the missing chunks. Runs daily to fix any upsert failures.
+ */
+async function reconcileInsightChunks(): Promise<number> {
+  const rows = await pgQueryAll<{ id: number; personal_insights_full: string }>(
+    `SELECT u.id, u.personal_insights_full FROM users u
+     WHERE u.personal_insights_full IS NOT NULL AND u.personal_insights_full != ''
+       AND NOT EXISTS (
+         SELECT 1 FROM knowledge_chunks kc
+         WHERE kc.scope = 'user' AND kc.user_id = u.id AND kc.category = 'insights' AND kc.active = TRUE
+       )`
+  );
+
+  if (rows.length === 0) return 0;
+
+  console.log(`[reconcileInsightChunks] Found ${rows.length} users with insights but no active RAG chunk`);
+  let created = 0;
+  for (const row of rows) {
+    try {
+      await upsertUserInsights(row.id, row.personal_insights_full);
+      created++;
+    } catch (err: any) {
+      console.error(`[reconcileInsightChunks] Failed for user ${row.id}:`, err.message);
+    }
+  }
+  console.log(`[reconcileInsightChunks] Created ${created} insight chunks`);
+  return created;
+}
+
 // ── Runner lifecycle ─────────────────────────────────────────────
 
 export function startJobRunner(): void {
@@ -306,16 +339,23 @@ export function startJobRunner(): void {
   }, RECONCILE_INTERVAL_MS);
 
   // Daily reanalysis scan (check for users needing re-analysis based on new QA messages)
+  // + Insights RAG chunk reconciliation (fix any failed upserts)
   // Run once on startup after 90s, then every 24h
   setTimeout(() => {
     runReanalysisScan().catch(err => {
       console.error("[jobRunner] Initial reanalysis scan error:", err.message);
+    });
+    reconcileInsightChunks().catch(err => {
+      console.error("[jobRunner] Initial insight chunk reconciliation error:", err.message);
     });
   }, 90000);
 
   reanalysisHandle = setInterval(() => {
     runReanalysisScan().catch(err => {
       console.error("[jobRunner] Reanalysis scan error:", err.message);
+    });
+    reconcileInsightChunks().catch(err => {
+      console.error("[jobRunner] Insight chunk reconciliation error:", err.message);
     });
   }, REANALYSIS_INTERVAL_MS);
 

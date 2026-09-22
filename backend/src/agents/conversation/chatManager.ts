@@ -446,8 +446,14 @@ export async function buildChatPrompt(
     console.log(formatRetrievalDebug(ragResult));
   }
 
+  // Channels that get insights_full injected directly — filter insights from RAG to avoid duplicates
+  const DIRECT_INSIGHTS_CHANNELS = ["qa_about_me", "qa_insights", "qa_search", "qa_refine", "qa_match_feedback"];
+  const filteredRagResult: RetrievalResult = DIRECT_INSIGHTS_CHANNELS.includes(channel)
+    ? { systemChunks: ragResult.systemChunks, userChunks: ragResult.userChunks.filter(c => c.category !== "insights") }
+    : ragResult;
+
   // Build RAG context block (injected into all user-facing channels)
-  const ragContextBlock = formatRetrievedContext(ragResult);
+  const ragContextBlock = formatRetrievedContext(filteredRagResult);
   const liveStateBlock = liveState ? "\n\n" + formatLiveStateForPrompt(liveState) : "";
 
   // Cognitive channel uses a completely separate prompt
@@ -738,6 +744,24 @@ export async function buildChatPrompt(
           contextBlock += "\n\n## נתוני הפרופיל האישיותי של המשתמש (לשימוש בתשובה על 'מה אתה מחפש לי')\n" + richProfile;
         }
       }
+
+      // Inject deep personal insights for personal QA channels (search, refine, match feedback)
+      if (channel === "qa_search" || channel === "qa_refine" || channel === "qa_match_feedback") {
+        const insightsRow = await pgQueryOne<{ personal_insights_full: string | null }>(
+          "SELECT personal_insights_full FROM users WHERE id = $1", [userId]
+        );
+        if (insightsRow?.personal_insights_full?.trim()) {
+          contextBlock += `\n\n## ניתוח אישיות מעמיק של המשתמש/ת (כתוב על ידי מנתח מומחה)
+השתמש בניתוח הזה כרקע להבנת המשתמש/ת. הוא מבוסס על שיחות מעמיקות ומהימן יותר מציונים מספריים בלבד.
+` + insightsRow.personal_insights_full;
+          contextBlock += `\n\n## הנחיות לשימוש בניתוח
+- תאר התאמה דרך צרכים, התנהגויות ודינמיקה זוגית — לא רשימת טיפוסים.
+- אל תדקלם את הניתוח — אלא אם המשתמש/ת שואל/ת ישירות מה הבנת עליה/עליו.
+- התייחס לניתוח כפרשנות מבוססת, לא כאמת מוחלטת. אם המשתמש/ת אומר/ת משהו שסותר — הם גוברים.
+- ״מעמיק״ לא אומר ״ארוך״. תשובה קצרה שמראה הבנה עדיפה על פסקה ארוכה.`;
+        }
+      }
+
       if (channel === "qa_match_feedback") {
         contextBlock += `\n\n## הנחיות לערוץ זה (qa_match_feedback)
 המשתמש/ת דיווח/ה שההתאמה התקדמה לעולם האמיתי. זה ערוץ ייעודי לשמוע איך הולך.

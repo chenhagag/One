@@ -46,6 +46,7 @@ import { setReconcileFn } from "./pipeline/dailyMatching";
 import { promoteUserWaitingMatches } from "./pipeline/photoMatchPromotion";
 import { notifyUser, sendPushOnly, registerToken, unregisterToken, syncPermissionStatus, hasPushTokens, notifyMatchCardSent, notifyNewMessage, notifySentForRating, notifyAdminMessage, notifySystemQuestion } from "./notifications";
 import { logActivity } from "./pipeline/activityLog";
+import { upsertUserInsights, deactivateUserInsightChunks } from "./rag";
 
 dotenv.config();
 
@@ -2091,6 +2092,15 @@ app.patch("/admin/users/:id", async (req, res) => {
       updates.push(`insights_pre_completion = $${i++}`);
       values.push(!allDone);
     }
+    // Auto-upsert insights into RAG knowledge_chunks (non-blocking)
+    upsertUserInsights(userId, req.body.personal_insights_full).catch(err => {
+      console.error(`[admin] RAG upsert failed for user ${userId}:`, err.message);
+    });
+  } else if ("personal_insights_full" in req.body && !req.body.personal_insights_full) {
+    // Insights cleared — deactivate RAG chunks
+    deactivateUserInsightChunks(userId).catch(err => {
+      console.error(`[admin] RAG deactivate failed for user ${userId}:`, err.message);
+    });
   }
 
   values.push(userId);
