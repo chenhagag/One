@@ -6117,10 +6117,12 @@ function OutreachLogTab() {
   const [cancellations, setCancellations] = useState<any[]>([]);
   const [adminMessages, setAdminMessages] = useState<any[]>([]);
   const [nudges, setNudges] = useState<any[]>([]);
+  const [whatsappPending, setWhatsappPending] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [ratingFilter, setRatingFilter] = useState<"all" | "pending">("all");
   const [questionFilter, setQuestionFilter] = useState<"all" | "pending">("all");
   const [nudgeFilter, setNudgeFilter] = useState<"all" | "pending">("all");
+  const [whatsappFilter, setWhatsappFilter] = useState<"pending" | "all">("pending");
   const [expandedNudgeId, setExpandedNudgeId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -6132,6 +6134,7 @@ function OutreachLogTab() {
         setCancellations(Array.isArray(data.cancellations) ? data.cancellations : []);
         setAdminMessages(Array.isArray(data.adminMessages) ? data.adminMessages : []);
         setNudges(Array.isArray(data.nudges) ? data.nudges : []);
+        setWhatsappPending(Array.isArray(data.whatsappPending) ? data.whatsappPending : []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -6446,7 +6449,99 @@ function OutreachLogTab() {
         </div>
       </div>
 
-      {/* Section 5: Match Nudges */}
+      {/* Section 5: WhatsApp Pending */}
+      {whatsappPending.length > 0 && (
+        <div style={{ marginBottom: 32 }}>
+          {(() => {
+            const unhandled = whatsappPending.filter((w: any) => !w.whatsapp_handled).length;
+            const filtered = whatsappFilter === "pending"
+              ? whatsappPending.filter((w: any) => !w.whatsapp_handled)
+              : whatsappPending;
+            return (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                  <h3 style={{ margin: 0 }}>ממתין לוואטסאפ ({filtered.length}){unhandled > 0 && <span style={{ marginRight: 8, background: "#25D366", color: "#fff", borderRadius: 20, padding: "2px 8px", fontSize: 12, fontWeight: 700 }}>{unhandled} לטיפול</span>}</h3>
+                  <button
+                    style={{ ...s.tab, ...(whatsappFilter === "pending" ? s.tabActive : {}), padding: "4px 10px", fontSize: 12 }}
+                    onClick={() => setWhatsappFilter("pending")}
+                  >לטיפול</button>
+                  <button
+                    style={{ ...s.tab, ...(whatsappFilter === "all" ? s.tabActive : {}), padding: "4px 10px", fontSize: 12 }}
+                    onClick={() => setWhatsappFilter("all")}
+                  >הכל</button>
+                </div>
+                <div style={s.scrollWrap}>
+                  <table style={s.table}>
+                    <thead>
+                      <tr>
+                        <th style={s.th}>משתמש/ת</th>
+                        <th style={s.th}>טלפון</th>
+                        <th style={s.th}>סוג התראה</th>
+                        <th style={s.th}>תוכן</th>
+                        <th style={s.th}>תאריך</th>
+                        <th style={s.th}>סיבה</th>
+                        <th style={s.th}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.map((w: any) => {
+                        const eventLabels: Record<string, string> = {
+                          sent_for_rating: "התאמה פוטנציאלית",
+                          rating_reminder_1: "תזכורת התאמה 1",
+                          rating_reminder_2: "תזכורת התאמה 2",
+                          rating_reminder_3: "תזכורת התאמה 3",
+                          system_question: "שאלה סגורה",
+                          system_question_reminder_1: "תזכורת שאלה 1",
+                          system_question_reminder_2: "תזכורת שאלה 2",
+                          system_question_reminder_3: "תזכורת שאלה 3",
+                          admin_question: "שאלה פתוחה",
+                          admin_question_reminder_1: "תזכורת הודעה 1",
+                          admin_question_reminder_2: "תזכורת הודעה 2",
+                          admin_question_reminder_3: "תזכורת הודעה 3",
+                          admin_message: "הודעה מערכת",
+                          match_card_sent: "כרטיס התאמה",
+                          photo_request_1: "בקשת תמונה",
+                          new_message: "הודעה חדשה",
+                        };
+                        return (
+                          <tr key={w.id} style={w.whatsapp_handled ? { opacity: 0.5 } : { background: "#f0fdf4" }}>
+                            <td style={s.td}>{w.first_name} ({w.user_id})</td>
+                            <td style={s.td}>
+                              <a href={`https://wa.me/972${w.whatsapp_phone?.replace(/^0/, "")}`} target="_blank" rel="noopener noreferrer" style={{ color: "#25D366", fontWeight: 600, textDecoration: "none" }}>
+                                {w.whatsapp_phone}
+                              </a>
+                            </td>
+                            <td style={s.td}>{eventLabels[w.event_type] || w.event_type}</td>
+                            <td style={{ ...s.td, maxWidth: 250, whiteSpace: "normal", wordBreak: "break-word" }}>{w.body}</td>
+                            <td style={{ ...s.td, whiteSpace: "nowrap" }}>{fmtDate(w.sent_at)}</td>
+                            <td style={s.td}><span style={{ fontSize: 11, color: "#9ca3af" }}>{w.error || (w.channel === "none" ? "אין ערוץ" : w.channel)}</span></td>
+                            <td style={s.td}>
+                              {!w.whatsapp_handled && (
+                                <button
+                                  style={{ padding: "2px 8px", fontSize: 11, border: "1px solid #25D366", borderRadius: 4, cursor: "pointer", background: "#fff", color: "#25D366", fontWeight: 600 }}
+                                  onClick={async () => {
+                                    await apiFetch(`/admin/notification-log/${w.id}/whatsapp-handled`, { method: "POST" });
+                                    setWhatsappPending(prev => prev.map((x: any) => x.id === w.id ? { ...x, whatsapp_handled: true } : x));
+                                  }}
+                                >טופל</button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {filtered.length === 0 && (
+                        <tr><td colSpan={7} style={{ ...s.td, textAlign: "center", color: "#9ca3af" }}>אין התראות ממתינות</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Section 6: Match Nudges */}
       <div style={{ marginBottom: 32 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
           <h3 style={{ margin: 0 }}>בירורי התאמות ({filteredNudges.length})</h3>

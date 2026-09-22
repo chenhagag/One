@@ -1363,4 +1363,15 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       END $$;
     `);
   } catch (e) { /* column may already exist */ }
+
+  // Migration: add whatsapp_handled to notification_log (manual WhatsApp follow-up tracking)
+  try {
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='notification_log' AND column_name='whatsapp_handled') THEN
+          ALTER TABLE notification_log ADD COLUMN whatsapp_handled BOOLEAN DEFAULT FALSE;
+        END IF;
+      END $$;
+    `);
+  } catch (e) { /* column may already exist */ }
 }

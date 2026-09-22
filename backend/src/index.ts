@@ -4806,7 +4806,19 @@ app.get("/admin/outreach-log", async (_req, res) => {
       JOIN users p ON p.id = mn.partner_id
       ORDER BY mn.created_at DESC
     `);
-    return res.json({ ratings, questions, cancellations, adminMessages, nudges });
+    // Notifications that didn't reach WhatsApp-preferring users
+    const whatsappPending = await pgQueryAll(`
+      SELECT nl.id, nl.user_id, u.first_name, u.whatsapp_phone, nl.event_type, nl.title, nl.body,
+             nl.channel, nl.success, nl.error, nl.sent_at,
+             COALESCE(nl.whatsapp_handled, FALSE) as whatsapp_handled
+      FROM notification_log nl
+      JOIN users u ON u.id = nl.user_id
+      WHERE u.whatsapp_updates = TRUE
+        AND u.whatsapp_phone IS NOT NULL
+        AND (nl.channel = 'none' OR nl.success = FALSE)
+      ORDER BY nl.sent_at DESC
+    `);
+    return res.json({ ratings, questions, cancellations, adminMessages, nudges, whatsappPending });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -5085,6 +5097,13 @@ app.post("/admin/nudges/:id/mark-seen", async (req, res) => {
 app.post("/admin/matches/:id/mark-rating-seen", async (req, res) => {
   const id = parseInt(req.params.id, 10);
   await pgQueryOne("UPDATE matches SET rating_admin_seen = TRUE, updated_at = NOW() WHERE id = $1", [id]);
+  return res.json({ ok: true });
+});
+
+// POST /admin/notification-log/:id/whatsapp-handled — Mark notification as handled via WhatsApp
+app.post("/admin/notification-log/:id/whatsapp-handled", async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  await pgQueryOne("UPDATE notification_log SET whatsapp_handled = TRUE WHERE id = $1", [id]);
   return res.json({ ok: true });
 });
 
