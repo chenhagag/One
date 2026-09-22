@@ -1055,7 +1055,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   /* Feedback form */
                   <>
                 <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a2e", marginTop: 0, marginBottom: 6 }}>{isWW ? "עזרי לנו להשתפר" : "עזרו לנו להשתפר"}</h2>
-                <p style={{ fontSize: 13, color: "#888", marginBottom: 20, marginTop: 0 }}>נשמח לשמוע מכם</p>
+                <p style={{ fontSize: 13, color: "#888", marginBottom: 20, marginTop: 0 }}>{isWW ? "נשמח לשמוע מכן" : "נשמח לשמוע מכם"}</p>
 
                 {/* Category chips */}
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
@@ -1682,7 +1682,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           </div>
         )}
 
-        {screen === "settings" && <SettingsView user={user} onLogout={onLogout} onShowMatchCardInfo={() => setScreen("match_card_consent")} />}
+        {screen === "settings" && <SettingsView user={user} onLogout={onLogout} onShowMatchCardInfo={() => setScreen("match_card_consent")} isWW={isWW} />}
 
         {screen === "potential_matches" && (
           <div className="nc-screen-fade" key="potential_matches" style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
@@ -2916,7 +2916,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
 // ── Settings View component ────────────────────────────────────
 
-function SettingsView({ user, onLogout, onShowMatchCardInfo }: { user: User; onLogout?: () => void; onShowMatchCardInfo?: () => void }) {
+function SettingsView({ user, onLogout, onShowMatchCardInfo, isWW }: { user: User; onLogout?: () => void; onShowMatchCardInfo?: () => void; isWW?: boolean }) {
   const [photoAI, setPhotoAI] = useState(false);
   const [matchCardConsent, setMatchCardConsent] = useState<string | null>(null);
   const [matchCardRestrictions, setMatchCardRestrictions] = useState<string>("");

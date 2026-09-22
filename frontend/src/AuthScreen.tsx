@@ -270,9 +270,14 @@ export default function AuthScreen({ onOtpSuccess, notice, entryPoint }: AuthScr
             </p>
           )}
           {!isForWomen && <div style={{ marginBottom: 12 }} />}
-          <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 14px", textAlign: "right", width: "100%" }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 6px", textAlign: "right", width: "100%" }}>
             איך זה עובד?
           </p>
+          {isForWomen && (
+            <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, margin: "0 0 14px", textAlign: "right", width: "100%" }}>
+              נעבור יחד תהליך היכרות באמצעות שיחה, ובסיומו המערכת תחפש עבורך מישהי שמתאימה לך באמת, על בסיס התאמה פסיכולוגית ואישיותית עמוקה.
+            </p>
+          )}
           <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
             {landingSteps.map(step => (
               <div key={step.num} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -289,7 +294,7 @@ export default function AuthScreen({ onOtpSuccess, notice, entryPoint }: AuthScr
             בהצלחה,<br />צוות One
           </p>
           <p style={{ fontSize: 12, color: "#888", textAlign: "center", margin: "0 0 24px", lineHeight: 1.7 }}>
-            {isForWomen ? "נתקלתן" : "נתקלתם"} בבעיה? דווחו לנו{" "}
+            {isForWomen ? "נתקלתן בבעיה? דווחי לנו" : "נתקלתם בבעיה? דווחו לנו"}{" "}
             <a href="mailto:one-support@googlegroups.com" style={{ color: "#8b7ba8", fontWeight: 600 }}>במייל</a>
             {" "}או{" "}
             <a href="https://wa.me/972549037400" target="_blank" rel="noopener noreferrer" style={{ color: "#8b7ba8", fontWeight: 600 }}>בווטסאפ</a>

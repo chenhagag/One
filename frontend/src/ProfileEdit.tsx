@@ -410,7 +410,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
             <div style={{ flex: "1 1 45%", minWidth: 120 }}>
               <label style={{ fontSize: 11, color: "#888", marginBottom: 3, display: "block" }}>מצב משפחתי</label>
               <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0, color: maritalStatus ? undefined : "#aaa" }} value={maritalStatus} onChange={(e) => setMaritalStatus(e.target.value)}>
-                <option value="" disabled>{isWW ? "בחרי מצב משפחתי" : "בחר/י מצב משפחתי"}</option>
+                <option value="" disabled hidden>{isWW ? "בחרי..." : "בחר/י מצב משפחתי"}</option>
                 <option value="single">{isWW ? "רווקה" : "רווק/ה"}</option>
                 <option value="divorced">{isWW ? "גרושה" : "גרוש/ה"}</option>
                 <option value="married">{isWW ? "נשואה" : "נשוי/נשואה"}</option>
@@ -419,15 +419,15 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
             <div style={{ flex: "1 1 45%", minWidth: 120 }}>
               <label style={{ fontSize: 11, color: "#888", marginBottom: 3, display: "block" }}>ילדים</label>
               <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0, color: hasChildren === null ? "#aaa" : undefined }} value={hasChildren === null ? "" : hasChildren ? "yes" : "no"} onChange={(e) => setHasChildren(e.target.value === "yes")}>
-                <option value="" disabled>יש לך ילדים?</option>
-                <option value="no">אין לי ילדים</option>
-                <option value="yes">יש לי ילדים</option>
+                <option value="" disabled hidden>{isWW ? "בחרי..." : "יש לך ילדים?"}</option>
+                <option value="no">{isWW ? "אין לי ילדים" : "אין לי ילדים"}</option>
+                <option value="yes">{isWW ? "יש לי ילדים" : "יש לי ילדים"}</option>
               </select>
             </div>
             <div style={{ flex: "1 1 45%", minWidth: 120 }}>
               <label style={{ fontSize: 11, color: "#888", marginBottom: 3, display: "block" }}>דת</label>
               <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0, color: religion ? undefined : "#aaa" }} value={religion} onChange={(e) => setReligion(e.target.value)}>
-                <option value="" disabled>{isWW ? "בחרי דת" : "בחר/י דת"}</option>
+                <option value="" disabled hidden>{isWW ? "בחרי..." : "בחר/י דת"}</option>
                 <option value="jewish">{isWW ? "יהודיה" : "יהודי/ה"}</option>
                 <option value="muslim">{isWW ? "מוסלמית" : "מוסלמי/ת"}</option>
                 <option value="christian">{isWW ? "נוצריה" : "נוצרי/ה"}</option>
@@ -437,7 +437,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
             <div style={{ flex: "1 1 45%", minWidth: 120 }}>
               <label style={{ fontSize: 11, color: "#888", marginBottom: 3, display: "block" }}>עישון</label>
               <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0, color: smoker === null ? "#aaa" : undefined }} value={smoker === null ? "" : smoker ? "yes" : "no"} onChange={(e) => setSmoker(e.target.value === "yes")}>
-                <option value="" disabled>{isWW ? "מעשנת?" : "מעשן/ת?"}</option>
+                <option value="" disabled hidden>{isWW ? "בחרי..." : "מעשן/ת?"}</option>
                 <option value="no">{isWW ? "לא מעשנת" : "לא מעשן/ת"}</option>
                 <option value="yes">{isWW ? "מעשנת" : "מעשן/ת"}</option>
               </select>
@@ -478,7 +478,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
                 onChange={(e) => setConsentProfile(e.target.checked)}
                 style={{ marginTop: 4, width: 18, height: 18, cursor: "pointer", accentColor: "#6366f1", flexShrink: 0 }}
               />
-              <span>אני מאשר/ת העלאה ושימוש בתמונת הפרופיל שלי לצורך השתתפות במאגר ההתאמות של One.</span>
+              <span>{isWW ? "אני מאשרת" : "אני מאשר/ת"} העלאה ושימוש בתמונת הפרופיל שלי לצורך השתתפות במאגר ההתאמות של One.</span>
             </label>
 
             <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 14, color: "#111827", lineHeight: 1.6, marginBottom: 8 }}>
@@ -488,7 +488,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
                 onChange={(e) => setConsentAI(e.target.checked)}
                 style={{ marginTop: 4, width: 18, height: 18, cursor: "pointer", accentColor: "#6366f1", flexShrink: 0 }}
               />
-              <span>אני מאשר/ת ל־One להשתמש ב־AI כדי לנתח את תמונת הפרופיל שלי, לצורך שיפור התאמות.</span>
+              <span>{isWW ? "אני מאשרת" : "אני מאשר/ת"} ל־One להשתמש ב־AI כדי לנתח את תמונת הפרופיל שלי, לצורך שיפור התאמות.</span>
             </label>
 
             <p style={{ fontSize: 11, color: "#9ca3af", lineHeight: 1.6, margin: "0 0 20px", paddingRight: 28 }}>
