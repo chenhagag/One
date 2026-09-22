@@ -13,20 +13,76 @@
 פעולות שמתבצעות כל יום:
 
 #### 1.1 כתיבת תובנות למי שחסר
-- סורק משתמשים שסיימו לפחות צ'אט כללי (chat_closed) ואין להם `personal_insights_full`
-- לכל אחד: קורא שיחות מלאות + traits מה-DB
-- כותב תובנות לפי `Docs/insights-writing-guide.md`
-- שומר ל-DB: `personal_insights_short`, `personal_insights_full`, `insights_pre_completion`
+
+**שאילתה:**
+```sql
+SELECT u.id, u.first_name, u.email, u.gender, u.looking_for_gender
+FROM users u
+WHERE u.personal_insights_full IS NULL
+  AND u.test_user_type IS NULL
+  AND EXISTS (
+    SELECT 1 FROM user_chat_summaries ucs
+    WHERE ucs.user_id = u.id
+    AND (ucs.topic_injection_counts->>'closing_stage')::int >= 1
+  )
+```
+
+**לכל משתמש:**
+1. שליפת שיחות: `SELECT role, content, guide, created_at FROM conversation_messages WHERE user_id = $1 ORDER BY created_at ASC`
+2. שליפת traits: `SELECT td.internal_name, td.display_name_he, td.trait_group, ut.score FROM user_traits ut JOIN trait_definitions td ON ut.trait_definition_id = td.id WHERE ut.user_id = $1 ORDER BY td.trait_group, td.internal_name`
+3. כתיבת תובנות לפי `Docs/insights-writing-guide.md`
+4. שמירה:
+```sql
+UPDATE users SET
+  personal_insights_short = $1,
+  personal_insights_full = $2,
+  insights_pre_completion = $3,
+  insights_updated_at = NOW(),
+  updated_at = NOW()
+WHERE id = $4
+```
+(`insights_pre_completion = true` אם cognitive user messages < 3 OR taste user messages < 3)
+
 - **חשוב**: התובנות נכתבות ע"י Claude, לא ע"י GPT-4o (הפקה אוטומטית בוטלה)
 
 #### 1.2 בדיקת תובנות אחרי reanalysis
-- סורק משתמשים שה-`last_analysis_at` שלהם חדש יותר מה-`insights_updated_at`
-- לכל אחד: קורא את ההתכתבות האחרונה (qa_about_me / qa_refine)
-- מחליט אם התובנות צריכות עדכון בהתאם למידע החדש
-- אם כן — כותב תובנות מעודכנות לפי `Docs/insights-writing-guide.md`
-- אם לא — מדווח "תובנות עדכניות, לא צריך שינוי"
+
+**שאילתה:**
+```sql
+SELECT u.id, u.first_name, u.last_analysis_at, u.insights_updated_at
+FROM users u
+WHERE u.personal_insights_full IS NOT NULL
+  AND u.last_analysis_at IS NOT NULL
+  AND (u.insights_updated_at IS NULL OR u.last_analysis_at > u.insights_updated_at)
+  AND u.test_user_type IS NULL
+```
+
+**לכל משתמש:**
+1. קריאת ההתכתבות האחרונה (qa_about_me / qa_refine) — `SELECT role, content, guide, created_at FROM conversation_messages WHERE user_id = $1 AND guide IN ('qa_about_me', 'qa_refine') ORDER BY created_at ASC`
+2. השוואה לתובנות הקיימות — האם המידע החדש משנה תובנה?
+3. אם כן — כתיבת תובנות מעודכנות לפי `Docs/insights-writing-guide.md` + שמירה (אותו UPDATE כמו 1.1)
+4. אם לא — מדווח "תובנות עדכניות, לא צריך שינוי"
 
 #### 1.3 סריקת שיחות יומית
+
+**שאילתה — משתמשים ששוחחו היום:**
+```sql
+SELECT DISTINCT cm.user_id, u.first_name
+FROM conversation_messages cm
+JOIN users u ON u.id = cm.user_id
+WHERE cm.created_at >= CURRENT_DATE
+  AND cm.role = 'user'
+ORDER BY cm.user_id
+```
+
+**לכל משתמש — שליפת הודעות היום:**
+```sql
+SELECT role, content, guide, created_at
+FROM conversation_messages
+WHERE user_id = $1 AND created_at >= CURRENT_DATE
+ORDER BY created_at ASC
+```
+
 בודק את כל המשתמשים ששוחחו עם הצ'אט **היום** (כל סוגי השיחות), עובר על ההודעות החדשות ומחפש:
 
 **מה לחפש:**
@@ -62,10 +118,66 @@
 
 אם אין ממצאים כלל — שורה אחת: "סריקה יומית [תאריך] — X משתמשים נסרקו, ללא ממצאים."
 
-#### 1.4 דיווח משתמשים לא פעילים (TODO — עתידי)
+#### 1.4 כתיבת כרטיסי התאמה ל-approved_by_both
+כשמשתמשים דירגו אחד את השנייה חיובית, ההתאמה עוברת ל-`approved_by_both`. צריך לכתוב כרטיס התאמה שמתאר את החיבור ביניהם.
+
+**שלב א — מציאת התאמות:**
+```sql
+SELECT m.id AS match_id, m.user1_id, m.user2_id,
+       u1.first_name AS u1_name, u1.gender AS u1_gender, u1.age AS u1_age, u1.city AS u1_city,
+       u1.match_card_consent AS u1_consent, u1.match_card_restrictions AS u1_restrictions,
+       u2.first_name AS u2_name, u2.gender AS u2_gender, u2.age AS u2_age, u2.city AS u2_city,
+       u2.match_card_consent AS u2_consent, u2.match_card_restrictions AS u2_restrictions
+FROM matches m
+JOIN users u1 ON u1.id = m.user1_id
+JOIN users u2 ON u2.id = m.user2_id
+WHERE m.status = 'approved_by_both'
+  AND m.match_card_data IS NULL
+```
+
+**שלב ב — לכל match, קריאה מעמיקה:**
+1. שליפת שיחות של שני הצדדים (query בסעיף "איך לקרוא נתונים")
+2. שליפת traits של שני הצדדים (query בסעיף "איך לקרוא נתונים")
+3. בדיקת consent:
+   - אם `match_card_consent = 'declined'` → כרטיס רק עם מידע בסיסי (שם, גיל, עיר, תמונה) — **אסור תוכן מהשיחות**
+   - אם `match_card_restrictions` לא null → לכבד את ההגבלות (דברים שהמשתמש לא רוצה שיוצגו)
+
+**שלב ג — כתיבת הכרטיס:**
+
+מבנה JSON:
+```json
+{
+  "introSummary": "הצגה אישית קצרה של כל אחד/ת בשמו/ה, ואז תיאור החיבור",
+  "connectionPoints": [
+    { "title": "כותרת נקודת חיבור", "text": "פירוט מעמיק" },
+    { "title": "...", "text": "..." },
+    { "title": "...", "text": "..." }
+  ],
+  "dateIdea": "הצעה לדייט ראשון מבוססת על תחומי עניין משותפים",
+  "caveat": "הערה כנה ועדינה על אתגר אפשרי",
+  "closing": "סיום ייחודי שקושר חזרה לזוג הספציפי"
+}
+```
+
+**כללי סגנון (חובה!):**
+- **שמות, לא הוא/היא** — לכתוב "נדב" ו"דנית", לא "הוא" ו"היא"
+- **introSummary מתחיל בהצגה אישית** של כל אחד לפני שמתארים את החיבור
+- **לעולם לא לחשוף פרטי עבר** — לא לגעת בפרידות, לקחים מאקסים, היסטוריה זוגית
+- **כל closing חייב להיות ייחודי** — לא לשכפל מכרטיסים קודמים
+- **דיוק** — לא לשלב שתי עובדות בצורה מעורפלת. לקרוא כל משפט ולוודא שאי אפשר להבין אותו לא נכון
+- **לקרוא באמת את השיחות** — לא לסכם, לצלול לעומק ולהבין מי הם
+
+**שלב ד — אישור ושמירה:**
+1. להציג כל כרטיס לאדמין לאישור
+2. אחרי אישור — לשמור:
+   - `POST /admin/matches/:id/save-card` עם `{ match_card_data: <JSON> }`
+   - `POST /admin/matches/:id/prepare` (מעביר ל-`pre_match`)
+3. האדמין תבדוק ב-admin panel, תערוך אם צריך, ותאשר ידנית
+
+#### 1.5 דיווח משתמשים לא פעילים (TODO — עתידי)
 - 7+ ימים בלי כניסה + תהליך לא שלם
 
-#### 1.5 סריקת דיווחי באגים (TODO — עתידי)
+#### 1.6 סריקת דיווחי באגים (TODO — עתידי)
 - bug_reports חדשים שלא טופלו
 
 ### 2. ריצה שבועית — "בוא נעשה ניהול שבועי"
@@ -124,6 +236,8 @@
 | Photo reconciliation | יומי | סורק מי צריך ניתוח תמונות |
 | User nudges | יומי | welcome / not_started / incomplete |
 | Photo nudges | יומי | בקשת תמונה + שאלת התאמה עיוורת למשתמשים עם matches ב-waiting_for_photo |
+| Message nudges | יומי | תזכורות לשאלות סגורות/פתוחות שלא נענו (+2d, +5d, +12d) |
+| Rating nudges | יומי | תזכורות לדירוגי התאמה שלא נענו (+2d, +5d, +12d). אוטו-שליחה לצד שני אחרי דירוג חיובי |
 | Auto-analysis | event | Run #1 בסיום צ'אט כללי, Run #2 בסיום הכל |
 | Summarizer | event | כל 8 הודעות → שליפת מידע מובנה |
 | Reanalysis scan | יומי | בדיקת qa_about_me + qa_refine → reanalysis |
@@ -227,6 +341,12 @@ WHERE id = $4
 | `POST /admin/users/:id/update-checklist` | עדכון צ'קליסט |
 | `POST /admin/users/:id/reanalyze` | הרצת ניתוח |
 | `GET /admin/system-activity-log` | לוג מערכת (פעולות אוטומטיות) |
+| `POST /admin/matches/:id/save-card` | שמירת כרטיס התאמה (match_card_data JSON) |
+| `POST /admin/matches/:id/prepare` | העברה ל-pre_match (ממתין לאישור כרטיס) |
+| `POST /admin/matches/:id/approve-card` | אישור כרטיס התאמה |
+| `POST /admin/run-message-nudges` | הפעלה ידנית של message nudges |
+| `POST /admin/run-rating-nudges` | הפעלה ידנית של rating nudges |
+| `POST /admin/run-photo-nudges` | הפעלה ידנית של photo nudges |
 
 ---
 
@@ -243,6 +363,9 @@ WHERE id = $4
 - [x] **Photo Match Management** — waiting_for_photo אוטומטי ביצירת match + reconcile. קידום ל-potential_match כשתמונות מועלות. סקשן "חסרים מאפיינים חיצוניים" ב-admin pipeline עם כפתור "טופל"
 - [x] **סריקת שיחות** — שני מצבים: יומי (הודעות חדשות של היום) + on-demand (סריקה מלאה למי שלא נסרק). דו"חות חודשיים ב-`Docs/reports/`
 - [x] **Photo Nudges** — `pipeline/photoNudges.ts`, cron יומי. בקשת תמונה (4 שלבים) + שאלת התאמה עיוורת. Per-user flow, עצירה בהעלאת תמונה, הפעלה מחדש אחרי 14 יום. blind_match_consent אוטומטי מתשובה חיובית. badge סגול באדמין
+- [x] **Message Nudges** — `pipeline/messageNudges.ts`, cron יומי. תזכורות לשאלות סגורות (system_questions) ופתוחות (admin_messages type=conversation) שלא נענו. +2d, +5d, +12d. שאלות מתוך match מציינות "בנוגע להתאמה אפשרית". notification בשליחת שאלה סגורה (לא היה), אופציות מותאמות, שליחה מפאנל match
+- [x] **Rating Nudges** — `pipeline/ratingNudges.ts`, cron יומי. תזכורות לדירוגי התאמה שלא נענו. +2d, +5d, +12d. אוטו-שליחה לצד שני אחרי דירוג חיובי (לא דורש עוד שליחה ידנית מהאדמין)
+- [x] **כרטיסי התאמה בריצה יומית** — Step 1.4 בסוכן. סריקת `approved_by_both` ללא כרטיס, כתיבה מעמיקה, שמירה ל-`pre_match` לאישור אדמין
 
 ### הבא בתור
 - [ ] **בדיקת תובנות אחרי reanalysis** — סוכן ניהול (Claude):

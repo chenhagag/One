@@ -377,9 +377,9 @@ async function wasRecentlySent(userId: number, eventType: string, minutes: numbe
 }
 
 /** Helper to load user name + gender for gendered emails */
-async function getUserInfo(userId: number): Promise<{ first_name: string; gender: string; email: string } | null> {
-  return pgQueryOne<{ first_name: string; gender: string; email: string }>(
-    "SELECT first_name, gender, email FROM users WHERE id = $1",
+async function getUserInfo(userId: number): Promise<{ first_name: string; gender: string; email: string; looking_for_gender: string | null } | null> {
+  return pgQueryOne<{ first_name: string; gender: string; email: string; looking_for_gender: string | null }>(
+    "SELECT first_name, gender, email, looking_for_gender FROM users WHERE id = $1",
     [userId]
   );
 }
@@ -394,17 +394,19 @@ export async function notifyMatchCardSent(userId: number, partnerName: string): 
   const user = await getUserInfo(userId);
   if (!user) return;
   const g = (m: string, f: string) => gn(user.gender, m, f);
+  const lookingFor = user.looking_for_gender === "woman" ? "מישהי" : user.looking_for_gender === "man" ? "מישהו" : "מישהו/י";
 
   await notifyUser(userId, {
     title: "🎉 יש לך התאמה חדשה!",
     body: "כרטיס ההתאמה שלך מחכה לך ב-One",
     event_type: "match_card_sent",
     emailHtml: buildRichEmail(
-      "🎉 יש לך התאמה חדשה!",
+      `🎉 מצאנו ${g("לך", "לך")} התאמה!`,
       `<p>היי ${user.first_name},</p>
-       <p>יש לנו חדשות מרגשות — מצאנו ${g("לך", "לך")} התאמה!</p>
-       <p>כרטיס ההתאמה ${g("שלך", "שלך")} מוכן ומחכה ${g("לך", "לך")} במערכת. ${g("כנס", "כנסי")} כדי לראות את הפרטים.</p>`,
-      g("כנס", "כנסי") + " לראות את ההתאמה"
+       <p>אחרי ניתוח מעמיק של הפרופיל ${g("שלך", "שלך")} ושל כל המשתמשים במאגר, מצאנו ${lookingFor} שנראה שיש ביניכם חיבור מעניין ושווה בדיקה.</p>
+       <p>כרטיס ההתאמה האישי ${g("שלך", "שלך")} מוכן ומחכה ${g("לך", "לך")} במערכת — ${g("מוזמן", "מוזמנת")} להיכנס ולראות למה חשבנו שכדאי שתכירו.</p>
+       <p style="font-size:13px;color:#888">ב-One מעדיפים איכות על מהירות — וזו ההתאמה הכי מדויקת שמצאנו ${g("עבורך", "עבורך")}.</p>`,
+      "לצפייה בהתאמה"
     ),
   });
 }

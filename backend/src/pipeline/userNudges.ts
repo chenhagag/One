@@ -369,7 +369,7 @@ function getNotStartedContent(
     case 2:
       return {
         title: `שיחת ההיכרות`,
-        body: `${hey}, שיחת ההיכרות קצרה ופשוטה — כמה דקות של שיחה פתוחה, ועל בסיסה אנחנו מחפשים ${g("לך", "לך")} התאמה. ${g("כנס", "כנסי")} כשנוח ${g("לך", "לך")}.`,
+        body: `${hey}, שיחת ההיכרות קצרה ופשוטה — כמה דקות של שיחה פתוחה, ועל בסיסה אנחנו מחפשים ${g("לך", "לך")} התאמה. אם ${g("נתקלת", "נתקלת")} בבעיה כלשהי — ${g("מוזמן", "מוזמנת")} לפנות אלינו.`,
         emailHtml: buildNotStartedEmail(nudgeNumber, name, gender),
       };
     case 3:
@@ -381,7 +381,7 @@ function getNotStartedContent(
     default: // 4
       return {
         title: `תזכורת מ-One`,
-        body: `${hey}, זו התזכורת האחרונה שלנו. עדיין אפשר להתחיל את שיחת ההיכרות — אחרי שנכיר אותך, אנחנו מטפלים בהכול.`,
+        body: `${hey}, עדיין אפשר להתחיל את שיחת ההיכרות — אחרי שנכיר אותך, אנחנו מטפלים בהכול.`,
         emailHtml: buildNotStartedEmail(nudgeNumber, name, gender),
       };
   }
@@ -417,7 +417,7 @@ function getIncompleteContent(
     default: // 4
       return {
         title: `תזכורת מ-One`,
-        body: `${hey}, זו התזכורת האחרונה שלנו. אחרי שנכיר אותך לעומק, נוכל למצוא ${g("לך", "לך")} את ההתאמה המדויקת ביותר. כל מה ש${g("עשית", "עשית")} נשמר.`,
+        body: `${hey}, אחרי שנכיר אותך לעומק, נוכל למצוא ${g("לך", "לך")} את ההתאמה המדויקת ביותר. כל מה ש${g("עשית", "עשית")} נשמר.`,
         emailHtml: buildIncompleteEmail(nudgeNumber, name, gender),
       };
   }
@@ -472,8 +472,8 @@ function buildNotStartedEmail(nudgeNumber: number, name: string, gender: string 
       <h2 style="font-size: 20px; margin: 0 0 16px;">שיחת ההיכרות</h2>
       <p>${hey},</p>
       <p>שיחת ההיכרות היא הבסיס לחיפוש ההתאמות. היא קצרה ופשוטה — כמה דקות של שיחה פתוחה, ועל בסיסה אנחנו מחפשים ${g("לך", "לך")} התאמה.</p>
-      <p>${g("כנס", "כנסי")} כשנוח ${g("לך", "לך")}.</p>
       ${ctaButton(g("כנס", "כנסי") + " להתחיל")}
+      <p style="margin-top: 16px; font-size: 14px; color: #666;">${g("נתקלת", "נתקלת")} בבעיה שהפריעה ${g("לך", "לך")} להתחיל? ${g("מוזמן", "מוזמנת")} לפנות אלינו ונשמח לעזור — ב<a href="https://wa.me/972549037400" style="color:#25D366">וואטסאפ</a> או ב<a href="mailto:one-support@googlegroups.com" style="color:#7b5fa3">מייל</a>.</p>
     `,
     3: `
       <h2 style="font-size: 20px; margin: 0 0 16px;">שיחת ההיכרות</h2>
@@ -484,7 +484,7 @@ function buildNotStartedEmail(nudgeNumber: number, name: string, gender: string 
     4: `
       <h2 style="font-size: 20px; margin: 0 0 16px;">תזכורת מ-One</h2>
       <p>${hey},</p>
-      <p>זו התזכורת האחרונה שלנו. עדיין אפשר להתחיל את שיחת ההיכרות — אחרי שנכיר אותך, אנחנו מטפלים בהכול.</p>
+      <p>עדיין אפשר להתחיל את שיחת ההיכרות — אחרי שנכיר אותך, אנחנו מטפלים בהכול.</p>
       ${ctaButton(g("כנס", "כנסי") + " להתחיל")}
     `,
   };
@@ -521,7 +521,7 @@ function buildIncompleteEmail(nudgeNumber: number, name: string, gender: string 
     4: `
       <h2 style="font-size: 20px; margin: 0 0 16px;">תזכורת מ-One</h2>
       <p>${hey},</p>
-      <p>זו התזכורת האחרונה שלנו. אחרי שנכיר אותך לעומק, נוכל למצוא ${g("לך", "לך")} את ההתאמה המדויקת ביותר. כל מה ש${g("עשית", "עשית")} נשמר.</p>
+      <p>אחרי שנכיר אותך לעומק, נוכל למצוא ${g("לך", "לך")} את ההתאמה המדויקת ביותר. כל מה ש${g("עשית", "עשית")} נשמר.</p>
       ${ctaButton("להמשך התהליך")}
     `,
   };
