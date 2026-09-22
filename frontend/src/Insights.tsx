@@ -58,6 +58,25 @@ const MBTI_COMPATIBILITY: Record<string, { ideal: string[]; good: string[]; chal
   ESTP: { ideal: ["ISFJ", "ISTJ"], good: ["ESFP", "ISTP", "ESTJ", "ENTP"], challenging: ["INFJ", "INFP", "ENFJ"] },
 };
 
+const MBTI_DESCRIPTIONS_F: Record<string, string> = {
+  ISTJ: "אחראית, יסודית ומסודרת. מעדיפה מבנה ברור, עובדת בשיטתיות ונאמנה למחויבויותיה.",
+  ISFJ: "אכפתית, מסורה ושקטה. מונעת מרצון לעזור לאחרים, מעדיפה יציבות והרמוניה.",
+  INFJ: "אידיאליסטית עם תובנות עמוקות. מחפשת משמעות, מונעת מערכים פנימיים חזקים.",
+  INTJ: "אסטרטגית עצמאית עם חזון. חושבת לטווח ארוך, מעדיפה יעילות ולוגיקה.",
+  ISTP: "פרקטית ושקטה, אוהבת להבין איך דברים עובדים. גמישה, מגיבה היטב ברגע.",
+  ISFP: "רגישה ושקטה, חיה לפי ערכיה. מעריכה אסתטיקה, חופש והרמוניה.",
+  INFP: "אידיאליסטית רגישה עם עולם פנימי עשיר. מחפשת אותנטיות ומשמעות.",
+  INTP: "חושבת אנליטית וסקרנית. אוהבת לחקור רעיונות, מעדיפה לוגיקה ודיוק.",
+  ESTP: "אנרגטית ופרקטית, חיה ברגע. אוהבת פעולה, הרפתקאות ופתרון בעיות מהיר.",
+  ESFP: "ספונטנית, חברותית ומלאת חיים. אוהבת להיות במרכז, נהנית מחוויות חדשות.",
+  ENFP: "נלהבת, יצירתית ואופטימית. רואה אפשרויות בכל מקום, מחברת בין אנשים ורעיונות.",
+  ENTP: "ממציאה ודיאלקטיקנית. אוהבת אתגרים אינטלקטואליים, יצירתית ולא קונבנציונלית.",
+  ESTJ: "מנהיגה מעשית ומאורגנת. מעדיפה סדר, כללים ברורים ויעילות.",
+  ESFJ: "חברותית ואכפתית, מתאמצת למען אחרים. מעריכה הרמוניה וקשרים חברתיים.",
+  ENFJ: "מנהיגה כריזמטית ואמפתית. מעוררת השראה, מתמקדת באנשים ובפוטנציאל שלהם.",
+  ENTJ: "מנהיגה החלטית ואסטרטגית. מובילה בביטחון, ממוקדת ביעילות ובהישגים.",
+};
+
 const MBTI_RELATIONSHIP_DETAIL: Record<string, string> = {
   INFP: "בזוגיות, INFP מחפש חיבור רגשי עמוק ואותנטיות מוחלטת. הוא זקוק לבן/בת זוג שמבין את עולמו הפנימי העשיר ומכבד את הצורך שלו במרחב. הוא נוטה להרמוניה אבל גם לאידיאליזם — מה שיכול ליצור מתח כשהמציאות לא עומדת בציפיות.",
   ENFP: "בזוגיות, ENFP מביא אנרגיה, יצירתיות והתלהבות. הוא מחפש עומק רגשי אבל גם ריגוש והרפתקה. הוא זקוק לבן/בת זוג שיתן לו מרחב להיות ספונטני, אבל גם יעגן אותו כשהוא מתפזר.",
@@ -209,6 +228,46 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
   const isFemale = gender === "woman";
   const isWW = gender === "woman" && lookingForGender === "woman";
   const g = (male: string, female: string) => isFemale ? female : male;
+  // Adapt relationship descriptions for WW users
+  const wwRel = (text: string) => {
+    if (!isWW) return text;
+    return text
+      .replace(/בן\/בת זוג/g, "בת זוג")
+      .replace(/בן\/בת הזוג/g, "בת הזוג")
+      .replace(/מתאים ל/g, "מתאימה ל")
+      .replace(/מתאים בן/g, "מתאימה בת")
+      .replace(/חשוב בן/g, "חשובה בת")
+      .replace(/צריך בן/g, "צריכה בת")
+      .replace(/שמבינים/g, "שמבינות")
+      .replace(/שתומכים/g, "שתומכות")
+      .replace(/שמעריכים/g, "שמעריכות")
+      .replace(/שמכבדים/g, "שמכבדות")
+      .replace(/שאוהבים/g, "שאוהבות")
+      .replace(/שנותנים/g, "שנותנות")
+      .replace(/שמספקים/g, "שמספקות")
+      .replace(/שלא נבהלים/g, "שלא נבהלות")
+      .replace(/שלא חוששים/g, "שלא חוששות")
+      .replace(/סבלניים/g, "סבלניות")
+      .replace(/ומחזירים/g, "ומחזירות")
+      .replace(/פתוחים/g, "פתוחות")
+      .replace(/חזקים/g, "חזקות")
+      .replace(/סקרנים/g, "סקרניות")
+      .replace(/עקביים/g, "עקביות")
+      .replace(/מעדיף/g, "מעדיפה")
+      .replace(/מחפש /g, "מחפשת ")
+      .replace(/שמבין /g, "שמבינה ")
+      .replace(/ויודע /g, "ויודעת ")
+      .replace(/בעל /g, "בעלת ")
+      .replace(/שואף /g, "שואפת ")
+      .replace(/מונע מ/g, "מונעת מ")
+      .replace(/ממוקד /g, "ממוקדת ")
+      .replace(/רגיש,/g, "רגישה,")
+      .replace(/אכפתי,/g, "אכפתית,")
+      .replace(/סומך /g, "סומכת ")
+      .replace(/מסוגל /g, "מסוגלת ")
+      .replace(/נוח עם/g, "נוחה עם")
+      .replace(/שומר על/g, "שומרת על");
+  };
 
   const hasData = profile && (profile.mbti?.type || profile.allValues?.length > 0 || profile.allBigFive?.length > 0 || profile.enneagram?.primaryType || profile.attachment?.dominant);
   const strongValues = profile?.allValues?.filter(v => v.score > 60) || [];
@@ -250,7 +309,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
         <div style={s.card}>
           <div style={{ textAlign: "center", marginBottom: 16 }}>
             <div style={{ fontSize: 36, fontWeight: 800, color: "#6366f1", letterSpacing: 4 }}>{type}</div>
-            {profile.mbti.description && <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, margin: "8px 0 0" }}>{profile.mbti.description}</p>}
+            {profile.mbti.description && <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, margin: "8px 0 0" }}>{(isWW && profile.mbti.type && MBTI_DESCRIPTIONS_F[profile.mbti.type]) || profile.mbti.description}</p>}
           </div>
 
           {profile.mbti.alternateType && (
@@ -331,7 +390,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
                 </div>
                 {renderScoreBar(v.score)}
                 <p style={{ fontSize: 13, color: "#555", lineHeight: 1.5, margin: "4px 0 0" }}>{v.description}</p>
-                <p style={{ fontSize: 12, color: "#3f6212", lineHeight: 1.5, margin: "4px 0 0" }}>{v.relationship}</p>
+                <p style={{ fontSize: 12, color: "#3f6212", lineHeight: 1.5, margin: "4px 0 0" }}>{wwRel(v.relationship)}</p>
               </div>
             ))}
           </div>
@@ -427,7 +486,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
           <div style={{ textAlign: "center", marginBottom: 16 }}>
             <div style={{ fontSize: 36, fontWeight: 800, color: "#6366f1" }}>{ennea.typeLabel}</div>
             <div style={{ fontSize: 18, fontWeight: 600, color: "#555", marginTop: 4 }}>{ennea.primaryName}</div>
-            {ennea.description && <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, margin: "8px 0 0" }}>{ennea.description}</p>}
+            {ennea.description && <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, margin: "8px 0 0" }}>{wwRel(ennea.description)}</p>}
           </div>
         </div>
 
@@ -451,8 +510,8 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
                     <span style={{ fontSize: 12, fontWeight: 600, padding: "2px 10px", borderRadius: 12, background: level.color + "22", color: level.color }}>{level.label}</span>
                   </div>
                   {renderScoreBar(t.score)}
-                  <p style={{ fontSize: 13, color: "#555", lineHeight: 1.5, margin: "4px 0 0" }}>{t.description}</p>
-                  <p style={{ fontSize: 12, color: "#3f6212", lineHeight: 1.5, margin: "4px 0 0" }}>{t.relationship}</p>
+                  <p style={{ fontSize: 13, color: "#555", lineHeight: 1.5, margin: "4px 0 0" }}>{wwRel(t.description)}</p>
+                  <p style={{ fontSize: 12, color: "#3f6212", lineHeight: 1.5, margin: "4px 0 0" }}>{wwRel(t.relationship)}</p>
                 </div>
               );
             })}
@@ -475,12 +534,12 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
         <div style={s.card}>
           <div style={{ textAlign: "center", marginBottom: 16 }}>
             <div style={{ fontSize: 22, fontWeight: 700, color: "#6366f1" }}>{att.dominantHe}</div>
-            {att.description && <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, margin: "8px 0 0" }}>{att.description}</p>}
+            {att.description && <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, margin: "8px 0 0" }}>{wwRel(att.description)}</p>}
           </div>
           {att.relationship && (
             <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "10px 14px", marginTop: 8 }}>
               <p style={{ fontSize: 13, fontWeight: 600, color: "#166534", margin: "0 0 4px" }}>מה זה אומר בזוגיות?</p>
-              <p style={{ fontSize: 13, color: "#3f6212", lineHeight: 1.6, margin: 0 }}>{att.relationship}</p>
+              <p style={{ fontSize: 13, color: "#3f6212", lineHeight: 1.6, margin: 0 }}>{wwRel(att.relationship || "")}</p>
             </div>
           )}
         </div>
@@ -507,8 +566,8 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
                   <span style={{ fontSize: 12, fontWeight: 600, padding: "2px 10px", borderRadius: 12, background: level.color + "22", color: level.color }}>{level.label}</span>
                 </div>
                 {renderScoreBar(st.score)}
-                <p style={{ fontSize: 13, color: "#555", lineHeight: 1.5, margin: "4px 0 0" }}>{st.description}</p>
-                <p style={{ fontSize: 12, color: "#3f6212", lineHeight: 1.5, margin: "4px 0 0" }}>{st.relationship}</p>
+                <p style={{ fontSize: 13, color: "#555", lineHeight: 1.5, margin: "4px 0 0" }}>{wwRel(st.description)}</p>
+                <p style={{ fontSize: 12, color: "#3f6212", lineHeight: 1.5, margin: "4px 0 0" }}>{wwRel(st.relationship)}</p>
               </div>
             );
           })}
@@ -584,7 +643,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
               </div>
               <div style={{ textAlign: "center", marginTop: 12 }}>
                 <div style={{ fontSize: 32, fontWeight: 800, color: "#6366f1", letterSpacing: 4 }}>{profile.mbti.type}</div>
-                {profile.mbti.description && <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, margin: "8px 0 0" }}>{profile.mbti.description}</p>}
+                {profile.mbti.description && <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, margin: "8px 0 0" }}>{(isWW && profile.mbti.type && MBTI_DESCRIPTIONS_F[profile.mbti.type]) || profile.mbti.description}</p>}
               </div>
             </div>
           )}
@@ -597,7 +656,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
               </div>
               <div style={{ marginTop: 12 }}>
                 <div style={{ fontSize: 15, fontWeight: 600, color: "#6366f1" }}>{profile.attachment.dominantHe}</div>
-                {profile.attachment.description && <p style={{ fontSize: 13, color: "#555", lineHeight: 1.5, margin: "6px 0 0" }}>{profile.attachment.description}</p>}
+                {profile.attachment.description && <p style={{ fontSize: 13, color: "#555", lineHeight: 1.5, margin: "6px 0 0" }}>{wwRel(profile.attachment.description)}</p>}
               </div>
             </div>
           )}
@@ -649,7 +708,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
               <div style={{ textAlign: "center", marginTop: 12 }}>
                 <div style={{ fontSize: 28, fontWeight: 800, color: "#6366f1" }}>{profile.enneagram.typeLabel}</div>
                 <div style={{ fontSize: 15, fontWeight: 500, color: "#555", marginTop: 4 }}>{profile.enneagram.primaryName}</div>
-                {profile.enneagram.description && <p style={{ fontSize: 13, color: "#777", lineHeight: 1.5, margin: "6px 0 0" }}>{profile.enneagram.description}</p>}
+                {profile.enneagram.description && <p style={{ fontSize: 13, color: "#777", lineHeight: 1.5, margin: "6px 0 0" }}>{wwRel(profile.enneagram.description)}</p>}
               </div>
             </div>
           )}

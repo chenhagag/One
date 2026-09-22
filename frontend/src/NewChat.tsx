@@ -2428,7 +2428,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       ניצור {gn("איתך", "איתך")} קשר כשיהיה כיוון להתאמה או משהו שנרצה לברר {gn("איתך", "איתך")} כדי לדייק את החיפוש
                     </p>
                     <p style={{ fontSize: 13, color: "#d97706", margin: 0, lineHeight: 1.7 }}>
-                      💡 כדי שנוכל לדייק את הניתוח ולתת {gn("לך", "לך")} התאמות טובות יותר, רצוי להשלים {missing.length === 1 ? `את ה${missing[0]}` : `את: ${missing.join(", ")}`}{!hasDetails ? ` ולהשלים את הפרטים במסך "הפרטים שלי"` : ""}.
+                      💡 כדי שנוכל לדייק את הניתוח ולתת {gn("לך", "לך")} התאמות טובות יותר, רצוי להשלים {missing.length === 1 ? `את ${missing[0] === "שיחת היכרות" ? "שיחת ההיכרות" : "ה" + missing[0]}` : `את: ${missing.join(", ")}`}{!hasDetails ? ` ולהשלים את הפרטים במסך "הפרטים שלי"` : ""}.
                     </p>
                   </div>
                 );
