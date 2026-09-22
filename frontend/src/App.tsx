@@ -269,7 +269,7 @@ export default function App() {
 
   // ── Entry point detection (e.g. /forwomen) ────────────────
   const [entryPoint] = useState<string | null>(() => {
-    const path = window.location.pathname.toLowerCase();
+    const path = window.location.pathname.replace(/^\/+/, "/").toLowerCase();
     if (path === "/forwomen") {
       localStorage.setItem("one_entry_point", "forwomen");
       window.history.replaceState({}, "", "/");
