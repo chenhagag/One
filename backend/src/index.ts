@@ -6224,9 +6224,26 @@ app.get("/health", (_req, res) => res.status(200).json({ ok: true }));
 // ── SPA catch-all ────────────────────────────────────────────────
 // Any GET request that didn't match an API route or static file gets
 // the frontend's index.html — lets React Router handle client-side routing.
+// For /main, inject general-audience OG meta tags instead of women-focused ones.
 app.get("*", (_req, res) => {
   res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   const indexPath = path.join(frontendDist, "index.html");
+
+  if (_req.path.toLowerCase().startsWith("/main")) {
+    // Serve index.html with general-audience meta tags
+    const fs = require("fs");
+    try {
+      let html = fs.readFileSync(indexPath, "utf-8");
+      html = html.replace(/One - Matching app for women\./g, "One \u2013 Meet, as you are.");
+      html = html.replace(/מערכת היכרויות לנשים שמחפשות נשים, היכרות עמוקה עם AI, תובנות אישיות והתאמה אחת מדויקת\./g,
+        "היכרות עמוקה עם AI, תובנות אישיות והתאמה אחת מדויקת. בלי סווייפים.");
+      res.send(html);
+    } catch {
+      res.status(404).send("Frontend not built. Run: cd frontend && npm run build");
+    }
+    return;
+  }
+
   res.sendFile(indexPath, (err) => {
     if (err) {
       res.status(404).send("Frontend not built. Run: cd frontend && npm run build");
