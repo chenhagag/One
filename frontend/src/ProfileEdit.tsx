@@ -410,7 +410,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
             <div style={{ flex: "1 1 45%", minWidth: 120 }}>
               <label style={{ fontSize: 11, color: "#888", marginBottom: 3, display: "block" }}>מצב משפחתי</label>
               <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0, color: maritalStatus ? undefined : "#aaa" }} value={maritalStatus} onChange={(e) => setMaritalStatus(e.target.value)}>
-                <option value="" disabled hidden>{isWW ? "בחרי..." : "בחר/י מצב משפחתי"}</option>
+                <option value="">{isWW ? "בחרי מצב משפחתי" : "בחר/י מצב משפחתי"}</option>
                 <option value="single">{isWW ? "רווקה" : "רווק/ה"}</option>
                 <option value="divorced">{isWW ? "גרושה" : "גרוש/ה"}</option>
                 <option value="married">{isWW ? "נשואה" : "נשוי/נשואה"}</option>
@@ -418,8 +418,8 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
             </div>
             <div style={{ flex: "1 1 45%", minWidth: 120 }}>
               <label style={{ fontSize: 11, color: "#888", marginBottom: 3, display: "block" }}>ילדים</label>
-              <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0, color: hasChildren === null ? "#aaa" : undefined }} value={hasChildren === null ? "" : hasChildren ? "yes" : "no"} onChange={(e) => setHasChildren(e.target.value === "yes")}>
-                <option value="" disabled hidden>{isWW ? "בחרי..." : "יש לך ילדים?"}</option>
+              <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0, color: hasChildren === null ? "#aaa" : undefined }} value={hasChildren === null ? "" : hasChildren ? "yes" : "no"} onChange={(e) => setHasChildren(e.target.value === "" ? null : e.target.value === "yes")}>
+                <option value="">{isWW ? "יש לך ילדים?" : "יש לך ילדים?"}</option>
                 <option value="no">{isWW ? "אין לי ילדים" : "אין לי ילדים"}</option>
                 <option value="yes">{isWW ? "יש לי ילדים" : "יש לי ילדים"}</option>
               </select>
@@ -427,7 +427,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
             <div style={{ flex: "1 1 45%", minWidth: 120 }}>
               <label style={{ fontSize: 11, color: "#888", marginBottom: 3, display: "block" }}>דת</label>
               <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0, color: religion ? undefined : "#aaa" }} value={religion} onChange={(e) => setReligion(e.target.value)}>
-                <option value="" disabled hidden>{isWW ? "בחרי..." : "בחר/י דת"}</option>
+                <option value="">{isWW ? "בחרי דת" : "בחר/י דת"}</option>
                 <option value="jewish">{isWW ? "יהודיה" : "יהודי/ה"}</option>
                 <option value="muslim">{isWW ? "מוסלמית" : "מוסלמי/ת"}</option>
                 <option value="christian">{isWW ? "נוצריה" : "נוצרי/ה"}</option>
@@ -436,8 +436,8 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
             </div>
             <div style={{ flex: "1 1 45%", minWidth: 120 }}>
               <label style={{ fontSize: 11, color: "#888", marginBottom: 3, display: "block" }}>עישון</label>
-              <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0, color: smoker === null ? "#aaa" : undefined }} value={smoker === null ? "" : smoker ? "yes" : "no"} onChange={(e) => setSmoker(e.target.value === "yes")}>
-                <option value="" disabled hidden>{isWW ? "בחרי..." : "מעשן/ת?"}</option>
+              <select style={{ ...s.select, fontSize: 12, padding: "6px 8px", marginBottom: 0, color: smoker === null ? "#aaa" : undefined }} value={smoker === null ? "" : smoker ? "yes" : "no"} onChange={(e) => setSmoker(e.target.value === "" ? null : e.target.value === "yes")}>
+                <option value="">{isWW ? "מעשנת?" : "מעשן/ת?"}</option>
                 <option value="no">{isWW ? "לא מעשנת" : "לא מעשן/ת"}</option>
                 <option value="yes">{isWW ? "מעשנת" : "מעשן/ת"}</option>
               </select>

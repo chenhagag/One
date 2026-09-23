@@ -1781,6 +1781,18 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               )}
 
               {/* Pending match rating card */}
+              {screen === "home" && !localStorage.getItem("one_maintenance_dismissed") && (
+                <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
+                  <div style={{ background: "#f0f9ff", borderRadius: 14, padding: "14px 20px", border: "1px solid #bae6fd", position: "relative", textAlign: "right", direction: "rtl" }}>
+                    <button onClick={() => { localStorage.setItem("one_maintenance_dismissed", "1"); setScreen("home"); }} style={{ position: "absolute", top: 8, left: 10, background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#94a3b8", padding: 4 }}>✕</button>
+                    <p style={{ fontSize: 13, color: "#0c4a6e", lineHeight: 1.7, margin: 0 }}>
+                      🔧 עשינו לאחרונה עבודות תחזוקה באפליקציה — אם {isWW ? "נתקלת" : "נתקלתם"} בבעיות במהלך השימוש, {isWW ? "נשמח שתדווחי" : "נשמח שתדווחו"} לנו{" "}
+                      <span style={{ textDecoration: "underline", cursor: "pointer", fontWeight: 600 }} onClick={() => setScreen("bug_report")}>במסך המשוב</span>.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {screen === "home" && recommendations.pending_rating && (
                 <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
                   <div style={{ background: "#fff", borderRadius: 14, padding: "24px 20px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #e5e7eb", textAlign: "right" }}>
