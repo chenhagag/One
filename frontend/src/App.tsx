@@ -267,16 +267,29 @@ export default function App() {
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [pendingSurvey] = useState(() => window.location.pathname === "/survey");
 
-  // ── Entry point detection (e.g. /forwomen) ────────────────
+  // ── Entry point detection ────────────────
+  // Default: forwomen (women-only). /main = general audience.
   const [entryPoint] = useState<string | null>(() => {
     const raw = window.location.pathname;
     const path = raw.replace(/^\/+/, "/").toLowerCase();
     console.log("[entryPoint] pathname:", raw, "normalized:", path);
-    if (path.startsWith("/forwomen")) {
-      localStorage.setItem("one_entry_point", "forwomen");
+    if (path.startsWith("/main")) {
+      localStorage.setItem("one_entry_point", "main");
       window.history.replaceState({}, "", "/");
-      console.log("[entryPoint] → forwomen (from URL)");
-      return "forwomen";
+      console.log("[entryPoint] → main (from URL)");
+      return "main";
+    }
+    // Default (/ or /forwomen) = forwomen
+    if (path === "/" || path.startsWith("/forwomen")) {
+      const current = localStorage.getItem("one_entry_point");
+      if (current !== "main") {
+        localStorage.setItem("one_entry_point", "forwomen");
+        if (path.startsWith("/forwomen")) window.history.replaceState({}, "", "/");
+        console.log("[entryPoint] → forwomen (default)");
+        return "forwomen";
+      }
+      // Keep "main" if already set (returning non-WW user)
+      return "main";
     }
     const stored = localStorage.getItem("one_entry_point");
     if (stored) console.log("[entryPoint] → from localStorage:", stored);
@@ -486,6 +499,13 @@ export default function App() {
 
   // ── Logout ─────────────────────────────────────────────────────
   function handleLogout() {
+    // Set entry point for next landing page based on user type
+    const isWW = user?.gender === "woman" && user?.looking_for_gender === "woman";
+    if (!isWW && user?.gender) {
+      localStorage.setItem("one_entry_point", "main");
+    } else {
+      localStorage.setItem("one_entry_point", "forwomen");
+    }
     unregisterPush().catch(() => {});
     supabase?.auth.signOut().catch(() => {});
     clearSession();

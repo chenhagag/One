@@ -22,7 +22,7 @@ interface ProfileSetupProps {
 }
 
 export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSetupProps) {
-  const isForWomen = entryPoint === "forwomen";
+  const isForWomen = entryPoint !== "main";
   // Don't pre-fill from user object — let user type their own name
   const [firstName, setFirstName] = useState("");
   const [age, setAge] = useState("");

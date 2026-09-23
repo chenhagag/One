@@ -223,7 +223,7 @@ export default function AuthScreen({ onOtpSuccess, notice, entryPoint }: AuthScr
   }
 
   // ── Landing page — before auth ──
-  const isForWomen = entryPoint === "forwomen";
+  const isForWomen = entryPoint !== "main";
 
   if (showLanding) {
     // Steps content — different for forwomen vs general
