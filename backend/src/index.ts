@@ -752,7 +752,7 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
     if (typeof first_name !== "string" || first_name.trim().length === 0 || first_name.trim().length > 50)
       return res.status(400).json({ error: "first_name must be 1-50 characters" });
   }
-  if (age !== undefined) {
+  if (age !== undefined && age !== null) {
     if (typeof age !== "number" || !Number.isInteger(age) || age < 18 || age > 120)
       return res.status(400).json({ error: "age must be an integer between 18 and 120" });
   }
@@ -760,11 +760,11 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
     if (typeof height !== "number" || !Number.isInteger(height) || height < 100 || height > 250)
       return res.status(400).json({ error: "height must be an integer between 100 and 250" });
   }
-  if (gender !== undefined) {
+  if (gender !== undefined && gender !== null) {
     if (!["man", "woman"].includes(gender))
       return res.status(400).json({ error: "gender must be 'man' or 'woman'" });
   }
-  if (looking_for_gender !== undefined) {
+  if (looking_for_gender !== undefined && looking_for_gender !== null) {
     if (!["man", "woman"].includes(looking_for_gender))
       return res.status(400).json({ error: "looking_for_gender must be 'man' or 'woman'" });
   }
