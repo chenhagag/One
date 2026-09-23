@@ -1,8 +1,20 @@
 # Security Hardening Plan — One
 
 **Created:** 2026-09-23
+**Last updated:** 2026-09-23
 **Context:** External pentest report (OneSyberTest) + 5 internal code scans + GPT review
 **Branch:** staging only until all tests pass. NO production deploy without explicit approval.
+
+## Implementation Status
+
+| Pulse | Status | Commit | Notes |
+|-------|--------|--------|-------|
+| 1: set-primary + pending-rating | ✅ Done | 195af69 | requireAdmin + IDOR fix |
+| 2: profile_complete server-side | ✅ Done | d94a350 | Auto-compute, removed from user PATCH |
+| 3: Input validation | ✅ Done | d94a350 | PATCH fields + message length |
+| 4: Rate limiting | ✅ Done | d94a350 | /register + /auth/exchange-code |
+| 5: Photo privacy (signed URLs) | ⏳ Deferred | — | Needs planning, risk of breaking things |
+| 6: Code cleanup | ✅ Done | d94a350 | ADMIN_EMAILS + dead x-admin-key |
 
 ---
 
