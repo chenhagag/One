@@ -304,7 +304,7 @@ app.post("/auth/magic-link", authLimiter, async (req, res) => {
 // CODE EXCHANGE — Server-side PKCE exchange to bypass Safari ITP
 // ════════════════════════════════════════════════════════════════
 
-app.post("/auth/exchange-code", async (req, res) => {
+app.post("/auth/exchange-code", authLimiter, async (req, res) => {
   const { code, codeVerifier } = req.body;
   if (!code) return res.status(400).json({ error: "code is required" });
 
@@ -642,7 +642,7 @@ app.post("/auth/verify-otp", authLimiter, async (req, res) => {
 // ════════════════════════════════════════════════════════════════
 
 // POST /register — Full registration (replaces old POST /users)
-app.post("/register", async (req, res) => {
+app.post("/register", authLimiter, async (req, res) => {
   const {
     first_name, email, age, gender, looking_for_gender,
     city, height, self_style,
@@ -743,9 +743,40 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
     marital_status, has_children, religion, smoker,
     partner_name, test_user_type, consent_accepted, photo_ai_consent,
     email_updates, whatsapp_updates, whatsapp_phone,
-    match_card_consent, match_card_restrictions, profile_complete,
+    match_card_consent, match_card_restrictions,
     self_frozen, push_notifications,
   } = req.body;
+
+  // ── Input validation ──────────────────────────────────────────
+  if (first_name !== undefined) {
+    if (typeof first_name !== "string" || first_name.trim().length === 0 || first_name.trim().length > 50)
+      return res.status(400).json({ error: "first_name must be 1-50 characters" });
+  }
+  if (age !== undefined) {
+    if (typeof age !== "number" || !Number.isInteger(age) || age < 18 || age > 120)
+      return res.status(400).json({ error: "age must be an integer between 18 and 120" });
+  }
+  if (height !== undefined && height !== null) {
+    if (typeof height !== "number" || !Number.isInteger(height) || height < 100 || height > 250)
+      return res.status(400).json({ error: "height must be an integer between 100 and 250" });
+  }
+  if (gender !== undefined) {
+    if (!["man", "woman"].includes(gender))
+      return res.status(400).json({ error: "gender must be 'man' or 'woman'" });
+  }
+  if (looking_for_gender !== undefined) {
+    if (!["man", "woman"].includes(looking_for_gender))
+      return res.status(400).json({ error: "looking_for_gender must be 'man' or 'woman'" });
+  }
+  if (whatsapp_phone !== undefined && whatsapp_phone !== null && whatsapp_phone !== "") {
+    if (typeof whatsapp_phone !== "string" || !/^\+?\d{7,15}$/.test(whatsapp_phone.trim()))
+      return res.status(400).json({ error: "Invalid phone number format" });
+  }
+  if (match_card_consent !== undefined) {
+    if (!["approved", "declined"].includes(match_card_consent))
+      return res.status(400).json({ error: "match_card_consent must be 'approved' or 'declined'" });
+  }
+
   // Build pg UPDATE with dynamic $N placeholders
   const assignments: string[] = [];
   const values: any[] = [];
@@ -755,7 +786,7 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
     values.push(val);
   };
 
-  if (first_name !== undefined)             push("first_name", first_name);
+  if (first_name !== undefined)             push("first_name", first_name.trim());
   if (age !== undefined)                    push("age", age);
   if (gender !== undefined)                 push("gender", gender);
   if (looking_for_gender !== undefined)     push("looking_for_gender", looking_for_gender);
@@ -786,7 +817,7 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
   if (whatsapp_phone !== undefined)       push("whatsapp_phone", whatsapp_phone);
   if (match_card_consent !== undefined)   push("match_card_consent", match_card_consent);
   if (match_card_restrictions !== undefined) push("match_card_restrictions", match_card_restrictions);
-  if (profile_complete !== undefined)     push("profile_complete", profile_complete);
+  // profile_complete is computed server-side, not user-editable
   if (self_frozen !== undefined)         push("self_frozen", self_frozen);
   if (push_notifications !== undefined) push("push_notifications", push_notifications);
 
@@ -799,6 +830,17 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
     `UPDATE users SET ${assignments.join(", ")} WHERE id = $${p} RETURNING *`,
     values
   );
+
+  // Auto-compute profile_complete based on required fields
+  if (first_name !== undefined || age !== undefined || city !== undefined || gender !== undefined) {
+    await pgQueryOne(
+      `UPDATE users SET profile_complete = (first_name IS NOT NULL AND age IS NOT NULL AND city IS NOT NULL AND gender IS NOT NULL) WHERE id = $1`,
+      [userId]
+    );
+    // Re-read to return correct value
+    const refreshed = await pgQueryOne<{ profile_complete: boolean }>("SELECT profile_complete FROM users WHERE id = $1", [userId]);
+    if (refreshed) updated.profile_complete = refreshed.profile_complete;
+  }
 
   // Self-freeze: handle match status changes
   if (self_frozen === true) {
@@ -913,6 +955,9 @@ app.post("/analyze", aiLimiter, requireAuth, async (req: any, res) => {
 
   if (!user_id || !answer) {
     return res.status(400).json({ error: "user_id and answer are required" });
+  }
+  if (typeof answer !== "string" || answer.length > 5000) {
+    return res.status(400).json({ error: "Answer too long (max 5000 chars)" });
   }
 
   // Owner verification — derive identity from JWT, not body
@@ -1844,6 +1889,9 @@ app.post("/analyze-profile", aiLimiter, requireAuth, async (req: any, res) => {
 
   if (!rawUserId || !answer) {
     return res.status(400).json({ error: "user_id and answer are required" });
+  }
+  if (typeof answer !== "string" || answer.length > 5000) {
+    return res.status(400).json({ error: "Answer too long (max 5000 chars)" });
   }
 
   // Ensure user_id is always an integer — req.body may pass string or number
@@ -5188,7 +5236,7 @@ app.post("/system-question/answer", requireAuth, async (req: any, res) => {
   );
   if (req.auth?.sub) {
     const authUser = await pgQueryOne<{ id: number; email: string }>("SELECT id, email FROM users WHERE supabase_uid = $1", [req.auth.sub]);
-    const isAdmin = authUser?.email === "chen.hagag@gmail.com";
+    const isAdmin = !!authUser?.email && ADMIN_EMAILS.includes(authUser.email);
     if (!isAdmin && (!authUser || !question || question.user_id !== authUser.id)) {
       return res.status(403).json({ error: "Access denied" });
     }
@@ -5880,10 +5928,11 @@ app.post("/users/:id/fine-tune-answer", requireUserAuth, async (req, res) => {
 app.post("/new-chat/message", aiLimiter, requireAuth, async (req, res) => {
   const { user_id, message, history, channel } = req.body;
   if (!user_id || !message) return res.status(400).json({ error: "user_id and message required" });
+  if (typeof message !== "string" || message.length > 5000) return res.status(400).json({ error: "Message too long (max 5000 chars)" });
 
   // Verify JWT user matches request body user_id (admin can act as any user)
   if (req.auth?.sub) {
-    const isAdmin = req.auth.email === "chen.hagag@gmail.com";
+    const isAdmin = !!req.auth.email && ADMIN_EMAILS.includes(req.auth.email);
     if (!isAdmin) {
       const authUser = await pgQueryOne<{ id: number }>("SELECT id FROM users WHERE supabase_uid = $1", [req.auth.sub]);
       if (!authUser || authUser.id !== user_id) {

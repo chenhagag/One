@@ -107,7 +107,6 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
           email_updates: emailUpdates,
           whatsapp_updates: whatsappUpdates,
           whatsapp_phone: whatsappPhone.trim() || null,
-          profile_complete: true,
           entry_point: entryPoint || null,
         }),
       });

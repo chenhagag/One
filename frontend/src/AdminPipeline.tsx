@@ -768,7 +768,7 @@ function PipelineUserCard({
                 value={u.admin_location_override || ""}
                 onChange={async (e) => {
                   const val = e.target.value || null;
-                  await apiFetch(`/admin/users/${u.id}`, { method: "PATCH", headers: { "x-admin-key": "admin-secret-key-2026" }, body: JSON.stringify({ admin_location_override: val }) });
+                  await apiFetch(`/admin/users/${u.id}`, { method: "PATCH", body: JSON.stringify({ admin_location_override: val }) });
                   onReload();
                 }}
                 style={{ marginRight: 4, fontSize: 10, padding: "1px 4px", border: "1px solid #cbd5e1", borderRadius: 4, background: u.admin_location_override ? "#fef3c7" : "#fff" }}
