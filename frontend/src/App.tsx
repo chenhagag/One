@@ -279,21 +279,17 @@ export default function App() {
       console.log("[entryPoint] → main (from URL)");
       return "main";
     }
-    // Default (/ or /forwomen) = forwomen
+    // Default (/ or /forwomen) = forwomen — always override localStorage
     if (path === "/" || path.startsWith("/forwomen")) {
-      const current = localStorage.getItem("one_entry_point");
-      if (current !== "main") {
-        localStorage.setItem("one_entry_point", "forwomen");
-        if (path.startsWith("/forwomen")) window.history.replaceState({}, "", "/");
-        console.log("[entryPoint] → forwomen (default)");
-        return "forwomen";
-      }
-      // Keep "main" if already set (returning non-WW user)
-      return "main";
+      localStorage.setItem("one_entry_point", "forwomen");
+      if (path.startsWith("/forwomen")) window.history.replaceState({}, "", "/");
+      console.log("[entryPoint] → forwomen (default)");
+      return "forwomen";
     }
+    // Other paths (e.g. /auth/callback) — use stored value
     const stored = localStorage.getItem("one_entry_point");
     if (stored) console.log("[entryPoint] → from localStorage:", stored);
-    return stored;
+    return stored || "forwomen";
   });
 
   // ── Initialize error reporting ────────────────
