@@ -188,7 +188,7 @@ export function requireUserAuth(req: Request, res: Response, next: NextFunction)
 }
 
 /** Admin email whitelist */
-const ADMIN_EMAILS = ["chen.hagag@gmail.com"];
+export const ADMIN_EMAILS = ["chen.hagag@gmail.com"];
 
 /**
  * Requires valid JWT + user must be an admin (by email).

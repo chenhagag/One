@@ -39,7 +39,7 @@ import { maybeAutoAnalyze, maybeAutoAnalyzeAfterChat, maybeAutoAnalyzeAfterAll }
 import OpenAI from "openai";
 import { Resend } from "resend";
 import { trackTokens } from "./tokenTracker";
-import { requireAuth, optionalAuth, requireUserAuth, requireAdmin } from "./auth";
+import { requireAuth, optionalAuth, requireUserAuth, requireAdmin, ADMIN_EMAILS } from "./auth";
 import { generateInsights as generateInsightsFn } from "./pipeline/generateInsights";
 import { startJobRunner, createJob as createPipelineJob, requeueOrCreateJob as requeueOrCreateJobFn, processPendingJobs as processPendingJobsFn } from "./pipeline/jobRunner";
 import { setReconcileFn } from "./pipeline/dailyMatching";
@@ -1077,7 +1077,7 @@ app.delete("/users/:id/photos/:photoId", requireUserAuth, async (req, res) => {
 });
 
 // POST /admin/users/:id/photos/:photoId/set-primary — Set a photo as primary
-app.post("/admin/users/:id/photos/:photoId/set-primary", async (req, res) => {
+app.post("/admin/users/:id/photos/:photoId/set-primary", requireAdmin, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const photoId = parseInt(req.params.photoId, 10);
   await withTransaction(async (client) => {
@@ -4106,9 +4106,16 @@ app.get("/matches/pending-rating", requireAuth, async (req, res) => {
     const authUser = await pgQueryOne<any>("SELECT id FROM users WHERE supabase_uid = $1", [req.auth.sub]);
     if (authUser) userId = authUser.id;
   }
-  // Allow query param override (needed when admin views a user's screen)
+  // Allow query param override — only if it matches the authenticated user, or caller is admin
   if (req.query.user_id) {
-    userId = parseInt(req.query.user_id as string, 10);
+    const requestedId = parseInt(req.query.user_id as string, 10);
+    if (requestedId !== userId) {
+      const isAdmin = req.auth?.email && ADMIN_EMAILS.includes(req.auth.email);
+      if (!isAdmin) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+    }
+    userId = requestedId;
   }
 
   if (!userId) return res.status(400).json({ error: "user_id required" });
