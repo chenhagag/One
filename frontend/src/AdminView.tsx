@@ -5188,7 +5188,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
             )}
 
             {/* Editable notes */}
-            <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16 }}>
+            <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16, marginBottom: 16 }}>
               <h4 style={{ margin: "0 0 8px" }}>הערות על ההתאמה</h4>
               <EditableNote
                 value={matchDetail.admin_notes || ""}
@@ -5201,6 +5201,38 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                   setMatchDetail((prev: any) => prev ? { ...prev, admin_notes: val } : prev);
                 }}
               />
+            </div>
+
+            {/* Download transcripts */}
+            <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16 }}>
+              <button
+                style={{ padding: "8px 16px", fontSize: 13, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, background: "#0ea5e9", color: "#fff" }}
+                onClick={async () => {
+                  for (const u of [
+                    { id: matchDetail.user_id, name: matchDetail.user1_name },
+                    { id: matchDetail.candidate_user_id, name: matchDetail.user2_name },
+                  ]) {
+                    try {
+                      const r = await apiFetch(`/admin/users/${u.id}/full-transcript`);
+                      const data = await r.json();
+                      const lines = (data.messages || []).map((m: any) => {
+                        const time = m.timestamp ? new Date(m.timestamp).toLocaleString("he-IL") : "";
+                        const channel = m.chat_type || "";
+                        const role = m.role === "user" ? u.name : "One";
+                        return `[${time}] [${channel}] ${role}: ${m.content}`;
+                      });
+                      const blob = new Blob([lines.join("\n\n")], { type: "text/plain;charset=utf-8" });
+                      const a = document.createElement("a");
+                      a.href = URL.createObjectURL(blob);
+                      a.download = `${u.name}-transcript.txt`;
+                      a.click();
+                      URL.revokeObjectURL(a.href);
+                    } catch (err) {
+                      alert(`שגיאה בהורדת שיחות ${u.name}`);
+                    }
+                  }
+                }}
+              >📥 הורד שיחות של שתיהן</button>
             </div>
           </div>
         </div>

@@ -2379,7 +2379,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
                   <div style={{ background: "#f0eef8", borderRadius: 14, padding: "18px 20px", border: "1px solid #e0ddf5" }}>
                     <p style={{ fontSize: 14, color: "#3a3660", lineHeight: 1.8, margin: "0 0 12px", fontWeight: 500 }}>
-                      {isWW ? "ברוכות הבאות" : "ברוכים הבאים"} למאגר של One
+                      {isWW ? "ברוכה הבאה" : "ברוכים הבאים"} למאגר של One
                     </p>
                     <p style={{ fontSize: 14, color: "#3a3660", lineHeight: 1.8, margin: "0 0 12px" }}>
                       אנחנו עדיין בשלב MVP ובונים את הקהילה שלנו צעד־צעד. ייתכן שייקח קצת זמן עד שנמצא התאמה מדויקת, אבל אנחנו מעדיפים לחכות להתאמה שיש לה באמת סיבה.
