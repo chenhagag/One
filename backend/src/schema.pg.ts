@@ -1396,4 +1396,40 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       END $$;
     `);
   } catch (e) { /* column may already exist */ }
+
+  // Migration: survey2_responses table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS survey2_responses (
+        id              SERIAL PRIMARY KEY,
+        user_id         INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        responses       JSONB NOT NULL DEFAULT '{}',
+        completed       BOOLEAN DEFAULT FALSE,
+        created_at      TIMESTAMPTZ DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+  } catch (e) { /* table may already exist */ }
+
+  // Migration: add survey2_email_sent_at to users
+  try {
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='survey2_email_sent_at') THEN
+          ALTER TABLE users ADD COLUMN survey2_email_sent_at TIMESTAMPTZ;
+        END IF;
+      END $$;
+    `);
+  } catch (e) { /* column may already exist */ }
+
+  // Migration: add survey2_banner_dismissed to users
+  try {
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='survey2_banner_dismissed') THEN
+          ALTER TABLE users ADD COLUMN survey2_banner_dismissed BOOLEAN DEFAULT FALSE;
+        END IF;
+      END $$;
+    `);
+  } catch (e) { /* column may already exist */ }
 }

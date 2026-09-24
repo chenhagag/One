@@ -415,7 +415,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [bugText, setBugText] = useState("");
   const [bugSent, setBugSent] = useState(false);
   const [feedbackCategory, setFeedbackCategory] = useState<string>("bug");
-  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; admin_message_type: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null; has_past_matches: boolean; show_survey_banner: boolean; survey_partial: boolean; self_frozen: boolean; active_nudge: { id: number; match_id: number; partner_name: string; partner_gender: string; nudge_type?: string } | null; pool_profile_count: number }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, admin_message_type: null, pending_rating: false, in_matching_pool: false, match_card_consent: null, has_past_matches: false, show_survey_banner: false, survey_partial: false, self_frozen: false, active_nudge: null, pool_profile_count: 0 });
+  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; admin_message_type: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null; has_past_matches: boolean; show_survey_banner: boolean; survey_partial: boolean; show_survey2_banner: boolean; survey2_partial: boolean; self_frozen: boolean; active_nudge: { id: number; match_id: number; partner_name: string; partner_gender: string; nudge_type?: string } | null; pool_profile_count: number }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, admin_message_type: null, pending_rating: false, in_matching_pool: false, match_card_consent: null, has_past_matches: false, show_survey_banner: false, survey_partial: false, show_survey2_banner: false, survey2_partial: false, self_frozen: false, active_nudge: null, pool_profile_count: 0 });
   const [systemQuestion, setSystemQuestion] = useState<{ id: number; question_text: string; options?: string[] | null } | null>(null);
   const [answeredQuestion, setAnsweredQuestion] = useState<{ question_text: string; answer: string; options?: string[] | null } | null>(null);
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
@@ -481,6 +481,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             has_past_matches: !!data.has_past_matches,
             show_survey_banner: !!data.show_survey_banner,
             survey_partial: !!data.survey_partial,
+            show_survey2_banner: !!data.show_survey2_banner,
+            survey2_partial: !!data.survey2_partial,
             self_frozen: !!data.self_frozen,
             active_nudge: data.active_nudge || null,
             pool_profile_count: data.pool_profile_count || 0,
@@ -2339,34 +2341,34 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 </div>
               )}
 
-              {/* Survey banner — shown until user completes survey or dismisses */}
-              {screen === "home" && recommendations.show_survey_banner && (
+              {/* Survey2 banner — WW users, shown until user completes survey2 or dismisses */}
+              {screen === "home" && recommendations.show_survey2_banner && (
                 <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
                   <div style={{ background: "#f8f5ff", borderRadius: 14, padding: "16px 20px", border: "1px solid #e0ddf5", position: "relative" }}>
                     <button
                       onClick={() => {
-                        apiFetch("/survey/dismiss-banner", { method: "POST" })
-                          .then(() => setRecommendations(prev => ({ ...prev, show_survey_banner: false })));
+                        apiFetch("/survey2/dismiss-banner", { method: "POST" })
+                          .then(() => setRecommendations(prev => ({ ...prev, show_survey2_banner: false })));
                       }}
                       style={{ position: "absolute", top: 8, left: 8, background: "none", border: "none", fontSize: 18, color: "#bbb", cursor: "pointer", padding: 4, lineHeight: 1 }}
                     >
                       ✕
                     </button>
                     <p style={{ fontSize: 14, color: "#3a3660", lineHeight: 1.7, margin: "0 0 6px", fontWeight: 600 }}>
-                      🤍 {isWW ? "עזרי לנו להשתפר" : "עזרו לנו להשתפר"}
+                      🩶 סקר משתמשות — עזרו לנו להתאים את One לקהילה
                     </p>
                     <p style={{ fontSize: 13, color: "#555", lineHeight: 1.7, margin: "0 0 12px" }}>
-                      לקראת המעבר מגרסת הבטא, נשמח מאוד לשמוע את דעתכם על החוויה עד כה.
+                      נשמח לשמוע מכן כדי שנוכל לשפר ולהתאים את עצמנו לצרכי הקהילה.
                     </p>
                     <button
-                      onClick={() => { window.history.replaceState({}, "", "/survey"); onNavigate?.("survey"); }}
+                      onClick={() => { window.history.replaceState({}, "", "/survey2"); onNavigate?.("survey2"); }}
                       style={{
                         width: "100%", padding: "10px 20px", fontSize: 14, fontWeight: 600,
                         background: "#7b5fa3", color: "#fff", border: "none", borderRadius: 10,
                         cursor: "pointer", fontFamily: "inherit",
                       }}
                     >
-                      מלאו את הסקר
+                      כניסה לסקר
                     </button>
                   </div>
                 </div>
@@ -2737,11 +2739,11 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               return null;
             })()}
 
-              {/* Survey partial — small link to resume survey (below insights) */}
-              {screen === "home" && !recommendations.show_survey_banner && recommendations.survey_partial && (
+              {/* Survey2 partial — small link to resume survey2 (below insights) */}
+              {screen === "home" && !recommendations.show_survey2_banner && recommendations.survey2_partial && (
                 <div style={{ padding: "0 24px 8px", maxWidth: 500, margin: "0 auto", textAlign: "center" }}>
                   <button
-                    onClick={() => { window.history.replaceState({}, "", "/survey"); onNavigate?.("survey"); }}
+                    onClick={() => { window.history.replaceState({}, "", "/survey2"); onNavigate?.("survey2"); }}
                     style={{ background: "none", border: "1px solid #e0ddf5", color: "#7b5fa3", borderRadius: 8, padding: "8px 20px", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
                   >
                     המשיכו למלא את הסקר →

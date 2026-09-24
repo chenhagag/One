@@ -11,6 +11,7 @@ import AuthCallback from "./AuthCallback";
 import ProfileSetup from "./ProfileSetup";
 import ConsentScreen from "./ConsentScreen";
 import SurveyPage from "./SurveyPage";
+import SurveyPage2 from "./SurveyPage2";
 import { supabase } from "./lib/supabase";
 import { saveSupabaseTokens, clearSupabaseTokens, initErrorReporting } from "./lib/api";
 import { isNativeApp, getApiBaseUrl, getPlatform } from "./lib/platform";
@@ -33,7 +34,8 @@ type View =
   | "auth_callback"
   | "profile_setup"
   | "consent"
-  | "survey";
+  | "survey"
+  | "survey2";
 
 // Full user type matching the expanded DB schema
 export interface User {
@@ -266,6 +268,7 @@ export default function App() {
   const [adminViewingUser, setAdminViewingUser] = useState(false);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [pendingSurvey] = useState(() => window.location.pathname === "/survey");
+  const [pendingSurvey2] = useState(() => window.location.pathname === "/survey2");
 
   // ── Entry point detection ────────────────
   // Default: forwomen (women-only). /main = general audience.
@@ -309,6 +312,7 @@ export default function App() {
         profile_setup: "נתוני פתיחה",
         consent: "הסכמה לתנאים",
         survey: "סקר",
+        survey2: "סקר משתמשות",
       };
       trackPage(viewNames[view] || view, user?.id);
     }
@@ -369,6 +373,8 @@ export default function App() {
                   setView("consent");
                 } else if (pendingSurvey) {
                   setView("survey");
+                } else if (pendingSurvey2) {
+                  setView("survey2");
                 } else {
                   setView("new_chat");
                 }
@@ -402,6 +408,8 @@ export default function App() {
               setView("admin");
             } else if (pendingSurvey) {
               setView("survey");
+            } else if (pendingSurvey2) {
+              setView("survey2");
             } else {
               setView("new_chat");
             }
@@ -514,7 +522,7 @@ export default function App() {
   // ── OAuth callback handlers ───────────────────────────────────
   const handleAuthSuccess = useCallback((u: User, profileComplete: boolean) => {
     // Clean URL so refresh doesn't re-trigger auth callback
-    window.history.replaceState({}, "", pendingSurvey ? "/survey" : "/");
+    window.history.replaceState({}, "", pendingSurvey ? "/survey" : pendingSurvey2 ? "/survey2" : "/");
     saveSession(u);
     setUser(u);
     // Register for push notifications (native app only, non-blocking)
@@ -525,10 +533,12 @@ export default function App() {
       setView("consent");
     } else if (pendingSurvey) {
       setView("survey");
+    } else if (pendingSurvey2) {
+      setView("survey2");
     } else {
       setView("new_chat");
     }
-  }, [pendingSurvey]);
+  }, [pendingSurvey, pendingSurvey2]);
 
   const handleAuthError = useCallback((message: string) => {
     console.error("[auth callback]", message);
@@ -546,7 +556,7 @@ export default function App() {
   function handleConsentComplete(u: User) {
     saveSession(u);
     setUser(u);
-    setView(pendingSurvey ? "survey" : "new_chat");
+    setView(pendingSurvey ? "survey" : pendingSurvey2 ? "survey2" : "new_chat");
   }
 
   // ── Don't render until auto-login check completes ──────────────
@@ -559,7 +569,7 @@ export default function App() {
   }
 
   // Hide header in full-screen views
-  const showHeader = view !== "landing" && view !== "admin" && view !== "welcome" && view !== "new_chat" && view !== "insights" && view !== "auth" && view !== "auth_callback" && view !== "profile_setup" && view !== "survey";
+  const showHeader = view !== "landing" && view !== "admin" && view !== "welcome" && view !== "new_chat" && view !== "insights" && view !== "auth" && view !== "auth_callback" && view !== "profile_setup" && view !== "survey" && view !== "survey2";
 
   return (
     <ErrorBoundary>
@@ -685,6 +695,13 @@ export default function App() {
 
       {view === "survey" && user && (
         <SurveyPage
+          userId={user.id}
+          onBack={() => { window.history.replaceState({}, "", "/"); setView("new_chat"); }}
+        />
+      )}
+
+      {view === "survey2" && user && (
+        <SurveyPage2
           userId={user.id}
           onBack={() => { window.history.replaceState({}, "", "/"); setView("new_chat"); }}
         />
