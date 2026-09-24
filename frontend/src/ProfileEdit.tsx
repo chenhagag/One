@@ -5,7 +5,7 @@ import { apiFetch } from "./lib/api";
 interface EnumOption { value: string; label_he: string; label_en: string; }
 
 export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User; onBack: () => void; onUserUpdate?: (u: User) => void }) {
-  const isWW = user.gender === "woman" && user.looking_for_gender === "woman";
+  const isWW = user.gender === "woman" && user.looking_for_gender !== "man";
   // About me
   const [firstName, setFirstName] = useState(user.first_name || "");
   const [age, setAge] = useState(user.age ? String(user.age) : "");

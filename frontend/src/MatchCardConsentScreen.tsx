@@ -19,7 +19,7 @@ export default function MatchCardConsentScreen({ user, onComplete, onShowExample
   const [savedUser, setSavedUser] = useState<any>(null);
 
   const f = user.gender === "woman";
-  const ww = user.gender === "woman" && user.looking_for_gender === "woman";
+  const ww = user.gender === "woman" && user.looking_for_gender !== "man";
   const gn = (m: string, fem: string) => f ? fem : m;
 
   async function handleConsent(consent: "approved" | "declined") {

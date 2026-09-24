@@ -13,7 +13,7 @@ export default function ConsentScreen({ user, onComplete }: ConsentScreenProps) 
   const [error, setError] = useState("");
 
   const f = user.gender === "woman"; // female text forms
-  const ww = user.gender === "woman" && user.looking_for_gender === "woman";
+  const ww = user.gender === "woman" && user.looking_for_gender !== "man";
 
   async function handleAccept() {
     if (!checked) return;

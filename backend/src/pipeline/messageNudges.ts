@@ -240,6 +240,7 @@ export async function runMessageNudges(force = false): Promise<MessageNudgeResul
       AND COALESCE(u.test_user_type, '') != 'Couple Tester'
       AND COALESCE(u.self_frozen, FALSE) = FALSE
       AND COALESCE(u.email, '') NOT LIKE '%@test.com'
+      AND COALESCE(u.gender, '') != 'man' AND COALESCE(u.looking_for_gender, '') != 'man'
     ORDER BY sq.created_at ASC
   `);
 
@@ -297,6 +298,7 @@ export async function runMessageNudges(force = false): Promise<MessageNudgeResul
       AND COALESCE(u.test_user_type, '') != 'Couple Tester'
       AND COALESCE(u.self_frozen, FALSE) = FALSE
       AND COALESCE(u.email, '') NOT LIKE '%@test.com'
+      AND COALESCE(u.gender, '') != 'man' AND COALESCE(u.looking_for_gender, '') != 'man'
     ORDER BY u.admin_message_sent_at ASC
   `);
 

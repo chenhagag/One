@@ -419,6 +419,7 @@ export async function runPhotoNudges(force = false): Promise<PhotoNudgeResult> {
       AND COALESCE(u.test_user_type, '') != 'Couple Tester'
       AND COALESCE(u.self_frozen, FALSE) = FALSE
       AND COALESCE(u.email, '') NOT LIKE '%@test.com'
+      AND COALESCE(u.gender, '') != 'man' AND COALESCE(u.looking_for_gender, '') != 'man'
   `);
 
   result.candidates = candidates.length;

@@ -384,7 +384,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
     qa_match_feedback: [],
   });
   // Woman-seeking-woman flag — used for feminine UI throughout
-  const isWW = user.gender === "woman" && user.looking_for_gender === "woman";
+  const isWW = user.gender === "woman" && user.looking_for_gender !== "man";
 
   // WW-adapted channel names
   const channelNameMap: Record<string, string> = { ...CHANNEL_NAME_MAP };
@@ -1865,8 +1865,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       יש לך התאמה חדשה!
                     </h3>
                     <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, margin: "0 0 16px" }}>
-                      מצאנו {user.looking_for_gender === "woman" ? "מישהי" : user.looking_for_gender === "man" ? "מישהו" : "מישהו/י"} שנראה שיש {user.gender === "woman" && user.looking_for_gender === "woman" ? "ביניכן" : "ביניכם"} חיבור מעניין ושווה בדיקה.
-                      <br />כרטיס ההתאמה האישי {user.gender === "woman" && user.looking_for_gender === "woman" ? "שלכן" : "שלכם"} מוכן, ואפשר לראות למה חשבנו שכדאי שתכירו.
+                      מצאנו {user.looking_for_gender === "woman" ? "מישהי" : user.looking_for_gender === "man" ? "מישהו" : "מישהו/י"} שנראה שיש {isWW ? "ביניכן" : "ביניכם"} חיבור מעניין ושווה בדיקה.
+                      <br />כרטיס ההתאמה האישי {isWW ? "שלכן" : "שלכם"} מוכן, ואפשר לראות למה חשבנו שכדאי שתכירו.
                     </p>
                     {unreadMatchMessages > 0 && (
                       <p style={{ fontSize: 13, color: "#6366f1", fontWeight: 600, margin: "0 0 12px" }}>
