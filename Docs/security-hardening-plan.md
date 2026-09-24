@@ -1,9 +1,9 @@
 # Security Hardening Plan — One
 
 **Created:** 2026-09-23
-**Last updated:** 2026-09-23
+**Last updated:** 2026-09-24
 **Context:** External pentest report (OneSyberTest) + 5 internal code scans + GPT review
-**Branch:** staging only until all tests pass. NO production deploy without explicit approval.
+**Status:** All critical/high items resolved. Production deploy completed 2026-09-23.
 
 ## Implementation Status
 
@@ -11,10 +11,22 @@
 |-------|--------|--------|-------|
 | 1: set-primary + pending-rating | ✅ Done | 195af69 | requireAdmin + IDOR fix |
 | 2: profile_complete server-side | ✅ Done | d94a350 | Auto-compute, removed from user PATCH |
-| 3: Input validation | ✅ Done | d94a350 | PATCH fields + message length |
+| 3: Input validation | ✅ Done | d94a350 | PATCH fields + message length, null fix de8fa41 |
 | 4: Rate limiting | ✅ Done | d94a350 | /register + /auth/exchange-code |
 | 5: Photo privacy (signed URLs) | ⏳ Deferred | — | Needs planning, risk of breaking things |
 | 6: Code cleanup | ✅ Done | d94a350 | ADMIN_EMAILS + dead x-admin-key |
+| 7: NaN param validation | 🔧 Ready | local | app.param() — push next session |
+| IDOR verification | ✅ Verified | — | Tested with 2 accounts, all endpoints return 403 |
+
+## External Pentest Results (Final — 2026-09-24)
+
+- **0 exploits** across 6 runs, 1,483+ requests, 2 accounts
+- **86 tests blocked** (system defended correctly)
+- **IDOR with 2 accounts: PASSED** — /users/{id} and /users/{id}/photos return 403
+- **3 "urgent" findings are all false positives:**
+  - Security headers: already present (Helmet), scanner didn't detect them
+  - Rate limiting: exists (4 limiters), scanner sent only 5 requests (under threshold)
+  - /api/users/search: endpoint doesn't exist, timeout was SPA fallback
 
 ---
 
@@ -229,19 +241,38 @@ SELECT MAX(LENGTH(first_name)), MAX(age), MIN(age), MAX(height), MIN(height) FRO
 
 ---
 
-## Open Items from July 2026 Audit
+## Remaining Open Items (Non-Urgent)
 
-| # | Item | Status | Priority |
-|---|------|--------|----------|
-| 1 | Revert Google-first in in-app browsers | Open | Low |
-| 2 | Remove otp-diag logging | Open | Low |
-| 3 | Filter fields in /register, POST /users, PATCH /users/:id | → Pulse 3 | Medium |
-| 4 | Signed URLs for /uploads | → Pulse 5 | Medium |
-| 5 | XSS review | Done (pentest confirmed safe) | Closed |
-| 6 | Per-user rate limit on messaging | Open | Medium |
-| 7 | Separate APP_JWT_SECRET for OTP | Open | Low |
-| 8 | Shorten OTP token expiry + add refresh | Open | Low |
-| 9 | Rate limit /auth/exchange-code | → Pulse 4 | Medium |
+| # | Item | Source | Priority | Notes |
+|---|------|--------|----------|-------|
+| 1 | **Signed URLs for /uploads** | July audit + Sep scan | Medium | Only real security gap remaining. Needs planning. |
+| 2 | **NaN param validation** | Sep scan | Low | Ready in local, push next session |
+| 3 | **Per-user rate limit on messaging** | July audit | Low | IP-based exists, per-user would be better |
+| 4 | **SPA 404 for sensitive paths** | Sep pentest | Low | Cosmetic — prevents scanner false positives |
+| 5 | **Separate APP_JWT_SECRET for OTP** | July audit | Low | |
+| 6 | **Shorten OTP token expiry** | July audit | Low | |
+| 7 | Revert Google-first in in-app browsers | July audit | Low | |
+| 8 | Remove otp-diag logging | July audit | Low | |
+| 9 | Update CLAUDE.md rate limit (1000 not 300) | Sep scan | Low | Documentation only |
+
+## Closed Items
+
+| Item | Closed | How |
+|------|--------|-----|
+| Unprotected set-primary endpoint | 2026-09-23 | Added requireAdmin middleware |
+| IDOR in pending-rating | 2026-09-23 | Admin check on user_id override |
+| profile_complete user-editable | 2026-09-23 | Server-side auto-compute |
+| Missing input validation on PATCH | 2026-09-23 | Validation for name/age/height/gender/phone |
+| Missing rate limit on /register | 2026-09-23 | authLimiter added |
+| Missing rate limit on /auth/exchange-code | 2026-09-23 | authLimiter added |
+| Hardcoded admin email checks | 2026-09-23 | Replaced with ADMIN_EMAILS import |
+| Dead x-admin-key in frontend | 2026-09-23 | Removed |
+| Message/answer length unlimited | 2026-09-23 | Max 5000 chars |
+| XSS review | 2026-09-23 | Pentest confirmed safe |
+| IDOR between users | 2026-09-24 | Tested with 2 accounts — all 403 |
+| Security headers missing (false positive) | 2026-09-24 | Already present via Helmet |
+| Rate limiting missing (false positive) | 2026-09-24 | 4 limiters active, scanner under threshold |
+| /api/users/search DoS (false positive) | 2026-09-24 | Endpoint doesn't exist |
 
 ---
 

@@ -22,7 +22,175 @@
 
 ---
 
-## Latest Session: 2026-09-19 (Reanalysis Scan + System Activity Log + Photo Management)
+## Latest Session: 2026-09-23–24 (Security Hardening)
+
+### ✅ עלה לפרודקשן (staging + production)
+
+#### אבטחה — תיקונים קריטיים
+- **set-primary ללא auth**: הוסף `requireAdmin` middleware (endpoint היה מוגדר לפני global admin middleware)
+- **IDOR ב-pending-rating**: query param override מאפשר רק user_id=עצמי או admin
+- **profile_complete**: הוסר מרשימת שדות הניתנים לעריכה ע"י user, מחושב בשרת אוטומטית
+- **ולידציה**: name (1-50), age (18-120), height (100-250), gender/looking_for_gender (enum), phone (regex), match_card_consent (enum), הודעות (max 5000 chars)
+- **Rate limiting**: /register + /auth/exchange-code קיבלו authLimiter
+- **Admin email**: hardcoded checks (2 מקומות) הוחלפו ב-ADMIN_EMAILS מרוכז מ-auth.ts
+- **Dead code**: הסרת x-admin-key מ-AdminPipeline.tsx
+
+#### בדיקת חדירה חיצונית (OneSyberTest)
+- 6 ריצות, 1,483+ בקשות, 2 חשבונות בדיקה
+- **0 פרצות**, 86 בדיקות נחסמו, +3 חסימות אחרי התיקונים
+- **IDOR עם 2 חשבונות**: עבר — כל endpoints מחזירים 403
+- 3 ממצאים "דחופים" בדוח הם false positives (headers קיימים, rate limit קיים, search endpoint לא קיים)
+
+#### תיקוני UI
+- **Dropdowns בפרטים אישיים**: placeholder במקום ערך ראשון (מצב משפחתי, ילדים, דת, עישון)
+- **באנר תחזוקה**: הודעה במסך הבית עם לינק למסך משוב (ניתן לסגירה, localStorage)
+- **מסך משוב**: דיפולט "משהו לא עובד" (bug) במקום ריק
+
+#### קבצים שהשתנו
+- `backend/src/auth.ts` — export ADMIN_EMAILS
+- `backend/src/index.ts` — requireAdmin on set-primary, IDOR fix, validation, rate limiting, ADMIN_EMAILS usage, profile_complete auto-compute
+- `frontend/src/ProfileSetup.tsx` — הסרת profile_complete: true
+- `frontend/src/ProfileEdit.tsx` — dropdown placeholders
+- `frontend/src/NewChat.tsx` — maintenance banner, feedback default category
+- `frontend/src/AdminPipeline.tsx` — הסרת x-admin-key
+- `Docs/security-hardening-plan.md` — תכנית אבטחה מלאה
+
+### TODO לסשן הבא
+- ⚠️ **NaN param validation**: מוכן מקומית, צריך push (מונע שגיאות מסורקי אבטחה)
+- ⚠️ **מחיקת חשבון**: להחזיר hard delete למשתמשת (workaround פעיל)
+- ⚠️ **לפני השקה**: LIMIT ל-reconcileInsightChunks
+- Signed URLs לתמונות (תכנון נפרד)
+- Per-user rate limit על messaging
+- דף נחיתה + דפי הסבר משכנעים
+- אוטומציה של pipeline
+- בדיקת אפליקציית Android
+- דיוק ציוני התאמה (17 תכונות סגנון)
+
+---
+
+## Previous Session: 2026-09-23 (Default Women Landing + Insights WW + Admin Matches)
+
+### ✅ עלה לפרודקשן (staging + production)
+
+#### ברירת מחדל: דף נחיתה לנשים
+- **`/`** (ברירת מחדל) = דף נחיתה לנשים שמחפשות נשים + auto woman/woman
+- **`/main`** = דף נחיתה כללי (ישן) עם כל השדות
+- **Logout**: WW → forwomen, לא-WW → main (localStorage)
+- **אפליקציה/PWA**: נפתחת ל-`/` = forwomen בברירת מחדל
+
+#### WW Insights — לשון נקבה מלאה
+- **MBTI**: 16 תיאורי טיפוסים בנקבה (MBTI_DESCRIPTIONS_F + MBTI_RELATIONSHIP_DETAIL_F)
+- **Big Five**: BIG_FIVE_RELATIONSHIP_F — כל תיאורי הזוגיות בנקבה
+- **wwRel() helper**: המרה אוטומטית של טקסט זכרי לנקבי (בן/בת זוג→בת זוג, מתאים→מתאימה, פעלים)
+- **אניאגרם + התקשרות**: descriptions + relationships דרך wwRel()
+- **MBTI + אניאגרם הסברים**: גרסאות נקביות
+
+#### כרטיס התאמה לדוגמה WW
+- **גל + גאיה**: כרטיס מלא בלשון נקבה (שתיכן, חולקות, מאמינות)
+- **תמונה חדשה**: womenExample.png
+
+#### Admin Matches Tab
+- **רק in_match**: מציג התאמות שהגיעו לשלב כרטיס (פעילות + קודמות)
+- **כפתור "כרטיס"**: מודאל עם תוכן הכרטיס המלא
+- **כפתור "השוואה"**: ציונים + traits צד-ליד-צד
+
+#### תיקונים נוספים
+- **Favicon**: appLogo.png (O סגול) במקום favicon ישן
+- **ConsentScreen**: "אפליקציית שידוכים לנשים" ל-WW
+- **"שיחת ההיכרות"**: תיקון דקדוקי
+
+### TODO לסשן הבא
+- ⚠️ **מחיקת חשבון**: להחזיר hard delete למשתמשת (workaround פעיל)
+- ⚠️ **לפני השקה**: LIMIT ל-reconcileInsightChunks
+- א-בינאריות: אפשרויות מגדר נוספות ל-WW
+- בדיקת /forwomen מפייסבוק in-app browser
+- Insights: לוודא ש-wwRel() תופס את כל הניסוחים הזכריים
+- בדיקת איכות תשובות RAG
+
+---
+
+## Previous Session: 2026-09-22 (Insights RAG + /forwomen Landing + WW Adaptations)
+
+### ✅ עלה לפרודקשן (staging + production)
+
+#### RAG תובנות — גישה היברידית
+- **הזרקה ישירה** של `personal_insights_full` ל-qa_search, qa_refine, qa_match_feedback (בנוסף ל-qa_about_me/qa_insights שכבר היה)
+- **RAG** עבור qa_system, qa_general, qa_status — תובנות נשלפות רק כשהשאלה רלוונטית
+- **Auto-upsert**: כשנכתבות/מתעדכנות תובנות → chunk נוצר אוטומטית ב-knowledge_chunks
+- **סינון כפילויות**: ערוצים עם הזרקה ישירה מסננים insights chunks מ-RAG
+- **Reconciliation יומית**: מתקנת upsert failures, כולל backfill אוטומטי ב-deploy ראשון
+- **הנחיות פרומפט חדשות**: דינמיקה זוגית לא טיפוסים, לא לדקלם, משתמשת גוברת, קצר > ארוך
+
+#### לשון נקבה כדיפולט בכל הפרומפטים (chatManager)
+- **שאלות כיול (calibration)**: גרסת נקבה (דיפולט) + גרסת זכר נפרדת, נבחרת לפי `gender`
+- **הנחיות QA**: "המשתמש/ת" עם פעלים בלשון נקבה כדיפולט
+- **Taste test**: כל ההוראות בלשון נקבה
+- **CLOSING_MSG**: מותנה לפי מגדר
+
+#### דף נחיתה /forwomen
+- **Entry point detection**: `/forwomen` path → localStorage `one_entry_point` → שורד logout
+- **דף נחיתה ייעודי**: "ברוכות הבאות", "עבור נשים שמחפשות נשים", 6 שלבים בלשון נקבה
+- **ProfileSetup מצומצם**: בלי מגדר/מגדר מבוקש/סטטוס/גובה, auto woman/woman
+- **entry_point נשמר ב-DB**: עמודה חדשה `entry_point TEXT` ב-users
+
+#### WW adaptations — isWW flag (woman + looking_for_gender=woman)
+- **NewChat**: ברוכות הבאות, מוזמנות, איפה אנחנו עומדות, בואי נתחיל/נמשיך, כל הסטטוסים והבועות
+- **ProfileEdit**: למשתמשות אחרות, למועמדות, בת הזוג, מה אני מחפשת, הסתרת מגדר+גובה, רווקה/מעשנת/יהודיה, בחרי..., מאשרת
+- **ConsentScreen**: למשתמשות אחרות
+- **MatchCardConsentScreen**: ביניכן, ראי דוגמה
+- **Insights**: MBTI_DESCRIPTIONS_F + MBTI_RELATIONSHIP_DETAIL_F (16 טיפוסים), BIG_FIVE_RELATIONSHIP_F, wwRel() helper לכל relationship/description texts (ערכים, Big Five, אניאגרם, התקשרות)
+- **MatchCard demo**: כרטיס לדוגמה WW (גל + גאיה) עם תמונה חדשה
+- **"איך המערכת עובדת"**: כל 6 סקשנים מותאמים (HowItWorks מקבל isWW prop)
+- **הגדרות**: SettingsView מקבל isWW prop, מאשרת בכל צ'קבוקסים
+- **ביטול התאמה**: שימי לב, שתיכן, שתפי
+
+#### תיקון מחיקת חשבון
+- **בעיה**: FK constraints חסמו DELETE — notification_log, pipeline_jobs, match_nudges, matches.blocked_by/sent_for_rating_to/cancelled_by, users.admin_message_match_id
+- **פתרון**: פונקציית `deleteAllUserData()` אחידה לאדמין ולמשתמשת, nullify FK refs לפני מחיקה
+- **Workaround**: בינתיים המשתמשת רואה "בקשתך התקבלה" (bug report) — מחיקה אמיתית עובדת מהאדמין
+
+#### Admin Matches Tab
+- **התאמות פעילות + קודמות**: מציג רק matches שהגיעו ל-in_match (עם כרטיס)
+- **כפתור "כרטיס"**: מודאל עם תוכן הכרטיס המלא
+- **כפתור "השוואה"**: מודאל עם ציונים + traits צד-ליד-צד
+
+#### קבצים שהשתנו
+- `backend/src/rag.ts` — upsertUserInsights, deactivateUserInsightChunks
+- `backend/src/pipeline/generateInsights.ts` — auto-upsert after save
+- `backend/src/pipeline/jobRunner.ts` — reconcileInsightChunks daily
+- `backend/src/index.ts` — RAG upsert in PATCH, deleteAllUserData, entry_point column, matches endpoint with candidate_match_id
+- `backend/src/schema.pg.ts` — entry_point migration
+- `backend/src/agents/conversation/chatManager.ts` — insights injection + RAG filtering + prompt instructions + feminine default
+- `frontend/src/App.tsx` — entry point detection + localStorage
+- `frontend/src/AuthScreen.tsx` — /forwomen landing page
+- `frontend/src/ProfileSetup.tsx` — forwomen simplified form
+- `frontend/src/NewChat.tsx` — isWW flag, all WW adaptations, HowItWorks prop, SettingsView prop
+- `frontend/src/ProfileEdit.tsx` — isWW adaptations throughout
+- `frontend/src/ConsentScreen.tsx` — WW text
+- `frontend/src/MatchCardConsentScreen.tsx` — WW text
+- `frontend/src/MatchCard.tsx` — DEMO_MATCH_WW
+- `frontend/src/Insights.tsx` — MBTI_DESCRIPTIONS_F, MBTI_RELATIONSHIP_DETAIL_F, BIG_FIVE_RELATIONSHIP_F, wwRel() helper
+- `frontend/src/AdminView.tsx` — MatchesTab with past matches + card viewer + comparison modal
+
+### TODO לסשן הבא
+- ⚠️ **לפני השקה**: הוספת `LIMIT` ל-reconcileInsightChunks (סקיילינג)
+- ⚠️ **מחיקת חשבון**: להחזיר hard delete למשתמשת (workaround פעיל כרגע)
+- Insights.tsx: 16 תיאורי MBTI ב-Big Five relationship text — לבדוק שה-wwRel() תופס הכל
+- כרטיס התאמה WW: לבדוק שהטקסט מדויק ולעדכן לפי פידבק
+- א-בינאריות: להוסיף אפשרויות מגדר נוספות ל-WW
+- בדיקת /forwomen מפייסבוק in-app browser
+- בדיקת איכות תשובות RAG ב-staging
+- בדיקת תובנות אחרי reanalysis (סוכן ניהול — Claude)
+- AI intent detection עתידי (להחליף regex)
+- פרומפט "מידע והעדפות כלליות" — יחליף "general" ב-qa_refine
+- דף נחיתה + דפי הסבר משכנעים
+- אוטומציה של pipeline
+- בדיקת אפליקציית Android
+- דיוק ציוני התאמה (17 תכונות סגנון)
+
+---
+
+## Previous Session: 2026-09-19 (Reanalysis Scan + System Activity Log + Photo Management)
 
 ### ✅ עלה לפרודקשן (staging + production)
 
@@ -4147,3 +4315,60 @@ Second rater: bullseye/possible → approved_by_both
 #### 9. User Profiles Tab (Admin)
 - Updated from 4 old categories to 9 new categories
 - Cognitive profile uses DB value only (no local fallback)
+
+---
+
+## Session: 2026-09-20/22 — Message/Rating Nudges + Admin Improvements
+
+### Message/Question Nudge System
+- New `pipeline/messageNudges.ts` — automated reminders for unanswered system_questions and admin_messages
+- Reminder schedule: +2d, +5d, +12d from creation
+- Match-linked questions: `match_id` on system_questions, `admin_message_match_id` on users
+- Auto-set match status to `waiting_for_response` when sending question from match
+- Notification on system_question creation (push + email) — was completely missing
+- Custom answer options via `options JSONB` column (frontend renders dynamically)
+- Send closed/open questions from candidate match detail panel
+- Display answers with status (green=answered, orange=pending) in match detail
+- Deduplication: one reminder per user (oldest unanswered question only)
+
+### Rating Nudge System
+- New `pipeline/ratingNudges.ts` — automated reminders for pending match ratings
+- Same schedule: +2d, +5d, +12d from `sent_for_rating_at`
+- Auto-send to second side: when first user rates positive, automatically sends rating to other user (no manual admin action needed)
+- Copy: "מצאנו לך התאמה פוטנציאלית" — no mention of rating/דירוג
+- Stops automatically on rate/freeze/cancel (`sent_for_rating_to` cleared)
+
+### Notification Copy Fixes
+- Removed "תזכורת אחרונה" / "זו התזכורת האחרונה שלנו" from all nudge copy
+- Removed redundant "כנסי כדי לענות" when CTA button exists
+- Match card email (`notifyMatchCardSent`) updated to approved "התאמה מחכה" copy
+- Not-started nudge #2: added troubleshooting question with support links (WhatsApp/email)
+- Open questions send as `admin_message_type = 'conversation'` (shows "דברי איתי על זה" button)
+
+### Bug Fixes
+- System question answer always returned 403 — ownership check blocked admin testing. Added admin bypass.
+- Frontend shows error alert on failed answer instead of silent "תודה, תשובתך התקבלה"
+- userNudges filtered out User Experience Testers (`test_user_type IS NULL` → `!= 'Couple Tester'`)
+- messageNudges: dedup per user to prevent multiple reminders for multiple unanswered questions
+
+### Admin — Outreach Log Overhaul
+- Reorganized into 7 separate tabs: דירוגים / ביטולים / בירורים / שאלות / שאלות פתוחות / הודעות / וואטסאפ
+- Each tab shows badge with NEW items count only (unseen answers, unhandled, etc.)
+- System questions: red badge for unseen answers, yellow highlight, "ראיתי" button, "ענו" filter
+- Open questions (conversation) separated from regular messages (info)
+- New "ממתין לוואטסאפ" section: failed notifications for WhatsApp-preferring users, direct wa.me links, "טופל" button
+
+### Admin — System Log
+- Manual trigger buttons: "הרץ message nudges" + "הרץ rating nudges"
+- Activity log entries for system_question sent + answered
+- Icons: ❓ system_question, 💬 message_nudge_run, ⭐ rating_nudge_run
+
+### Schema Changes
+- `system_questions`: added `match_id INTEGER`, `options JSONB`
+- `users`: added `admin_message_match_id INTEGER`
+- `notification_log`: added `whatsapp_handled BOOLEAN`
+
+### Daily Agent Updates
+- Step 1.4: match card writing for `approved_by_both` matches — auto-detect, read transcripts+traits, write card, save to pre_match for admin approval
+- All agent steps now self-contained with SQL queries + API calls in `Docs/User Management Agent.md`
+- Auto jobs table updated with message_nudges, rating_nudges
