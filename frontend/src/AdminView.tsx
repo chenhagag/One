@@ -620,7 +620,7 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
     if (filterGender === "man" && u.gender !== "man") return false;
     if (filterGender === "woman" && u.gender !== "woman") return false;
     if (filterOrientation === "straight" && !((u.gender === "man" && u.looking_for_gender === "woman") || (u.gender === "woman" && u.looking_for_gender === "man"))) return false;
-    if (filterOrientation === "ww" && !(u.gender === "woman" && u.looking_for_gender === "woman")) return false;
+    if (filterOrientation === "ww" && !(u.gender === "woman" && u.looking_for_gender !== "man")) return false;
     if (filterOrientation === "mm" && !(u.gender === "man" && u.looking_for_gender === "man")) return false;
     const isInactive = u.self_frozen || u.suspected_inactive || u.user_status === "frozen";
     if (filterActive === "active" && isInactive) return false;
@@ -4301,7 +4301,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
         <span style={{ fontSize: 12, color: "#6b7280" }}>מאגר:</span>
         <button style={filterBtnStyle(filterCmPool === "all")} onClick={() => setFilterCmPool("all")}>הכל ({data.length})</button>
         <button style={filterBtnStyle(filterCmPool === "straight")} onClick={() => setFilterCmPool("straight")}>סטרייט ({data.filter((cm: any) => (cm.user1_gender === "man" && cm.user1_looking_for === "woman") || (cm.user1_gender === "woman" && cm.user1_looking_for === "man")).length})</button>
-        <button style={filterBtnStyle(filterCmPool === "ww")} onClick={() => setFilterCmPool("ww")}>נשים→נשים ({data.filter((cm: any) => cm.user1_gender === "woman" && cm.user1_looking_for === "woman").length})</button>
+        <button style={filterBtnStyle(filterCmPool === "ww")} onClick={() => setFilterCmPool("ww")}>נשים→נשים ({data.filter((cm: any) => cm.user1_gender === "woman" && cm.user1_looking_for !== "man").length})</button>
         <button style={filterBtnStyle(filterCmPool === "mm")} onClick={() => setFilterCmPool("mm")}>גברים→גברים ({data.filter((cm: any) => cm.user1_gender === "man" && cm.user1_looking_for === "man").length})</button>
       </div>
 
@@ -4413,7 +4413,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
             <tbody>
               {[...data].filter((cm: any) => {
                 if (filterCmPool === "straight") { if (!((cm.user1_gender === "man" && cm.user1_looking_for === "woman") || (cm.user1_gender === "woman" && cm.user1_looking_for === "man"))) return false; }
-                if (filterCmPool === "ww") { if (!(cm.user1_gender === "woman" && cm.user1_looking_for === "woman")) return false; }
+                if (filterCmPool === "ww") { if (!(cm.user1_gender === "woman" && cm.user1_looking_for !== "man")) return false; }
                 if (filterCmPool === "mm") { if (!(cm.user1_gender === "man" && cm.user1_looking_for === "man")) return false; }
                 if (filterCmStatus !== "all") {
                   if (filterCmStatus === "no_match") { if (cm.match_status) return false; }

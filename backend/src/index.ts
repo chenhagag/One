@@ -6432,22 +6432,23 @@ app.post("/admin/survey2/send-emails", requireAdmin, async (req, res) => {
     let sent = 0;
     let failed = 0;
     for (const u of users) {
-      const html = `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#333;max-width:500px;margin:0 auto;text-align:right;padding:20px">
-  <h2 style="color:#1B1464;margin-bottom:4px">היי לכולן,</h2>
-  <p>בימים הקרובים אנחנו משיקות את המערכת כאפליקציה לנשים בלבד.</p>
-  <p>צברנו כבר מאגר של כ-100 משתמשות מהקהילה, יצרנו כבר מספר התאמות, ובימים הקרובים נתחיל בשיווק משמעותי יותר כדי לצרף עוד נשים למאגר.</p>
-  <p>לכבוד המעבר הייתי רוצה להבין מכן כמה דברים שרלוונטיים לצרכים שלכן כנשים שמחפשות נשים.</p>
-  <p>עלו מספר בקשות והערות מהקהילה שכבר יצרנו והייתי רוצה לדעת מה אתן חושבות ואיך החוויה שלכן.</p>
-  <p>אני יודעת שפרסמנו סקר לא מזמן אבל הפעם הוא מיועד אישית עבורכן :)</p>
-  <p>נשמח לשמוע את הפידבק שלכן כדי שנוכל לשפר ולהתאים את עצמנו כמה שיותר לצרכי הקהילה ונשמח גם אם תוכלו לעזור לנו בהפצה - מוזמנות לעקוב אחרינו באינסטגרם ובפייסבוק,</p>
-  <p>זה עוזר ליכולת שלנו להפיץ לקהל הנכון. אנחנו קהילה קטנה ורוצות להגיע לכמה שיותר כדי שנוכל באמת למצוא לכל אחת מכן את ההתאמה הכי מדויקת עבורה.</p>
+      const html = `<div dir="rtl" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;line-height:1.8;color:#1a1a2e;max-width:500px;margin:0 auto;text-align:right;padding:32px 24px;font-size:15px">
+  <img src="https://joinone.io/appLogo.png" alt="One" style="height:44px;margin-bottom:24px;display:block;margin-left:auto;margin-right:auto" />
+  <h2 style="color:#1B1464;margin-bottom:8px;font-size:20px">היי לכולן,</h2>
+  <p style="font-size:15px;margin:12px 0">בימים הקרובים אנחנו משיקות את המערכת כאפליקציה לנשים בלבד. 🩶</p>
+  <p style="font-size:15px;margin:12px 0">צברנו כבר מאגר של כ-100 משתמשות מהקהילה, יצרנו כבר מספר התאמות, ובימים הקרובים נתחיל בשיווק משמעותי יותר כדי לצרף עוד נשים למאגר.</p>
+  <p style="font-size:15px;margin:12px 0">לכבוד המעבר הייתי רוצה להבין מכן כמה דברים שרלוונטיים לצרכים שלכן כנשים שמחפשות נשים.</p>
+  <p style="font-size:15px;margin:12px 0">עלו מספר בקשות והערות מהקהילה שכבר יצרנו והייתי רוצה לדעת מה אתן חושבות ואיך החוויה שלכן.</p>
+  <p style="font-size:15px;margin:12px 0">אני יודעת שפרסמנו סקר לא מזמן אבל הפעם הוא מיועד אישית עבורכן :)</p>
+  <p style="font-size:15px;margin:12px 0">נשמח לשמוע את הפידבק שלכן כדי שנוכל לשפר ולהתאים את עצמנו כמה שיותר לצרכי הקהילה ונשמח גם אם תוכלו לעזור לנו בהפצה — מוזמנות לעקוב אחרינו ב<a href="https://www.instagram.com/joinone.oneapp" style="color:#7b5fa3">אינסטגרם</a> וב<a href="https://www.facebook.com/profile.php?id=61594271867980" style="color:#7b5fa3">פייסבוק</a>,</p>
+  <p style="font-size:15px;margin:12px 0">זה עוזר ליכולת שלנו להפיץ לקהל הנכון. אנחנו קהילה קטנה ורוצות להגיע לכמה שיותר כדי שנוכל באמת למצוא לכל אחת מכן את ההתאמה הכי מדויקת עבורה.</p>
   <div style="text-align:center;margin:28px 0">
-    <a href="${baseUrl}/survey2" style="background:#7b5fa3;color:#fff;padding:14px 36px;border-radius:8px;text-decoration:none;font-size:16px;font-weight:bold;display:inline-block">כניסה לסקר</a>
+    <a href="https://joinone.io/survey2" style="background:#7b5fa3;color:#fff;padding:14px 36px;border-radius:999px;text-decoration:none;font-size:16px;font-weight:bold;display:inline-block">כניסה לסקר</a>
   </div>
-  <p style="text-align:center;margin:8px 0 0">תודה רבה לכולכן 🩶<br>צוות One.</p>
-  <div style="text-align:center;margin:20px 0 0">
-    <a href="https://www.facebook.com/profile.php?id=61594271867980" style="margin:0 8px;display:inline-block"><img src="https://cdn-icons-png.flaticon.com/24/733/733547.png" alt="Facebook" style="width:24px;height:24px" /></a>
-    <a href="https://www.instagram.com/joinone.oneapp" style="margin:0 8px;display:inline-block"><img src="https://cdn-icons-png.flaticon.com/24/2111/2111463.png" alt="Instagram" style="width:24px;height:24px" /></a>
+  <p style="text-align:center;margin:8px 0 0;font-size:15px">תודה רבה לכולכן 🩶<br>צוות One.</p>
+  <div style="text-align:center;margin:24px 0 0">
+    <a href="https://www.facebook.com/profile.php?id=61594271867980" style="margin:0 8px;display:inline-block"><img src="https://cdn-icons-png.flaticon.com/24/733/733547.png" alt="Facebook" style="width:28px;height:28px" /></a>
+    <a href="https://www.instagram.com/joinone.oneapp" style="margin:0 8px;display:inline-block"><img src="https://cdn-icons-png.flaticon.com/24/2111/2111463.png" alt="Instagram" style="width:28px;height:28px" /></a>
   </div>
 </div>`;
 
