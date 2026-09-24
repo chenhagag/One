@@ -826,7 +826,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   const [showEvidenceScores, setShowEvidenceScores] = useState(false);
   const [runningGroup, setRunningGroup] = useState<string | null>(null);
   const [lookTraitEdits, setLookTraitEdits] = useState<Record<number, string>>({});
-  const [analysisStatus, setAnalysisStatus] = useState<{ run_count: number; runs: { id: number; label: string; date: string }[]; messages_since_last: number } | null>(null);
+  const [analysisStatus, setAnalysisStatus] = useState<{ run_count: number; runs: { id: number; label: string; date: string }[]; messages_since_last: number; messages_since_scan?: number; messages_by_channel?: { guide: string; count: number }[]; last_analysis_at?: string } | null>(null);
   const [savingLookTraits, setSavingLookTraits] = useState(false);
   const [lookTraitsSaved, setLookTraitsSaved] = useState(false);
   const [pageViews, setPageViews] = useState<{ summary: any[]; views: any[] } | null>(null);
@@ -2067,9 +2067,21 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                   ))}
                   <div style={{ marginTop: 4, color: analysisStatus.messages_since_last > 0 ? "#b45309" : "#16a34a", fontWeight: 500 }}>
                     {analysisStatus.messages_since_last > 0
-                      ? `${analysisStatus.messages_since_last} הודעות חדשות מאז הניתוח האחרון`
+                      ? `${analysisStatus.messages_since_last} הודעות מאז הניתוח האחרון`
                       : "אין הודעות חדשות מאז הניתוח האחרון"}
                   </div>
+                  {analysisStatus.last_analysis_at && (
+                    <div style={{ marginTop: 4, color: (analysisStatus.messages_since_scan || 0) > 0 ? "#b45309" : "#16a34a", fontWeight: 500 }}>
+                      {(analysisStatus.messages_since_scan || 0) > 0
+                        ? `${analysisStatus.messages_since_scan} הודעות מאז סריקה אחרונה (${new Date(analysisStatus.last_analysis_at).toLocaleDateString("he-IL")})`
+                        : `אין הודעות מאז סריקה אחרונה (${new Date(analysisStatus.last_analysis_at).toLocaleDateString("he-IL")})`}
+                      {analysisStatus.messages_by_channel && analysisStatus.messages_by_channel.length > 0 && (
+                        <span style={{ fontWeight: 400, color: "#64748b", marginRight: 6 }}>
+                          {" — "}{analysisStatus.messages_by_channel.map(c => `${c.guide}: ${c.count}`).join(", ")}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div style={{ color: "#64748b" }}>לא בוצעו ניתוחים עדיין</div>

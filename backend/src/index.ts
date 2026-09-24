@@ -2843,8 +2843,8 @@ app.get("/admin/users/:id/analysis-run", async (req, res) => {
 app.get("/admin/users/:id/analysis-status", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
 
-  const user = await pgQueryOne<{ analysis_run_count: number }>(
-    "SELECT COALESCE(analysis_run_count, 0) as analysis_run_count FROM users WHERE id = $1",
+  const user = await pgQueryOne<{ analysis_run_count: number; last_analysis_at: string | null }>(
+    "SELECT COALESCE(analysis_run_count, 0) as analysis_run_count, last_analysis_at FROM users WHERE id = $1",
     [userId]
   );
   if (!user) return res.status(404).json({ error: "User not found" });
@@ -2855,7 +2855,7 @@ app.get("/admin/users/:id/analysis-status", async (req, res) => {
     [userId]
   );
 
-  // Count messages since last analysis
+  // Count messages since last analysis_run (what admin sees)
   let messagesSinceLastAnalysis = 0;
   if (runs.length > 0) {
     const lastRunTime = runs[0].created_at;
@@ -2872,10 +2872,28 @@ app.get("/admin/users/:id/analysis-status", async (req, res) => {
     messagesSinceLastAnalysis = parseInt(countResult?.count || "0", 10);
   }
 
+  // Count messages since last_analysis_at (what reanalysisScan uses), broken down by channel
+  let messagesSinceScan = 0;
+  let messagesByChannel: { guide: string; count: number }[] = [];
+  const scanRef = user.last_analysis_at;
+  if (scanRef) {
+    const byChannel = await pgQueryAll<{ guide: string; count: string }>(
+      `SELECT guide, COUNT(*)::int as count FROM conversation_messages
+       WHERE user_id = $1 AND role = 'user' AND created_at > $2
+       GROUP BY guide ORDER BY count DESC`,
+      [userId, scanRef]
+    );
+    messagesByChannel = byChannel.map(r => ({ guide: r.guide, count: parseInt(r.count, 10) }));
+    messagesSinceScan = messagesByChannel.reduce((s, r) => s + r.count, 0);
+  }
+
   return res.json({
     run_count: runs.length,
     runs: runs.map(r => ({ id: r.id, label: r.action_type, date: r.created_at })),
     messages_since_last: messagesSinceLastAnalysis,
+    messages_since_scan: messagesSinceScan,
+    messages_by_channel: messagesByChannel,
+    last_analysis_at: scanRef,
   });
 });
 
