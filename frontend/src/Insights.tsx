@@ -226,7 +226,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
   }, [user.id]);
 
   const isFemale = gender === "woman";
-  const isWW = gender === "woman" && lookingForGender !== "man";
+  const isWW = gender === "woman" && !!lookingForGender && lookingForGender !== "man";
   const g = (male: string, female: string) => isFemale ? female : male;
   // Adapt relationship descriptions for WW users
   const wwRel = (text: string) => {

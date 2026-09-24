@@ -396,7 +396,7 @@ export function buildGenderInstruction(
   }
 
   // WW context: woman seeking anyone except exclusively men
-  const isWW = gender === "woman" && lookingForGender !== "man";
+  const isWW = gender === "woman" && !!lookingForGender && lookingForGender !== "man";
   if (isWW) {
     instruction += `\n\nהקשר חשוב על האפליקציה: One היא אפליקציית שידוכים שנבנתה עבור נשים שמחפשות נשים. הקהילה שלנו פתוחה לכל הספקטרום הקוויארי — לסביות, דו-מיניות, א-בינאריות, פאנסקסואליות, וכל מי שמזדהה כאישה או כלא-בינארית ומחפשת קשר עם נשים. כשמדברים על האפליקציה, דברי עליה בהקשר הזה — אפליקציה לנשים שמחפשות נשים — ולא כאפליקציית היכרויות כללית. השתמשי בלשון נקבה באופן עקבי, והתייחסי לבת זוג, לא לבן זוג.`;
   }

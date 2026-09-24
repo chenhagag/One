@@ -384,7 +384,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
     qa_match_feedback: [],
   });
   // Woman-seeking-woman flag — used for feminine UI throughout
-  const isWW = user.gender === "woman" && user.looking_for_gender !== "man";
+  const isWW = user.gender === "woman" && !!user.looking_for_gender && user.looking_for_gender !== "man";
 
   // WW-adapted channel names
   const channelNameMap: Record<string, string> = { ...CHANNEL_NAME_MAP };

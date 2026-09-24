@@ -83,7 +83,7 @@ const DEMO_MATCH_WW: MatchCardData = {
 };
 
 export default function MatchCard({ user, onBack, matchData, isDemo, isBlindMatch, onStartChat }: MatchCardProps) {
-  const bothWomen = user.gender === "woman" && user.looking_for_gender !== "man";
+  const bothWomen = user.gender === "woman" && !!user.looking_for_gender && user.looking_for_gender !== "man";
   const bothMen = user.gender === "man" && user.looking_for_gender === "man";
   const data = matchData || (bothWomen ? DEMO_MATCH_WW : DEMO_MATCH);
   const [expandedSection, setExpandedSection] = useState<number | null>(null);

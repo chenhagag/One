@@ -504,7 +504,7 @@ export default function App() {
   // ── Logout ─────────────────────────────────────────────────────
   function handleLogout() {
     // Set entry point for next landing page based on user type
-    const isWW = user?.gender === "woman" && user?.looking_for_gender !== "man";
+    const isWW = user?.gender === "woman" && !!user?.looking_for_gender && user?.looking_for_gender !== "man";
     if (!isWW && user?.gender) {
       localStorage.setItem("one_entry_point", "main");
     } else {

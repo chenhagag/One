@@ -5812,7 +5812,7 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
     const showSurveyBanner = false;
 
     // Survey2 status — WW users only (gender != 'man' AND looking_for_gender IS DISTINCT FROM 'man')
-    const isWWUser = profileRow?.gender !== 'man' && profileRow?.looking_for_gender !== 'man';
+    const isWWUser = profileRow?.gender !== 'man' && !!profileRow?.looking_for_gender && profileRow?.looking_for_gender !== 'man';
     const survey2Row = await pgQueryOne<{ completed: boolean }>(
       "SELECT completed FROM survey2_responses WHERE user_id = $1", [userId]
     );

@@ -620,7 +620,7 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
     if (filterGender === "man" && u.gender !== "man") return false;
     if (filterGender === "woman" && u.gender !== "woman") return false;
     if (filterOrientation === "straight" && !((u.gender === "man" && u.looking_for_gender === "woman") || (u.gender === "woman" && u.looking_for_gender === "man"))) return false;
-    if (filterOrientation === "ww" && !(u.gender === "woman" && u.looking_for_gender !== "man")) return false;
+    if (filterOrientation === "ww" && !(u.gender === "woman" && u.looking_for_gender && u.looking_for_gender !== "man")) return false;
     if (filterOrientation === "mm" && !(u.gender === "man" && u.looking_for_gender === "man")) return false;
     const isInactive = u.self_frozen || u.suspected_inactive || u.user_status === "frozen";
     if (filterActive === "active" && isInactive) return false;
