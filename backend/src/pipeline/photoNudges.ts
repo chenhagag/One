@@ -23,7 +23,7 @@ import {
   queryOne as pgQueryOne,
   queryAll as pgQueryAll,
 } from "../db.pg";
-import { notifyUser, NotifyPayload } from "../notifications";
+import { notifyUser, NotifyPayload, wasAnyNudgeSentToday } from "../notifications";
 import { logActivity } from "./activityLog";
 
 // ── Types ────────────────────────────────────────────────────────
@@ -427,6 +427,9 @@ export async function runPhotoNudges(force = false): Promise<PhotoNudgeResult> {
     try {
       // Double-check: user still has no photos
       if (await userHasPhotos(user.user_id)) continue;
+
+      // Global cooldown: skip if any nudge was sent today
+      if (await wasAnyNudgeSentToday(user.user_id)) continue;
 
       // Skip if admin already sent a photo request manually (treat as step 1 already done)
       const manualRequest = await pgQueryOne<{ photo_request_sent_at: string | null }>(

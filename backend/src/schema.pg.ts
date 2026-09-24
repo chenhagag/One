@@ -1385,4 +1385,15 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       END $$;
     `);
   } catch (e) { /* column may already exist */ }
+
+  // Migration: add insights_last_reviewed_at to users (tracks when Claude agent last checked insights)
+  try {
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='insights_last_reviewed_at') THEN
+          ALTER TABLE users ADD COLUMN insights_last_reviewed_at TIMESTAMPTZ;
+        END IF;
+      END $$;
+    `);
+  } catch (e) { /* column may already exist */ }
 }

@@ -22,7 +22,7 @@ import {
   queryOne as pgQueryOne,
   queryAll as pgQueryAll,
 } from "../db.pg";
-import { notifyUser, NotifyPayload } from "../notifications";
+import { notifyUser, NotifyPayload, wasAnyNudgeSentToday } from "../notifications";
 import { logActivity } from "./activityLog";
 
 // ── Types ────────────────────────────────────────────────────────
@@ -251,6 +251,9 @@ export async function runMessageNudges(force = false): Promise<MessageNudgeResul
     if (seenUsers.has(q.user_id)) continue;
     seenUsers.add(q.user_id);
     try {
+      // Global cooldown: skip if any nudge was sent today
+      if (await wasAnyNudgeSentToday(q.user_id)) continue;
+
       const createdAt = new Date(q.created_at);
       const days = daysSince(createdAt);
       const currentStep = await getSystemQuestionReminderStep(q.user_id, createdAt);
@@ -301,6 +304,9 @@ export async function runMessageNudges(force = false): Promise<MessageNudgeResul
 
   for (const m of unansweredMessages) {
     try {
+      // Global cooldown: skip if any nudge was sent today
+      if (await wasAnyNudgeSentToday(m.user_id)) continue;
+
       const sentAt = new Date(m.admin_message_sent_at);
       const days = daysSince(sentAt);
       const currentStep = await getAdminMessageReminderStep(m.user_id, sentAt);

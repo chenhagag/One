@@ -21,7 +21,7 @@ import {
   queryOne as pgQueryOne,
   queryAll as pgQueryAll,
 } from "../db.pg";
-import { notifyUser, NotifyPayload } from "../notifications";
+import { notifyUser, NotifyPayload, wasAnyNudgeSentToday } from "../notifications";
 import { logActivity } from "./activityLog";
 
 // ── Types ────────────────────────────────────────────────────────
@@ -168,6 +168,9 @@ export async function runRatingNudges(force = false): Promise<RatingNudgeResult>
 
   for (const p of pending) {
     try {
+      // Global cooldown: skip if any nudge was sent today
+      if (await wasAnyNudgeSentToday(p.user_id)) continue;
+
       const sentAt = new Date(p.sent_for_rating_at);
       const days = daysSince(sentAt);
       const currentStep = await getRatingReminderStep(p.user_id, sentAt);

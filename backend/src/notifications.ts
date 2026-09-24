@@ -364,6 +364,24 @@ export async function hasPushTokens(userId: number): Promise<boolean> {
 
 // ── Trigger helpers ──────────────────────────────────────────────
 
+/** Check if ANY nudge was sent to this user today (global cross-system cooldown) */
+export async function wasAnyNudgeSentToday(userId: number): Promise<boolean> {
+  const row = await pgQueryOne<{ id: number }>(
+    `SELECT id FROM notification_log
+     WHERE user_id = $1 AND success = TRUE
+       AND sent_at > NOW() - INTERVAL '20 hours'
+       AND (
+         event_type LIKE 'nudge_%' OR event_type = 'welcome'
+         OR event_type LIKE 'photo_request_%' OR event_type = 'photo_blind_question'
+         OR event_type LIKE 'system_question_reminder_%' OR event_type LIKE 'admin_question_reminder_%'
+         OR event_type LIKE 'rating_reminder_%'
+       )
+     LIMIT 1`,
+    [userId]
+  );
+  return !!row;
+}
+
 /** Check if a notification was sent recently (throttle) */
 async function wasRecentlySent(userId: number, eventType: string, minutes: number): Promise<boolean> {
   const row = await pgQueryOne<{ id: number }>(
