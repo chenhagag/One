@@ -55,16 +55,20 @@
 - `frontend/src/AdminPipeline.tsx` — הסרת x-admin-key
 - `Docs/security-hardening-plan.md` — תכנית אבטחה מלאה
 
+#### תיקונים נוספים (24.9)
+- **NaN param validation**: app.param() middleware — מחזיר 400 ל-IDs לא מספריים (מונע שגיאות PostgreSQL מסורקי אבטחה)
+- **LIMIT 50 ל-reconcileInsightChunks**: סקיילינג — עד 50 chunks חסרים בכל ריצה יומית
+- **כותרת**: "One - AI Matching" במקום "Matching app for women" (title + OG + twitter)
+- **מסך משוב**: דיפולט "משהו לא עובד" (bug)
+
 ### TODO לסשן הבא
-- ⚠️ **NaN param validation**: מוכן מקומית, צריך push (מונע שגיאות מסורקי אבטחה)
 - ⚠️ **מחיקת חשבון**: להחזיר hard delete למשתמשת (workaround פעיל)
-- ⚠️ **לפני השקה**: LIMIT ל-reconcileInsightChunks
-- Signed URLs לתמונות (תכנון נפרד)
-- Per-user rate limit על messaging
 - דף נחיתה + דפי הסבר משכנעים
 - אוטומציה של pipeline
 - בדיקת אפליקציית Android
 - דיוק ציוני התאמה (17 תכונות סגנון)
+- Signed URLs לתמונות (לא דחוף)
+- Per-user rate limit על messaging (לא דחוף)
 
 ---
 
