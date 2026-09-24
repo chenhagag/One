@@ -167,6 +167,20 @@ const otpSendLimiter = rateLimit({
 
 app.use(generalLimiter);
 
+// ── Validate :id params — reject NaN before it reaches SQL ──────
+app.param("id", (req, res, next, val) => {
+  if (!/^\d+$/.test(val)) return res.status(400).json({ error: "Invalid ID" });
+  next();
+});
+app.param("user_id", (req, res, next, val) => {
+  if (!/^\d+$/.test(val)) return res.status(400).json({ error: "Invalid user_id" });
+  next();
+});
+app.param("photoId", (req, res, next, val) => {
+  if (!/^\d+$/.test(val)) return res.status(400).json({ error: "Invalid photo ID" });
+  next();
+});
+
 // ── /api prefix rewrite ─────────────────────────────────────────
 // In dev, Vite's proxy strips "/api" before forwarding to the backend.
 // In production (single server, no proxy), the frontend still calls

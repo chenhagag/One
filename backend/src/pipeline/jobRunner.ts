@@ -280,7 +280,8 @@ async function reconcileInsightChunks(): Promise<number> {
        AND NOT EXISTS (
          SELECT 1 FROM knowledge_chunks kc
          WHERE kc.scope = 'user' AND kc.user_id = u.id AND kc.category = 'insights' AND kc.active = TRUE
-       )`
+       )
+     LIMIT 50`
   );
 
   if (rows.length === 0) return 0;
