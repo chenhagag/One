@@ -216,15 +216,13 @@ async function processJob(job: PipelineJob): Promise<void> {
 export async function reconcilePhotoJobs(): Promise<number> {
   // Find users who:
   // 1. Have photo_ai_consent = true
-  // 2. Have analysis_run_count >= 2 (completed chat analysis)
-  // 3. Have photos
-  // 4. Don't have a recent completed photo_analysis job, OR have newer photos
+  // 2. Have photos
+  // 3. Don't have a recent completed photo_analysis job, OR have newer photos
   const candidates = await pgQueryAll<{ user_id: number }>(
     `SELECT DISTINCT u.id AS user_id
      FROM users u
      JOIN user_photos up ON up.user_id = u.id
      WHERE u.photo_ai_consent = TRUE
-       AND COALESCE(u.analysis_run_count, 0) >= 2
        AND NOT EXISTS (
          SELECT 1 FROM pipeline_jobs pj
          WHERE pj.user_id = u.id

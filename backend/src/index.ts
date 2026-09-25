@@ -18,6 +18,7 @@ import path from "path";
 import jwt from "jsonwebtoken";
 import fs from "fs";
 import multer from "multer";
+import sharp from "sharp";
 import db from "./db";
 import {
   initDb as initPgDb,
@@ -1058,6 +1059,25 @@ app.post("/users/:id/photos", requireUserAuth, (req, res, next) => {
   const userId = parseInt(req.params.id, 10);
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
+  // Convert HEIC/HEIF to JPEG
+  const ext = path.extname(req.file.filename).toLowerCase();
+  if (ext === ".heic" || ext === ".heif" || req.file.mimetype === "image/heic" || req.file.mimetype === "image/heif") {
+    try {
+      const oldPath = req.file.path;
+      const newFilename = req.file.filename.replace(/\.heic$/i, ".jpg").replace(/\.heif$/i, ".jpg");
+      const newPath = path.join(uploadsDir, newFilename);
+      await sharp(oldPath).jpeg({ quality: 90 }).toFile(newPath);
+      // Remove original HEIC
+      try { fs.unlinkSync(oldPath); } catch {}
+      req.file.filename = newFilename;
+      req.file.path = newPath;
+      req.file.mimetype = "image/jpeg";
+      console.log(`[photo-upload] Converted HEIC → JPEG: ${newFilename}`);
+    } catch (convErr: any) {
+      console.error(`[photo-upload] HEIC conversion failed, keeping original: ${convErr.message}`);
+    }
+  }
+
   const user = await pgQueryOne<any>("SELECT id FROM users WHERE id = $1", [userId]);
   if (!user) return res.status(404).json({ error: "User not found" });
 
@@ -1070,12 +1090,12 @@ app.post("/users/:id/photos", requireUserAuth, (req, res, next) => {
     "SELECT COUNT(*)::int AS c FROM user_photos WHERE user_id = $1", [userId]
   );
 
-  // Trigger photo analysis if user completed analysis + has consent
-  const photoUser = await pgQueryOne<{ analysis_run_count: number; photo_ai_consent: boolean | null }>(
-    "SELECT COALESCE(analysis_run_count, 0) as analysis_run_count, photo_ai_consent FROM users WHERE id = $1",
+  // Trigger photo analysis if user has consent (no need to wait for full analysis)
+  const photoUser = await pgQueryOne<{ photo_ai_consent: boolean | null }>(
+    "SELECT photo_ai_consent FROM users WHERE id = $1",
     [userId]
   );
-  if (photoUser && photoUser.analysis_run_count >= 2 && photoUser.photo_ai_consent) {
+  if (photoUser && photoUser.photo_ai_consent) {
     createPipelineJob(userId, "photo_analysis").catch(err => {
       console.error(`[photo-upload] Failed to create photo analysis job for user ${userId}:`, err.message);
     });
@@ -5718,9 +5738,11 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
               COALESCE(push_notifications, TRUE) as push_notifications
        FROM users WHERE id = $1`, [userId]
     );
+    const isWWUser2 = profileRow?.gender === "woman" && profileRow?.looking_for_gender && profileRow?.looking_for_gender !== "man";
     const hasProfileDetails = !!(
-      profileRow?.age && profileRow?.city && profileRow?.height &&
-      profileRow?.looking_for_gender &&
+      profileRow?.age && profileRow?.city &&
+      (isWWUser2 || profileRow?.height) &&
+      (isWWUser2 || profileRow?.looking_for_gender) &&
       photoCount >= 1
     );
     const analysisRunCount = profileRow?.analysis_run_count ?? 0;
