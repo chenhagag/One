@@ -27,6 +27,9 @@ import { runPhotoNudges } from "./photoNudges";
 import { runMessageNudges } from "./messageNudges";
 import { runRatingNudges } from "./ratingNudges";
 import { upsertUserInsights } from "../rag";
+import sharp from "sharp";
+import path from "path";
+import fs from "fs";
 
 const JOB_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const RECONCILE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -318,6 +321,13 @@ export function startJobRunner(): void {
     });
   }, JOB_POLL_INTERVAL_MS);
 
+  // One-time: convert existing HEIC photos to JPEG (runs on startup, skips if none found)
+  setTimeout(() => {
+    convertExistingHeicPhotos().catch(err => {
+      console.error("[jobRunner] HEIC conversion error:", err.message);
+    });
+  }, 15000);
+
   // Daily photo reconciliation + match promotion (run once on startup after 30s, then every 24h)
   setTimeout(() => {
     reconcilePhotoJobs().catch(err => {
@@ -462,4 +472,45 @@ export function stopJobRunner(): void {
     ratingNudgeHandle = null;
   }
   console.log("[jobRunner] Pipeline job runner stopped");
+}
+
+// ── One-time HEIC → JPEG conversion for existing photos ──
+
+async function convertExistingHeicPhotos(): Promise<void> {
+  const uploadsDir = process.env.NODE_ENV === "production"
+    ? "/app/data/uploads"
+    : path.join(__dirname, "../../uploads");
+
+  const heicPhotos = await pgQueryAll<{ id: number; user_id: number; filename: string }>(
+    `SELECT id, user_id, filename FROM user_photos
+     WHERE (mime_type = 'image/heic' OR mime_type = 'image/heif'
+            OR filename LIKE '%.heic' OR filename LIKE '%.heif')`
+  );
+
+  if (heicPhotos.length === 0) return;
+  console.log(`[heic-convert] Found ${heicPhotos.length} HEIC photos to convert`);
+
+  let converted = 0;
+  for (const photo of heicPhotos) {
+    const oldPath = path.join(uploadsDir, photo.filename);
+    if (!fs.existsSync(oldPath)) {
+      console.log(`[heic-convert] File not found, skipping: ${photo.filename}`);
+      continue;
+    }
+    const newFilename = photo.filename.replace(/\.heic$/i, ".jpg").replace(/\.heif$/i, ".jpg");
+    const newPath = path.join(uploadsDir, newFilename);
+    try {
+      await sharp(oldPath).jpeg({ quality: 90 }).toFile(newPath);
+      try { fs.unlinkSync(oldPath); } catch {}
+      await pgQueryAll(
+        "UPDATE user_photos SET filename = $1, mime_type = 'image/jpeg' WHERE id = $2",
+        [newFilename, photo.id]
+      );
+      converted++;
+      console.log(`[heic-convert] Converted: ${photo.filename} → ${newFilename} (user ${photo.user_id})`);
+    } catch (err: any) {
+      console.error(`[heic-convert] Failed: ${photo.filename} — ${err.message}`);
+    }
+  }
+  console.log(`[heic-convert] Done. Converted ${converted}/${heicPhotos.length}`);
 }

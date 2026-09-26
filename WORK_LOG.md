@@ -22,7 +22,71 @@
 
 ---
 
-## Latest Session: 2026-09-23–24 (Security Hardening)
+## Latest Session: 2026-09-24–25 (Automation Review + WW Adaptations + Survey2)
+
+### ✅ עלה לפרודקשן (staging + production)
+
+#### סקירת אוטומציה (מתוך GPT review)
+- **Cooldown גלובלי לתזכורות**: `wasAnyNudgeSentToday()` (20h) בכל 4 מערכות nudge — מונע ריבוי תזכורות ביום אחד
+- **userNudges**: שומר 3 ימים בין onboarding nudges בנוסף ל-cooldown הגלובלי
+- **insights_last_reviewed_at**: עמודה חדשה — מאפשרת לסוכן לסמן "נבדק, אין צורך בעדכון"
+- **last_analysis_at גלובלי**: זוהתה בעיה — ניתוח חלקי "מסתיר" הודעות מקבוצות אחרות. תוקן בתיעוד, תיקון קוד בעתיד
+
+#### Nudges רק ל-WW
+- סינון `gender != 'man' AND looking_for_gender != 'man'` ב-photo, message, rating nudges
+- userNudges כבר היה מסונן
+
+#### isWW הורחב
+- `gender === "woman" && !!looking_for_gender && looking_for_gender !== "man"` — כולל both/any/doesnt_matter, מוציא null
+- עודכן ב-7 קבצי frontend + chatManager + status endpoint + admin filter
+- Admin WW filter ב-users + candidates tabs
+
+#### פרומפטים — לשון נקבה + זהות WW
+- **context-system-info.txt**: שכתוב מלא ללשון נקבה — משתמשת, שאלי, הסברי, "האישה בעלת ההלימה"
+- **מהות האפליקציה**: "שידוכים לנשים שמחפשות נשים, פתוחה לכל הספקטרום הקוויארי"
+- **buildGenderInstruction**: בלוק isWW מוזרק לכל פרומפט — הקשר קוויארי + לשון נקבה
+- **הודעת opt-out מייל**: לשון נקבה יחיד
+- **"ברוכה הבאה למאגר"**: במקום "ברוכות הבאות"
+
+#### Admin — ניתוח התאמות
+- **analysis-status endpoint**: מציג גם "מאז ניתוח אחרון" וגם "מאז סריקה אחרונה" + פירוט לפי ערוץ
+- **כפתור הורדת שיחות**: ב-candidate match modal — מוריד transcript של שתי המשתמשות כקבצי טקסט
+
+#### סקר משתמשות WW (Survey2)
+- **SurveyPage2.tsx**: 13 שאלות, 3 חלקים עם section dividers, לשון נקבה
+- **Backend**: endpoints מלאים (CRUD + email + admin stats/responses/users)
+- **Schema**: survey2_responses table + survey2_email_sent_at + survey2_banner_dismissed
+- **באנר**: מסך הבית ל-WW users, deep link מ-/survey2
+- **Admin tab**: "סקר WW" — סטטיסטיקות, תשובות, רשימת משתמשות, שליחת מיילים
+- **מייל**: נשלח ל-83 משתמשות (24.9) — RTL + לוגו + social links
+- **סקר ישן**: הוסר מהמסך הראשי
+
+#### תיקוני באגים
+- **hasProfileDetails**: WW users לא צריכות גובה (שקד שכטר — "לא השלמת הכל" למרות שהשלימה)
+- **Photo analysis**: לא דורש analysis_run_count >= 2 — רץ עם consent + תמונה
+- **HEIC→JPEG**: המרה אוטומטית בהעלאה (sharp) — תמונות מורן יפה לא הוצגו
+- **Daily reconciliation**: אותו תיקון ל-photo analysis
+
+#### תיעוד
+- **Docs/expansion-to-other-audiences.md**: רשימת כל מה שצריך לשנות אם מתרחבים מעבר ל-WW
+- **WORK_LOG**: סקירת אוטומציה + AI intent detection ב-TODO
+
+### TODO לסשן הבא
+- ⚠️ **מחיקת חשבון**: להחזיר hard delete למשתמשת (workaround פעיל)
+- ⚠️ **מורן יפה**: צריכה למחוק ולהעלות מחדש תמונות (HEIC קיימים לא הומרו)
+- ⚠️ **שקד שכטר**: analysis_run_count=1 — photo analysis ירוץ עכשיו אוטומטית, לוודא
+- דף נחיתה + דפי הסבר משכנעים
+- אוטומציה pipeline (פערים מסקירה)
+- בדיקת אפליקציית Android
+- דיוק ציוני התאמה (17 תכונות סגנון)
+- AI intent detection בפרומפט
+- last_analysis_at per-group tracking
+- Signed URLs לתמונות (לא דחוף)
+- Per-user rate limit על messaging (לא דחוף)
+
+---
+
+## Previous Session: 2026-09-23–24 (Security Hardening)
 
 ### ✅ עלה לפרודקשן (staging + production)
 
