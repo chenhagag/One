@@ -476,7 +476,7 @@ export function stopJobRunner(): void {
 
 // ── One-time HEIC → JPEG conversion for existing photos ──
 
-async function convertExistingHeicPhotos(): Promise<void> {
+export async function convertExistingHeicPhotos(): Promise<void> {
   const uploadsDir = process.env.NODE_ENV === "production"
     ? "/app/data/uploads"
     : path.join(__dirname, "../../uploads");

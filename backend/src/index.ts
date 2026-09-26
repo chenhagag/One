@@ -5417,6 +5417,18 @@ app.post("/admin/users/:id/run-pipeline", async (req, res) => {
   }
 });
 
+// POST /admin/convert-heic — Convert all existing HEIC photos to JPEG
+app.post("/admin/convert-heic", async (_req, res) => {
+  try {
+    const { convertExistingHeicPhotos } = await import("./pipeline/jobRunner");
+    await convertExistingHeicPhotos();
+    return res.json({ ok: true });
+  } catch (err: any) {
+    console.error("[convert-heic]", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /admin/users/:id/run-photo-analysis — Manually trigger photo analysis (synchronous)
 app.post("/admin/users/:id/run-photo-analysis", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
