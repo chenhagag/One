@@ -1066,7 +1066,10 @@ app.post("/users/:id/photos", requireUserAuth, (req, res, next) => {
       const oldPath = req.file.path;
       const newFilename = req.file.filename.replace(/\.heic$/i, ".jpg").replace(/\.heif$/i, ".jpg");
       const newPath = path.join(uploadsDir, newFilename);
-      await sharp(oldPath).jpeg({ quality: 90 }).toFile(newPath);
+      const heicConvert = (await import("heic-convert")).default;
+      const inputBuffer = fs.readFileSync(oldPath);
+      const outputBuffer = await heicConvert({ buffer: inputBuffer, format: "JPEG", quality: 0.9 });
+      fs.writeFileSync(newPath, Buffer.from(outputBuffer));
       // Remove original HEIC
       try { fs.unlinkSync(oldPath); } catch {}
       req.file.filename = newFilename;

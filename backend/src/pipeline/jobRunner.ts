@@ -511,7 +511,10 @@ export async function convertExistingHeicPhotos(): Promise<{ uploadsDir: string;
     const newFilename = photo.filename.replace(/\.heic$/i, ".jpg").replace(/\.heif$/i, ".jpg");
     const newPath = path.join(uploadsDir, newFilename);
     try {
-      await sharp(oldPath).jpeg({ quality: 90 }).toFile(newPath);
+      const heicConvert = (await import("heic-convert")).default;
+      const inputBuffer = fs.readFileSync(oldPath);
+      const outputBuffer = await heicConvert({ buffer: inputBuffer, format: "JPEG", quality: 0.9 });
+      fs.writeFileSync(newPath, Buffer.from(outputBuffer));
       try { fs.unlinkSync(oldPath); } catch {}
       await pgQueryAll(
         "UPDATE user_photos SET filename = $1, mime_type = 'image/jpeg' WHERE id = $2",
