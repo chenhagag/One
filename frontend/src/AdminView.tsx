@@ -1734,6 +1734,16 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
         }}
       />
 
+      {/* Deal Breakers */}
+      {data?.user?.deal_breakers && (
+        <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "10px 16px", marginBottom: 16, fontSize: 12 }}>
+          <strong style={{ color: "#dc2626" }}>⚠ מידע מהותי להתאמה:</strong>{" "}
+          {data.user.deal_breakers.split("|").map((item: string, idx: number) => (
+            <span key={idx} style={{ display: "inline-block", background: "#fee2e2", borderRadius: 3, padding: "2px 8px", margin: "2px 3px", fontSize: 12 }}>{item.trim()}</span>
+          ))}
+        </div>
+      )}
+
       {/* Token Usage */}
       {tokenUsage && tokenUsage.total_tokens > 0 && (
         <div style={{ background: "#f8f9fa", borderRadius: 8, padding: "10px 16px", marginBottom: 16, fontSize: 12 }}>

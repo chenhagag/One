@@ -745,6 +745,21 @@ export async function runSingleGroupAnalysis(
     }
   }
 
-  const saved = await saveAnalysisToDb(undefined as any, userId, { internal_traits, external_traits: [], missing_traits: [], recommended_probes: [], profiling_completeness: { internal_assessed: internal_traits.length, internal_total: groupTraits.length, external_assessed: 0, external_total: 0, coverage_pct: 0, ready_for_matching: false, notes: "single group" } });
+  // Extract deal_breakers and femininity_preference from General Info result
+  let deal_breakers_text: string | null = null;
+  let femininity_preference: { score: number; confidence: number } | null = null;
+  if (groupKey === "general") {
+    if (typeof result.parsed.deal_breakers === "string" && result.parsed.deal_breakers.trim()) {
+      deal_breakers_text = result.parsed.deal_breakers.trim();
+    }
+    if (result.parsed.femininity_preference && typeof result.parsed.femininity_preference.score === "number") {
+      femininity_preference = {
+        score: result.parsed.femininity_preference.score,
+        confidence: typeof result.parsed.femininity_preference.confidence === "number" ? result.parsed.femininity_preference.confidence : 0.5,
+      };
+    }
+  }
+
+  const saved = await saveAnalysisToDb(undefined as any, userId, { internal_traits, external_traits: [], missing_traits: [], recommended_probes: [], profiling_completeness: { internal_assessed: internal_traits.length, internal_total: groupTraits.length, external_assessed: 0, external_total: 0, coverage_pct: 0, ready_for_matching: false, notes: "single group" }, deal_breakers_text, femininity_preference });
   return { ...saved, raw_output: result.rawOutput };
 }
