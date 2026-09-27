@@ -97,6 +97,60 @@ function calculateExternalScore(
   return sumWeightedScore / sumWeight;
 }
 
+/**
+ * WW External Score — 70% femininity match + 30% appeal similarity
+ *
+ * Femininity match is asymmetric: for each side, compare what she WANTS
+ * (desired_value) vs what the OTHER side IS (personal_value).
+ * fem_match_A = 100 - |desired_A - personal_B|
+ * fem_match_B = 100 - |desired_B - personal_A|
+ * femininity_score = average of both sides
+ *
+ * If desired_value is missing for a side, that side is skipped.
+ * If both sides are missing, falls back to standard external score.
+ */
+function calculateExternalScoreWW(
+  user1LookTraits: Map<string, number>,
+  user2LookTraits: Map<string, number>,
+  user1FemDesired: number | null,
+  user2FemDesired: number | null,
+): number | null {
+  // Femininity match (70%)
+  const personal1 = user1LookTraits.get("femininity_masculinity");
+  const personal2 = user2LookTraits.get("femininity_masculinity");
+
+  let femScore: number | null = null;
+  const femSides: number[] = [];
+
+  if (user1FemDesired != null && personal2 != null) {
+    femSides.push(100 - Math.abs(user1FemDesired - personal2));
+  }
+  if (user2FemDesired != null && personal1 != null) {
+    femSides.push(100 - Math.abs(user2FemDesired - personal1));
+  }
+
+  if (femSides.length > 0) {
+    femScore = femSides.reduce((a, b) => a + b, 0) / femSides.length;
+  }
+
+  // Appeal similarity (30%)
+  const appeal1 = user1LookTraits.get("appeal");
+  const appeal2 = user2LookTraits.get("appeal");
+  const appealScore = (appeal1 != null && appeal2 != null)
+    ? 100 - Math.abs(appeal1 - appeal2)
+    : null;
+
+  // Combine
+  if (femScore != null && appealScore != null) {
+    return femScore * 0.7 + appealScore * 0.3;
+  }
+  if (femScore != null) return femScore;
+  if (appealScore != null) return appealScore;
+
+  // No WW-specific data — fall back to standard
+  return calculateExternalScore(user1LookTraits, user2LookTraits);
+}
+
 // ── Internal score calculation (pure / sync) ─────────────────────
 
 function calculateInternalScore(
@@ -551,13 +605,30 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
   const getUserLookTraits = (uid: number): Map<string, number> =>
     lookTraitCache.get(uid) ?? new Map();
 
+  // Pre-load femininity desired_value for WW scoring
+  const femDesiredRows = await queryAll<{ user_id: number; desired_value: string | null }>(
+    `SELECT ult.user_id, ult.desired_value
+     FROM user_look_traits ult
+     WHERE ult.look_trait_definition_id = 13 AND ult.user_id = ANY($1::int[]) AND ult.desired_value IS NOT NULL`,
+    [involvedIds]
+  );
+  const femDesiredCache = new Map<number, number>();
+  for (const r of femDesiredRows) {
+    const v = parseFloat(r.desired_value ?? "");
+    if (!isNaN(v)) femDesiredCache.set(r.user_id, v);
+  }
+
   // Pre-load genders for involved users
-  const genderRows = await queryAll<{ id: number; gender: string | null }>(
-    `SELECT id, gender FROM users WHERE id = ANY($1::int[])`,
+  const genderRows = await queryAll<{ id: number; gender: string | null; looking_for_gender: string | null }>(
+    `SELECT id, gender, looking_for_gender FROM users WHERE id = ANY($1::int[])`,
     [involvedIds]
   );
   const genderCache = new Map<number, string | null>();
-  for (const r of genderRows) genderCache.set(r.id, r.gender);
+  const lookingForCache = new Map<number, string | null>();
+  for (const r of genderRows) {
+    genderCache.set(r.id, r.gender);
+    lookingForCache.set(r.id, r.looking_for_gender);
+  }
 
   // Compute scores in memory
   type Update = {
@@ -586,9 +657,22 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
       continue;
     }
 
-    const externalScore = calculateExternalScore(
-      getUserLookTraits(row.user_id),
-      getUserLookTraits(row.candidate_user_id),
+    const isWW = genderCache.get(row.user_id) === "woman"
+      && lookingForCache.get(row.user_id) === "woman"
+      && genderCache.get(row.candidate_user_id) === "woman"
+      && lookingForCache.get(row.candidate_user_id) === "woman";
+
+    const externalScore = (isWW
+      ? calculateExternalScoreWW(
+          getUserLookTraits(row.user_id),
+          getUserLookTraits(row.candidate_user_id),
+          femDesiredCache.get(row.user_id) ?? null,
+          femDesiredCache.get(row.candidate_user_id) ?? null,
+        )
+      : calculateExternalScore(
+          getUserLookTraits(row.user_id),
+          getUserLookTraits(row.candidate_user_id),
+        )
     ) ?? 0; // fallback to 0 if no visual data available
     const sensitive = isAppearanceSensitive(u1Traits) || isAppearanceSensitive(u2Traits);
     const iRatio = sensitive ? SENSITIVE_INTERNAL_RATIO : DEFAULT_INTERNAL_RATIO;
@@ -715,12 +799,29 @@ export async function rescoreExistingCandidates(forUserId?: number): Promise<{ r
   }
   const getUserLookTraits = (uid: number): Map<string, number> => lookTraitCache.get(uid) ?? new Map();
 
-  const genderRows = await queryAll<{ id: number; gender: string | null }>(
-    `SELECT id, gender FROM users WHERE id = ANY($1::int[])`,
+  // Pre-load femininity desired_value for WW scoring
+  const femDesiredRows2 = await queryAll<{ user_id: number; desired_value: string | null }>(
+    `SELECT ult.user_id, ult.desired_value
+     FROM user_look_traits ult
+     WHERE ult.look_trait_definition_id = 13 AND ult.user_id = ANY($1::int[]) AND ult.desired_value IS NOT NULL`,
+    [involvedIds]
+  );
+  const femDesiredCache = new Map<number, number>();
+  for (const r of femDesiredRows2) {
+    const v = parseFloat(r.desired_value ?? "");
+    if (!isNaN(v)) femDesiredCache.set(r.user_id, v);
+  }
+
+  const genderRows = await queryAll<{ id: number; gender: string | null; looking_for_gender: string | null }>(
+    `SELECT id, gender, looking_for_gender FROM users WHERE id = ANY($1::int[])`,
     [involvedIds]
   );
   const genderCache = new Map<number, string | null>();
-  for (const r of genderRows) genderCache.set(r.id, r.gender);
+  const lookingForCache = new Map<number, string | null>();
+  for (const r of genderRows) {
+    genderCache.set(r.id, r.gender);
+    lookingForCache.set(r.id, r.looking_for_gender);
+  }
 
   // Compute scores
   type ScoreUpdate = {
@@ -742,9 +843,22 @@ export async function rescoreExistingCandidates(forUserId?: number): Promise<{ r
       continue;
     }
 
-    const externalScore = calculateExternalScore(
-      getUserLookTraits(row.user_id),
-      getUserLookTraits(row.candidate_user_id),
+    const isWW = genderCache.get(row.user_id) === "woman"
+      && lookingForCache.get(row.user_id) === "woman"
+      && genderCache.get(row.candidate_user_id) === "woman"
+      && lookingForCache.get(row.candidate_user_id) === "woman";
+
+    const externalScore = (isWW
+      ? calculateExternalScoreWW(
+          getUserLookTraits(row.user_id),
+          getUserLookTraits(row.candidate_user_id),
+          femDesiredCache.get(row.user_id) ?? null,
+          femDesiredCache.get(row.candidate_user_id) ?? null,
+        )
+      : calculateExternalScore(
+          getUserLookTraits(row.user_id),
+          getUserLookTraits(row.candidate_user_id),
+        )
     ) ?? 0;
     const sensitive = isAppearanceSensitive(u1Traits) || isAppearanceSensitive(u2Traits);
     const iRatio = sensitive ? SENSITIVE_INTERNAL_RATIO : DEFAULT_INTERNAL_RATIO;
