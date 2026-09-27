@@ -144,11 +144,14 @@ function calculateExternalScoreWW(
   if (femScore != null && appealScore != null) {
     return femScore * 0.7 + appealScore * 0.3;
   }
+  // Only femininity data — use it alone (appeal missing = one side has no photo)
   if (femScore != null) return femScore;
+  // Only appeal data — no femininity info at all
   if (appealScore != null) return appealScore;
 
-  // No WW-specific data — fall back to standard
-  return calculateExternalScore(user1LookTraits, user2LookTraits);
+  // No WW-specific data at all — return null (not 0, not fallback)
+  // This means one or both sides have no photo/look traits
+  return null;
 }
 
 // ── Internal score calculation (pure / sync) ─────────────────────
@@ -673,11 +676,18 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
           getUserLookTraits(row.user_id),
           getUserLookTraits(row.candidate_user_id),
         )
-    ) ?? 0; // fallback to 0 if no visual data available
+    );
     const sensitive = isAppearanceSensitive(u1Traits) || isAppearanceSensitive(u2Traits);
-    const iRatio = sensitive ? SENSITIVE_INTERNAL_RATIO : DEFAULT_INTERNAL_RATIO;
-    const eRatio = sensitive ? SENSITIVE_EXTERNAL_RATIO : DEFAULT_EXTERNAL_RATIO;
-    const finalScore = internalScore * iRatio + externalScore * eRatio;
+
+    let finalScore: number;
+    if (externalScore != null) {
+      const iRatio = sensitive ? SENSITIVE_INTERNAL_RATIO : DEFAULT_INTERNAL_RATIO;
+      const eRatio = sensitive ? SENSITIVE_EXTERNAL_RATIO : DEFAULT_EXTERNAL_RATIO;
+      finalScore = internalScore * iRatio + externalScore * eRatio;
+    } else {
+      // No external data (missing photos/look traits) — use internal only
+      finalScore = internalScore;
+    }
 
     const { categories, confidences } = calculateAllCategoryScores(
       u1Traits, u2Traits, traitDefs,
@@ -685,13 +695,13 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
       genderCache.get(row.candidate_user_id) ?? null,
     );
 
-    const profileScore = calculateProfileScore(categories, externalScore, confidences);
+    const profileScore = calculateProfileScore(categories, externalScore ?? null, confidences);
     const internalProfileScore = calculateProfileScore(categories, null, confidences);
 
     updates.push({
       id: row.id,
       internal: Math.round(internalScore * 100) / 100,
-      external: Math.round(externalScore * 100) / 100,
+      external: externalScore != null ? Math.round(externalScore * 100) / 100 : null,
       final: Math.round(finalScore * 100) / 100,
       categories,
       profile_score: profileScore,
@@ -859,11 +869,17 @@ export async function rescoreExistingCandidates(forUserId?: number): Promise<{ r
           getUserLookTraits(row.user_id),
           getUserLookTraits(row.candidate_user_id),
         )
-    ) ?? 0;
+    );
     const sensitive = isAppearanceSensitive(u1Traits) || isAppearanceSensitive(u2Traits);
-    const iRatio = sensitive ? SENSITIVE_INTERNAL_RATIO : DEFAULT_INTERNAL_RATIO;
-    const eRatio = sensitive ? SENSITIVE_EXTERNAL_RATIO : DEFAULT_EXTERNAL_RATIO;
-    const finalScore = internalScore * iRatio + externalScore * eRatio;
+
+    let finalScore: number;
+    if (externalScore != null) {
+      const iRatio = sensitive ? SENSITIVE_INTERNAL_RATIO : DEFAULT_INTERNAL_RATIO;
+      const eRatio = sensitive ? SENSITIVE_EXTERNAL_RATIO : DEFAULT_EXTERNAL_RATIO;
+      finalScore = internalScore * iRatio + externalScore * eRatio;
+    } else {
+      finalScore = internalScore;
+    }
 
     const { categories, confidences } = calculateAllCategoryScores(
       u1Traits, u2Traits, traitDefs,
@@ -871,13 +887,13 @@ export async function rescoreExistingCandidates(forUserId?: number): Promise<{ r
       genderCache.get(row.candidate_user_id) ?? null,
     );
 
-    const profileScore = calculateProfileScore(categories, externalScore, confidences);
+    const profileScore = calculateProfileScore(categories, externalScore ?? null, confidences);
     const internalProfileScore = calculateProfileScore(categories, null, confidences);
 
     updates.push({
       id: row.id,
       internal: Math.round(internalScore * 100) / 100,
-      external: Math.round(externalScore * 100) / 100,
+      external: externalScore != null ? Math.round(externalScore * 100) / 100 : null,
       final: Math.round(finalScore * 100) / 100,
       categories,
       profile_score: profileScore,
