@@ -3864,7 +3864,7 @@ function MatchesTab() {
     if (status === "in_match") return { ...s.badge, background: "#cce5ff", color: "#004085" };
     if (status === "approved_by_both") return { ...s.badge, background: "#d1ecf1", color: "#0c5460" };
     if (status === "rejected_by_users" || status === "cancelled" || status === "rejected_acquaintance") return { ...s.badge, background: "#f8d7da", color: "#721c24" };
-    if (status === "frozen") return { ...s.badge, background: "#e2e3e5", color: "#383d41" };
+    if (status === "pending_second_rating") return { ...s.badge, background: "#fde68a", color: "#78350f" };
     if (status.startsWith("waiting")) return { ...s.badge, background: "#fff3cd", color: "#856404" };
     return s.badge;
   };
@@ -4185,7 +4185,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
     if (status === "blind_match_candidate") return { ...s.badge, background: "#ede9fe", color: "#6d28d9" };
     if (status === "pre_match") return { ...s.badge, background: "#d4edda", color: "#155724" };
     if (status === "in_match") return { ...s.badge, background: "#cce5ff", color: "#004085" };
-    if (status === "frozen") return { ...s.badge, background: "#e2e3e5", color: "#383d41" };
+    if (status === "pending_second_rating") return { ...s.badge, background: "#fde68a", color: "#78350f" };
     if (status === "approved_by_both") return { ...s.badge, background: "#d4edda", color: "#155724" };
     if (status === "rejected_by_users" || status === "cancelled") return { ...s.badge, background: "#f8d7da", color: "#721c24" };
     if (status === "rejected_acquaintance") return { ...s.badge, background: "#f8d7da", color: "#721c24" };
@@ -4318,36 +4318,19 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
       {/* Status filter */}
       <div style={{ display: "flex", gap: 6, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, color: "#6b7280" }}>סטטוס:</span>
-        {["all", "potential_match", "expanded_potential_match", "blind_match_candidate", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled_by_user", "cancelled_by_system", "rejected_by_users", "no_match"].map(st => {
+        {["all", "potential_match", "expanded_potential_match", "blind_match_candidate", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "pending_second_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "cancelled_by_user", "cancelled_by_system", "rejected_by_users", "no_match"].map(st => {
           const count = st === "all" ? data.length
             : st === "no_match" ? data.filter((cm: any) => !cm.match_status).length
             : st === "cancelled_by_user" ? data.filter((cm: any) => cm.match_status === "cancelled" && cm.cancelled_by).length
             : st === "cancelled_by_system" ? data.filter((cm: any) => cm.match_status === "cancelled" && !cm.cancelled_by).length
             : data.filter((cm: any) => cm.match_status === st).length;
-          const label = st === "all" ? "הכל" : st === "no_match" ? "ללא התאמה" : st === "expanded_potential_match" ? "מורחבת" : st === "blind_match_candidate" ? "התאמה עיוורת" : st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st === "cancelled_by_user" ? "ביטול משתמש" : st === "cancelled_by_system" ? "ביטול מערכת" : st;
+          const label = st === "all" ? "הכל" : st === "no_match" ? "ללא התאמה" : st === "expanded_potential_match" ? "מורחבת" : st === "blind_match_candidate" ? "התאמה עיוורת" : st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st === "pending_second_rating" ? "ממתין לאישור שני" : st === "cancelled_by_user" ? "ביטול משתמש" : st === "cancelled_by_system" ? "ביטול מערכת" : st;
           return (
             <button key={st} style={filterBtnStyle(filterCmStatus === st)} onClick={() => setFilterCmStatus(st)}>
               {label} ({count})
             </button>
           );
         })}
-        {data.some((cm: any) => cm.match_status === "frozen") && (
-          <button
-            style={{ padding: "4px 12px", fontSize: 11, fontWeight: 600, borderRadius: 6, border: "1px solid #28a745", cursor: "pointer", background: "#d1fae5", color: "#155724" }}
-            onClick={async () => {
-              const frozenCount = data.filter((cm: any) => cm.match_status === "frozen").length;
-              if (!confirm(`לשחרר ${frozenCount} התאמות מוקפאות?`)) return;
-              try {
-                const r = await apiFetch("/admin/unfreeze-all-matches", { method: "POST" });
-                const json = await r.json();
-                alert(`שוחררו ${json.unfrozen} התאמות`);
-                load();
-              } catch { alert("שגיאה"); }
-            }}
-          >
-            Unfreeze All
-          </button>
-        )}
         {data.some((cm: any) => cm.match_status === "expanded_potential_match") && (
           <button
             style={{ padding: "4px 12px", fontSize: 11, fontWeight: 600, borderRadius: 6, border: "1px solid #6366f1", cursor: "pointer", background: "#e0e7ff", color: "#3730a3" }}
@@ -4457,6 +4440,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                       {cm.user1_photo && <img src={`/uploads/${cm.user1_photo}`} style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />}
                       <div>
                         <button style={s.expandBtn} onClick={() => setSelectedUserId(cm.user_id)}>{cm.user1_name}</button> ({cm.user1_age}, {cm.user1_city})
+                        {cm.user1_locked && <span style={{ padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 700, marginRight: 4, background: cm.user1_lock_reason === "in_match" ? "#dbeafe" : "#fef3c7", color: cm.user1_lock_reason === "in_match" ? "#1e40af" : "#92400e" }}>{cm.user1_lock_reason === "in_match" ? "בהתאמה" : "ממתינה לדירוג"}</span>}
                         {(cm.user1_cog_count < 5 || cm.user1_taste_count < 5 || cm.user1_photo_count < 1) && (
                           <span title={[cm.user1_cog_count < 5 && "חסר קוגניטיבי", cm.user1_taste_count < 5 && "חסר טעם", cm.user1_photo_count < 1 && "ללא תמונה"].filter(Boolean).join(", ")} style={{ marginRight: 4, color: "#d97706", fontSize: 11, fontWeight: 700 }}>⚠</span>
                         )}
@@ -4469,6 +4453,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                       {cm.user2_photo && <img src={`/uploads/${cm.user2_photo}`} style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />}
                       <div>
                         <button style={s.expandBtn} onClick={() => setSelectedUserId(cm.candidate_user_id)}>{cm.user2_name}</button> ({cm.user2_age}, {cm.user2_city})
+                        {cm.user2_locked && <span style={{ padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 700, marginRight: 4, background: cm.user2_lock_reason === "in_match" ? "#dbeafe" : "#fef3c7", color: cm.user2_lock_reason === "in_match" ? "#1e40af" : "#92400e" }}>{cm.user2_lock_reason === "in_match" ? "בהתאמה" : "ממתינה לדירוג"}</span>}
                         {(cm.user2_cog_count < 5 || cm.user2_taste_count < 5 || cm.user2_photo_count < 1) && (
                           <span title={[cm.user2_cog_count < 5 && "חסר קוגניטיבי", cm.user2_taste_count < 5 && "חסר טעם", cm.user2_photo_count < 1 && "ללא תמונה"].filter(Boolean).join(", ")} style={{ marginRight: 4, color: "#d97706", fontSize: 11, fontWeight: 700 }}>⚠</span>
                         )}
@@ -4497,8 +4482,8 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                         } catch (err: any) { alert("שגיאה: " + err.message); }
                       }}
                     >
-                      {["scored", "potential_match", "expanded_potential_match", "blind_match_candidate", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
-                        <option key={st} value={st}>{st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st === "blind_match_candidate" ? "התאמה עיוורת" : st}</option>
+                      {["scored", "potential_match", "expanded_potential_match", "blind_match_candidate", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "pending_second_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
+                        <option key={st} value={st}>{st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st === "blind_match_candidate" ? "התאמה עיוורת" : st === "pending_second_rating" ? "ממתין לאישור שני" : st}</option>
                       ))}
                     </select>
                     {cm.match_status === "waiting_for_photo" && (
@@ -4550,6 +4535,28 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                     {cm.user1_blind_consent && cm.user2_blind_consent && (cm.user1_photo_count < 1 || cm.user2_photo_count < 1) && (
                       <span style={{ display: "inline-block", padding: "2px 6px", background: "#ede9fe", color: "#6d28d9", borderRadius: 4, fontSize: 10, fontWeight: 600, marginBottom: 4 }} title="שני הצדדים אישרו התאמה עיוורת">👁️‍🗨️ שניהם אישרו עיוורת</span>
                     )}
+                    {cm.match_status === "pending_second_rating" && (() => {
+                      const raterLocked = cm.user1_rating ? cm.user2_locked : cm.user1_locked;
+                      const otherInMatch = cm.user1_rating ? (cm.user1_lock_reason === "in_match") : (cm.user2_lock_reason === "in_match");
+                      const canSend = !raterLocked && !otherInMatch;
+                      return canSend ? (
+                        <button
+                          style={{ padding: "3px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#2563eb", color: "#fff" }}
+                          onClick={async () => {
+                            try {
+                              const r = await apiFetch(`/admin/matches/${cm.match_id}/send-second-rating`, { method: "POST" });
+                              const json = await r.json();
+                              if (!r.ok) alert(json.error || "שגיאה");
+                              load();
+                            } catch { alert("שגיאת תקשורת"); }
+                          }}
+                        >שלח דירוג שני</button>
+                      ) : (
+                        <span style={{ fontSize: 10, color: "#9ca3af" }}>
+                          {raterLocked ? "הצד שצריך לדרג נעול" : "הצד שדירג בהתאמה"}
+                        </span>
+                      );
+                    })()}
                     {cm.match_status === "approved_by_both" && (
                       <button
                         style={{ padding: "3px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#6f42c1", color: "#fff" }}
@@ -6356,6 +6363,7 @@ function OutreachLogTab() {
       waiting_for_photo: { label: "ממתין לתמונה", bg: "#fde68a", color: "#92400e" },
       waiting_for_response: { label: "ממתין לתשובה", bg: "#fed7aa", color: "#9a3412" },
       waiting_first_rating: { label: "ממתין לדירוג", bg: "#fef3c7", color: "#92400e" },
+      pending_second_rating: { label: "ממתין לאישור שני", bg: "#fde68a", color: "#78350f" },
       waiting_second_rating: { label: "ממתין לצד שני", bg: "#dbeafe", color: "#1e40af" },
       approved_by_both: { label: "אושר ע\"י שניהם", bg: "#d1fae5", color: "#065f46" },
       rejected_by_users: { label: "נדחה", bg: "#fee2e2", color: "#991b1b" },
