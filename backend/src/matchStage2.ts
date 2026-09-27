@@ -132,7 +132,7 @@ function calculateExternalScoreWW(
   const bothHavePhotos = personal1 != null && personal2 != null;
 
   if (bothHavePhotos) {
-    // Femininity match: average of both directions (each direction = 35% of total)
+    // Femininity match: minimum of both directions (weakest link determines score)
     const femSides: number[] = [];
     if (user1FemDesired != null) {
       femSides.push(100 - Math.abs(user1FemDesired - personal2!));
@@ -141,7 +141,7 @@ function calculateExternalScoreWW(
       femSides.push(100 - Math.abs(user2FemDesired - personal1!));
     }
     const femScore = femSides.length > 0
-      ? femSides.reduce((a, b) => a + b, 0) / femSides.length
+      ? Math.min(...femSides)
       : 50; // no desired data → neutral
 
     // Appeal similarity (30%)
