@@ -4838,8 +4838,8 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
             {/* Two user cards side by side */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
               {[
-                { name: matchDetail.user1_name, age: matchDetail.user1_age, city: matchDetail.user1_city, gender: matchDetail.user1_gender, lookingFor: matchDetail.user1_looking_for, notes: matchDetail.user1_admin_notes, photos: matchDetail.user1_photos, traits: matchDetail.user1_traits, cogScore: matchDetail.user1_cognitive_score, height: matchDetail.user1_height, smoker: matchDetail.user1_smoker, hasChildren: matchDetail.user1_has_children, maritalStatus: matchDetail.user1_marital_status, religion: matchDetail.user1_religion, desiredAgeMin: matchDetail.user1_desired_age_min, desiredAgeMax: matchDetail.user1_desired_age_max, desiredHeightMin: matchDetail.user1_desired_height_min, desiredHeightMax: matchDetail.user1_desired_height_max, desiredLocation: matchDetail.user1_desired_location_range, rating: matchDetail.user1_rating },
-                { name: matchDetail.user2_name, age: matchDetail.user2_age, city: matchDetail.user2_city, gender: matchDetail.user2_gender, lookingFor: matchDetail.user2_looking_for, notes: matchDetail.user2_admin_notes, photos: matchDetail.user2_photos, traits: matchDetail.user2_traits, cogScore: matchDetail.user2_cognitive_score, height: matchDetail.user2_height, smoker: matchDetail.user2_smoker, hasChildren: matchDetail.user2_has_children, maritalStatus: matchDetail.user2_marital_status, religion: matchDetail.user2_religion, desiredAgeMin: matchDetail.user2_desired_age_min, desiredAgeMax: matchDetail.user2_desired_age_max, desiredHeightMin: matchDetail.user2_desired_height_min, desiredHeightMax: matchDetail.user2_desired_height_max, desiredLocation: matchDetail.user2_desired_location_range, rating: matchDetail.user2_rating },
+                { name: matchDetail.user1_name, age: matchDetail.user1_age, city: matchDetail.user1_city, gender: matchDetail.user1_gender, lookingFor: matchDetail.user1_looking_for, notes: matchDetail.user1_admin_notes, photos: matchDetail.user1_photos, traits: matchDetail.user1_traits, cogScore: matchDetail.user1_cognitive_score, height: matchDetail.user1_height, smoker: matchDetail.user1_smoker, hasChildren: matchDetail.user1_has_children, maritalStatus: matchDetail.user1_marital_status, religion: matchDetail.user1_religion, desiredAgeMin: matchDetail.user1_desired_age_min, desiredAgeMax: matchDetail.user1_desired_age_max, desiredHeightMin: matchDetail.user1_desired_height_min, desiredHeightMax: matchDetail.user1_desired_height_max, desiredLocation: matchDetail.user1_desired_location_range, rating: matchDetail.user1_rating, dealBreakers: matchDetail.user1_deal_breakers },
+                { name: matchDetail.user2_name, age: matchDetail.user2_age, city: matchDetail.user2_city, gender: matchDetail.user2_gender, lookingFor: matchDetail.user2_looking_for, notes: matchDetail.user2_admin_notes, photos: matchDetail.user2_photos, traits: matchDetail.user2_traits, cogScore: matchDetail.user2_cognitive_score, height: matchDetail.user2_height, smoker: matchDetail.user2_smoker, hasChildren: matchDetail.user2_has_children, maritalStatus: matchDetail.user2_marital_status, religion: matchDetail.user2_religion, desiredAgeMin: matchDetail.user2_desired_age_min, desiredAgeMax: matchDetail.user2_desired_age_max, desiredHeightMin: matchDetail.user2_desired_height_min, desiredHeightMax: matchDetail.user2_desired_height_max, desiredLocation: matchDetail.user2_desired_location_range, rating: matchDetail.user2_rating, dealBreakers: matchDetail.user2_deal_breakers },
               ].map((u, i) => (
                 <div key={i} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16 }}>
                   {u.photos && u.photos.length > 0 && (
@@ -4863,6 +4863,15 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                     </p>
                   )}
                   {u.notes && <p style={{ margin: "0 0 8px", fontSize: 12, background: "#fffbeb", padding: "6px 8px", borderRadius: 4, whiteSpace: "pre-wrap" }}>{u.notes}</p>}
+
+                  {u.dealBreakers && (
+                    <div style={{ margin: "0 0 8px", fontSize: 12, background: "#fef2f2", border: "1px solid #fecaca", padding: "6px 8px", borderRadius: 4 }}>
+                      <strong style={{ color: "#dc2626" }}>⚠ מידע מהותי:</strong>{" "}
+                      {u.dealBreakers.split("|").map((item: string, idx: number) => (
+                        <span key={idx} style={{ display: "inline-block", background: "#fee2e2", borderRadius: 3, padding: "1px 6px", margin: "2px 3px", fontSize: 11 }}>{item.trim()}</span>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Profile traits */}
                   <div style={{ fontSize: 12 }}>

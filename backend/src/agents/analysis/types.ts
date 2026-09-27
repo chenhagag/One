@@ -39,6 +39,8 @@ export interface AnalysisAgentOutput {
   missing_traits: string[];         // internal_names of traits with no data
   recommended_probes: string[];     // suggested conversation topics
   profiling_completeness: ProfilingCompleteness;
+  deal_breakers_text?: string | null;       // pipe-separated items
+  femininity_preference?: { score: number; confidence: number } | null;
 }
 
 // ── Analysis Agent Input ────────────────────────────────────────

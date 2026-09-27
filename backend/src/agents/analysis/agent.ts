@@ -564,6 +564,21 @@ export async function runAnalysisAgent(
     }
   }
 
+  // Extract deal_breakers and femininity_preference from General Info group
+  let deal_breakers_text: string | null = null;
+  let femininity_preference: { score: number; confidence: number } | null = null;
+  for (const gr of groupResults) {
+    if (typeof gr.parsed.deal_breakers === "string" && gr.parsed.deal_breakers.trim()) {
+      deal_breakers_text = gr.parsed.deal_breakers.trim();
+    }
+    if (gr.parsed.femininity_preference && typeof gr.parsed.femininity_preference.score === "number") {
+      femininity_preference = {
+        score: gr.parsed.femininity_preference.score,
+        confidence: typeof gr.parsed.femininity_preference.confidence === "number" ? gr.parsed.femininity_preference.confidence : 0.5,
+      };
+    }
+  }
+
   // Merge external traits (dedupe by trait_id)
   const external_traits: ExternalTraitAssessment[] = [];
   if (externalResult && Array.isArray(externalResult.parsed.external_traits)) {
@@ -592,6 +607,8 @@ export async function runAnalysisAgent(
       ready_for_matching: false,
       notes: `Grouped analysis: ${groupList.length} groups + ${externalResult ? 1 : 0} external, ${totalDuration}ms wall time`,
     },
+    deal_breakers_text,
+    femininity_preference,
   };
 
   console.log(

@@ -194,6 +194,36 @@ export async function saveAnalysisToDb(
     );
   }
 
+  // Save deal_breakers to users table
+  if (output.deal_breakers_text) {
+    try {
+      await queryRun("UPDATE users SET deal_breakers = $1 WHERE id = $2", [output.deal_breakers_text, uid]);
+      console.log(`[saveAnalysisToDb] Saved deal_breakers for user ${uid}`);
+    } catch (err: any) {
+      console.warn(`[saveAnalysisToDb] Failed to save deal_breakers for user ${uid}: ${err.message}`);
+    }
+  }
+
+  // Save femininity_preference as desired_value for femininity_masculinity (look_trait_def id:13)
+  if (output.femininity_preference && typeof output.femininity_preference.score === "number") {
+    const FEMININITY_TRAIT_ID = 13;
+    try {
+      await queryRun(`
+        INSERT INTO user_look_traits
+          (user_id, look_trait_definition_id, desired_value, desired_value_confidence, source)
+        VALUES ($1, $2, $3, $4, 'ai')
+        ON CONFLICT (user_id, look_trait_definition_id) DO UPDATE SET
+          desired_value = EXCLUDED.desired_value,
+          desired_value_confidence = EXCLUDED.desired_value_confidence,
+          source = CASE WHEN user_look_traits.source = 'manual' THEN 'manual' ELSE 'ai' END,
+          updated_at = NOW()
+      `, [uid, FEMININITY_TRAIT_ID, String(output.femininity_preference.score), output.femininity_preference.confidence]);
+      console.log(`[saveAnalysisToDb] Saved femininity_preference=${output.femininity_preference.score} for user ${uid}`);
+    } catch (err: any) {
+      console.warn(`[saveAnalysisToDb] Failed to save femininity_preference for user ${uid}: ${err.message}`);
+    }
+  }
+
   return { internal_saved, external_saved };
 }
 
