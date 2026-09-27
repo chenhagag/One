@@ -4072,7 +4072,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
     setLoading(true);
     apiFetch("/admin/candidate-matches")
       .then((r) => r.json())
-      .then(setData)
+      .then((d) => { if (Array.isArray(d)) setData(d); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }

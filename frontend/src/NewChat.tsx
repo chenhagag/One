@@ -172,7 +172,7 @@ function HowItWorks({ isWW }: { isWW?: boolean }) {
 }
 
 // ── Potential Match Rating Screen ────────────────────────────────────
-function PotentialMatchScreen({ userId, userGender, onBack }: { userId: number; userGender: string | null; onBack: () => void }) {
+function PotentialMatchScreen({ userId, userGender, onBack, isWW = true }: { userId: number; userGender: string | null; onBack: () => void; isWW?: boolean }) {
   const [loading, setLoading] = useState(true);
   const [matchData, setMatchData] = useState<{
     match_id: number;
@@ -1688,7 +1688,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
         {screen === "potential_matches" && (
           <div className="nc-screen-fade" key="potential_matches" style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
-            <PotentialMatchScreen userId={user.id} userGender={recommendations.gender} onBack={() => { setScreen("home"); loadRecommendations(); }} />
+            <PotentialMatchScreen userId={user.id} userGender={recommendations.gender} onBack={() => { setScreen("home"); loadRecommendations(); }} isWW={isWW} />
           </div>
         )}
 
