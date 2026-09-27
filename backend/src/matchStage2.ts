@@ -115,42 +115,57 @@ function calculateExternalScoreWW(
   user1FemDesired: number | null,
   user2FemDesired: number | null,
 ): number | null {
-  // Femininity match (70%)
   const personal1 = user1LookTraits.get("femininity_masculinity");
   const personal2 = user2LookTraits.get("femininity_masculinity");
-
-  let femScore: number | null = null;
-  const femSides: number[] = [];
-
-  if (user1FemDesired != null && personal2 != null) {
-    femSides.push(100 - Math.abs(user1FemDesired - personal2));
-  }
-  if (user2FemDesired != null && personal1 != null) {
-    femSides.push(100 - Math.abs(user2FemDesired - personal1));
-  }
-
-  if (femSides.length > 0) {
-    femScore = femSides.reduce((a, b) => a + b, 0) / femSides.length;
-  }
-
-  // Appeal similarity (30%)
   const appeal1 = user1LookTraits.get("appeal");
   const appeal2 = user2LookTraits.get("appeal");
-  const appealScore = (appeal1 != null && appeal2 != null)
-    ? 100 - Math.abs(appeal1 - appeal2)
-    : null;
 
-  // Combine
-  if (femScore != null && appealScore != null) {
+  const hasFemData = (user1FemDesired != null || user2FemDesired != null)
+    && (personal1 != null || personal2 != null);
+
+  // No femininity data at all → fall back to standard external scoring
+  if (!hasFemData) {
+    return calculateExternalScore(user1LookTraits, user2LookTraits);
+  }
+
+  // Both sides have photos (both have personal values) → full scoring
+  const bothHavePhotos = personal1 != null && personal2 != null;
+
+  if (bothHavePhotos) {
+    // Femininity match: average of both directions (each direction = 35% of total)
+    const femSides: number[] = [];
+    if (user1FemDesired != null) {
+      femSides.push(100 - Math.abs(user1FemDesired - personal2!));
+    }
+    if (user2FemDesired != null) {
+      femSides.push(100 - Math.abs(user2FemDesired - personal1!));
+    }
+    const femScore = femSides.length > 0
+      ? femSides.reduce((a, b) => a + b, 0) / femSides.length
+      : 50; // no desired data → neutral
+
+    // Appeal similarity (30%)
+    const appealScore = (appeal1 != null && appeal2 != null)
+      ? 100 - Math.abs(appeal1 - appeal2)
+      : 50; // no appeal data → neutral
+
     return femScore * 0.7 + appealScore * 0.3;
   }
-  // Only femininity data — use it alone (appeal missing = one side has no photo)
-  if (femScore != null) return femScore;
-  // Only appeal data — no femininity info at all
-  if (appealScore != null) return appealScore;
 
-  // No WW-specific data at all — return null (not 0, not fallback)
-  // This means one or both sides have no photo/look traits
+  // One side missing photo → partial score
+  // Only compute: desired of no-photo side vs personal of photo side
+  // This is worth 35% of the full score (one direction of femininity match)
+  // Appeal = 0 (can't compare), other direction = 0 (no personal for no-photo side)
+  const photoSidePersonal = personal1 != null ? personal1 : personal2;
+  const noPhotoSideDesired = personal1 == null ? user1FemDesired : user2FemDesired;
+
+  if (noPhotoSideDesired != null && photoSidePersonal != null) {
+    const oneDirectionMatch = 100 - Math.abs(noPhotoSideDesired - photoSidePersonal);
+    // Scale to 35% of full score (one direction = half of 70%)
+    return oneDirectionMatch * 0.35;
+  }
+
+  // No usable combination → null
   return null;
 }
 
