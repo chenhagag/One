@@ -476,10 +476,16 @@ export function stopJobRunner(): void {
 
 // ── One-time HEIC → JPEG conversion for existing photos ──
 
-export async function convertExistingHeicPhotos(): Promise<void> {
+export async function convertExistingHeicPhotos(): Promise<{ uploadsDir: string; dirExists: boolean; totalFiles: number; heicInDb: number; results: Array<{ filename: string; user_id: number; status: string; error?: string }> }> {
   const uploadsDir = process.env.NODE_ENV === "production"
     ? "/app/data/uploads"
     : path.join(__dirname, "../../uploads");
+
+  const dirExists = fs.existsSync(uploadsDir);
+  let totalFiles = 0;
+  if (dirExists) {
+    try { totalFiles = fs.readdirSync(uploadsDir).length; } catch {}
+  }
 
   const heicPhotos = await pgQueryAll<{ id: number; user_id: number; filename: string }>(
     `SELECT id, user_id, filename FROM user_photos
@@ -487,14 +493,19 @@ export async function convertExistingHeicPhotos(): Promise<void> {
             OR filename LIKE '%.heic' OR filename LIKE '%.heif')`
   );
 
-  if (heicPhotos.length === 0) return;
+  const results: Array<{ filename: string; user_id: number; status: string; error?: string }> = [];
+
+  if (heicPhotos.length === 0) {
+    console.log("[heic-convert] No HEIC photos found in DB");
+    return { uploadsDir, dirExists, totalFiles, heicInDb: 0, results };
+  }
   console.log(`[heic-convert] Found ${heicPhotos.length} HEIC photos to convert`);
 
-  let converted = 0;
   for (const photo of heicPhotos) {
     const oldPath = path.join(uploadsDir, photo.filename);
     if (!fs.existsSync(oldPath)) {
       console.log(`[heic-convert] File not found, skipping: ${photo.filename}`);
+      results.push({ filename: photo.filename, user_id: photo.user_id, status: "file_not_found" });
       continue;
     }
     const newFilename = photo.filename.replace(/\.heic$/i, ".jpg").replace(/\.heif$/i, ".jpg");
@@ -506,11 +517,14 @@ export async function convertExistingHeicPhotos(): Promise<void> {
         "UPDATE user_photos SET filename = $1, mime_type = 'image/jpeg' WHERE id = $2",
         [newFilename, photo.id]
       );
-      converted++;
+      results.push({ filename: photo.filename, user_id: photo.user_id, status: "converted" });
       console.log(`[heic-convert] Converted: ${photo.filename} → ${newFilename} (user ${photo.user_id})`);
     } catch (err: any) {
       console.error(`[heic-convert] Failed: ${photo.filename} — ${err.message}`);
+      results.push({ filename: photo.filename, user_id: photo.user_id, status: "error", error: err.message });
     }
   }
+  const converted = results.filter(r => r.status === "converted").length;
   console.log(`[heic-convert] Done. Converted ${converted}/${heicPhotos.length}`);
+  return { uploadsDir, dirExists, totalFiles, heicInDb: heicPhotos.length, results };
 }

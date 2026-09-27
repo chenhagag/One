@@ -5421,8 +5421,8 @@ app.post("/admin/users/:id/run-pipeline", async (req, res) => {
 app.post("/admin/convert-heic", async (_req, res) => {
   try {
     const { convertExistingHeicPhotos } = await import("./pipeline/jobRunner");
-    await convertExistingHeicPhotos();
-    return res.json({ ok: true });
+    const result = await convertExistingHeicPhotos();
+    return res.json({ ok: true, ...result });
   } catch (err: any) {
     console.error("[convert-heic]", err.message);
     return res.status(500).json({ error: err.message });
