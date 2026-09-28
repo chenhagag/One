@@ -3345,8 +3345,11 @@ ${footer}`)
 
               const isRating = ratingInProgress === m.id;
 
-              // Can send for user rating
-              const canSendForRating = (m.status === "potential_match" || m.status === "expanded_potential_match" || m.status === "waiting_for_photo" || m.status === "waiting_for_response" || m.status === "waiting_first_rating" || m.status === "waiting_second_rating") && !m.sent_for_rating_at;
+              // Can send for user rating — check lock status
+              const eitherLocked = m.this_user_locked || m.other_user_locked;
+              const lockReason = m.other_user_locked ? (m.other_lock_reason === "in_match" ? "בהתאמה" : "ממתינה לדירוג") : m.this_user_locked ? "נעולה" : null;
+              const ratingEligibleStatus = (m.status === "potential_match" || m.status === "expanded_potential_match" || m.status === "waiting_for_photo" || m.status === "waiting_for_response" || m.status === "waiting_first_rating" || m.status === "waiting_second_rating") && !m.sent_for_rating_at;
+              const canSendForRating = ratingEligibleStatus && !eitherLocked;
               const alreadySent = !!m.sent_for_rating_at;
 
               // Rating labels
@@ -3369,6 +3372,7 @@ ${footer}`)
                     <button style={s.expandBtn} onClick={() => setViewingUserId(m.other_id)}>
                       {m.other_name}
                     </button>
+                    {m.other_user_locked && <span style={{ padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 700, marginRight: 4, background: m.other_lock_reason === "in_match" ? "#dbeafe" : "#fef3c7", color: m.other_lock_reason === "in_match" ? "#1e40af" : "#92400e" }}>{m.other_lock_reason === "in_match" ? "בהתאמה" : "ממתינה לדירוג"}</span>}
                   </td>
                   <td style={s.td}>
                     <span style={msStyle}>{m.status}</span>
@@ -3392,6 +3396,30 @@ ${footer}`)
                           {sendingForRating === m.id ? "..." : "שלח לדירוג"}
                         </button>
                       )}
+                      {ratingEligibleStatus && eitherLocked && (
+                        <span style={{ fontSize: 10, color: "#9ca3af", fontWeight: 600 }}>{lockReason}</span>
+                      )}
+                      {m.status === "pending_second_rating" && (() => {
+                        const raterIsThisUser = (userId === m.user1_id && !m.user1_rating) || (userId === m.user2_id && !m.user2_rating);
+                        const raterLocked = raterIsThisUser ? m.this_user_locked : m.other_user_locked;
+                        const otherInMatch = raterIsThisUser ? (m.other_lock_reason === "in_match") : m.this_user_locked;
+                        const canSend = !raterLocked && !otherInMatch;
+                        return canSend ? (
+                          <button
+                            style={{ padding: "3px 8px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#2563eb", color: "#fff" }}
+                            onClick={async () => {
+                              try {
+                                const r = await apiFetch(`/admin/matches/${m.id}/send-second-rating`, { method: "POST" });
+                                const json = await r.json();
+                                if (!r.ok) alert(json.error || "שגיאה");
+                                loadMatches();
+                              } catch { alert("שגיאת תקשורת"); }
+                            }}
+                          >שלח דירוג שני</button>
+                        ) : (
+                          <span style={{ fontSize: 10, color: "#9ca3af" }}>{raterLocked ? "ממתינה לדירוג" : "בהתאמה"}</span>
+                        );
+                      })()}
                       {canRate && (
                         <>
                           {(["bullseye", "possible", "miss"] as const).map((r) => (
@@ -4841,8 +4869,8 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                       } catch (err: any) { alert("שגיאה: " + err.message); }
                     }}
                   >
-                    {["scored", "potential_match", "expanded_potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
-                      <option key={st} value={st}>{st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st}</option>
+                    {["scored", "potential_match", "expanded_potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "pending_second_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
+                      <option key={st} value={st}>{st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st === "pending_second_rating" ? "ממתין לאישור שני" : st}</option>
                     ))}
                   </select>
                 ) : (
@@ -4932,6 +4960,67 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
             {/* Actions */}
             {matchDetail.match_id && (
               <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16, marginBottom: 16, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                {/* Send rating buttons */}
+                {["potential_match", "expanded_potential_match", "waiting_for_photo", "waiting_for_response"].includes(matchDetail.match_status) && (() => {
+                  const u1Locked = matchDetail.user1_locked;
+                  const u2Locked = matchDetail.user2_locked;
+                  const u1Reason = matchDetail.user1_lock_reason === "in_match" ? "בהתאמה" : "ממתינה לדירוג";
+                  const u2Reason = matchDetail.user2_lock_reason === "in_match" ? "בהתאמה" : "ממתינה לדירוג";
+                  return (
+                    <>
+                      {!u1Locked && !u2Locked ? (
+                        <>
+                          <button style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#7c3aed", color: "#fff" }}
+                            onClick={async () => {
+                              try {
+                                const r = await apiFetch(`/admin/matches/${matchDetail.match_id}/send-for-rating`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user_id: matchDetail.user_id }) });
+                                const json = await r.json();
+                                if (!r.ok) { alert(json.error); return; }
+                                setMatchDetail((prev: any) => prev ? { ...prev, match_status: "waiting_first_rating" } : prev);
+                                load();
+                              } catch { alert("שגיאת תקשורת"); }
+                            }}>שלח דירוג ל{matchDetail.user1_name}</button>
+                          <button style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#7c3aed", color: "#fff" }}
+                            onClick={async () => {
+                              try {
+                                const r = await apiFetch(`/admin/matches/${matchDetail.match_id}/send-for-rating`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user_id: matchDetail.candidate_user_id }) });
+                                const json = await r.json();
+                                if (!r.ok) { alert(json.error); return; }
+                                setMatchDetail((prev: any) => prev ? { ...prev, match_status: "waiting_first_rating" } : prev);
+                                load();
+                              } catch { alert("שגיאת תקשורת"); }
+                            }}>שלח דירוג ל{matchDetail.user2_name}</button>
+                        </>
+                      ) : (
+                        <span style={{ fontSize: 11, color: "#9ca3af" }}>
+                          {u1Locked && <span style={{ padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 700, marginLeft: 4, background: "#fef3c7", color: "#92400e" }}>{matchDetail.user1_name}: {u1Reason}</span>}
+                          {u2Locked && <span style={{ padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 700, marginLeft: 4, background: "#fef3c7", color: "#92400e" }}>{matchDetail.user2_name}: {u2Reason}</span>}
+                        </span>
+                      )}
+                    </>
+                  );
+                })()}
+                {matchDetail.match_status === "pending_second_rating" && (() => {
+                  const raterIsUser1 = !matchDetail.user1_rating;
+                  const raterLocked = raterIsUser1 ? matchDetail.user1_locked : matchDetail.user2_locked;
+                  const otherInMatch = raterIsUser1 ? matchDetail.user2_lock_reason === "in_match" : matchDetail.user1_lock_reason === "in_match";
+                  const raterName = raterIsUser1 ? matchDetail.user1_name : matchDetail.user2_name;
+                  const canSend = !raterLocked && !otherInMatch;
+                  return canSend ? (
+                    <button style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#2563eb", color: "#fff" }}
+                      onClick={async () => {
+                        try {
+                          const r = await apiFetch(`/admin/matches/${matchDetail.match_id}/send-second-rating`, { method: "POST" });
+                          const json = await r.json();
+                          if (!r.ok) { alert(json.error); return; }
+                          setMatchDetail((prev: any) => prev ? { ...prev, match_status: "waiting_second_rating" } : prev);
+                          load();
+                        } catch { alert("שגיאת תקשורת"); }
+                      }}>שלח דירוג שני ל{raterName}</button>
+                  ) : (
+                    <span style={{ fontSize: 11, color: "#9ca3af" }}>{raterLocked ? `${raterName} ממתינה לדירוג` : "הצד שדירג בהתאמה"}</span>
+                  );
+                })()}
                 {matchDetail.match_status === "approved_by_both" && (
                   <button
                     style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#6f42c1", color: "#fff" }}

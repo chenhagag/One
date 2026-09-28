@@ -3401,7 +3401,19 @@ app.get("/admin/users/:id/matches", async (req, res) => {
       m.user1_rating, m.user2_rating, m.sent_for_rating_at, m.sent_for_rating_to, m.rejection_reason, m.rating_admin_seen,
       u.id as other_id, u.first_name as other_name,
       u1.pickiness_score as user1_pickiness,
-      u2.pickiness_score as user2_pickiness
+      u2.pickiness_score as user2_pickiness,
+      -- Lock status for this user and the other user
+      EXISTS(SELECT 1 FROM matches mx WHERE mx.id != m.id AND (mx.user1_id = $1 OR mx.user2_id = $1)
+        AND (mx.status = 'in_match' OR (mx.status IN ('waiting_first_rating', 'waiting_second_rating') AND mx.sent_for_rating_to = $1))
+      ) as this_user_locked,
+      EXISTS(SELECT 1 FROM matches mx WHERE mx.id != m.id AND (mx.user1_id = u.id OR mx.user2_id = u.id)
+        AND (mx.status = 'in_match' OR (mx.status IN ('waiting_first_rating', 'waiting_second_rating') AND mx.sent_for_rating_to = u.id))
+      ) as other_user_locked,
+      (SELECT CASE
+        WHEN EXISTS(SELECT 1 FROM matches mx WHERE mx.id != m.id AND (mx.user1_id = u.id OR mx.user2_id = u.id) AND mx.status = 'in_match') THEN 'in_match'
+        WHEN EXISTS(SELECT 1 FROM matches mx WHERE mx.id != m.id AND (mx.user1_id = u.id OR mx.user2_id = u.id) AND mx.status IN ('waiting_first_rating', 'waiting_second_rating') AND mx.sent_for_rating_to = u.id) THEN 'rating'
+        ELSE NULL END
+      ) as other_lock_reason
     FROM matches m
     JOIN users u ON u.id = CASE WHEN m.user1_id = $1 THEN m.user2_id ELSE m.user1_id END
     JOIN users u1 ON u1.id = m.user1_id
@@ -3645,22 +3657,22 @@ app.get("/admin/candidate-matches", async (_req, res) => {
       u2.blind_match_consent as user2_blind_consent,
       (SELECT filename FROM user_photos WHERE user_id = u1.id ORDER BY is_primary DESC, created_at ASC LIMIT 1) as user1_photo,
       (SELECT filename FROM user_photos WHERE user_id = u2.id ORDER BY is_primary DESC, created_at ASC LIMIT 1) as user2_photo,
-      -- Lock status: user is locked if active rater in waiting_first/second_rating OR in in_match
-      EXISTS(SELECT 1 FROM matches mx WHERE mx.id != COALESCE(m.id, -1) AND (mx.user1_id = u1.id OR mx.user2_id = u1.id)
+      -- Lock status: global (no exclude) for consistent badge display
+      EXISTS(SELECT 1 FROM matches mx WHERE (mx.user1_id = u1.id OR mx.user2_id = u1.id)
         AND (mx.status = 'in_match' OR (mx.status IN ('waiting_first_rating', 'waiting_second_rating') AND mx.sent_for_rating_to = u1.id))
       ) as user1_locked,
-      EXISTS(SELECT 1 FROM matches mx WHERE mx.id != COALESCE(m.id, -1) AND (mx.user1_id = u2.id OR mx.user2_id = u2.id)
+      EXISTS(SELECT 1 FROM matches mx WHERE (mx.user1_id = u2.id OR mx.user2_id = u2.id)
         AND (mx.status = 'in_match' OR (mx.status IN ('waiting_first_rating', 'waiting_second_rating') AND mx.sent_for_rating_to = u2.id))
       ) as user2_locked,
-      -- Lock reason for display
+      -- Lock reason for display (global, no exclude — consistent across rows)
       (SELECT CASE
-        WHEN EXISTS(SELECT 1 FROM matches mx WHERE mx.id != COALESCE(m.id, -1) AND (mx.user1_id = u1.id OR mx.user2_id = u1.id) AND mx.status = 'in_match') THEN 'in_match'
-        WHEN EXISTS(SELECT 1 FROM matches mx WHERE mx.id != COALESCE(m.id, -1) AND (mx.user1_id = u1.id OR mx.user2_id = u1.id) AND mx.status IN ('waiting_first_rating', 'waiting_second_rating') AND mx.sent_for_rating_to = u1.id) THEN 'rating'
+        WHEN EXISTS(SELECT 1 FROM matches mx WHERE (mx.user1_id = u1.id OR mx.user2_id = u1.id) AND mx.status = 'in_match') THEN 'in_match'
+        WHEN EXISTS(SELECT 1 FROM matches mx WHERE (mx.user1_id = u1.id OR mx.user2_id = u1.id) AND mx.status IN ('waiting_first_rating', 'waiting_second_rating') AND mx.sent_for_rating_to = u1.id) THEN 'rating'
         ELSE NULL END
       ) as user1_lock_reason,
       (SELECT CASE
-        WHEN EXISTS(SELECT 1 FROM matches mx WHERE mx.id != COALESCE(m.id, -1) AND (mx.user1_id = u2.id OR mx.user2_id = u2.id) AND mx.status = 'in_match') THEN 'in_match'
-        WHEN EXISTS(SELECT 1 FROM matches mx WHERE mx.id != COALESCE(m.id, -1) AND (mx.user1_id = u2.id OR mx.user2_id = u2.id) AND mx.status IN ('waiting_first_rating', 'waiting_second_rating') AND mx.sent_for_rating_to = u2.id) THEN 'rating'
+        WHEN EXISTS(SELECT 1 FROM matches mx WHERE (mx.user1_id = u2.id OR mx.user2_id = u2.id) AND mx.status = 'in_match') THEN 'in_match'
+        WHEN EXISTS(SELECT 1 FROM matches mx WHERE (mx.user1_id = u2.id OR mx.user2_id = u2.id) AND mx.status IN ('waiting_first_rating', 'waiting_second_rating') AND mx.sent_for_rating_to = u2.id) THEN 'rating'
         ELSE NULL END
       ) as user2_lock_reason
     FROM candidate_matches cm
@@ -3774,6 +3786,12 @@ app.get("/admin/candidate-matches/:id/detail", async (req, res) => {
     }
   }
 
+  // Lock info for both users
+  const user1Locked = await isUserLocked(cm.user_id, cm.match_id ?? -1);
+  const user2Locked = await isUserLocked(cm.candidate_user_id, cm.match_id ?? -1);
+  const user1InMatch = await isUserInMatch(cm.user_id, cm.match_id ?? -1);
+  const user2InMatch = await isUserInMatch(cm.candidate_user_id, cm.match_id ?? -1);
+
   return res.json({
     ...cm,
     user1_photos: user1Photos.map((p: any) => `/uploads/${p.filename}`),
@@ -3783,6 +3801,10 @@ app.get("/admin/candidate-matches/:id/detail", async (req, res) => {
     pending_nudges: pendingNudges,
     match_questions: matchQuestions,
     match_messages: matchMessages,
+    user1_locked: user1Locked,
+    user2_locked: user2Locked,
+    user1_lock_reason: user1InMatch ? "in_match" : user1Locked ? "rating" : null,
+    user2_lock_reason: user2InMatch ? "in_match" : user2Locked ? "rating" : null,
   });
 });
 
@@ -3793,8 +3815,8 @@ app.patch("/admin/matches/:id/status", async (req, res) => {
   const validStatuses = [
     "scored", "potential_match", "expanded_potential_match", "waiting_for_photo", "waiting_for_response",
     "blind_match_candidate",
-    "waiting_first_rating", "waiting_second_rating", "approved_by_both",
-    "pre_match", "in_match", "frozen", "cancelled", "rejected_by_users",
+    "waiting_first_rating", "pending_second_rating", "waiting_second_rating", "approved_by_both",
+    "pre_match", "in_match", "cancelled", "rejected_by_users",
     "approved_acquaintance"
   ];
   if (!status || !validStatuses.includes(status)) {
