@@ -108,6 +108,7 @@ interface User {
   initial_attraction_signal: number | null; // 0–100 scale
   cognitive_score: number | null; // 0–100, normalized
   updated_at: string;
+  toxicity_override: boolean | null; // NULL=auto, FALSE=approved not toxic
 }
 
 interface TraitScore {
@@ -135,13 +136,16 @@ interface LookTrait {
  * Both scores are on the 0–100 scale. Spec threshold "< 0.6" = < 60.
  */
 function passesToxicityCheck(
-  userId: number,
+  user: User,
   getTrait: (uid: number, tid: number) => TraitScore | null,
 ): boolean {
-  const tox = getTrait(userId, TRAIT_IDS.toxicity);
+  // Admin override: toxicity_override=false means approved as not toxic
+  if (user.toxicity_override === false) return true;
+
+  const tox = getTrait(user.id, TRAIT_IDS.toxicity);
   if (tox && tox.score >= TOXICITY_THRESHOLD && tox.confidence >= TOXICITY_CONFIDENCE_THRESHOLD) return false;
 
-  const troll = getTrait(userId, TRAIT_IDS.trollness);
+  const troll = getTrait(user.id, TRAIT_IDS.trollness);
   if (troll && troll.score >= TROLLNESS_THRESHOLD && troll.confidence >= TOXICITY_CONFIDENCE_THRESHOLD) return false;
 
   return true;
@@ -217,7 +221,7 @@ export async function runStage1(_db: Database.Database, options?: { skipMatchabl
            u.desired_age_min, u.desired_age_max, u.age_flexibility,
            u.desired_height_min, u.desired_height_max, u.height_flexibility,
            u.desired_location_range, u.admin_location_override,
-           u.initial_attraction_signal, u.cognitive_score, u.updated_at
+           u.initial_attraction_signal, u.cognitive_score, u.updated_at, u.toxicity_override
     FROM users u
     ${whereClause}
   `);
@@ -257,7 +261,7 @@ export async function runStage1(_db: Database.Database, options?: { skipMatchabl
     lookMap.get(`${uid}:${lid}`) ?? null;
 
   // 3. Filter out toxic / trollish users
-  const users = allCandidateUsers.filter((u) => passesToxicityCheck(u.id, getUserTrait));
+  const users = allCandidateUsers.filter((u) => passesToxicityCheck(u, getUserTrait));
 
   // 4. Load cities + region_adjacency into maps
   const cityRows = await queryAll<{ city_name: string; region: string }>(

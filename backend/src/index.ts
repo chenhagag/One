@@ -2137,7 +2137,7 @@ app.patch("/admin/users/:id", async (req, res) => {
     "marital_status", "has_children", "religion", "smoker", "admin_message", "admin_notes", "admin_location_override",
     "match_card_consent", "match_card_restrictions", "photo_request_sent_at",
     "agent_context", "admin_message_type", "blind_match_consent", "admin_message_match_id",
-    "entry_point", "special_attention", "identity_override",
+    "entry_point", "special_attention", "identity_override", "toxicity_override",
   ];
   const updates: string[] = [];
   const values: any[] = [];
@@ -2457,11 +2457,14 @@ app.get("/admin/users", async (_req, res) => {
     const autoFlags = flagMap.get(u.id) || { flag_toxic: false, flag_troll: false, flag_identity: false };
     // identity_override: NULL=auto, TRUE=forced, FALSE=cleared
     const flag_identity = u.identity_override === true ? true : u.identity_override === false ? false : autoFlags.flag_identity;
+    // toxicity_override: NULL=auto, FALSE=approved not toxic
+    const flag_toxic = u.toxicity_override === false ? false : autoFlags.flag_toxic;
     return {
       ...u,
       waiting_days,
       ...autoFlags,
       flag_identity,
+      flag_toxic,
     };
   });
 
@@ -3712,7 +3715,7 @@ app.get("/admin/candidate-matches", async (_req, res) => {
   }
 
   // Keywords in deal_breakers that trigger special attention
-  const SPECIAL_KEYWORDS = ["מוגבלות", "נכות", "חירש", "כיסא גלגלים", "סיעוד", "א-בינארי", "non-binary", "טרנס"];
+  const SPECIAL_KEYWORDS = ["מוגבלות", "נכות", "חירש", "לקויית שמיעה", "כיסא גלגלים", "סיעוד", "א-בינארי", "non-binary", "טרנס", "קווירית", "פוליאמורית", "BDSM"];
 
   function isAutoSpecial(userId: number, photoFlags: any): boolean {
     const traits = specialMap[userId] || {};

@@ -1559,13 +1559,13 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
             }}
             onClick={async () => {
               const current = user.special_attention;
-              // Cycle: null (auto) → true (force special) → false (force normal) → null
-              const next = current === null || current === undefined ? true : current === true ? false : null;
+              // If flagged (auto or manual) → clear. If cleared → back to auto. If no flag → force.
+              const next = current === true ? false : current === false ? null : true;
               const msg = next === true
-                ? `לסמן את ${user.first_name} כמיוחדת ידנית?`
+                ? `לסמן את ${user.first_name} כמיוחדת?`
                 : next === false
-                ? `להסיר את דגל ״מיוחדת״ מ-${user.first_name}?`
-                : `להחזיר את ${user.first_name} לזיהוי אוטומטי?`;
+                ? `להסיר דגל מיוחדת מ-${user.first_name}?`
+                : `להחזיר לזיהוי אוטומטי?`;
               if (!confirm(msg)) return;
               try {
                 await apiFetch(`/admin/users/${userId}`, {
@@ -1576,7 +1576,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
               } catch { alert("שגיאה"); }
             }}
           >
-            {user.special_attention === true ? "⚠ מיוחדת (ידני) → הסר" : user.special_attention === false ? "✓ רגילה (ידני) → אוטו" : "מיוחדת? → סמן"}
+            {user.special_attention === true ? "⚠ מיוחדת → הסר" : user.special_attention === false ? "רגילה → אוטו" : "סמן מיוחדת"}
           </button>
           <button
             style={{
@@ -1586,12 +1586,14 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
             }}
             onClick={async () => {
               const current = user.identity_override;
-              const next = current === null || current === undefined ? true : current === true ? false : null;
+              const isCurrentlyFlagged = user.flag_identity;
+              // If flagged → clear. If cleared → back to auto. If no flag → force.
+              const next = current === true ? false : current === false ? null : isCurrentlyFlagged ? false : true;
               const msg = next === true
-                ? `לסמן את ${user.first_name} כזהות מיוחדת (ידני)?`
+                ? `לסמן ${user.first_name} כזהות מיוחדת?`
                 : next === false
                 ? `להסיר דגל זהות מ-${user.first_name}?`
-                : `להחזיר את ${user.first_name} לזיהוי זהות אוטומטי?`;
+                : `להחזיר לזיהוי אוטומטי?`;
               if (!confirm(msg)) return;
               try {
                 await apiFetch(`/admin/users/${userId}`, {
@@ -1602,7 +1604,33 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
               } catch { alert("שגיאה"); }
             }}
           >
-            {user.identity_override === true ? "🏳️‍🌈 זהות (ידני) → הסר" : user.identity_override === false ? "✓ רגילה (ידני) → אוטו" : user.flag_identity ? "🏳️‍🌈 זהות (אוטו) → הסר" : "זהות? → סמן"}
+            {user.flag_identity ? (user.identity_override === false ? "רגילה → אוטו" : "🏳️‍🌈 זהות → הסר") : (user.identity_override === false ? "רגילה → אוטו" : "סמן זהות")}
+          </button>
+          <button
+            style={{
+              padding: "4px 12px", fontSize: 12, cursor: "pointer", border: "none", borderRadius: 4,
+              background: user.flag_toxic ? (user.toxicity_override === false ? "#6b7280" : "#dc3545") : "#e5e7eb",
+              color: user.flag_toxic ? "#fff" : "#374151",
+            }}
+            onClick={async () => {
+              const isCurrentlyFlagged = user.flag_toxic;
+              const current = user.toxicity_override;
+              const next = current === false ? null : isCurrentlyFlagged ? false : null;
+              if (next === false) {
+                if (!confirm(`לאשר את ${user.first_name} כלא רעילה? תיכנס למאגר ההתאמות.`)) return;
+              } else {
+                if (!confirm(`להחזיר לזיהוי אוטומטי?`)) return;
+              }
+              try {
+                await apiFetch(`/admin/users/${userId}`, {
+                  method: "PATCH", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ toxicity_override: next }),
+                });
+                loadUserData();
+              } catch { alert("שגיאה"); }
+            }}
+          >
+            {user.flag_toxic ? (user.toxicity_override === false ? "אושרה → אוטו" : "☠ רעילה → אשר") : (user.toxicity_override === false ? "אושרה → אוטו" : "לא רעילה")}
           </button>
           <button
             style={{ padding: "4px 12px", fontSize: 12, cursor: "pointer", background: "#dc3545", color: "#fff", border: "none", borderRadius: 4 }}

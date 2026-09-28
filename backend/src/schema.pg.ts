@@ -1452,5 +1452,14 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
         END IF;
       END $$;
     `);
+
+    // toxicity_override — NULL=auto (from toxicity trait), FALSE=approved as not toxic (overrides high score)
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='toxicity_override') THEN
+          ALTER TABLE users ADD COLUMN toxicity_override BOOLEAN;
+        END IF;
+      END $$;
+    `);
   } catch (e) { /* column may already exist */ }
 }
