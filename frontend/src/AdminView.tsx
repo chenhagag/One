@@ -1553,6 +1553,32 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
             {user.suspected_inactive ? "החזר לפעיל" : "חשוד כלא פעיל"}
           </button>
           <button
+            style={{
+              padding: "4px 12px", fontSize: 12, cursor: "pointer", border: "none", borderRadius: 4,
+              background: user.special_attention === true ? "#28a745" : user.special_attention === false ? "#6b7280" : "#dc2626", color: "#fff",
+            }}
+            onClick={async () => {
+              const current = user.special_attention;
+              // Cycle: null (auto) → true (force special) → false (force normal) → null
+              const next = current === null || current === undefined ? true : current === true ? false : null;
+              const msg = next === true
+                ? `לסמן את ${user.first_name} כמיוחדת ידנית?`
+                : next === false
+                ? `להסיר את דגל ״מיוחדת״ מ-${user.first_name}?`
+                : `להחזיר את ${user.first_name} לזיהוי אוטומטי?`;
+              if (!confirm(msg)) return;
+              try {
+                await apiFetch(`/admin/users/${userId}`, {
+                  method: "PATCH", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ special_attention: next }),
+                });
+                loadUserData();
+              } catch { alert("שגיאה"); }
+            }}
+          >
+            {user.special_attention === true ? "⚠ מיוחדת (ידני) → הסר" : user.special_attention === false ? "✓ רגילה (ידני) → אוטו" : "מיוחדת? → סמן ידנית"}
+          </button>
+          <button
             style={{ padding: "4px 12px", fontSize: 12, cursor: "pointer", background: "#dc3545", color: "#fff", border: "none", borderRadius: 4 }}
             onClick={handleDeleteUser}
           >
@@ -4087,6 +4113,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
   const [filterCmPool, setFilterCmPool] = useState<"all" | "straight" | "ww" | "mm">("all");
   const [filterCmStatus, setFilterCmStatus] = useState<string>("all");
   const [filterCmUser, setFilterCmUser] = useState<string>("");
+  const [filterSpecial, setFilterSpecial] = useState(false);
   const [matchDetail, setMatchDetail] = useState<any>(null);
   const [matchDetailLoading, setMatchDetailLoading] = useState(false);
 
@@ -4341,6 +4368,13 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
         <button style={filterBtnStyle(filterCmPool === "straight")} onClick={() => setFilterCmPool("straight")}>סטרייט ({data.filter((cm: any) => (cm.user1_gender === "man" && cm.user1_looking_for === "woman") || (cm.user1_gender === "woman" && cm.user1_looking_for === "man")).length})</button>
         <button style={filterBtnStyle(filterCmPool === "ww")} onClick={() => setFilterCmPool("ww")}>נשים→נשים ({data.filter((cm: any) => cm.user1_gender === "woman" && cm.user1_looking_for !== "man").length})</button>
         <button style={filterBtnStyle(filterCmPool === "mm")} onClick={() => setFilterCmPool("mm")}>גברים→גברים ({data.filter((cm: any) => cm.user1_gender === "man" && cm.user1_looking_for === "man").length})</button>
+        <span style={{ margin: "0 8px", borderLeft: "1px solid #d1d5db", height: 20 }} />
+        <button
+          style={{ ...filterBtnStyle(filterSpecial), ...(filterSpecial ? { border: "1.5px solid #dc2626", background: "#fef2f2", color: "#dc2626" } : {}) }}
+          onClick={() => setFilterSpecial(!filterSpecial)}
+        >
+          ⚠ מיוחדות ({data.filter((cm: any) => cm.user1_is_special || cm.user2_is_special).length})
+        </button>
       </div>
 
       {/* Status filter */}
@@ -4433,6 +4467,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
             </thead>
             <tbody>
               {[...data].filter((cm: any) => {
+                if (filterSpecial && !cm.user1_is_special && !cm.user2_is_special) return false;
                 if (filterCmPool === "straight") { if (!((cm.user1_gender === "man" && cm.user1_looking_for === "woman") || (cm.user1_gender === "woman" && cm.user1_looking_for === "man"))) return false; }
                 if (filterCmPool === "ww") { if (!(cm.user1_gender === "woman" && cm.user1_looking_for !== "man")) return false; }
                 if (filterCmPool === "mm") { if (!(cm.user1_gender === "man" && cm.user1_looking_for === "man")) return false; }
@@ -4468,6 +4503,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                       {cm.user1_photo && <img src={`/uploads/${cm.user1_photo}`} style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />}
                       <div>
                         <button style={s.expandBtn} onClick={() => setSelectedUserId(cm.user_id)}>{cm.user1_name}</button> ({cm.user1_age}, {cm.user1_city})
+                        {cm.user1_is_special && <span title="דורשת התייחסות מיוחדת" style={{ padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 700, marginRight: 4, background: "#fef2f2", color: "#dc2626" }}>⚠ מיוחדת</span>}
                         {cm.user1_locked && <span style={{ padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 700, marginRight: 4, background: cm.user1_lock_reason === "in_match" ? "#dbeafe" : "#fef3c7", color: cm.user1_lock_reason === "in_match" ? "#1e40af" : "#92400e" }}>{cm.user1_lock_reason === "in_match" ? "בהתאמה" : "ממתינה לדירוג"}</span>}
                         {(cm.user1_cog_count < 5 || cm.user1_taste_count < 5 || cm.user1_photo_count < 1) && (
                           <span title={[cm.user1_cog_count < 5 && "חסר קוגניטיבי", cm.user1_taste_count < 5 && "חסר טעם", cm.user1_photo_count < 1 && "ללא תמונה"].filter(Boolean).join(", ")} style={{ marginRight: 4, color: "#d97706", fontSize: 11, fontWeight: 700 }}>⚠</span>
@@ -4481,6 +4517,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                       {cm.user2_photo && <img src={`/uploads/${cm.user2_photo}`} style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />}
                       <div>
                         <button style={s.expandBtn} onClick={() => setSelectedUserId(cm.candidate_user_id)}>{cm.user2_name}</button> ({cm.user2_age}, {cm.user2_city})
+                        {cm.user2_is_special && <span title="דורשת התייחסות מיוחדת" style={{ padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 700, marginRight: 4, background: "#fef2f2", color: "#dc2626" }}>⚠ מיוחדת</span>}
                         {cm.user2_locked && <span style={{ padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 700, marginRight: 4, background: cm.user2_lock_reason === "in_match" ? "#dbeafe" : "#fef3c7", color: cm.user2_lock_reason === "in_match" ? "#1e40af" : "#92400e" }}>{cm.user2_lock_reason === "in_match" ? "בהתאמה" : "ממתינה לדירוג"}</span>}
                         {(cm.user2_cog_count < 5 || cm.user2_taste_count < 5 || cm.user2_photo_count < 1) && (
                           <span title={[cm.user2_cog_count < 5 && "חסר קוגניטיבי", cm.user2_taste_count < 5 && "חסר טעם", cm.user2_photo_count < 1 && "ללא תמונה"].filter(Boolean).join(", ")} style={{ marginRight: 4, color: "#d97706", fontSize: 11, fontWeight: 700 }}>⚠</span>

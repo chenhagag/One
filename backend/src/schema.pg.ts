@@ -1434,5 +1434,14 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
         END IF;
       END $$;
     `);
+
+    // special_attention — NULL=auto (system decides), TRUE=manually flagged, FALSE=manually cleared
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='special_attention') THEN
+          ALTER TABLE users ADD COLUMN special_attention BOOLEAN;
+        END IF;
+      END $$;
+    `);
   } catch (e) { /* column may already exist */ }
 }

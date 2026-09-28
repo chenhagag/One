@@ -2137,7 +2137,7 @@ app.patch("/admin/users/:id", async (req, res) => {
     "marital_status", "has_children", "religion", "smoker", "admin_message", "admin_notes", "admin_location_override",
     "match_card_consent", "match_card_restrictions", "photo_request_sent_at",
     "agent_context", "admin_message_type", "blind_match_consent", "admin_message_match_id",
-    "entry_point",
+    "entry_point", "special_attention",
   ];
   const updates: string[] = [];
   const values: any[] = [];
@@ -3676,7 +3676,12 @@ app.get("/admin/candidate-matches", async (_req, res) => {
         WHEN EXISTS(SELECT 1 FROM matches mx WHERE (mx.user1_id = u2.id OR mx.user2_id = u2.id) AND mx.status = 'in_match') THEN 'in_match'
         WHEN EXISTS(SELECT 1 FROM matches mx WHERE (mx.user1_id = u2.id OR mx.user2_id = u2.id) AND mx.status IN ('waiting_first_rating', 'waiting_second_rating') AND mx.sent_for_rating_to = u2.id) THEN 'rating'
         ELSE NULL END
-      ) as user2_lock_reason
+      ) as user2_lock_reason,
+      -- Special attention: manual override or auto-detect
+      u1.special_attention as user1_special_attention,
+      u2.special_attention as user2_special_attention,
+      u1.photo_flags as user1_photo_flags,
+      u2.photo_flags as user2_photo_flags
     FROM candidate_matches cm
     JOIN users u1 ON u1.id = cm.user_id
     JOIN users u2 ON u2.id = cm.candidate_user_id
@@ -3684,7 +3689,65 @@ app.get("/admin/candidate-matches", async (_req, res) => {
                         OR (m.user1_id = cm.candidate_user_id AND m.user2_id = cm.user_id)
     ORDER BY cm.profile_score DESC NULLS LAST
   `);
-  return res.json(rows);
+
+  // Batch-load special trait scores (trans, trollness) for auto-detection
+  const allUserIds = [...new Set(rows.flatMap((r: any) => [r.user_id, r.candidate_user_id]))];
+  const specialTraits = allUserIds.length > 0 ? await pgQueryAll<{ user_id: number; internal_name: string; score: number; confidence: number }>(
+    `SELECT ut.user_id, td.internal_name, ut.score, ut.confidence
+     FROM user_traits ut
+     JOIN trait_definitions td ON td.id = ut.trait_definition_id
+     WHERE td.internal_name IN ('trans', 'trollness')
+       AND ut.user_id = ANY($1)`,
+    [allUserIds]
+  ) : [];
+
+  // Build lookup: userId → { trans, trollness }
+  const specialMap: Record<number, { trans?: number; trans_conf?: number; trollness?: number }> = {};
+  for (const t of specialTraits) {
+    if (!specialMap[t.user_id]) specialMap[t.user_id] = {};
+    if (t.internal_name === "trans") { specialMap[t.user_id].trans = t.score; specialMap[t.user_id].trans_conf = t.confidence; }
+    if (t.internal_name === "trollness") specialMap[t.user_id].trollness = t.score;
+  }
+
+  // Keywords in deal_breakers that trigger special attention
+  const SPECIAL_KEYWORDS = ["מוגבלות", "נכות", "חירש", "כיסא גלגלים", "סיעוד", "א-בינארי", "non-binary", "טרנס"];
+
+  function isAutoSpecial(userId: number, photoFlags: any): boolean {
+    const traits = specialMap[userId] || {};
+    if ((traits.trans ?? 0) >= 50 && (traits.trans_conf ?? 0) >= 0.5) return true;
+    if ((traits.trollness ?? 0) >= 50) return true;
+    if (photoFlags) {
+      const flags = typeof photoFlags === "string" ? JSON.parse(photoFlags) : photoFlags;
+      if (flags.not_real_photo || flags.ai_generated || flags.gender_mismatch) return true;
+    }
+    return false;
+  }
+
+  // Also batch-load deal_breakers for keyword check
+  const dealBreakers = allUserIds.length > 0 ? await pgQueryAll<{ id: number; deal_breakers: string | null }>(
+    `SELECT id, deal_breakers FROM users WHERE id = ANY($1) AND deal_breakers IS NOT NULL`,
+    [allUserIds]
+  ) : [];
+  const dbMap: Record<number, string> = {};
+  for (const d of dealBreakers) if (d.deal_breakers) dbMap[d.id] = d.deal_breakers;
+
+  function hasSpecialDealBreakers(userId: number): boolean {
+    const db = dbMap[userId];
+    if (!db) return false;
+    return SPECIAL_KEYWORDS.some(kw => db.includes(kw));
+  }
+
+  // Compute is_special per row
+  const enriched = rows.map((r: any) => {
+    const u1Auto = isAutoSpecial(r.user_id, r.user1_photo_flags) || hasSpecialDealBreakers(r.user_id);
+    const u2Auto = isAutoSpecial(r.candidate_user_id, r.user2_photo_flags) || hasSpecialDealBreakers(r.candidate_user_id);
+    // special_attention: NULL=auto, TRUE=forced, FALSE=override-cleared
+    const u1Special = r.user1_special_attention === true ? true : r.user1_special_attention === false ? false : u1Auto;
+    const u2Special = r.user2_special_attention === true ? true : r.user2_special_attention === false ? false : u2Auto;
+    return { ...r, user1_is_special: u1Special, user2_is_special: u2Special };
+  });
+
+  return res.json(enriched);
 });
 
 // PATCH /admin/candidate-matches/:id/notes — Update admin notes on a candidate match
