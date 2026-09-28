@@ -1443,5 +1443,14 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
         END IF;
       END $$;
     `);
+
+    // identity_override — NULL=auto (from trans trait), TRUE=force identity flag, FALSE=clear identity flag
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='identity_override') THEN
+          ALTER TABLE users ADD COLUMN identity_override BOOLEAN;
+        END IF;
+      END $$;
+    `);
   } catch (e) { /* column may already exist */ }
 }

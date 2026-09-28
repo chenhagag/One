@@ -2137,7 +2137,7 @@ app.patch("/admin/users/:id", async (req, res) => {
     "marital_status", "has_children", "religion", "smoker", "admin_message", "admin_notes", "admin_location_override",
     "match_card_consent", "match_card_restrictions", "photo_request_sent_at",
     "agent_context", "admin_message_type", "blind_match_consent", "admin_message_match_id",
-    "entry_point", "special_attention",
+    "entry_point", "special_attention", "identity_override",
   ];
   const updates: string[] = [];
   const values: any[] = [];
@@ -2434,16 +2434,16 @@ app.get("/admin/users", async (_req, res) => {
     SELECT ut.user_id, td.internal_name, ut.score, ut.confidence
     FROM user_traits ut
     JOIN trait_definitions td ON td.id = ut.trait_definition_id
-    WHERE td.internal_name IN ('toxicity_score', 'trollness', 'sexual_identity')
+    WHERE td.internal_name IN ('toxicity', 'trollness', 'trans')
   `);
 
   const flagMap = new Map<number, { flag_toxic: boolean; flag_troll: boolean; flag_identity: boolean }>();
   for (const t of moderationTraits) {
     if (!flagMap.has(t.user_id)) flagMap.set(t.user_id, { flag_toxic: false, flag_troll: false, flag_identity: false });
     const flags = flagMap.get(t.user_id)!;
-    if (t.internal_name === "toxicity_score" && t.score >= 70 && t.confidence >= 0.6) flags.flag_toxic = true;
+    if (t.internal_name === "toxicity" && t.score >= 70 && t.confidence >= 0.6) flags.flag_toxic = true;
     if (t.internal_name === "trollness" && t.score >= 70 && t.confidence >= 0.6) flags.flag_troll = true;
-    if (t.internal_name === "sexual_identity" && t.score >= 80 && t.confidence >= 0.7) flags.flag_identity = true;
+    if (t.internal_name === "trans" && t.score >= 80 && t.confidence >= 0.7) flags.flag_identity = true;
   }
 
   const now = Date.now();
@@ -2454,12 +2454,14 @@ app.get("/admin/users", async (_req, res) => {
       const ms = now - new Date(u.waiting_since).getTime();
       waiting_days = Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
     }
-    const flags = flagMap.get(u.id) || { flag_toxic: false, flag_troll: false, flag_identity: false };
+    const autoFlags = flagMap.get(u.id) || { flag_toxic: false, flag_troll: false, flag_identity: false };
+    // identity_override: NULL=auto, TRUE=forced, FALSE=cleared
+    const flag_identity = u.identity_override === true ? true : u.identity_override === false ? false : autoFlags.flag_identity;
     return {
       ...u,
-      // JSONB columns come back already parsed
       waiting_days,
-      ...flags,
+      ...autoFlags,
+      flag_identity,
     };
   });
 

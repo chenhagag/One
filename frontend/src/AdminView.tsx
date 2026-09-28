@@ -1129,7 +1129,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   }
 
   // Split traits into visible, internal-use, text (deal_breakers), and deal_breakers
-  const visibleTraits = traits.filter((t: any) => t.calc_type !== "internal_use" && t.calc_type !== "text" && t.internal_name !== "trans");
+  const visibleTraits = traits.filter((t: any) => t.calc_type !== "internal_use" && t.calc_type !== "text");
   const internalTraits = traits.filter((t: any) => t.calc_type === "internal_use");
   const dealBreakers = traits.find((t: any) => t.internal_name === "deal_breakers");
   const advantages = traits.find((t: any) => t.internal_name === "advantages");
@@ -1576,7 +1576,33 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
               } catch { alert("שגיאה"); }
             }}
           >
-            {user.special_attention === true ? "⚠ מיוחדת (ידני) → הסר" : user.special_attention === false ? "✓ רגילה (ידני) → אוטו" : "מיוחדת? → סמן ידנית"}
+            {user.special_attention === true ? "⚠ מיוחדת (ידני) → הסר" : user.special_attention === false ? "✓ רגילה (ידני) → אוטו" : "מיוחדת? → סמן"}
+          </button>
+          <button
+            style={{
+              padding: "4px 12px", fontSize: 12, cursor: "pointer", border: "none", borderRadius: 4,
+              background: user.identity_override === true ? "#6f42c1" : user.identity_override === false ? "#6b7280" : user.flag_identity ? "#6f42c1" : "#e5e7eb",
+              color: user.identity_override === false ? "#fff" : user.flag_identity || user.identity_override === true ? "#fff" : "#374151",
+            }}
+            onClick={async () => {
+              const current = user.identity_override;
+              const next = current === null || current === undefined ? true : current === true ? false : null;
+              const msg = next === true
+                ? `לסמן את ${user.first_name} כזהות מיוחדת (ידני)?`
+                : next === false
+                ? `להסיר דגל זהות מ-${user.first_name}?`
+                : `להחזיר את ${user.first_name} לזיהוי זהות אוטומטי?`;
+              if (!confirm(msg)) return;
+              try {
+                await apiFetch(`/admin/users/${userId}`, {
+                  method: "PATCH", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ identity_override: next }),
+                });
+                loadUserData();
+              } catch { alert("שגיאה"); }
+            }}
+          >
+            {user.identity_override === true ? "🏳️‍🌈 זהות (ידני) → הסר" : user.identity_override === false ? "✓ רגילה (ידני) → אוטו" : user.flag_identity ? "🏳️‍🌈 זהות (אוטו) → הסר" : "זהות? → סמן"}
           </button>
           <button
             style={{ padding: "4px 12px", fontSize: 12, cursor: "pointer", background: "#dc3545", color: "#fff", border: "none", borderRadius: 4 }}
