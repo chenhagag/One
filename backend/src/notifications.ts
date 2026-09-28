@@ -76,9 +76,9 @@ export async function notifyUser(
   userId: number,
   payload: NotifyPayload
 ): Promise<NotifyResult> {
-  // Block ALL notifications in non-production environments
-  if (process.env.NODE_ENV !== "production") {
-    console.log(`[notifications] BLOCKED (not production) user=${userId} event=${payload.event_type}`);
+  // Block ALL notifications in non-production and staging environments
+  if (process.env.NODE_ENV !== "production" || process.env.STAGING_URL) {
+    console.log(`[notifications] BLOCKED (non-prod or staging) user=${userId} event=${payload.event_type}`);
     return { channel: "none", success: false, error: "blocked_non_production" };
   }
 
@@ -128,9 +128,9 @@ export async function sendPushOnly(
   userId: number,
   payload: NotifyPayload
 ): Promise<NotifyResult> {
-  // Block ALL notifications in non-production environments
-  if (process.env.NODE_ENV !== "production") {
-    console.log(`[notifications] BLOCKED (not production) user=${userId} event=${payload.event_type}`);
+  // Block ALL notifications in non-production and staging environments
+  if (process.env.NODE_ENV !== "production" || process.env.STAGING_URL) {
+    console.log(`[notifications] BLOCKED (non-prod or staging) user=${userId} event=${payload.event_type}`);
     return { channel: "none", success: false, error: "blocked_non_production" };
   }
 

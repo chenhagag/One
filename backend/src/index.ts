@@ -2125,6 +2125,7 @@ app.get("/users/:id/couple-insights", requireUserAuth, async (req, res) => {
 // PATCH /admin/users/:id — Update user fields (admin)
 app.patch("/admin/users/:id", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
+  const existingUser = await pgQueryOne<{ admin_message_sent_at: string | null }>("SELECT admin_message_sent_at FROM users WHERE id = $1", [userId]);
   const allowed = [
     "partner_name", "test_user_type", "first_name", "couple_insights",
     "personal_insights_short", "personal_insights_full", "analysis_completed", "insights_pre_completion",
@@ -2195,8 +2196,9 @@ app.patch("/admin/users/:id", async (req, res) => {
   values.push(userId);
   await pgQueryAll(`UPDATE users SET ${updates.join(", ")}, updated_at = NOW() WHERE id = $${i}`, values);
 
-  // Notify user when admin sets a new message/question (non-blocking)
-  if ("admin_message" in req.body && req.body.admin_message) {
+  // Notify user when admin sets a NEW message (not an edit of existing one)
+  const isNewAdminMessage = "admin_message" in req.body && req.body.admin_message && !existingUser?.admin_message_sent_at;
+  if (isNewAdminMessage) {
     const msgType = req.body.admin_message_type || "info";
     const matchLinked = !!req.body.admin_message_match_id;
     notifyAdminMessage(userId, msgType, req.body.admin_message, matchLinked).catch(() => {});
