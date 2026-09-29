@@ -3862,6 +3862,17 @@ app.get("/admin/candidate-matches/:id/detail", async (req, res) => {
   const user1InMatch = await isUserInMatch(cm.user_id, cm.match_id ?? -1);
   const user2InMatch = await isUserInMatch(cm.candidate_user_id, cm.match_id ?? -1);
 
+  // Femininity preference (desired_value on femininity_masculinity look trait)
+  const femPref = await pgQueryAll<{ user_id: number; personal_value: string | null; desired_value: string | null }>(
+    `SELECT ult.user_id, ult.personal_value, ult.desired_value
+     FROM user_look_traits ult
+     JOIN look_trait_definitions ltd ON ltd.id = ult.look_trait_definition_id
+     WHERE ltd.internal_name = 'femininity_masculinity' AND ult.user_id IN ($1, $2)`,
+    [cm.user_id, cm.candidate_user_id]
+  );
+  const u1Fem = femPref.find(f => f.user_id === cm.user_id);
+  const u2Fem = femPref.find(f => f.user_id === cm.candidate_user_id);
+
   return res.json({
     ...cm,
     user1_photos: user1Photos.map((p: any) => `/uploads/${p.filename}`),
@@ -3875,6 +3886,10 @@ app.get("/admin/candidate-matches/:id/detail", async (req, res) => {
     user2_locked: user2Locked,
     user1_lock_reason: user1InMatch ? "in_match" : user1Locked ? "rating" : null,
     user2_lock_reason: user2InMatch ? "in_match" : user2Locked ? "rating" : null,
+    user1_fem_personal: u1Fem?.personal_value ? Number(u1Fem.personal_value) : null,
+    user1_fem_desired: u1Fem?.desired_value ? Number(u1Fem.desired_value) : null,
+    user2_fem_personal: u2Fem?.personal_value ? Number(u2Fem.personal_value) : null,
+    user2_fem_desired: u2Fem?.desired_value ? Number(u2Fem.desired_value) : null,
   });
 });
 

@@ -2978,6 +2978,8 @@ ${footer}`)
             {manualLookTraits.map((lt: any) => {
               const id = lt.look_trait_definition_id;
               const val = getLookTraitEditValue(lt);
+              const isFem = lt.internal_name === "femininity_masculinity";
+              const desiredVal = lt.desired_value ? Number(lt.desired_value) : null;
               return (
                 <div key={id} style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 130 }}>
                   <label style={{ fontSize: 11, fontWeight: 600, color: "#555" }}>
@@ -2990,6 +2992,11 @@ ${footer}`)
                     placeholder="1-100"
                     style={{ ...s.configInput, width: 70 }}
                   />
+                  {isFem && desiredVal != null && (
+                    <span style={{ fontSize: 10, color: desiredVal < 35 ? "#ec4899" : desiredVal > 65 ? "#6366f1" : "#888", fontWeight: 600 }}>
+                      מעדיפה: {desiredVal < 35 ? "נשית" : desiredVal > 65 ? "גברית" : "ללא העדפה"} ({desiredVal})
+                    </span>
+                  )}
                 </div>
               );
             })}
@@ -5015,8 +5022,8 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
             {/* Two user cards side by side */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
               {[
-                { name: matchDetail.user1_name, age: matchDetail.user1_age, city: matchDetail.user1_city, gender: matchDetail.user1_gender, lookingFor: matchDetail.user1_looking_for, notes: matchDetail.user1_admin_notes, photos: matchDetail.user1_photos, traits: matchDetail.user1_traits, cogScore: matchDetail.user1_cognitive_score, height: matchDetail.user1_height, smoker: matchDetail.user1_smoker, hasChildren: matchDetail.user1_has_children, maritalStatus: matchDetail.user1_marital_status, religion: matchDetail.user1_religion, desiredAgeMin: matchDetail.user1_desired_age_min, desiredAgeMax: matchDetail.user1_desired_age_max, desiredHeightMin: matchDetail.user1_desired_height_min, desiredHeightMax: matchDetail.user1_desired_height_max, desiredLocation: matchDetail.user1_desired_location_range, rating: matchDetail.user1_rating, dealBreakers: matchDetail.user1_deal_breakers },
-                { name: matchDetail.user2_name, age: matchDetail.user2_age, city: matchDetail.user2_city, gender: matchDetail.user2_gender, lookingFor: matchDetail.user2_looking_for, notes: matchDetail.user2_admin_notes, photos: matchDetail.user2_photos, traits: matchDetail.user2_traits, cogScore: matchDetail.user2_cognitive_score, height: matchDetail.user2_height, smoker: matchDetail.user2_smoker, hasChildren: matchDetail.user2_has_children, maritalStatus: matchDetail.user2_marital_status, religion: matchDetail.user2_religion, desiredAgeMin: matchDetail.user2_desired_age_min, desiredAgeMax: matchDetail.user2_desired_age_max, desiredHeightMin: matchDetail.user2_desired_height_min, desiredHeightMax: matchDetail.user2_desired_height_max, desiredLocation: matchDetail.user2_desired_location_range, rating: matchDetail.user2_rating, dealBreakers: matchDetail.user2_deal_breakers },
+                { name: matchDetail.user1_name, age: matchDetail.user1_age, city: matchDetail.user1_city, gender: matchDetail.user1_gender, lookingFor: matchDetail.user1_looking_for, notes: matchDetail.user1_admin_notes, photos: matchDetail.user1_photos, traits: matchDetail.user1_traits, cogScore: matchDetail.user1_cognitive_score, height: matchDetail.user1_height, smoker: matchDetail.user1_smoker, hasChildren: matchDetail.user1_has_children, maritalStatus: matchDetail.user1_marital_status, religion: matchDetail.user1_religion, desiredAgeMin: matchDetail.user1_desired_age_min, desiredAgeMax: matchDetail.user1_desired_age_max, desiredHeightMin: matchDetail.user1_desired_height_min, desiredHeightMax: matchDetail.user1_desired_height_max, desiredLocation: matchDetail.user1_desired_location_range, rating: matchDetail.user1_rating, dealBreakers: matchDetail.user1_deal_breakers, femPersonal: matchDetail.user1_fem_personal, femDesired: matchDetail.user1_fem_desired },
+                { name: matchDetail.user2_name, age: matchDetail.user2_age, city: matchDetail.user2_city, gender: matchDetail.user2_gender, lookingFor: matchDetail.user2_looking_for, notes: matchDetail.user2_admin_notes, photos: matchDetail.user2_photos, traits: matchDetail.user2_traits, cogScore: matchDetail.user2_cognitive_score, height: matchDetail.user2_height, smoker: matchDetail.user2_smoker, hasChildren: matchDetail.user2_has_children, maritalStatus: matchDetail.user2_marital_status, religion: matchDetail.user2_religion, desiredAgeMin: matchDetail.user2_desired_age_min, desiredAgeMax: matchDetail.user2_desired_age_max, desiredHeightMin: matchDetail.user2_desired_height_min, desiredHeightMax: matchDetail.user2_desired_height_max, desiredLocation: matchDetail.user2_desired_location_range, rating: matchDetail.user2_rating, dealBreakers: matchDetail.user2_deal_breakers, femPersonal: matchDetail.user2_fem_personal, femDesired: matchDetail.user2_fem_desired },
               ].map((u, i) => (
                 <div key={i} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16 }}>
                   {u.photos && u.photos.length > 0 && (
@@ -5037,6 +5044,13 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                   {u.rating && (
                     <p style={{ margin: "0 0 4px", fontSize: 12, fontWeight: 600, color: u.rating === "bullseye" ? "#28a745" : u.rating === "possible" ? "#d97706" : u.rating === "miss" ? "#dc3545" : "#6b7280" }}>
                       דירוג: {u.rating === "bullseye" ? "✅ בול" : u.rating === "possible" ? "🟡 אפשרי" : u.rating === "miss" ? "❌ לא" : u.rating === "known_person" ? "👤 מכיר/ה" : u.rating}
+                    </p>
+                  )}
+                  {(u.femPersonal != null || u.femDesired != null) && (
+                    <p style={{ margin: "0 0 4px", fontSize: 11 }}>
+                      {u.femPersonal != null && <span style={{ color: "#6b7280" }}>נשיות: <strong>{u.femPersonal}</strong></span>}
+                      {u.femPersonal != null && u.femDesired != null && <span style={{ color: "#ccc" }}> | </span>}
+                      {u.femDesired != null && <span style={{ color: u.femDesired < 35 ? "#ec4899" : u.femDesired > 65 ? "#6366f1" : "#888", fontWeight: 600 }}>מעדיפה: {u.femDesired < 35 ? "נשית" : u.femDesired > 65 ? "גברית" : "ללא העדפה"} ({u.femDesired})</span>}
                     </p>
                   )}
                   {u.notes && <p style={{ margin: "0 0 8px", fontSize: 12, background: "#fffbeb", padding: "6px 8px", borderRadius: 4, whiteSpace: "pre-wrap" }}>{u.notes}</p>}
