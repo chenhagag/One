@@ -2993,8 +2993,8 @@ ${footer}`)
                     style={{ ...s.configInput, width: 70 }}
                   />
                   {isFem && desiredVal != null && (
-                    <span style={{ fontSize: 10, color: desiredVal < 35 ? "#ec4899" : desiredVal > 65 ? "#6366f1" : "#888", fontWeight: 600 }}>
-                      מעדיפה: {desiredVal < 35 ? "נשית" : desiredVal > 65 ? "גברית" : "ללא העדפה"} ({desiredVal})
+                    <span style={{ fontSize: 10, color: desiredVal > 65 ? "#ec4899" : desiredVal < 35 ? "#6366f1" : "#888", fontWeight: 600 }}>
+                      מעדיפה: {desiredVal > 65 ? "נשית" : desiredVal < 35 ? "גברית" : "ללא העדפה"} ({desiredVal})
                     </span>
                   )}
                 </div>
@@ -4429,9 +4429,8 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
           const actionableCount = data.filter((cm: any) => {
             if (cm.user1_gender !== "woman" || cm.user1_looking_for === "man") return false;
             if (cm.match_status !== "potential_match") return false;
-            if (cm.user1_lock_reason === "in_match" || cm.user2_lock_reason === "in_match") return false;
+            if (cm.user1_locked || cm.user2_locked) return false;
             if (cm.user1_is_special || cm.user2_is_special) return false;
-            if (cm.user1_locked && cm.user2_locked) return false;
             return true;
           }).length;
           return (
@@ -5050,7 +5049,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                     <p style={{ margin: "0 0 4px", fontSize: 11 }}>
                       {u.femPersonal != null && <span style={{ color: "#6b7280" }}>נשיות: <strong>{u.femPersonal}</strong></span>}
                       {u.femPersonal != null && u.femDesired != null && <span style={{ color: "#ccc" }}> | </span>}
-                      {u.femDesired != null && <span style={{ color: u.femDesired < 35 ? "#ec4899" : u.femDesired > 65 ? "#6366f1" : "#888", fontWeight: 600 }}>מעדיפה: {u.femDesired < 35 ? "נשית" : u.femDesired > 65 ? "גברית" : "ללא העדפה"} ({u.femDesired})</span>}
+                      {u.femDesired != null && <span style={{ color: u.femDesired > 65 ? "#ec4899" : u.femDesired < 35 ? "#6366f1" : "#888", fontWeight: 600 }}>מעדיפה: {u.femDesired > 65 ? "נשית" : u.femDesired < 35 ? "גברית" : "ללא העדפה"} ({u.femDesired})</span>}
                     </p>
                   )}
                   {u.notes && <p style={{ margin: "0 0 8px", fontSize: 12, background: "#fffbeb", padding: "6px 8px", borderRadius: 4, whiteSpace: "pre-wrap" }}>{u.notes}</p>}
