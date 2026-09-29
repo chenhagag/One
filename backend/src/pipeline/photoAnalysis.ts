@@ -39,7 +39,7 @@ export interface PhotoAnalysisResult {
 const NUMERIC_TRAITS = [
   { name: "appeal", description: "Overall physical attractiveness / visual appeal. 0 = very low, 100 = very high." },
   { name: "fitness_aesthetic", description: "Apparent fitness level and body composition. 0 = no visible fitness, 100 = very athletic/fit." },
-  { name: "femininity_masculinity", description: "Gender expression on a spectrum. 0 = very feminine, 100 = very masculine." },
+  { name: "femininity_masculinity", description: "Gender expression on a spectrum, calibrated for WW (women-seeking-women) context. In this community, 'masculine' means a distinctly butch/tomboyish look (short hair, masculine clothing, no makeup, androgynous or male-presenting). A woman with a standard/conventional feminine appearance should score 60-70 (not 30-40). Very glamorous/hyperfeminine = 80-95. Truly androgynous = 45-55. Distinctly butch/masculine = 10-30. 0 = very masculine/butch, 100 = very feminine/glamorous." },
   { name: "warmth_visual", description: "How warm, friendly, and approachable the person appears. 0 = cold/distant, 100 = very warm/inviting." },
   { name: "glamour", description: "Level of polished, glamorous appearance. 0 = casual/plain, 100 = very glamorous." },
   { name: "naturalness", description: "How natural vs. made-up the person appears. 0 = heavily styled/made-up, 100 = very natural." },
@@ -137,7 +137,7 @@ ${categoricalDesc}
 Important:
 - Assess based on ALL provided photos together (they show the same person).
 - If a trait cannot be determined from the photos, use your best estimate.
-- For femininity_masculinity, calibrate based on the person's apparent gender expression.
+- For femininity_masculinity, calibrate for WW (lesbian/queer) context: a "regular-looking" woman is feminine (60-70), not neutral. Reserve low scores (below 40) for distinctly butch/masculine presentation.
 - The verification fields are critical for safety — be strict and honest.
 - Return ONLY valid JSON. No markdown, no explanation, no wrapping.`;
 
