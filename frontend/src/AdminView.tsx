@@ -4558,9 +4558,8 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                 if (cmView === "actionable") {
                   if (cm.user1_gender !== "woman" || cm.user1_looking_for === "man") return false;
                   if (cm.match_status !== "potential_match") return false;
-                  if (cm.user1_lock_reason === "in_match" || cm.user2_lock_reason === "in_match") return false;
+                  if (cm.user1_locked || cm.user2_locked) return false;
                   if (cm.user1_is_special || cm.user2_is_special) return false;
-                  if (cm.user1_locked && cm.user2_locked) return false;
                 } else {
                   if (filterSpecial && !cm.user1_is_special && !cm.user2_is_special) return false;
                   if (filterCmPool === "straight") { if (!((cm.user1_gender === "man" && cm.user1_looking_for === "woman") || (cm.user1_gender === "woman" && cm.user1_looking_for === "man"))) return false; }
