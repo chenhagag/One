@@ -4164,6 +4164,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
   const [cardSending, setCardSending] = useState(false);
   const [cardEditing, setCardEditing] = useState(false);
   const [editData, setEditData] = useState<any>(null);
+  const [cmView, setCmView] = useState<"actionable" | "all">("actionable");
   const [filterCmPool, setFilterCmPool] = useState<"all" | "straight" | "ww" | "mm">("all");
   const [filterCmStatus, setFilterCmStatus] = useState<string>("all");
   const [filterCmUser, setFilterCmUser] = useState<string>("");
@@ -4415,8 +4416,38 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
         )}
       </div>
 
-      {/* Pool filter */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 12, alignItems: "center" }}>
+      {/* View tabs */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, borderBottom: "2px solid #e5e7eb", paddingBottom: 8 }}>
+        {(() => {
+          const actionableCount = data.filter((cm: any) => {
+            if (cm.user1_gender !== "woman" || cm.user1_looking_for === "man") return false;
+            if (cm.match_status !== "potential_match") return false;
+            if (cm.user1_lock_reason === "in_match" || cm.user2_lock_reason === "in_match") return false;
+            if (cm.user1_is_special || cm.user2_is_special) return false;
+            if (cm.user1_locked && cm.user2_locked) return false;
+            return true;
+          }).length;
+          return (
+            <>
+              <button
+                onClick={() => setCmView("actionable")}
+                style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, border: "none", borderRadius: "6px 6px 0 0", cursor: "pointer", background: cmView === "actionable" ? "#6366f1" : "#f3f4f6", color: cmView === "actionable" ? "#fff" : "#6b7280" }}
+              >
+                התאמות על הפרק ({actionableCount})
+              </button>
+              <button
+                onClick={() => setCmView("all")}
+                style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, border: "none", borderRadius: "6px 6px 0 0", cursor: "pointer", background: cmView === "all" ? "#6366f1" : "#f3f4f6", color: cmView === "all" ? "#fff" : "#6b7280" }}
+              >
+                כל ההתאמות ({data.length})
+              </button>
+            </>
+          );
+        })()}
+      </div>
+
+      {/* Pool filter — only in "all" view */}
+      {cmView === "all" && <div style={{ display: "flex", gap: 6, marginBottom: 12, alignItems: "center" }}>
         <span style={{ fontSize: 12, color: "#6b7280" }}>מאגר:</span>
         <button style={filterBtnStyle(filterCmPool === "all")} onClick={() => setFilterCmPool("all")}>הכל ({data.length})</button>
         <button style={filterBtnStyle(filterCmPool === "straight")} onClick={() => setFilterCmPool("straight")}>סטרייט ({data.filter((cm: any) => (cm.user1_gender === "man" && cm.user1_looking_for === "woman") || (cm.user1_gender === "woman" && cm.user1_looking_for === "man")).length})</button>
@@ -4429,9 +4460,10 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
         >
           ⚠ מיוחדות ({data.filter((cm: any) => cm.user1_is_special || cm.user2_is_special).length})
         </button>
-      </div>
+      </div>}
 
-      {/* Status filter */}
+      {/* Status filter — only in "all" view */}
+      {cmView === "all" && <>
       <div style={{ display: "flex", gap: 6, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, color: "#6b7280" }}>סטטוס:</span>
         {["all", "potential_match", "expanded_potential_match", "blind_match_candidate", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "pending_second_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "cancelled_by_user", "cancelled_by_system", "rejected_by_users", "no_match"].map(st => {
@@ -4465,6 +4497,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
           </button>
         )}
       </div>
+      </>}
 
       {/* User filter */}
       <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
@@ -4521,15 +4554,24 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
             </thead>
             <tbody>
               {[...data].filter((cm: any) => {
-                if (filterSpecial && !cm.user1_is_special && !cm.user2_is_special) return false;
-                if (filterCmPool === "straight") { if (!((cm.user1_gender === "man" && cm.user1_looking_for === "woman") || (cm.user1_gender === "woman" && cm.user1_looking_for === "man"))) return false; }
-                if (filterCmPool === "ww") { if (!(cm.user1_gender === "woman" && cm.user1_looking_for !== "man")) return false; }
-                if (filterCmPool === "mm") { if (!(cm.user1_gender === "man" && cm.user1_looking_for === "man")) return false; }
-                if (filterCmStatus !== "all") {
-                  if (filterCmStatus === "no_match") { if (cm.match_status) return false; }
-                  else if (filterCmStatus === "cancelled_by_user") { if (!(cm.match_status === "cancelled" && cm.cancelled_by)) return false; }
-                  else if (filterCmStatus === "cancelled_by_system") { if (!(cm.match_status === "cancelled" && !cm.cancelled_by)) return false; }
-                  else { if (cm.match_status !== filterCmStatus) return false; }
+                // "Actionable" view: WW, potential_match, no in_match, no special, at least one not locked
+                if (cmView === "actionable") {
+                  if (cm.user1_gender !== "woman" || cm.user1_looking_for === "man") return false;
+                  if (cm.match_status !== "potential_match") return false;
+                  if (cm.user1_lock_reason === "in_match" || cm.user2_lock_reason === "in_match") return false;
+                  if (cm.user1_is_special || cm.user2_is_special) return false;
+                  if (cm.user1_locked && cm.user2_locked) return false;
+                } else {
+                  if (filterSpecial && !cm.user1_is_special && !cm.user2_is_special) return false;
+                  if (filterCmPool === "straight") { if (!((cm.user1_gender === "man" && cm.user1_looking_for === "woman") || (cm.user1_gender === "woman" && cm.user1_looking_for === "man"))) return false; }
+                  if (filterCmPool === "ww") { if (!(cm.user1_gender === "woman" && cm.user1_looking_for !== "man")) return false; }
+                  if (filterCmPool === "mm") { if (!(cm.user1_gender === "man" && cm.user1_looking_for === "man")) return false; }
+                  if (filterCmStatus !== "all") {
+                    if (filterCmStatus === "no_match") { if (cm.match_status) return false; }
+                    else if (filterCmStatus === "cancelled_by_user") { if (!(cm.match_status === "cancelled" && cm.cancelled_by)) return false; }
+                    else if (filterCmStatus === "cancelled_by_system") { if (!(cm.match_status === "cancelled" && !cm.cancelled_by)) return false; }
+                    else { if (cm.match_status !== filterCmStatus) return false; }
+                  }
                 }
                 if (filterCmUser.trim()) {
                   const q = filterCmUser.trim().toLowerCase();
