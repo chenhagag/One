@@ -756,7 +756,7 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
     desired_height_min, desired_height_max, height_flexibility,
     desired_location_range,
     marital_status, has_children, religion, smoker,
-    partner_name, test_user_type, consent_accepted, photo_ai_consent,
+    partner_name, partner_email, test_user_type, consent_accepted, photo_ai_consent,
     email_updates, whatsapp_updates, whatsapp_phone,
     match_card_consent, match_card_restrictions,
     self_frozen, push_notifications,
@@ -824,6 +824,7 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
   if (religion !== undefined)              push("religion", religion);
   if (smoker !== undefined)                push("smoker", smoker);
   if (partner_name !== undefined)          push("partner_name", partner_name);
+  if (partner_email !== undefined)        push("partner_email", partner_email);
   if (test_user_type !== undefined)       push("test_user_type", test_user_type);
   if (consent_accepted !== undefined)     push("consent_accepted", consent_accepted);
   if (photo_ai_consent !== undefined)     push("photo_ai_consent", photo_ai_consent);
@@ -2127,7 +2128,7 @@ app.patch("/admin/users/:id", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const existingUser = await pgQueryOne<{ admin_message_sent_at: string | null }>("SELECT admin_message_sent_at FROM users WHERE id = $1", [userId]);
   const allowed = [
-    "partner_name", "test_user_type", "first_name", "couple_insights",
+    "partner_name", "partner_email", "test_user_type", "first_name", "couple_insights",
     "personal_insights_short", "personal_insights_full", "analysis_completed", "insights_pre_completion",
     "age", "gender", "looking_for_gender", "city", "height",
     "self_style", "desired_age_min", "desired_age_max", "age_flexibility",

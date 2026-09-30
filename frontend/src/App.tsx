@@ -10,6 +10,7 @@ import AuthScreen from "./AuthScreen";
 import AuthCallback from "./AuthCallback";
 import ProfileSetup from "./ProfileSetup";
 import ConsentScreen from "./ConsentScreen";
+import CoupleWelcome from "./CoupleWelcome";
 import SurveyPage from "./SurveyPage";
 import SurveyPage2 from "./SurveyPage2";
 import { supabase } from "./lib/supabase";
@@ -34,6 +35,7 @@ type View =
   | "auth_callback"
   | "profile_setup"
   | "consent"
+  | "couple_welcome"
   | "survey"
   | "survey2";
 
@@ -282,6 +284,12 @@ export default function App() {
       console.log("[entryPoint] → main (from URL)");
       return "main";
     }
+    if (path.startsWith("/couples")) {
+      localStorage.setItem("one_entry_point", "couples");
+      window.history.replaceState({}, "", "/");
+      console.log("[entryPoint] → couples (from URL)");
+      return "couples";
+    }
     // Default (/ or /forwomen) = forwomen — always override localStorage
     if (path === "/" || path.startsWith("/forwomen")) {
       localStorage.setItem("one_entry_point", "forwomen");
@@ -311,6 +319,7 @@ export default function App() {
         auth_callback: "התחברות — חזרה",
         profile_setup: "נתוני פתיחה",
         consent: "הסכמה לתנאים",
+        couple_welcome: "ברוכות הבאות — זוגות",
         survey: "סקר",
         survey2: "סקר משתמשות",
       };
@@ -550,6 +559,12 @@ export default function App() {
   function handleProfileSetupComplete(u: User) {
     saveSession(u);
     setUser(u);
+    setView(entryPoint === "couples" ? "couple_welcome" : "consent");
+  }
+
+  function handleCoupleWelcomeComplete(u: User) {
+    saveSession(u);
+    setUser(u);
     setView("consent");
   }
 
@@ -569,7 +584,7 @@ export default function App() {
   }
 
   // Hide header in full-screen views
-  const showHeader = view !== "landing" && view !== "admin" && view !== "welcome" && view !== "new_chat" && view !== "insights" && view !== "auth" && view !== "auth_callback" && view !== "profile_setup" && view !== "survey" && view !== "survey2";
+  const showHeader = view !== "landing" && view !== "admin" && view !== "welcome" && view !== "new_chat" && view !== "insights" && view !== "auth" && view !== "auth_callback" && view !== "profile_setup" && view !== "couple_welcome" && view !== "survey" && view !== "survey2";
 
   return (
     <ErrorBoundary>
@@ -603,6 +618,11 @@ export default function App() {
       {/* Profile setup — after first OAuth sign-in */}
       {view === "profile_setup" && user && (
         <ProfileSetup user={user} onComplete={handleProfileSetupComplete} entryPoint={entryPoint} />
+      )}
+
+      {/* Couple welcome — after profile setup for couple testers */}
+      {view === "couple_welcome" && user && (
+        <CoupleWelcome user={user} onComplete={handleCoupleWelcomeComplete} />
       )}
 
       {/* Consent — after profile setup, before entering app */}

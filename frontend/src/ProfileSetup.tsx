@@ -23,6 +23,7 @@ interface ProfileSetupProps {
 
 export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSetupProps) {
   const isForWomen = entryPoint !== "main";
+  const isCouples = entryPoint === "couples";
   // Don't pre-fill from user object — let user type their own name
   const [firstName, setFirstName] = useState("");
   const [age, setAge] = useState("");
@@ -38,7 +39,7 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
   const [desiredHeightMax, setDesiredHeightMax] = useState("");
   const [heightFlex, setHeightFlex] = useState("slightly_flexible");
   const [locationRange, setLocationRange] = useState("bit_further");
-  const [testUserType, setTestUserType] = useState("User Experience Tester");
+  const [testUserType, setTestUserType] = useState(isCouples ? "Couple Tester" : "User Experience Tester");
   const [partnerName, setPartnerName] = useState("");
   const [emailUpdates, setEmailUpdates] = useState(true);
   const [whatsappUpdates, setWhatsappUpdates] = useState(isForWomen ? true : false);

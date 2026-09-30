@@ -313,6 +313,12 @@ export default function AuthScreen({ onOtpSuccess, notice, entryPoint }: AuthScr
           >
             {isForWomen ? "המשיכי לאפליקציה" : "המשך לאפליקציה"}
           </button>
+          {isForWomen && (
+            <p style={{ fontSize: 13, color: "#888", textAlign: "center", margin: "20px 0 0", lineHeight: 1.7 }}>
+              בזוגיות ורוצה לעזור לנו לאמן את One?{" "}
+              <a href="/couples" style={{ color: "#8b7ba8", fontWeight: 600, textDecoration: "underline" }}>כנסי לכאן</a>
+            </p>
+          )}
           <p style={{ fontSize: 13, color: "#999", textAlign: "center", margin: "16px 0 0", letterSpacing: 0.5 }}>
             One - Meet, as you are.
           </p>

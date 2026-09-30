@@ -125,6 +125,7 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       selected_guide            TEXT,
       test_user_type            TEXT,
       partner_name              TEXT,
+      partner_email             TEXT,
       created_at                TIMESTAMPTZ DEFAULT NOW(),
       updated_at                TIMESTAMPTZ DEFAULT NOW()
     );
@@ -1458,6 +1459,15 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       DO $$ BEGIN
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='toxicity_override') THEN
           ALTER TABLE users ADD COLUMN toxicity_override BOOLEAN;
+        END IF;
+      END $$;
+    `);
+
+    // partner_email — email of couple tester's partner (for linking)
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='partner_email') THEN
+          ALTER TABLE users ADD COLUMN partner_email TEXT;
         END IF;
       END $$;
     `);
