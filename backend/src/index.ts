@@ -2837,6 +2837,19 @@ app.get("/admin/stats", async (_req, res) => {
   return res.json(stats);
 });
 
+// GET /admin/age-distribution — Age distribution of WW users
+app.get("/admin/age-distribution", async (_req, res) => {
+  const rows = await pgQueryAll<{ age: number; count: number; in_pool: number }>(`
+    SELECT age, COUNT(*)::int as count,
+      SUM(CASE WHEN in_matching_pool THEN 1 ELSE 0 END)::int as in_pool
+    FROM users
+    WHERE gender = 'woman' AND looking_for_gender IS NOT NULL AND looking_for_gender != 'man'
+      AND age IS NOT NULL
+    GROUP BY age ORDER BY age
+  `);
+  res.json(rows);
+});
+
 // GET /admin/users/:id/analysis-run — Latest analysis run debug data
 app.get("/admin/users/:id/analysis-run", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
