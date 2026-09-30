@@ -2744,6 +2744,38 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               return null;
             })()}
 
+              {/* Standalone insight card — for users mid-process who have analysis but aren't "all done" */}
+              {screen === "home" && insightCard && !recommendations.in_matching_pool && !(chatClosed && cogDoneForCouple && tasteDoneForCouple) && !poolIncomplete && (() => {
+                const rot = insightRotation % 5;
+                let emoji = ""; let title = ""; let text = ""; let hasContent = false;
+                if (rot === 0 && insightCard.mbti?.type) { emoji = "/icons/thinkingType.png"; title = `טיפוס MBTI: ${insightCard.mbti.type}`; text = insightCard.mbti.description || ""; hasContent = true; }
+                else if (insightCard.allValues?.length > 0) { const top = insightCard.allValues.filter((v: any) => v.score > 60).slice(0, 2); if (top.length) { emoji = "/icons/Insightes.png"; title = "הערכים המובילים שלך"; text = top.map((v: any) => `${v.he} — ${v.description}`).join(". "); hasContent = true; } }
+                if (!hasContent && insightCard.allBigFive?.length > 0) { const top = insightCard.allBigFive.filter((v: any) => v.score > 60).slice(0, 2); if (top.length) { emoji = "/icons/aboutMe.png"; title = "תכונות אישיות בולטות"; text = top.map((v: any) => `${v.he} — ${v.description}`).join(". "); hasContent = true; } }
+                if (!hasContent) return null;
+                return (
+                  <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
+                    <div style={styles.dashboardCard}>
+                      <p style={styles.dashboardTitle}>מה למדנו עליך</p>
+                      <div style={styles.insightCardContent}>
+                        <IconImg src={emoji} size={28} />
+                        <div style={{ flex: 1 }}>
+                          <p style={styles.insightCardTitle}>{title}</p>
+                          <p style={styles.insightCardText}>{text}</p>
+                        </div>
+                      </div>
+                      <button style={styles.insightCardBtn} onClick={() => { setScreen("insights"); if (!hasSeenInsights) { setHasSeenInsights(true); localStorage.setItem(`insights_seen_${user.id}`, "true"); } }}>
+                        לקריאת הניתוח המלא →
+                      </button>
+                      {!analysisCompleted && (
+                        <p style={{ fontSize: 11, color: "#aaa", margin: "6px 0 0", textAlign: "center" }}>
+                          הניתוח עוד לא הושלם וכרגע התובנות מתבססות על ניתוח חלקי, נעדכן כשיושלם הניתוח המלא
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Survey2 partial — small link to resume survey2 (below insights) */}
               {screen === "home" && !recommendations.show_survey2_banner && recommendations.survey2_partial && (
                 <div style={{ padding: "0 24px 8px", maxWidth: 500, margin: "0 auto", textAlign: "center" }}>
