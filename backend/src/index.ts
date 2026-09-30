@@ -4872,6 +4872,44 @@ app.post("/admin/run-rating-nudges", async (_req, res) => {
   }
 });
 
+// POST /admin/run-android-tester-nudges — Manually trigger android tester push
+app.post("/admin/run-android-tester-nudges", async (_req, res) => {
+  try {
+    const { runAndroidTesterNudges } = require("./pipeline/androidTesterNudges");
+    const result = await runAndroidTesterNudges(true);
+    return res.json({ success: true, result });
+  } catch (err: any) {
+    console.error("[admin] Manual android tester nudge error:", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /admin/android-tester-status — Show push history for each Android tester
+app.get("/admin/android-tester-status", async (_req, res) => {
+  try {
+    const TESTER_EMAILS = [
+      "natalys73337@gmail.com", "anchu.gross@gmail.com", "hagar.david84@gmail.com",
+      "bsc545@gmail.com", "galsedai@gmail.com", "shani.zandberg@gmail.com",
+      "ron915228@gmail.com", "hindies@gmail.com", "elishmaya@gmail.com",
+      "yonam92@gmail.com", "hedva.hagag@gmail.com", "shovalzandberg1@gmail.com", "ayagall@gmail.com",
+    ];
+    const placeholders = TESTER_EMAILS.map((_, i) => `$${i + 1}`).join(", ");
+    const testers = await pgQueryAll<any>(
+      `SELECT u.id, u.first_name, u.email, u.gender,
+              (SELECT MAX(nl.sent_at) FROM notification_log nl WHERE nl.user_id = u.id AND nl.event_type = 'android_tester_reminder' AND nl.success = TRUE) AS last_push_at,
+              (SELECT nl.channel FROM notification_log nl WHERE nl.user_id = u.id AND nl.event_type = 'android_tester_reminder' AND nl.success = TRUE ORDER BY nl.sent_at DESC LIMIT 1) AS last_channel,
+              (SELECT COUNT(*) FROM notification_log nl WHERE nl.user_id = u.id AND nl.event_type = 'android_tester_reminder' AND nl.success = TRUE) AS total_pushes,
+              EXISTS(SELECT 1 FROM fcm_tokens ft WHERE ft.user_id = u.id) AS has_push_token
+       FROM users u WHERE u.email IN (${placeholders})
+       ORDER BY u.first_name`,
+      TESTER_EMAILS
+    );
+    return res.json(testers);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /admin/system-activity-log — Unified log of automated system jobs
 app.get("/admin/system-activity-log", async (req, res) => {
   try {

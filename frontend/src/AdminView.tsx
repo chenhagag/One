@@ -8006,6 +8006,18 @@ function SystemActivityLogTab() {
           }}
           style={{ fontSize: 11, padding: "4px 10px", cursor: "pointer", background: "#f59e0b", color: "#fff", border: "none", borderRadius: 6 }}
         >▶ הרץ rating nudges</button>
+        <button
+          onClick={async () => {
+            if (!confirm("לשלוח פוש לבודקי Android עכשיו?")) return;
+            try {
+              const res = await apiFetch("/admin/run-android-tester-nudges", { method: "POST" });
+              const data = await res.json();
+              alert(`סיום: ${JSON.stringify(data.result || data.error)}`);
+              loadLog();
+            } catch (err: any) { alert("שגיאה: " + err.message); }
+          }}
+          style={{ fontSize: 11, padding: "4px 10px", cursor: "pointer", background: "#10b981", color: "#fff", border: "none", borderRadius: 6 }}
+        >▶ פוש לבודקי Android</button>
       </div>
 
       <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>

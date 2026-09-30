@@ -26,6 +26,7 @@ import { runDailyMatching, msUntilNextRun, setReconcileFn } from "./dailyMatchin
 import { runPhotoNudges } from "./photoNudges";
 import { runMessageNudges } from "./messageNudges";
 import { runRatingNudges } from "./ratingNudges";
+import { runAndroidTesterNudges } from "./androidTesterNudges";
 import { upsertUserInsights } from "../rag";
 import sharp from "sharp";
 import path from "path";
@@ -39,6 +40,7 @@ const MATCHING_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const PHOTO_NUDGE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MESSAGE_NUDGE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const RATING_NUDGE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const ANDROID_TESTER_INTERVAL_MS = 48 * 60 * 60 * 1000; // 48 hours
 let intervalHandle: ReturnType<typeof setInterval> | null = null;
 let reconcileHandle: ReturnType<typeof setInterval> | null = null;
 let nudgeHandle: ReturnType<typeof setInterval> | null = null;
@@ -47,6 +49,7 @@ let matchingHandle: ReturnType<typeof setInterval> | null = null;
 let photoNudgeHandle: ReturnType<typeof setInterval> | null = null;
 let messageNudgeHandle: ReturnType<typeof setInterval> | null = null;
 let ratingNudgeHandle: ReturnType<typeof setInterval> | null = null;
+let androidTesterHandle: ReturnType<typeof setInterval> | null = null;
 
 // ── Job creation ─────────────────────────────────────────────────
 
@@ -420,6 +423,22 @@ export function startJobRunner(): void {
     }, RATING_NUDGE_INTERVAL_MS);
   }, msToNudges);
 
+  // Android tester push reminders at 13:00 Israel time, every 48h
+  const msToTesterNudge = msUntilNextRun(13);
+  const hoursToTesterNudge = Math.round(msToTesterNudge / 1000 / 60 / 60 * 10) / 10;
+  console.log(`[jobRunner] Android tester nudges scheduled in ${hoursToTesterNudge}h (13:00 Israel)`);
+
+  setTimeout(() => {
+    runAndroidTesterNudges().catch(err => {
+      console.error("[jobRunner] Android tester nudge error:", err.message);
+    });
+    androidTesterHandle = setInterval(() => {
+      runAndroidTesterNudges().catch(err => {
+        console.error("[jobRunner] Android tester nudge error:", err.message);
+      });
+    }, ANDROID_TESTER_INTERVAL_MS);
+  }, msToTesterNudge);
+
   // Daily matching at 4:00 AM Israel time
   const msToFirstRun = msUntilNextRun(4);
   const hoursToFirstRun = Math.round(msToFirstRun / 1000 / 60 / 60 * 10) / 10;
@@ -470,6 +489,10 @@ export function stopJobRunner(): void {
   if (ratingNudgeHandle) {
     clearInterval(ratingNudgeHandle);
     ratingNudgeHandle = null;
+  }
+  if (androidTesterHandle) {
+    clearInterval(androidTesterHandle);
+    androidTesterHandle = null;
   }
   console.log("[jobRunner] Pipeline job runner stopped");
 }
