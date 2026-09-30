@@ -10,9 +10,10 @@ interface AuthScreenProps {
   onOtpSuccess?: (user: User, profileComplete: boolean) => void;
   notice?: string | null;
   entryPoint?: string | null;
+  onEntryPointChange?: (ep: string) => void;
 }
 
-export default function AuthScreen({ onOtpSuccess, notice, entryPoint }: AuthScreenProps) {
+export default function AuthScreen({ onOtpSuccess, notice, entryPoint, onEntryPointChange }: AuthScreenProps) {
   const [loading, setLoading] = useState<"google" | "apple" | null>(null);
   const [error, setError] = useState("");
   // Detect native: Capacitor runs on https://localhost (not http)
@@ -316,7 +317,15 @@ export default function AuthScreen({ onOtpSuccess, notice, entryPoint }: AuthScr
           {isForWomen && (
             <p style={{ fontSize: 13, color: "#888", textAlign: "center", margin: "20px 0 0", lineHeight: 1.7 }}>
               בזוגיות ורוצה לעזור לנו לאמן את One?{" "}
-              <a href="/couples" style={{ color: "#8b7ba8", fontWeight: 600, textDecoration: "underline" }}>כנסי לכאן</a>
+              <span
+                onClick={() => {
+                  localStorage.setItem("one_entry_point", "couples");
+                  if (onEntryPointChange) onEntryPointChange("couples");
+                  sessionStorage.setItem("one_seen_landing", "1");
+                  setShowLanding(false);
+                }}
+                style={{ color: "#8b7ba8", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}
+              >כנסי לכאן</span>
             </p>
           )}
           <p style={{ fontSize: 13, color: "#999", textAlign: "center", margin: "16px 0 0", letterSpacing: 0.5 }}>

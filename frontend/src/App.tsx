@@ -274,7 +274,7 @@ export default function App() {
 
   // ── Entry point detection ────────────────
   // Default: forwomen (women-only). /main = general audience.
-  const [entryPoint] = useState<string | null>(() => {
+  const [entryPoint, setEntryPoint] = useState<string | null>(() => {
     const raw = window.location.pathname;
     const path = raw.replace(/^\/+/, "/").toLowerCase();
     console.log("[entryPoint] pathname:", raw, "normalized:", path);
@@ -607,7 +607,7 @@ export default function App() {
 
       {/* Auth screen — OAuth buttons (new default landing) */}
       {(view === "landing" || view === "auth") && (
-        <AuthScreen onOtpSuccess={(u, p) => { setAuthNotice(null); handleAuthSuccess(u, p); }} notice={authNotice} entryPoint={entryPoint} />
+        <AuthScreen onOtpSuccess={(u, p) => { setAuthNotice(null); handleAuthSuccess(u, p); }} notice={authNotice} entryPoint={entryPoint} onEntryPointChange={setEntryPoint} />
       )}
 
       {/* OAuth callback — handles redirect from Google/Apple */}
