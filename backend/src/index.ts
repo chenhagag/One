@@ -5886,7 +5886,7 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       analysis_run_count: number; gender: string | null; admin_message: string | null;
       test_user_type: string | null; email_updates: boolean | null;
       partner_in_system: boolean | null; whatsapp_updates: boolean | null;
-      partner_name: string | null;
+      partner_name: string | null; partner_email: string | null;
       in_matching_pool: boolean | null; match_card_consent: string | null;
       admin_message_dismissed: boolean | null;
       admin_message_type: string | null;
@@ -5897,7 +5897,7 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
               desired_age_min, desired_age_max, desired_height_min, desired_height_max,
               COALESCE(analysis_run_count, 0) as analysis_run_count, gender, admin_message,
               test_user_type, email_updates, COALESCE(partner_in_system, FALSE) as partner_in_system,
-              whatsapp_updates, partner_name, in_matching_pool, match_card_consent,
+              whatsapp_updates, partner_name, partner_email, in_matching_pool, match_card_consent,
               COALESCE(admin_message_dismissed, FALSE) as admin_message_dismissed,
               COALESCE(admin_message_type, 'info') as admin_message_type,
               COALESCE(self_frozen, FALSE) as self_frozen,
@@ -5945,13 +5945,28 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
         const isWW = isWWUser2;
         const partnerWord = isWW ? "בת הזוג" : (isFemale ? "בן הזוג" : "בת הזוג");
         const partnerName = profileRow?.partner_name;
+
+        // Auto-detect partner in system by email match
+        let partnerInSystem = !!profileRow?.partner_in_system;
+        if (!partnerInSystem && profileRow?.partner_email) {
+          const partnerRow = await pgQueryOne<{ id: number }>(
+            "SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND id != $2",
+            [profileRow.partner_email, userId]
+          );
+          if (partnerRow) {
+            partnerInSystem = true;
+            // Auto-update the flag so we don't query every time
+            await pgQueryAll("UPDATE users SET partner_in_system = TRUE WHERE id = $1", [userId]);
+          }
+        }
+
         let msg = isWW
           ? "שלום, תודה רבה על הסיוע באימון המערכת של One ❤️. בעזרתכן נוכל לדייק התאמות ולמצוא חיבורים טובים יותר למי שעוד לא מצאה את האחת שלה."
           : "שלום, תודה רבה על הסיוע באימון המערכת של One ❤️. בעזרתכם נוכל לדייק התאמות ולמצוא חיבורים טובים יותר למי שעוד לא מצא את האחד או האחת שלו.";
 
-        if (partnerName && profileRow?.partner_in_system) {
-          msg += `\n\n${partnerWord} שלך, ${partnerName}, ${isWW ? "נמצאת" : "נמצא/ת"} במערכת — בקרוב נוכל לתת לכן תובנות על הזוגיות שלכן.`;
-        } else if (!profileRow?.partner_in_system) {
+        if (partnerName && partnerInSystem) {
+          msg += `\n\n${partnerWord} שלך, ${partnerName}, ${isWW ? "נמצאת" : "נמצא/ת"} במערכת — בקרוב נוכל לתת ${isWW ? "לכן" : "לכם"} תובנות על הזוגיות ${isWW ? "שלכן" : "שלכם"}.`;
+        } else if (!partnerInSystem) {
           msg += `\n\nעל מנת שנוכל לתת ${isWW ? "לכן" : "לכם"} תובנות על הזוגיות ${isWW ? "שלכן" : "שלכם"} — ${partnerWord} ${isWW ? "צריכה" : isFemale ? "צריך" : "צריכה"} להיכנס למערכת גם כן. בינתיים ${isFemale ? "את יכולה" : "אתה יכול"} לבדוק את התובנות האישיות.`;
           msg += `\n\nאם ${partnerWord} כבר במערכת — ${isFemale ? "סמני" : "סמן"} את זה במסך ״הפרטים שלי״.`;
         }

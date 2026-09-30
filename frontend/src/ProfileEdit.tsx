@@ -29,6 +29,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
 
   // Couple partner
   const [partnerName, setPartnerName] = useState((user as any).partner_name || "");
+  const [partnerEmail, setPartnerEmail] = useState((user as any).partner_email || "");
   const [isCouple, setIsCouple] = useState(user.test_user_type === "Couple Tester");
 
   const [enums, setEnums] = useState<Record<string, EnumOption[]>>({});
@@ -70,6 +71,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
         if (u.religion) setReligion(u.religion);
         if (u.smoker != null) setSmoker(!!u.smoker);
         if (u.partner_name) setPartnerName(u.partner_name);
+        if (u.partner_email) setPartnerEmail(u.partner_email);
         if (u.test_user_type) setIsCouple(u.test_user_type === "Couple Tester");
       })
       .catch(() => {});
@@ -172,6 +174,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
           religion: religion || null,
           smoker,
           partner_name: isCouple ? (partnerName.trim() || null) : undefined,
+          partner_email: isCouple ? (partnerEmail.trim().toLowerCase() || null) : undefined,
         }),
       });
       if (!res.ok) { const data = await res.json(); setError(data.error || "שגיאה בשמירה"); return; }
@@ -349,6 +352,8 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
             </p>
             <label style={s.label}>{isWW ? "שם בת הזוג" : user.gender === "woman" ? "שם בן הזוג" : "שם בת הזוג"}</label>
             <input style={s.input} type="text" value={partnerName} onChange={(e) => setPartnerName(e.target.value)} placeholder={isWW ? "הכניסי את שמה כפי שנרשמה" : user.gender === "woman" ? "הכניסי את שמו כפי שנרשם" : "הכנס את שמה כפי שנרשמה"} />
+            <label style={{ ...s.label, marginTop: 12 }}>{isWW ? "אימייל בת הזוג" : user.gender === "woman" ? "אימייל בן הזוג" : "אימייל בת הזוג"}</label>
+            <input style={s.input} type="email" value={partnerEmail} onChange={(e) => setPartnerEmail(e.target.value)} placeholder={isWW ? "האימייל שאיתו נרשמה למערכת" : user.gender === "woman" ? "האימייל שאיתו נרשם למערכת" : "האימייל שאיתו נרשמה למערכת"} />
           </div>
         ) : (
           <div style={s.card}>
