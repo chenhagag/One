@@ -2845,7 +2845,7 @@ app.get("/admin/age-distribution", async (_req, res) => {
       COUNT(DISTINCT CASE WHEN m.id IS NOT NULL THEN u.id END)::int as matched
     FROM users u
     LEFT JOIN matches m ON (m.user1_id = u.id OR m.user2_id = u.id)
-      AND m.status IN ('in_match', 'completed', 'waiting_first_rating', 'waiting_second_rating', 'pending_second_rating')
+      AND m.match_card_sent_at IS NOT NULL
     WHERE u.gender = 'woman' AND u.looking_for_gender IS NOT NULL AND u.looking_for_gender != 'man'
       AND u.age IS NOT NULL
     GROUP BY u.age ORDER BY u.age
