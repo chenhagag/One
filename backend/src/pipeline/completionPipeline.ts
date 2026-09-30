@@ -21,7 +21,7 @@ import { computeCoverage, updateUserReadiness } from "../agents/conversation";
 
 export interface CompletionResult {
   insights: { generated: boolean; skipped?: boolean; skipped_reason?: string };
-  pool: { entered: boolean; already_in_pool?: boolean };
+  pool: { entered: boolean; already_in_pool?: boolean; blocked_reason?: string };
   email: { sent: boolean; skipped_reason?: string };
 }
 
@@ -55,7 +55,45 @@ export async function runCompletionPipeline(
   const cov = await computeCoverage(db, userId);
   await updateUserReadiness(db, userId, cov);
 
-  // ── Step 3: Enter matching pool (atomic) ──────────────────────
+  // ── Step 3: Enter matching pool (only if fully ready) ────────
+  // Check prerequisites: all channels closed + has photo + profile details
+  const readiness = await pgQueryOne<{
+    has_photo: boolean;
+    age: number | null;
+    city: string | null;
+    general_closed: boolean;
+    cog_done: boolean;
+    taste_done: boolean;
+  }>(`
+    SELECT
+      EXISTS(SELECT 1 FROM user_photos WHERE user_id = $1) AS has_photo,
+      u.age,
+      u.city,
+      COALESCE((s.topic_injection_counts->>'general_closing_stage')::int, 0) >= 3 AS general_closed,
+      COALESCE((s.topic_injection_counts->>'cognitive_closing_stage')::int, 0) >= 3
+        OR (SELECT COUNT(*) FROM conversation_messages WHERE user_id = $1 AND role = 'user' AND guide = 'new_chat_cognitive') >= 7 AS cog_done,
+      COALESCE((s.topic_injection_counts->>'taste_closing_stage')::int, 0) >= 3
+        OR (SELECT COUNT(*) FROM conversation_messages WHERE user_id = $1 AND role = 'user' AND guide = 'new_chat_taste') >= 10 AS taste_done
+    FROM users u
+    LEFT JOIN user_chat_summaries s ON s.user_id = u.id
+    WHERE u.id = $1
+  `, [userId]);
+
+  const missingReqs: string[] = [];
+  if (!readiness?.general_closed) missingReqs.push("general chat not closed");
+  if (!readiness?.cog_done) missingReqs.push("cognitive not done");
+  if (!readiness?.taste_done) missingReqs.push("taste not done");
+  if (!readiness?.has_photo) missingReqs.push("no photo");
+  if (!readiness?.age) missingReqs.push("no age");
+  if (!readiness?.city) missingReqs.push("no city");
+
+  if (missingReqs.length > 0) {
+    console.log(`[pipeline] User ${userId}: NOT entering pool — missing: ${missingReqs.join(", ")}`);
+    result.pool = { entered: false, already_in_pool: false, blocked_reason: missingReqs.join(", ") };
+    await updateJobStep(jobId, "pool_blocked");
+    return result;
+  }
+
   const poolEntry = await pgQueryOne<{ id: number }>(
     `UPDATE users SET in_matching_pool = TRUE, updated_at = NOW()
      WHERE id = $1 AND in_matching_pool = FALSE
