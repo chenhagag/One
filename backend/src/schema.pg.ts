@@ -622,13 +622,13 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
         SELECT 1 FROM information_schema.columns
         WHERE table_name = 'users' AND column_name = 'marital_status'
       ) THEN
-        ALTER TABLE users ADD COLUMN marital_status TEXT DEFAULT 'single';
+        ALTER TABLE users ADD COLUMN marital_status TEXT;
       END IF;
       IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_name = 'users' AND column_name = 'has_children'
       ) THEN
-        ALTER TABLE users ADD COLUMN has_children BOOLEAN DEFAULT FALSE;
+        ALTER TABLE users ADD COLUMN has_children BOOLEAN;
       END IF;
       IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
@@ -640,7 +640,7 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
         SELECT 1 FROM information_schema.columns
         WHERE table_name = 'users' AND column_name = 'smoker'
       ) THEN
-        ALTER TABLE users ADD COLUMN smoker BOOLEAN DEFAULT FALSE;
+        ALTER TABLE users ADD COLUMN smoker BOOLEAN;
       END IF;
       IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
@@ -1472,4 +1472,11 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       END $$;
     `);
   } catch (e) { /* column may already exist */ }
+
+  // Remove misleading defaults — new users should start with NULL (= "בחרי")
+  await pool.query(`
+    ALTER TABLE users ALTER COLUMN marital_status DROP DEFAULT;
+    ALTER TABLE users ALTER COLUMN has_children DROP DEFAULT;
+    ALTER TABLE users ALTER COLUMN smoker DROP DEFAULT;
+  `);
 }

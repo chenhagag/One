@@ -5926,14 +5926,17 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
 
       if (isCouple && chatCount >= 1) {
         const isFemale = userGender === "woman";
-        const partnerWord = isFemale ? "בן הזוג" : "בת הזוג";
+        const isWW = isWWUser2;
+        const partnerWord = isWW ? "בת הזוג" : (isFemale ? "בן הזוג" : "בת הזוג");
         const partnerName = profileRow?.partner_name;
-        let msg = "שלום, תודה רבה על הסיוע באימון המערכת של One ❤️. בעזרתכם נוכל לדייק התאמות ולמצוא חיבורים טובים יותר למי שעוד לא מצא את האחד או האחת שלו.";
+        let msg = isWW
+          ? "שלום, תודה רבה על הסיוע באימון המערכת של One ❤️. בעזרתכן נוכל לדייק התאמות ולמצוא חיבורים טובים יותר למי שעוד לא מצאה את האחת שלה."
+          : "שלום, תודה רבה על הסיוע באימון המערכת של One ❤️. בעזרתכם נוכל לדייק התאמות ולמצוא חיבורים טובים יותר למי שעוד לא מצא את האחד או האחת שלו.";
 
         if (partnerName && profileRow?.partner_in_system) {
-          msg += `\n\n${partnerWord} שלך, ${partnerName}, נמצא/ת במערכת — בקרוב נוכל לתת לכם תובנות על הזוגיות שלכם.`;
+          msg += `\n\n${partnerWord} שלך, ${partnerName}, ${isWW ? "נמצאת" : "נמצא/ת"} במערכת — בקרוב נוכל לתת לכן תובנות על הזוגיות שלכן.`;
         } else if (!profileRow?.partner_in_system) {
-          msg += `\n\nעל מנת שנוכל לתת לכם תובנות על הזוגיות שלכם — ${partnerWord} ${isFemale ? "צריך" : "צריכה"} להיכנס למערכת גם כן. בינתיים ${isFemale ? "את יכולה" : "אתה יכול"} לבדוק את התובנות האישיות.`;
+          msg += `\n\nעל מנת שנוכל לתת ${isWW ? "לכן" : "לכם"} תובנות על הזוגיות ${isWW ? "שלכן" : "שלכם"} — ${partnerWord} ${isWW ? "צריכה" : isFemale ? "צריך" : "צריכה"} להיכנס למערכת גם כן. בינתיים ${isFemale ? "את יכולה" : "אתה יכול"} לבדוק את התובנות האישיות.`;
           msg += `\n\nאם ${partnerWord} כבר במערכת — ${isFemale ? "סמני" : "סמן"} את זה במסך ״הפרטים שלי״.`;
         }
         if (!chatClosed) {
