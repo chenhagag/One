@@ -3236,6 +3236,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo, isWW }: { user: Use
               onChange={(e) => { setPushNotifications(e.target.checked); saveSetting({ push_notifications: e.target.checked }); }}
               style={checkboxStyle} />
             <span>התראות פוש באפליקציה</span>
+            <span style={{ display: "block", fontSize: 11, color: "#9ca3af", marginTop: 2, marginRight: 26 }}>רלוונטי למי שהורידה את אפליקציית Android</span>
           </label>
           <label style={{ ...labelStyle, marginBottom: 14 }}>
             <input type="checkbox" checked={emailUpdates} disabled={saving || loading}

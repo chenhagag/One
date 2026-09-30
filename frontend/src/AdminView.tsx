@@ -686,7 +686,7 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
         </td>
         <td style={s.td}>{u.is_matchable ? "Yes" : "No"}</td>
         <td style={s.td}><span style={{ color: u.in_matching_pool ? "#16a34a" : "#dc2626", fontWeight: 600 }}>{u.in_matching_pool ? "כן" : "לא"}</span></td>
-        <td style={s.td}><span style={{ ...s.badge, fontSize: 10, background: u.test_user_type === "Couple Tester" ? "#d4edda" : u.test_user_type ? "#cfe2ff" : "" }}>{u.test_user_type || "-"}</span></td>
+        <td style={s.td}><span style={{ ...s.badge, fontSize: 10, background: u.test_user_type === "Couple Tester" ? "#d4edda" : u.test_user_type ? "#cfe2ff" : "" }}>{u.test_user_type || "-"}</span>{u.entry_point === "meme" && <span style={{ ...s.badge, fontSize: 9, background: "#fef3c7", color: "#92400e", marginRight: 3 }}>סאשה</span>}</td>
         <td style={s.td}><PartnerCell userId={u.id} value={u.partner_name || ""} /></td>
         <td style={s.td}>
           {(() => {
@@ -1672,6 +1672,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
         <span style={{ ...s.badge, fontSize: 12 }}>age {user.age}</span>
         <span style={{ ...s.badge, fontSize: 12 }}>{user.city}</span>
         {!user.is_real_user && <span style={{ ...s.badge, background: "#e8daef", fontSize: 11 }}>seed user</span>}
+        {user.entry_point === "meme" && <span style={{ ...s.badge, background: "#fef3c7", color: "#92400e", fontSize: 11 }}>הגיעה דרך סאשה</span>}
         {user.created_at && <span style={{ ...s.badge, fontSize: 11, background: "#e0f2fe", color: "#0369a1" }}>
           Joined {new Date(user.created_at).toLocaleDateString("he-IL")} {new Date(user.created_at).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
         </span>}
