@@ -433,6 +433,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   });
   const [insightInitialView, setInsightInitialView] = useState<"main" | "mbti" | "values" | "bigfive" | "enneagram" | "attachment">("main");
   const [insightResetKey, setInsightResetKey] = useState(0);
+  const [hasSeenInsights, setHasSeenInsights] = useState<boolean>(() => localStorage.getItem(`insights_seen_${user.id}`) === "true");
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [chatListOpen, setChatListOpen] = useState(false);
   const [nudgeStep, setNudgeStep] = useState<1 | 2 | 3>(1);
@@ -891,7 +892,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   setMenuOpen(false);
                   return;
                 }
-                if (item.action === "insights") { setInsightInitialView("main"); setInsightResetKey(k => k + 1); }
+                if (item.action === "insights") { setInsightInitialView("main"); setInsightResetKey(k => k + 1); if (!hasSeenInsights) { setHasSeenInsights(true); localStorage.setItem(`insights_seen_${user.id}`, "true"); } }
                 setScreen(item.action as any);
                 setMenuOpen(false);
               }}
@@ -1793,17 +1794,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               )}
 
               {/* Pending match rating card */}
-              {screen === "home" && !localStorage.getItem("one_maintenance_dismissed") && (
-                <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
-                  <div style={{ background: "#f0f9ff", borderRadius: 14, padding: "14px 20px", border: "1px solid #bae6fd", position: "relative", textAlign: "right", direction: "rtl" }}>
-                    <button onClick={() => { localStorage.setItem("one_maintenance_dismissed", "1"); setScreen("home"); }} style={{ position: "absolute", top: 8, left: 10, background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#94a3b8", padding: 4 }}>✕</button>
-                    <p style={{ fontSize: 13, color: "#0c4a6e", lineHeight: 1.7, margin: 0 }}>
-                      🔧 עשינו לאחרונה עבודות תחזוקה באפליקציה — אם {isWW ? "נתקלת" : "נתקלתם"} בבעיות במהלך השימוש, {isWW ? "נשמח שתדווחי" : "נשמח שתדווחו"} לנו{" "}
-                      <span style={{ textDecoration: "underline", cursor: "pointer", fontWeight: 600 }} onClick={() => setScreen("bug_report")}>במסך המשוב</span>.
-                    </p>
-                  </div>
-                </div>
-              )}
+              {/* Maintenance banner removed — no longer needed */}
 
               {screen === "home" && recommendations.pending_rating && (
                 <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
@@ -2503,8 +2494,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 const hasPhotos = recommendations.photo_count > 0;
                 const hasDetails = recommendations.has_profile_details;
                 const inPool = recommendations.in_matching_pool;
+                const insightFirst = !hasSeenInsights && !!insightCard;
                 return (
-                  <div style={styles.recommendationBlock}>
+                  <div style={{ ...styles.recommendationBlock, display: "flex", flexDirection: insightFirst ? "column-reverse" : "column" }}>
+                    <div>
                     {isCouple ? (
                       <p style={styles.recommendationText}>
                         סיימת את כל השלבים, תודה רבה, עזרת לי מאוד לשפר את עצמי! נחזור אליך בקרוב עם תובנות על הזוגיות שלך :)
@@ -2566,6 +2559,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                         כדי שהמערכת תוכל לצרף אותך למאגר ולהתחיל בחיפוש ההתאמה, נשארו רק השלמת הנתונים במסך <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => setScreen("profile_edit")}>"הפרטים שלי"</span>.
                       </p>
                     )}
+                    </div>
 
                     {/* ── Dashboard: Insight Drip Feed — shown for all users including couples ── */}
                     {insightCard && (() => {
@@ -2642,7 +2636,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           </div>
                           <button
                             style={styles.insightCardBtn}
-                            onClick={() => { setScreen("insights"); }}
+                            onClick={() => { setScreen("insights"); if (!hasSeenInsights) { setHasSeenInsights(true); localStorage.setItem(`insights_seen_${user.id}`, "true"); } }}
                           >
                             לקריאת הניתוח המלא →
                           </button>
@@ -2660,9 +2654,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               }
               // Pool user with incomplete chats — show status + insight card
               if (poolIncompleteBlock) {
+                const insightFirst2 = !hasSeenInsights && !!insightCard;
                 return (
-                  <div style={styles.recommendationBlock}>
-                    {poolIncompleteBlock}
+                  <div style={{ ...styles.recommendationBlock, display: "flex", flexDirection: insightFirst2 ? "column-reverse" : "column" }}>
+                    <div>{poolIncompleteBlock}</div>
 
                     {/* ── Dashboard: Insight Drip Feed — also for pool-incomplete users ── */}
                     {insightCard && (() => {
@@ -2736,7 +2731,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           </div>
                           <button
                             style={styles.insightCardBtn}
-                            onClick={() => { setScreen("insights"); }}
+                            onClick={() => { setScreen("insights"); if (!hasSeenInsights) { setHasSeenInsights(true); localStorage.setItem(`insights_seen_${user.id}`, "true"); } }}
                           >
                             לקריאת הניתוח המלא →
                           </button>
