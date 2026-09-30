@@ -4910,6 +4910,59 @@ app.get("/admin/android-tester-status", async (_req, res) => {
   }
 });
 
+// GET /api/meme-dashboard — Stats for marketer dashboard (restricted to specific emails)
+const MEME_DASHBOARD_EMAILS = ["chen.hagag@gmail.com", "s.jo.design@gmail.com"];
+app.get("/api/meme-dashboard", requireAuth, async (req: any, res) => {
+  const email = req.auth?.email;
+  if (!email || !MEME_DASHBOARD_EMAILS.includes(email)) {
+    return res.status(403).json({ error: "Access denied" });
+  }
+
+  try {
+    // Summary stats
+    const stats = await pgQueryOne<any>(`
+      SELECT
+        (SELECT COUNT(*) FROM users WHERE entry_point = 'meme') AS total_registered,
+        (SELECT COUNT(DISTINCT cm.user_id) FROM conversation_messages cm
+         JOIN users u ON u.id = cm.user_id WHERE u.entry_point = 'meme') AS started_chat,
+        (SELECT COUNT(*) FROM users WHERE entry_point = 'meme' AND in_matching_pool = TRUE) AS in_pool,
+        (SELECT COUNT(*) FROM page_views WHERE page = 'landing_meme') AS landing_visits_total
+    `);
+
+    // Daily breakdown (last 30 days)
+    const byDay = await pgQueryAll<any>(`
+      WITH days AS (
+        SELECT generate_series(
+          (CURRENT_DATE - INTERVAL '29 days')::date,
+          CURRENT_DATE::date,
+          '1 day'::interval
+        )::date AS day
+      )
+      SELECT
+        d.day::text AS date,
+        COALESCE(v.visits, 0)::int AS visits,
+        COALESCE(r.registrations, 0)::int AS registrations
+      FROM days d
+      LEFT JOIN (
+        SELECT viewed_at::date AS day, COUNT(*) AS visits
+        FROM page_views WHERE page = 'landing_meme'
+        GROUP BY viewed_at::date
+      ) v ON v.day = d.day
+      LEFT JOIN (
+        SELECT created_at::date AS day, COUNT(*) AS registrations
+        FROM users WHERE entry_point = 'meme'
+        GROUP BY created_at::date
+      ) r ON r.day = d.day
+      ORDER BY d.day
+    `);
+
+    return res.json({ ...stats, by_day: byDay });
+  } catch (err: any) {
+    console.error("[meme-dashboard] Error:", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /admin/system-activity-log — Unified log of automated system jobs
 app.get("/admin/system-activity-log", async (req, res) => {
   try {
