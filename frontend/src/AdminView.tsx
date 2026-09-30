@@ -6239,6 +6239,8 @@ function ErrorLogsTab() {
     if (log.status_code === 429) return "warning";
     // Frontend errors with status 500+ → warning
     if (log.source === "frontend" && log.status_code >= 500) return "warning";
+    // Frontend React crashes (ReferenceError, TypeError, etc.) → critical
+    if (log.source === "frontend" && /ReferenceError|TypeError|SyntaxError|React crash/.test(log.message || "")) return "critical";
     // Everything else → noise
     return "noise";
   }

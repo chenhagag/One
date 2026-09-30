@@ -5626,6 +5626,37 @@ app.post("/log-error", optionalAuth, async (req, res) => {
         extra ? JSON.stringify(extra) : null,
       ]
     );
+
+    // React crashes: also insert into bug_reports so it shows in admin "משוב ודיווחים"
+    if (message.startsWith("React crash:")) {
+      try {
+        await pgQueryOne(
+          `INSERT INTO bug_reports (user_id, report_text) VALUES ($1, $2)`,
+          [userId, `[auto-crash] ${message}\n\n${(stack || "").slice(0, 1000)}`]
+        );
+      } catch {}
+    }
+
+    // Alert admin on React crashes (page-breaking errors)
+    if (message.startsWith("React crash:") && process.env.RESEND_API_KEY && !process.env.STAGING_URL) {
+      try {
+        const { Resend } = require("resend");
+        const r = new Resend(process.env.RESEND_API_KEY);
+        const userName = userId ? (await pgQueryOne<{ first_name: string }>("SELECT first_name FROM users WHERE id = $1", [userId]))?.first_name : null;
+        r.emails.send({
+          from: "One <noreply@joinone.io>",
+          to: "chen.hagag@gmail.com",
+          subject: `[One] React crash${userName ? ` — ${userName}` : ""}`,
+          html: `<div dir="rtl" style="font-family:sans-serif;line-height:1.7">
+            <p><strong>React crash detected</strong></p>
+            <p>User: ${userName || "unknown"} (ID: ${userId || "?"})</p>
+            <p>Error: ${message}</p>
+            <pre style="background:#f5f5f5;padding:12px;border-radius:8px;font-size:12px;overflow:auto;max-height:300px">${(stack || "").slice(0, 2000)}</pre>
+          </div>`,
+        }).catch(() => {});
+      } catch {}
+    }
+
     return res.json({ ok: true });
   } catch (err) {
     console.error("[log-error] Failed:", err);
