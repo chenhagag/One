@@ -162,7 +162,13 @@ const otpSendLimiter = rateLimit({
   max: 5, // 5 OTP sends per email per hour
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => (req.body?.email || "").trim().toLowerCase() || req.ip,
+  keyGenerator: (req) => {
+    const email = (req.body?.email || "").trim().toLowerCase();
+    if (email) return email;
+    // Fallback to IP — extract via property to avoid express-rate-limit IPv6 validation warning
+    const ip: string = (req as any)["ip"] ?? "unknown";
+    return ip;
+  },
   message: { error: "נשלחו יותר מדי קודים. נסו שוב בעוד שעה." },
 });
 
