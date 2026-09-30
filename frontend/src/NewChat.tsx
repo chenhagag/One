@@ -2375,8 +2375,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 </div>
               )}
 
-              {/* Survey2 banner — WW users, shown until user completes survey2 or dismisses */}
-              {screen === "home" && recommendations.show_survey2_banner && (
+              {/* Survey2 banner — WW users in pool; non-pool users see it below recommendations */}
+              {screen === "home" && recommendations.show_survey2_banner && recommendations.in_matching_pool && (
                 <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
                   <div style={{ background: "#f8f5ff", borderRadius: 14, padding: "16px 20px", border: "1px solid #e0ddf5", position: "relative" }}>
                     <button
@@ -2810,6 +2810,39 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             })()}
 
               {/* (standalone insight card for mid-process users is rendered above the priority block) */}
+
+              {/* Survey2 banner for non-pool users — shown at the bottom */}
+              {screen === "home" && recommendations.show_survey2_banner && !recommendations.in_matching_pool && (
+                <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
+                  <div style={{ background: "#f8f5ff", borderRadius: 14, padding: "16px 20px", border: "1px solid #e0ddf5", position: "relative" }}>
+                    <button
+                      onClick={() => {
+                        apiFetch("/survey2/dismiss-banner", { method: "POST" })
+                          .then(() => setRecommendations(prev => ({ ...prev, show_survey2_banner: false })));
+                      }}
+                      style={{ position: "absolute", top: 8, left: 8, background: "none", border: "none", fontSize: 18, color: "#bbb", cursor: "pointer", padding: 4, lineHeight: 1 }}
+                    >
+                      ✕
+                    </button>
+                    <p style={{ fontSize: 14, color: "#3a3660", lineHeight: 1.7, margin: "0 0 6px", fontWeight: 600 }}>
+                      🩶 סקר משתמשות — עזרו לנו להתאים את One לקהילה
+                    </p>
+                    <p style={{ fontSize: 13, color: "#555", lineHeight: 1.7, margin: "0 0 12px" }}>
+                      נשמח לשמוע מכן כדי שנוכל לשפר ולהתאים את עצמנו לצרכי הקהילה.
+                    </p>
+                    <button
+                      onClick={() => { window.history.replaceState({}, "", "/survey2"); onNavigate?.("survey2"); }}
+                      style={{
+                        width: "100%", padding: "10px 20px", fontSize: 14, fontWeight: 600,
+                        background: "#7b5fa3", color: "#fff", border: "none", borderRadius: 10,
+                        cursor: "pointer", fontFamily: "inherit",
+                      }}
+                    >
+                      כניסה לסקר
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Survey2 partial — small link to resume survey2 (below insights) */}
               {screen === "home" && !recommendations.show_survey2_banner && recommendations.survey2_partial && (
