@@ -12,6 +12,7 @@ export default function CoupleWelcome({ user, onComplete }: CoupleWelcomeProps) 
   const [partnerEmail, setPartnerEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [focused, setFocused] = useState<string | null>(null);
 
   async function handleSubmit() {
     if (!partnerName.trim()) {
@@ -47,86 +48,94 @@ export default function CoupleWelcome({ user, onComplete }: CoupleWelcomeProps) 
     }
   }
 
+  const inputStyle = (name: string): React.CSSProperties => ({
+    width: "100%", padding: "12px 16px", fontSize: 15,
+    border: `1.5px solid ${focused === name ? "#8b7ba8" : "#e0dce6"}`,
+    borderRadius: 12, boxSizing: "border-box", outline: "none",
+    fontFamily: "inherit", transition: "border-color 0.2s",
+    background: "#faf9fc",
+  });
+
   return (
     <div style={{
-      display: "flex", minHeight: "100dvh", flexDirection: "column",
-      alignItems: "center", justifyContent: "center", background: "#fff",
-      padding: "env(safe-area-inset-top, 0px) 24px 24px",
+      minHeight: "100dvh", display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      backgroundImage: "linear-gradient(rgba(255,255,255,0.4), rgba(255,255,255,0.4)), url(/background.png)",
+      backgroundSize: "cover", backgroundPosition: "center",
+      padding: "32px 24px",
     }}>
-      <div style={{ maxWidth: 520, width: "100%", textAlign: "right" }} dir="rtl">
-        {/* Logo */}
-        <div style={{ textAlign: "center", marginBottom: 20 }}>
-          <img src="/iconOnly.png" alt="" style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", marginBottom: 10 }} />
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", margin: "0 0 4px", lineHeight: 1.5 }}>
-            הזוגיות שלכן יכולה לעזור ל־One למצוא חיבורים טובים יותר
+      <div style={{ maxWidth: 480, width: "100%", direction: "rtl" }}>
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <img src="/iconOnly.png" alt="One" style={{ height: 48, objectFit: "contain", marginBottom: 14 }} />
+          <h1 style={{
+            fontSize: 19, fontWeight: 700, color: "#1a1a2e",
+            margin: "0 0 6px", lineHeight: 1.6,
+          }}>
+            הזוגיות שלכן יכולה לעזור ל־One<br />למצוא חיבורים טובים יותר
           </h1>
+          <p style={{ fontSize: 13, color: "#8b7ba8", margin: 0, fontWeight: 500 }}>
+            {user.first_name}, תודה שהצטרפת
+          </p>
         </div>
 
+        {/* Explanation card */}
         <div style={{
-          background: "#fff", border: "1px solid #e8e4ee", borderRadius: 16,
-          padding: "20px 22px", boxShadow: "0 1px 4px rgba(139,123,168,0.06)",
-          display: "flex", flexDirection: "column", gap: 14,
-          fontSize: 14, color: "#4b5563", lineHeight: 1.7,
+          background: "rgba(255,255,255,0.88)", backdropFilter: "blur(8px)",
+          borderRadius: 18, padding: "22px 24px",
+          boxShadow: "0 2px 12px rgba(139,123,168,0.08)",
+          marginBottom: 16,
         }}>
-          <p style={{ margin: 0 }}>
-            תודה שהצטרפת! את ובת זוגך עוזרות ל־One ללמוד מזוגיות קיימת — להכיר שתי נשים שבחרו זו בזו, ולהבין מה מחבר ביניהן.
+          <p style={{ margin: "0 0 12px", fontSize: 14, color: "#4b5563", lineHeight: 1.75 }}>
+            את ובת זוגך עוזרות ל־One ללמוד מזוגיות קיימת — להכיר שתי נשים שבחרו זו בזו, ולהבין מה מחבר ביניהן.
           </p>
-
-          <p style={{ margin: 0 }}>
+          <p style={{ margin: "0 0 12px", fontSize: 14, color: "#4b5563", lineHeight: 1.75 }}>
             כל אחת מכן תעבור את תהליך ההיכרות של One: שיחה, שאלות וניתוח אישי. כדי שנוכל ללמוד מהחיבור שלכן, נבקש ממך לציין מי בת הזוג שלך ולקשר בין הפרופילים שלכן.
           </p>
-
-          <p style={{ margin: 0 }}>
+          <p style={{ margin: "0 0 12px", fontSize: 14, color: "#4b5563", lineHeight: 1.75 }}>
             בסיום, כל אחת מכן תקבל תובנות אישיות על עצמה, ושתיכן תקבלו גם תובנות על הזוגיות שלכן.
           </p>
-
-          <p style={{ margin: 0, fontWeight: 600, color: "#1a1a2e" }}>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#1a1a2e", lineHeight: 1.75 }}>
             תודה שאתן עוזרות לנו לדייק את One — ולנשים אחרות למצוא את החיבור שלהן.
           </p>
         </div>
 
-        {/* Partner details */}
+        {/* Partner details card */}
         <div style={{
-          background: "#fff", border: "1px solid #e8e4ee", borderRadius: 16,
-          padding: "20px 22px", marginTop: 16,
-          boxShadow: "0 1px 4px rgba(139,123,168,0.06)",
+          background: "rgba(255,255,255,0.88)", backdropFilter: "blur(8px)",
+          borderRadius: 18, padding: "22px 24px",
+          boxShadow: "0 2px 12px rgba(139,123,168,0.08)",
         }}>
-          <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 14px" }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 16px" }}>
             פרטי בת הזוג
           </p>
 
-          <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6, color: "#1a1a2e" }}>
+          <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6, color: "#555" }}>
             שם בת הזוג
           </label>
           <input
             value={partnerName}
             onChange={e => setPartnerName(e.target.value)}
+            onFocus={() => setFocused("name")}
+            onBlur={() => setFocused(null)}
             placeholder="שם מלא"
-            style={{
-              width: "100%", padding: "10px 14px", fontSize: 15,
-              border: "1px solid #e0dce6", borderRadius: 10,
-              boxSizing: "border-box", marginBottom: 14, outline: "none",
-              fontFamily: "inherit",
-            }}
+            style={{ ...inputStyle("name"), marginBottom: 16 }}
           />
 
-          <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6, color: "#1a1a2e" }}>
+          <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6, color: "#555" }}>
             אימייל בת הזוג
           </label>
           <input
             type="email"
             value={partnerEmail}
             onChange={e => setPartnerEmail(e.target.value)}
+            onFocus={() => setFocused("email")}
+            onBlur={() => setFocused(null)}
             placeholder="כתובת האימייל שלה"
             dir="ltr"
-            style={{
-              width: "100%", padding: "10px 14px", fontSize: 15,
-              border: "1px solid #e0dce6", borderRadius: 10,
-              boxSizing: "border-box", marginBottom: 4, outline: "none",
-              fontFamily: "inherit", textAlign: "left",
-            }}
+            style={{ ...inputStyle("email"), textAlign: "left" }}
           />
-          <p style={{ fontSize: 11, color: "#aaa", margin: "4px 0 0" }}>
+          <p style={{ fontSize: 11, color: "#aaa", margin: "6px 0 0" }}>
             לצרכי זיהוי — כדי שנוכל לקשר ביניכן
           </p>
         </div>
@@ -135,19 +144,21 @@ export default function CoupleWelcome({ user, onComplete }: CoupleWelcomeProps) 
           onClick={handleSubmit}
           disabled={loading}
           style={{
-            width: "100%", height: 50, borderRadius: 14,
+            width: "100%", height: 52, borderRadius: 14,
             background: "#1a1a2e", color: "#fff",
             fontSize: 16, fontWeight: 600,
             border: "none", cursor: "pointer",
-            opacity: loading ? 0.5 : 1, marginTop: 20,
+            opacity: loading ? 0.6 : 1, marginTop: 20,
             fontFamily: "inherit",
+            boxShadow: "0 2px 8px rgba(26,26,46,0.15)",
+            transition: "opacity 0.2s",
           }}
         >
           {loading ? "שומר..." : "בואי נתחיל"}
         </button>
 
         {error && (
-          <p style={{ fontSize: 13, color: "#ef4444", textAlign: "center", marginTop: 12 }}>{error}</p>
+          <p style={{ fontSize: 13, color: "#ef4444", textAlign: "center", marginTop: 12, background: "rgba(255,255,255,0.8)", borderRadius: 10, padding: "8px 12px" }}>{error}</p>
         )}
       </div>
     </div>

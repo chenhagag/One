@@ -44,6 +44,7 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
   const [emailUpdates, setEmailUpdates] = useState(true);
   const [whatsappUpdates, setWhatsappUpdates] = useState(isForWomen ? true : false);
   const [whatsappPhone, setWhatsappPhone] = useState("");
+  const [focused, setFocused] = useState<string | null>(null);
 
   const [enums, setEnums] = useState<Record<string, EnumOption[]>>({});
   const [cities, setCities] = useState<{ city_name: string; region: string }[]>([]);
@@ -132,180 +133,209 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
 
   const opts = (cat: string): EnumOption[] => enums[cat] || [];
 
-  // Inline styles — elegant black/lilac theme
-  const s: Record<string, React.CSSProperties> = {
-    section: { marginBottom: 24, padding: "20px 20px 4px", background: "#fff", borderRadius: 16, border: "1px solid #e8e4ee", boxShadow: "0 1px 4px rgba(139,123,168,0.06)" },
-    label: { display: "block", fontSize: 14, fontWeight: 500, marginBottom: 6, color: "#1a1a2e" },
-    input: {
-      width: "100%", padding: "10px 14px", fontSize: 15,
-      border: "1px solid #e0dce6", borderRadius: 10,
-      boxSizing: "border-box" as const, marginBottom: 16, outline: "none",
-      fontFamily: "inherit",
-    },
-    select: {
-      width: "100%", padding: "10px 14px", fontSize: 15,
-      border: "1px solid #e0dce6", borderRadius: 10,
-      boxSizing: "border-box" as const, marginBottom: 16, outline: "none", background: "#fff",
-      fontFamily: "inherit",
-    },
-    chip: {
-      padding: "6px 14px", borderRadius: 20,
-      border: "1px solid #e0dce6", background: "#fff",
-      fontSize: 13, cursor: "pointer", transition: "all 0.15s",
-      fontFamily: "inherit",
-    },
-    chipActive: {
-      padding: "6px 14px", borderRadius: 20,
-      border: "1px solid #8b7ba8", background: "#8b7ba8",
-      color: "#fff", fontSize: 13, cursor: "pointer",
-      fontFamily: "inherit",
-    },
-    btn: {
-      width: "100%", padding: "14px", fontSize: 16, fontWeight: 600,
-      background: "#1a1a2e", color: "#fff", border: "none",
-      borderRadius: 14, cursor: "pointer", marginTop: 8,
-      fontFamily: "inherit",
-    },
-    error: { color: "#c0392b", fontSize: 13, marginTop: 10 },
+  const inputStyle = (name: string): React.CSSProperties => ({
+    width: "100%", padding: "12px 16px", fontSize: 15,
+    border: `1.5px solid ${focused === name ? "#8b7ba8" : "#e0dce6"}`,
+    borderRadius: 12, boxSizing: "border-box" as const, outline: "none",
+    fontFamily: "inherit", transition: "border-color 0.2s",
+    background: "#faf9fc",
+  });
+
+  const selectStyle = (name: string): React.CSSProperties => ({
+    ...inputStyle(name),
+    background: "#faf9fc",
+    appearance: "auto" as const,
+  });
+
+  const labelStyle: React.CSSProperties = {
+    display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6, color: "#555",
   };
 
   return (
-    <div style={{ maxWidth: 520, margin: "0 auto", padding: "32px 20px", fontFamily: "'Segoe UI', system-ui, sans-serif" }}>
-      <form onSubmit={handleSubmit} dir="rtl">
-        {/* Logo */}
-        <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <img src="/iconOnly.png" alt="" style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", marginBottom: 12 }} />
-          <h2 style={{ marginTop: 0, marginBottom: 6, fontSize: 22, fontWeight: 700, color: "#1a1a2e" }}>נתוני פתיחה</h2>
-          <p style={{ color: "#888", marginBottom: 0, marginTop: 0, fontSize: 14 }}>
-            {isForWomen ? "כמה פרטים טכניים, כדי שנדע לכוון למי שרלוונטית עבורך." : "כמה פרטים טכניים, כדי שהמערכת תדע לכוון לאנשים הרלוונטיים עבורך."}
-          </p>
-        </div>
-
-        <div style={s.section}>
-          <label style={s.label}>שם *</label>
-          <input
-            style={s.input}
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-            placeholder="השם שלך"
-            required
-          />
-
-          <div style={{ display: "flex", gap: 12 }}>
-            <div style={{ flex: 1 }}>
-              <label style={s.label}>גיל</label>
-              <input style={s.input} type="number" min="18" max="99" value={age} onChange={(e) => setAge(e.target.value)} placeholder="גיל" />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={s.label}>עיר</label>
-              <input style={s.input} value={city} onChange={(e) => setCity(e.target.value)} placeholder="עיר מגורים" list="setup-city-list" autoComplete="off" />
-              <datalist id="setup-city-list">
-                {cities.map(c => <option key={c.city_name} value={c.city_name} />)}
-              </datalist>
-              <p style={{ fontSize: 11, color: "#aaa", marginTop: -10, marginBottom: 8 }}>אם העיר שלך לא מופיעה — אפשר לבחור עיר קרובה</p>
-            </div>
+    <div style={{
+      minHeight: "100dvh", display: "flex", flexDirection: "column",
+      alignItems: "center",
+      backgroundImage: "linear-gradient(rgba(255,255,255,0.4), rgba(255,255,255,0.4)), url(/background.png)",
+      backgroundSize: "cover", backgroundPosition: "center",
+      padding: "40px 24px 32px",
+    }}>
+      <div style={{ maxWidth: 480, width: "100%" }}>
+        <form onSubmit={handleSubmit} dir="rtl">
+          {/* Header */}
+          <div style={{ textAlign: "center", marginBottom: 28 }}>
+            <img src="/iconOnly.png" alt="One" style={{ height: 48, objectFit: "contain", marginBottom: 14 }} />
+            <h2 style={{ margin: "0 0 6px", fontSize: 22, fontWeight: 700, color: "#1a1a2e" }}>
+              {isForWomen ? "כמה פרטים לפני שמתחילות" : "כמה פרטים לפני שמתחילים"}
+            </h2>
+            <p style={{ color: "#8b7ba8", margin: 0, fontSize: 14, fontWeight: 500 }}>
+              {isForWomen ? "כדי שנדע לכוון למי שרלוונטית עבורך" : "כדי שהמערכת תדע לכוון לאנשים הרלוונטיים עבורך"}
+            </p>
           </div>
 
-          {!isForWomen && <>
-          <label style={s.label}>מגדר</label>
-          <select style={s.select} value={gender} onChange={(e) => setGender(e.target.value)}>
-            <option value="">בחר/י</option>
-            {(opts("gender").length > 0 ? opts("gender") : [
-              { value: "man", label_he: "גבר" },
-              { value: "woman", label_he: "אישה" },
-              { value: "undefined", label_he: "לא מוגדר" },
-            ]).map((o) => (
-              <option key={o.value} value={o.value}>{o.label_he}</option>
-            ))}
-          </select>
+          {/* Main form card */}
+          <div style={{
+            background: "rgba(255,255,255,0.88)", backdropFilter: "blur(8px)",
+            borderRadius: 18, padding: "24px 24px 8px",
+            boxShadow: "0 2px 12px rgba(139,123,168,0.08)",
+            marginBottom: 16,
+          }}>
+            <label style={labelStyle}>שם *</label>
+            <input
+              style={{ ...inputStyle("name"), marginBottom: 18 }}
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              onFocus={() => setFocused("name")}
+              onBlur={() => setFocused(null)}
+              placeholder="השם שלך"
+              required
+            />
 
-          <label style={s.label}>מחפש/ת</label>
-          <select style={s.select} value={lookingForGender} onChange={(e) => setLookingForGender(e.target.value)}>
-            <option value="">בחר/י</option>
-            {(opts("looking_for_gender").length > 0 ? opts("looking_for_gender") : [
-              { value: "man", label_he: "גבר" },
-              { value: "woman", label_he: "אישה" },
-              { value: "both", label_he: "שניהם" },
-              { value: "doesnt_matter", label_he: "לא משנה" },
-            ]).map((o) => (
-              <option key={o.value} value={o.value}>{o.label_he}</option>
-            ))}
-          </select>
-          </>}
+            <div style={{ display: "flex", gap: 12, marginBottom: 2 }}>
+              <div style={{ flex: 1 }}>
+                <label style={labelStyle}>גיל</label>
+                <input
+                  style={{ ...inputStyle("age"), marginBottom: 18 }}
+                  type="number" min="18" max="99" value={age}
+                  onChange={(e) => setAge(e.target.value)}
+                  onFocus={() => setFocused("age")}
+                  onBlur={() => setFocused(null)}
+                  placeholder="גיל"
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={labelStyle}>עיר</label>
+                <input
+                  style={{ ...inputStyle("city"), marginBottom: 4 }}
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  onFocus={() => setFocused("city")}
+                  onBlur={() => setFocused(null)}
+                  placeholder="עיר מגורים"
+                  list="setup-city-list"
+                  autoComplete="off"
+                />
+                <datalist id="setup-city-list">
+                  {cities.map(c => <option key={c.city_name} value={c.city_name} />)}
+                </datalist>
+                <p style={{ fontSize: 11, color: "#aaa", margin: "2px 0 12px" }}>אם העיר שלך לא מופיעה — אפשר לבחור עיר קרובה</p>
+              </div>
+            </div>
 
-          {!isForWomen && <>
-          <label style={s.label}>סטטוס</label>
-          <select style={s.select} value={testUserType} onChange={(e) => { setTestUserType(e.target.value); if (e.target.value !== "Couple Tester") setPartnerName(""); }}>
-            <option value="User Experience Tester">אני רווק/ה שמשתתף/ת ב-MVP</option>
-            <option value="Couple Tester">אני בזוגיות ועוזר/ת לאימון המערכת</option>
-          </select>
+            {!isForWomen && <>
+              <label style={labelStyle}>מגדר</label>
+              <select
+                style={{ ...selectStyle("gender"), marginBottom: 18 }}
+                value={gender}
+                onChange={(e) => setGender(e.target.value)}
+                onFocus={() => setFocused("gender")}
+                onBlur={() => setFocused(null)}
+              >
+                <option value="">בחר/י</option>
+                {(opts("gender").length > 0 ? opts("gender") : [
+                  { value: "man", label_he: "גבר" },
+                  { value: "woman", label_he: "אישה" },
+                  { value: "undefined", label_he: "לא מוגדר" },
+                ]).map((o) => (
+                  <option key={o.value} value={o.value}>{o.label_he}</option>
+                ))}
+              </select>
 
-          {testUserType === "Couple Tester" && (
-            <>
-              <label style={s.label}>שם בן/בת הזוג (שם מלא)</label>
-              <input
-                style={s.input}
-                type="text"
-                value={partnerName}
-                onChange={(e) => setPartnerName(e.target.value)}
-                placeholder="שם מלא של בן/בת הזוג"
-              />
-            </>
-          )}
-          </>}
+              <label style={labelStyle}>מחפש/ת</label>
+              <select
+                style={{ ...selectStyle("looking"), marginBottom: 18 }}
+                value={lookingForGender}
+                onChange={(e) => setLookingForGender(e.target.value)}
+                onFocus={() => setFocused("looking")}
+                onBlur={() => setFocused(null)}
+              >
+                <option value="">בחר/י</option>
+                {(opts("looking_for_gender").length > 0 ? opts("looking_for_gender") : [
+                  { value: "man", label_he: "גבר" },
+                  { value: "woman", label_he: "אישה" },
+                  { value: "both", label_he: "שניהם" },
+                  { value: "doesnt_matter", label_he: "לא משנה" },
+                ]).map((o) => (
+                  <option key={o.value} value={o.value}>{o.label_he}</option>
+                ))}
+              </select>
+            </>}
 
-          {/* Notifications — inline for forwomen, separate section otherwise */}
-          {isForWomen && <div style={{ borderTop: "1px solid #e8e4ee", paddingTop: 16, marginTop: 8 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: "#1a1a2e", margin: "0 0 10px" }}>עדכונים והתראות</p>
-            <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 13, color: "#444", lineHeight: 1.6, marginBottom: 10 }}>
+            {!isForWomen && <>
+              <label style={labelStyle}>סטטוס</label>
+              <select
+                style={{ ...selectStyle("status"), marginBottom: 18 }}
+                value={testUserType}
+                onChange={(e) => { setTestUserType(e.target.value); if (e.target.value !== "Couple Tester") setPartnerName(""); }}
+                onFocus={() => setFocused("status")}
+                onBlur={() => setFocused(null)}
+              >
+                <option value="User Experience Tester">אני רווק/ה שמשתתף/ת ב-MVP</option>
+                <option value="Couple Tester">אני בזוגיות ועוזר/ת לאימון המערכת</option>
+              </select>
+
+              {testUserType === "Couple Tester" && (
+                <>
+                  <label style={labelStyle}>שם בן/בת הזוג (שם מלא)</label>
+                  <input
+                    style={{ ...inputStyle("partner"), marginBottom: 18 }}
+                    type="text"
+                    value={partnerName}
+                    onChange={(e) => setPartnerName(e.target.value)}
+                    onFocus={() => setFocused("partner")}
+                    onBlur={() => setFocused(null)}
+                    placeholder="שם מלא של בן/בת הזוג"
+                  />
+                </>
+              )}
+            </>}
+          </div>
+
+          {/* Notifications card */}
+          <div style={{
+            background: "rgba(255,255,255,0.88)", backdropFilter: "blur(8px)",
+            borderRadius: 18, padding: "20px 24px",
+            boxShadow: "0 2px 12px rgba(139,123,168,0.08)",
+          }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 14px" }}>עדכונים והתראות</p>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 13, color: "#555", lineHeight: 1.6, marginBottom: 10 }}>
               <input type="checkbox" checked={emailUpdates} onChange={e => setEmailUpdates(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }} />
-              <span>מעוניינת לקבל עדכונים במייל</span>
+              <span>{isForWomen ? "מעוניינת לקבל עדכונים במייל" : "אני מעוניין/ת לקבל עדכונים במייל"}</span>
             </label>
-            <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 13, color: "#444", lineHeight: 1.6 }}>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 13, color: "#555", lineHeight: 1.6 }}>
               <input type="checkbox" checked={whatsappUpdates} onChange={e => setWhatsappUpdates(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }} />
-              <span>מעוניינת לקבל עדכונים גם ב-WhatsApp</span>
+              <span>{isForWomen ? "מעוניינת לקבל עדכונים גם ב-WhatsApp" : "אני מעוניין/ת לקבל עדכונים גם בהודעות WhatsApp"}</span>
             </label>
             {whatsappUpdates && (
               <input
-                style={{ ...s.input, marginTop: 10, marginBottom: 0 }}
+                style={{ ...inputStyle("phone"), marginTop: 12 }}
                 type="tel"
                 value={whatsappPhone}
                 onChange={e => setWhatsappPhone(e.target.value)}
+                onFocus={() => setFocused("phone")}
+                onBlur={() => setFocused(null)}
                 placeholder="מספר טלפון"
                 dir="ltr"
               />
             )}
-          </div>}
-        </div>
+          </div>
 
-        {!isForWomen && <div style={{ ...s.section, background: "#f5f0fb", border: "1px solid #e8e0f0" }}>
-          <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 12px" }}>עדכונים והתראות</p>
-          <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 13, color: "#444", lineHeight: 1.6, marginBottom: 12 }}>
-            <input type="checkbox" checked={emailUpdates} onChange={e => setEmailUpdates(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }} />
-            <span>אני מעוניין/ת לקבל עדכונים במייל לגבי התאמות ועדכונים חשובים (לא נשלח דיוור שיווקי)</span>
-          </label>
-          <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 13, color: "#444", lineHeight: 1.6 }}>
-            <input type="checkbox" checked={whatsappUpdates} onChange={e => setWhatsappUpdates(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }} />
-            <span>אני מעוניין/ת לקבל עדכונים גם בהודעות WhatsApp או SMS</span>
-          </label>
-          {whatsappUpdates && (
-            <input
-              style={{ ...s.input, marginTop: 10, marginBottom: 0 }}
-              type="tel"
-              value={whatsappPhone}
-              onChange={e => setWhatsappPhone(e.target.value)}
-              placeholder="מספר טלפון"
-              dir="ltr"
-            />
-          )}
-        </div>}
+          <button
+            style={{
+              width: "100%", height: 52, fontSize: 16, fontWeight: 600,
+              background: "#1a1a2e", color: "#fff", border: "none",
+              borderRadius: 14, cursor: "pointer", marginTop: 20,
+              fontFamily: "inherit", opacity: loading ? 0.6 : 1,
+              boxShadow: "0 2px 8px rgba(26,26,46,0.15)",
+              transition: "opacity 0.2s",
+            }}
+            type="submit" disabled={loading}
+          >
+            {loading ? "...שומר" : isForWomen ? "בואי נתחיל" : "בואו נתחיל"}
+          </button>
 
-        <button style={s.btn} type="submit" disabled={loading}>
-          {loading ? "...שומר" : isForWomen ? "בואי נתחיל" : "בואו נתחיל"}
-        </button>
-
-        {error && <p style={s.error}>{error}</p>}
-      </form>
+          {error && <p style={{ color: "#ef4444", fontSize: 13, marginTop: 12, textAlign: "center", background: "rgba(255,255,255,0.8)", borderRadius: 10, padding: "8px 12px" }}>{error}</p>}
+        </form>
+      </div>
     </div>
   );
 }

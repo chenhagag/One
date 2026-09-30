@@ -42,24 +42,28 @@ export default function ConsentScreen({ user, onComplete }: ConsentScreenProps) 
 
   return (
     <div style={{
-      display: "flex", minHeight: "100dvh", flexDirection: "column",
-      alignItems: "center", justifyContent: "center", background: "#fff",
-      padding: "env(safe-area-inset-top, 0px) 24px 24px",
+      minHeight: "100dvh", display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      backgroundImage: "linear-gradient(rgba(255,255,255,0.4), rgba(255,255,255,0.4)), url(/background.png)",
+      backgroundSize: "cover", backgroundPosition: "center",
+      padding: "32px 24px",
     }}>
-      <div style={{ maxWidth: 520, width: "100%", textAlign: "right" }} dir="rtl">
-        {/* Logo */}
-        <div style={{ textAlign: "center", marginBottom: 20 }}>
-          <img src="/iconOnly.png" alt="" style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", marginBottom: 10 }} />
+      <div style={{ maxWidth: 480, width: "100%", textAlign: "right", direction: "rtl" }}>
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <img src="/iconOnly.png" alt="One" style={{ height: 48, objectFit: "contain", marginBottom: 14 }} />
           <h1 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", margin: "0 0 4px" }}>
             לפני שמתחילים
           </h1>
         </div>
 
+        {/* Content card */}
         <div style={{
-          background: "#fff", border: "1px solid #e8e4ee", borderRadius: 16,
-          padding: "20px 22px", boxShadow: "0 1px 4px rgba(139,123,168,0.06)",
-          display: "flex", flexDirection: "column", gap: 14,
-          fontSize: 14, color: "#4b5563", lineHeight: 1.7,
+          background: "rgba(255,255,255,0.88)", backdropFilter: "blur(8px)",
+          borderRadius: 18, padding: "22px 24px",
+          boxShadow: "0 2px 12px rgba(139,123,168,0.08)",
+          display: "flex", flexDirection: "column", gap: 12,
+          fontSize: 14, color: "#4b5563", lineHeight: 1.75,
         }}>
           <p style={{ margin: 0 }}>
             One היא אפליקציית שידוכים {ww ? "לנשים, " : ""}שנועדה להכיר אותך לעומק — להבין מה חשוב לך, מה מושך אותך, מה נכון לך בקשר, ואיזה סוג חיבור באמת יכול להתאים לך.
@@ -90,7 +94,12 @@ export default function ConsentScreen({ user, onComplete }: ConsentScreenProps) 
           </p>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 24 }}>
+        {/* Checkbox */}
+        <div style={{
+          background: "rgba(255,255,255,0.88)", backdropFilter: "blur(8px)",
+          borderRadius: 18, padding: "18px 24px", marginTop: 16,
+          boxShadow: "0 2px 12px rgba(139,123,168,0.08)",
+        }}>
           <label style={{
             display: "flex", alignItems: "flex-start", gap: 10,
             cursor: "pointer", fontSize: 14, color: "#1a1a2e", lineHeight: 1.6,
@@ -111,20 +120,21 @@ export default function ConsentScreen({ user, onComplete }: ConsentScreenProps) 
           onClick={handleAccept}
           disabled={!checked || loading}
           style={{
-            width: "100%", height: 50, borderRadius: 14,
-            background: checked ? "#1a1a2e" : "#d1d5db",
+            width: "100%", height: 52, borderRadius: 14,
+            background: checked ? "#1a1a2e" : "#b0a8c0",
             color: "#fff", fontSize: 16, fontWeight: 600,
             border: "none", cursor: checked ? "pointer" : "not-allowed",
-            opacity: loading ? 0.5 : 1, marginTop: 20,
-            transition: "background 0.2s",
+            opacity: loading ? 0.6 : 1, marginTop: 20,
+            transition: "background 0.3s, opacity 0.2s",
             fontFamily: "inherit",
+            boxShadow: checked ? "0 2px 8px rgba(26,26,46,0.15)" : "none",
           }}
         >
           {loading ? "שומר..." : "המשך"}
         </button>
 
         {error && (
-          <p style={{ fontSize: 13, color: "#ef4444", textAlign: "center", marginTop: 12 }}>{error}</p>
+          <p style={{ fontSize: 13, color: "#ef4444", textAlign: "center", marginTop: 12, background: "rgba(255,255,255,0.8)", borderRadius: 10, padding: "8px 12px" }}>{error}</p>
         )}
       </div>
     </div>
