@@ -57,8 +57,8 @@ export default function CoupleWelcome({ user, onComplete }: CoupleWelcomeProps) 
         {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: 20 }}>
           <img src="/iconOnly.png" alt="" style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", marginBottom: 10 }} />
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", margin: "0 0 4px" }}>
-            תודה שבאת לעזור לנו!
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", margin: "0 0 4px", lineHeight: 1.5 }}>
+            הזוגיות שלכן יכולה לעזור ל־One למצוא חיבורים טובים יותר
           </h1>
         </div>
 
@@ -69,19 +69,19 @@ export default function CoupleWelcome({ user, onComplete }: CoupleWelcomeProps) 
           fontSize: 14, color: "#4b5563", lineHeight: 1.7,
         }}>
           <p style={{ margin: 0 }}>
-            את ובת זוגך עוזרות לנו לשפר ולדייק את מערכת ההתאמה של One, על ידי כך שאתן מאמנות אותה להבין איך התאמה אמיתית נראית.
+            תודה שהצטרפת! את ובת זוגך עוזרות ל־One ללמוד מזוגיות קיימת — להכיר שתי נשים שבחרו זו בזו, ולהבין מה מחבר ביניהן.
           </p>
 
           <p style={{ margin: 0 }}>
-            המערכת תתנהל איתך בדיוק כמו עם כל משתמשת — שיחה, שאלות, ניתוח. אנחנו רק צריכות לדעת מי בת הזוג שלך כדי שנוכל לקשר את הפרופילים שלכן בסוף.
+            כל אחת מכן תעבור את תהליך ההיכרות של One: שיחה, שאלות וניתוח אישי. כדי שנוכל ללמוד מהחיבור שלכן, נבקש ממך לציין מי בת הזוג שלך ולקשר בין הפרופילים שלכן.
           </p>
 
           <p style={{ margin: 0 }}>
-            בסיום התהליך, שתיכן תקבלו תובנות אישיות על עצמכן ועל הזוגיות שלכן.
+            בסיום, כל אחת מכן תקבל תובנות אישיות על עצמה, ושתיכן תקבלו גם תובנות על הזוגיות שלכן.
           </p>
 
           <p style={{ margin: 0, fontWeight: 600, color: "#1a1a2e" }}>
-            תודה רבה על ההשתתפות — את ממש עוזרת לנו לבנות משהו טוב יותר.
+            תודה שאתן עוזרות לנו לדייק את One — ולנשים אחרות למצוא את החיבור שלהן.
           </p>
         </div>
 
