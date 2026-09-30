@@ -2403,8 +2403,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 </div>
               )}
 
-              {/* Standalone insight card — shown ABOVE priority block for users who haven't viewed insights yet */}
-              {screen === "home" && !hasSeenInsights && insightCard && !recommendations.in_matching_pool && !(recommendations.chat_closed && recommendations.has_cognitive && recommendations.has_taste_info) && (() => {
+              {/* Standalone insight card — for users NOT in pool who have analysis data */}
+              {screen === "home" && insightCard && !recommendations.in_matching_pool && (() => {
                 const rot = insightRotation % 5;
                 let emoji = ""; let title = ""; let text = ""; let hasContent = false;
                 if (rot === 0 && insightCard.mbti?.type) { emoji = "/icons/thinkingType.png"; title = `טיפוס MBTI: ${insightCard.mbti.type}`; text = insightCard.mbti.description || ""; hasContent = true; }
