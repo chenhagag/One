@@ -13,7 +13,7 @@ import AdminPipeline from "./AdminPipeline";
  * - Matches
  */
 
-type Tab = "overview" | "users" | "traits" | "look_traits" | "matches" | "candidates" | "bugs" | "card_requests" | "errors" | "email" | "analytics" | "user_mgmt" | "outreach" | "deleted_users" | "survey" | "survey2" | "system_log";
+type Tab = "overview" | "users" | "traits" | "look_traits" | "matches" | "candidates" | "bugs" | "card_requests" | "errors" | "email" | "analytics" | "user_mgmt" | "outreach" | "deleted_users" | "survey" | "survey2" | "system_log" | "meme_dash";
 
 const s: Record<string, React.CSSProperties> = {
   heading: { marginTop: 0, marginBottom: 8, fontSize: 22 },
@@ -450,6 +450,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
           ["survey", "סקר"],
           ["survey2", "סקר WW"],
           ["system_log", "לוג מערכת"],
+          ["meme_dash", "דשבורד סאשה"],
         ] as [Tab, string][]).map(([key, label]) => (
           <button
             key={key}
@@ -490,6 +491,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
       {tab === "survey" && <SurveyAdminTab />}
       {tab === "survey2" && <Survey2AdminTab />}
       {tab === "system_log" && <SystemActivityLogTab />}
+      {tab === "meme_dash" && <MemeDashTab />}
     </div>
   );
 }
@@ -8053,6 +8055,92 @@ function SystemActivityLogTab() {
             })}
           </div>
         ))
+      )}
+    </div>
+  );
+}
+
+// ── Meme Dashboard Tab (Sasha) ────────────────────────────────
+
+function MemeDashTab() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    apiFetch("/api/meme-dashboard")
+      .then(r => r.json())
+      .then(setData)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <p>טוען...</p>;
+  if (!data) return <p>שגיאה בטעינת נתונים</p>;
+
+  const byDay: { date: string; visits: number; registrations: number }[] = data.by_day || [];
+  const maxVal = Math.max(...byDay.map((d: any) => Math.max(d.visits, d.registrations)), 1);
+
+  return (
+    <div dir="rtl" style={{ padding: "12px 0" }}>
+      <h3 style={{ margin: "0 0 16px", fontSize: 18 }}>דשבורד סאשה — לינק /meme</h3>
+
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 24 }}>
+        {[
+          { label: "ביקורים בלינק", value: data.landing_visits_total, bg: "#ede9fe" },
+          { label: "נרשמו", value: data.total_registered, bg: "#e0e7ff" },
+          { label: "התחילו שיחה", value: data.started_chat, bg: "#dbeafe" },
+          { label: "במאגר", value: data.in_pool, bg: "#d1fae5" },
+        ].map(c => (
+          <div key={c.label} style={{ background: c.bg, borderRadius: 12, padding: "14px 20px", minWidth: 110, textAlign: "center" }}>
+            <div style={{ fontSize: 28, fontWeight: 700 }}>{c.value}</div>
+            <div style={{ fontSize: 12, color: "#555", marginTop: 4 }}>{c.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <h4 style={{ margin: "0 0 8px" }}>30 יום אחרונים</h4>
+      <div style={{ display: "flex", gap: 4, marginBottom: 8, fontSize: 12, color: "#888" }}>
+        <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#c4b5fd", marginLeft: 4 }} />ביקורים</span>
+        <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#6366f1", marginLeft: 4 }} />הרשמות</span>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 120, direction: "ltr", background: "#faf9fc", borderRadius: 10, padding: "8px 4px" }}>
+        {byDay.map((d: any, i: number) => {
+          const vH = (d.visits / maxVal) * 100;
+          const rH = (d.registrations / maxVal) * 100;
+          const dayLabel = new Date(d.date).getDate().toString();
+          const isToday = i === byDay.length - 1;
+          return (
+            <div key={d.date} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", minWidth: 0 }} title={`${d.date}: ${d.visits} ביקורים, ${d.registrations} הרשמות`}>
+              <div style={{ display: "flex", gap: 1, alignItems: "flex-end", height: 100 }}>
+                <div style={{ width: "50%", height: Math.max(vH, d.visits > 0 ? 3 : 0), background: "#c4b5fd", borderRadius: "2px 2px 0 0" }} />
+                <div style={{ width: "50%", height: Math.max(rH, d.registrations > 0 ? 3 : 0), background: "#6366f1", borderRadius: "2px 2px 0 0" }} />
+              </div>
+              {(i % 5 === 0 || isToday) && (
+                <span style={{ fontSize: 9, color: isToday ? "#6366f1" : "#bbb", marginTop: 2, fontWeight: isToday ? 700 : 400 }}>{dayLabel}</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {byDay.some((d: any) => d.visits > 0 || d.registrations > 0) && (
+        <div style={{ marginTop: 16 }}>
+          <h4 style={{ margin: "0 0 8px", fontSize: 14 }}>ימים עם פעילות:</h4>
+          {byDay.filter((d: any) => d.visits > 0 || d.registrations > 0).reverse().map((d: any) => {
+            const dateStr = new Date(d.date).toLocaleDateString("he-IL", { day: "numeric", month: "short" });
+            return (
+              <div key={d.date} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "3px 0", borderBottom: "1px solid #f0eef5" }}>
+                <span>{dateStr}</span>
+                <span>
+                  {d.visits > 0 && <span style={{ color: "#8b7ba8" }}>{d.visits} ביקורים</span>}
+                  {d.visits > 0 && d.registrations > 0 && " · "}
+                  {d.registrations > 0 && <span style={{ color: "#6366f1", fontWeight: 600 }}>{d.registrations} הרשמות</span>}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
