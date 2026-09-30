@@ -5987,6 +5987,12 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
     );
     const showSurvey2Banner = isWWUser && !survey2Row?.completed && !survey2BannerDismissed?.survey2_banner_dismissed;
 
+    // Check if user has ever viewed the insights screen
+    const insightsViewed = await pgQueryOne<{ id: number }>(
+      "SELECT id FROM page_views WHERE user_id = $1 AND page = 'תובנות' LIMIT 1",
+      [userId]
+    );
+
     // Pool profile count for status card (only query if user is in pool or all chats done)
     let poolProfileCount = 0;
     if (profileRow?.in_matching_pool || (chatClosed && cogClosed && hasTasteInfo)) {
@@ -6006,6 +6012,7 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       cognitive_closed: cogClosed,
       taste_closed: tasteClosed,
       analysis_run_count: analysisRunCount,
+      has_viewed_insights: !!insightsViewed,
       gender: userGender,
       admin_message: displayMessage,
       admin_message_type: (profileRow?.admin_message && !profileRow?.admin_message_dismissed)

@@ -433,7 +433,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   });
   const [insightInitialView, setInsightInitialView] = useState<"main" | "mbti" | "values" | "bigfive" | "enneagram" | "attachment">("main");
   const [insightResetKey, setInsightResetKey] = useState(0);
-  const [hasSeenInsights, setHasSeenInsights] = useState<boolean>(() => localStorage.getItem(`insights_seen_${user.id}`) === "true");
+  const [hasSeenInsights, setHasSeenInsights] = useState<boolean>(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [chatListOpen, setChatListOpen] = useState(false);
   const [nudgeStep, setNudgeStep] = useState<1 | 2 | 3>(1);
@@ -489,6 +489,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             pool_profile_count: data.pool_profile_count || 0,
           });
           setHasPastMatches(!!data.has_past_matches);
+          if (data.has_viewed_insights) setHasSeenInsights(true);
           // Only set system question if user hasn't already answered it in this session
           if (data.system_question && (!answeredQuestion || answeredQuestion.question_text !== data.system_question.question_text)) {
             setSystemQuestion(data.system_question);
@@ -892,7 +893,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   setMenuOpen(false);
                   return;
                 }
-                if (item.action === "insights") { setInsightInitialView("main"); setInsightResetKey(k => k + 1); if (!hasSeenInsights) { setHasSeenInsights(true); localStorage.setItem(`insights_seen_${user.id}`, "true"); } }
+                if (item.action === "insights") { setInsightInitialView("main"); setInsightResetKey(k => k + 1); if (!hasSeenInsights) { setHasSeenInsights(true); } }
                 setScreen(item.action as any);
                 setMenuOpen(false);
               }}
@@ -2402,8 +2403,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 </div>
               )}
 
-              {/* Standalone insight card — shown ABOVE priority block for mid-process users */}
-              {screen === "home" && insightCard && !(recommendations.chat_closed && recommendations.has_cognitive && recommendations.has_taste_info) && (() => {
+              {/* Standalone insight card — shown ABOVE priority block for users who haven't viewed insights yet */}
+              {screen === "home" && !hasSeenInsights && insightCard && !(recommendations.chat_closed && recommendations.has_cognitive && recommendations.has_taste_info) && (() => {
                 const rot = insightRotation % 5;
                 let emoji = ""; let title = ""; let text = ""; let hasContent = false;
                 if (rot === 0 && insightCard.mbti?.type) { emoji = "/icons/thinkingType.png"; title = `טיפוס MBTI: ${insightCard.mbti.type}`; text = insightCard.mbti.description || ""; hasContent = true; }
@@ -2421,7 +2422,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           <p style={styles.insightCardText}>{text}</p>
                         </div>
                       </div>
-                      <button style={styles.insightCardBtn} onClick={() => { setScreen("insights"); if (!hasSeenInsights) { setHasSeenInsights(true); localStorage.setItem(`insights_seen_${user.id}`, "true"); } }}>
+                      <button style={styles.insightCardBtn} onClick={() => { setScreen("insights"); if (!hasSeenInsights) { setHasSeenInsights(true); } }}>
                         לקריאת הניתוח המלא →
                       </button>
                       {!analysisCompleted && (
@@ -2668,7 +2669,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           </div>
                           <button
                             style={styles.insightCardBtn}
-                            onClick={() => { setScreen("insights"); if (!hasSeenInsights) { setHasSeenInsights(true); localStorage.setItem(`insights_seen_${user.id}`, "true"); } }}
+                            onClick={() => { setScreen("insights"); if (!hasSeenInsights) { setHasSeenInsights(true); } }}
                           >
                             לקריאת הניתוח המלא →
                           </button>
@@ -2763,7 +2764,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           </div>
                           <button
                             style={styles.insightCardBtn}
-                            onClick={() => { setScreen("insights"); if (!hasSeenInsights) { setHasSeenInsights(true); localStorage.setItem(`insights_seen_${user.id}`, "true"); } }}
+                            onClick={() => { setScreen("insights"); if (!hasSeenInsights) { setHasSeenInsights(true); } }}
                           >
                             לקריאת הניתוח המלא →
                           </button>
