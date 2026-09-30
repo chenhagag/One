@@ -8068,7 +8068,7 @@ function SystemActivityLogTab() {
 // ── Meme Dashboard Tab (Sasha) ────────────────────────────────
 
 function AgeDistributionTab() {
-  const [data, setData] = useState<{ age: number; count: number; in_pool: number }[]>([]);
+  const [data, setData] = useState<{ age: number; count: number; in_pool: number; matched: number }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -8084,26 +8084,31 @@ function AgeDistributionTab() {
 
   const total = data.reduce((s, d) => s + d.count, 0);
   const totalPool = data.reduce((s, d) => s + d.in_pool, 0);
+  const totalMatched = data.reduce((s, d) => s + d.matched, 0);
   const maxCount = Math.max(...data.map(d => d.count));
 
   return (
     <div style={{ padding: 16 }}>
       <h3 style={{ margin: "0 0 4px", fontSize: 18 }}>התפלגות גילאים — משתמשות WW</h3>
       <p style={{ fontSize: 13, color: "#6b7280", margin: "0 0 20px" }}>
-        סה"כ {total} משתמשות | {totalPool} במאגר
+        סה"כ {total} משתמשות | {totalPool} במאגר | {totalMatched} קיבלו התאמה
       </p>
 
       <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 220, padding: "0 8px", direction: "ltr" }}>
         {data.map(d => {
           const barH = Math.max(8, (d.count / maxCount) * 180);
           const poolH = d.in_pool > 0 ? Math.max(2, (d.in_pool / maxCount) * 180) : 0;
+          const matchH = d.matched > 0 ? Math.max(2, (d.matched / maxCount) * 180) : 0;
           return (
             <div key={d.age} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, minWidth: 22 }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: "#374151", marginBottom: 2 }}>{d.count}</span>
               <div style={{ position: "relative", width: "100%", maxWidth: 32 }}>
                 <div style={{ height: barH, background: "#c4b5fd", borderRadius: "4px 4px 0 0", width: "100%" }} />
                 {poolH > 0 && (
-                  <div style={{ position: "absolute", bottom: 0, height: poolH, background: "#7c3aed", borderRadius: "0 0 0 0", width: "100%", opacity: 0.85 }} />
+                  <div style={{ position: "absolute", bottom: 0, height: poolH, background: "#7c3aed", width: "100%", opacity: 0.85 }} />
+                )}
+                {matchH > 0 && (
+                  <div style={{ position: "absolute", bottom: 0, height: matchH, background: "#ec4899", width: "100%", opacity: 0.85 }} />
                 )}
               </div>
               <span style={{ fontSize: 10, color: "#6b7280", marginTop: 4 }}>{d.age}</span>
@@ -8115,6 +8120,7 @@ function AgeDistributionTab() {
       <div style={{ display: "flex", gap: 16, justifyContent: "center", marginTop: 12, fontSize: 12, color: "#6b7280" }}>
         <span><span style={{ display: "inline-block", width: 12, height: 12, background: "#c4b5fd", borderRadius: 2, verticalAlign: "middle", marginLeft: 4 }} /> סה"כ</span>
         <span><span style={{ display: "inline-block", width: 12, height: 12, background: "#7c3aed", borderRadius: 2, verticalAlign: "middle", marginLeft: 4 }} /> במאגר</span>
+        <span><span style={{ display: "inline-block", width: 12, height: 12, background: "#ec4899", borderRadius: 2, verticalAlign: "middle", marginLeft: 4 }} /> קיבלו התאמה</span>
       </div>
 
       <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 24, fontSize: 13 }}>
@@ -8123,6 +8129,7 @@ function AgeDistributionTab() {
             <th style={{ padding: "8px 12px", textAlign: "right" }}>גיל</th>
             <th style={{ padding: "8px 12px", textAlign: "center" }}>סה"כ</th>
             <th style={{ padding: "8px 12px", textAlign: "center" }}>במאגר</th>
+            <th style={{ padding: "8px 12px", textAlign: "center" }}>קיבלו התאמה</th>
             <th style={{ padding: "8px 12px", textAlign: "center" }}>% מהכלל</th>
           </tr>
         </thead>
@@ -8132,6 +8139,7 @@ function AgeDistributionTab() {
               <td style={{ padding: "6px 12px", fontWeight: 600 }}>{d.age}</td>
               <td style={{ padding: "6px 12px", textAlign: "center" }}>{d.count}</td>
               <td style={{ padding: "6px 12px", textAlign: "center" }}>{d.in_pool}</td>
+              <td style={{ padding: "6px 12px", textAlign: "center" }}>{d.matched}</td>
               <td style={{ padding: "6px 12px", textAlign: "center" }}>{(d.count / total * 100).toFixed(1)}%</td>
             </tr>
           ))}

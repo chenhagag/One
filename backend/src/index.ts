@@ -2839,13 +2839,16 @@ app.get("/admin/stats", async (_req, res) => {
 
 // GET /admin/age-distribution — Age distribution of WW users
 app.get("/admin/age-distribution", async (_req, res) => {
-  const rows = await pgQueryAll<{ age: number; count: number; in_pool: number }>(`
-    SELECT age, COUNT(*)::int as count,
-      SUM(CASE WHEN in_matching_pool THEN 1 ELSE 0 END)::int as in_pool
-    FROM users
-    WHERE gender = 'woman' AND looking_for_gender IS NOT NULL AND looking_for_gender != 'man'
-      AND age IS NOT NULL
-    GROUP BY age ORDER BY age
+  const rows = await pgQueryAll<{ age: number; count: number; in_pool: number; matched: number }>(`
+    SELECT u.age, COUNT(*)::int as count,
+      SUM(CASE WHEN u.in_matching_pool THEN 1 ELSE 0 END)::int as in_pool,
+      COUNT(DISTINCT CASE WHEN m.id IS NOT NULL THEN u.id END)::int as matched
+    FROM users u
+    LEFT JOIN matches m ON (m.user1_id = u.id OR m.user2_id = u.id)
+      AND m.status IN ('in_match', 'completed', 'waiting_first_rating', 'waiting_second_rating', 'pending_second_rating')
+    WHERE u.gender = 'woman' AND u.looking_for_gender IS NOT NULL AND u.looking_for_gender != 'man'
+      AND u.age IS NOT NULL
+    GROUP BY u.age ORDER BY u.age
   `);
   res.json(rows);
 });
