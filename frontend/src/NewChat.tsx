@@ -2626,8 +2626,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     )}
                     </div>
 
-                    {/* ── Dashboard: Insight Drip Feed — shown for all users including couples ── */}
-                    {insightCard && (() => {
+                    {/* ── Dashboard: Insight Drip Feed — only for pool users (non-pool get standalone card above) ── */}
+                    {insightCard && inPool && (() => {
                       const rot = insightRotation % 5;
                       let emoji = "";
                       let title = "";
