@@ -158,6 +158,7 @@ general, turn 1 → Prompt B (follow-up, then advance to next topic)
   - Use first names (e.g. "נדב", "דנית"), NEVER "הוא"/"היא"
   - introSummary must start with a brief personal intro of each person before describing the connection
   - Never reveal details from past relationships (breakups, lessons learned from exes, relationship history)
+  - **WW cards (isWW) must be entirely in feminine Hebrew**: שתיכן, ביניכן, מאמינות, שומרות, מקוות, תגלו — never use masculine forms. Check every sentence.
 - **Direct messaging**: `direct_messages` table, `typing_status` table, `blocked_by` on matches. Reports saved to `bug_reports` with `[match_report]` prefix.
 
 ### Location Filtering (Regions)
