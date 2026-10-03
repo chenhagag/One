@@ -22,7 +22,254 @@
 
 ---
 
-## Latest Session: 2026-09-24–25 (Automation Review + WW Adaptations + Survey2)
+## Latest Session: 2026-10-03 (Project Restructure + Android Agent)
+
+### ✅ ארגון מחדש של הפרויקט
+- **תיקיית `Management/`** — מבנה חדש: `Docs/`, `Marketing/`, `Dev Agents/`, `Management Agents/`
+- `Docs/` ו-`cut/Posts+screenShots` הועברו לתוך Management
+- `matchmaker.db` הוסר מ-git tracking
+- `.gitignore` עודכן: `logs/`, `test-idor.ts`
+
+### ✅ סוכן פיתוח Android נוצר
+- `Management/Dev Agents/Android/CONTEXT.md` — הקשר מלא: ארכיטקטורה, build, signing, testers, version history
+- `Management/Dev Agents/Android/WORKLOG.md` — יומן עבודה ייעודי
+- כל המידע על Android/Capacitor/Google Play מנוהל דרך הסוכן
+- **AAB v1.2.0 (versionCode 4) נפסל** — צריך לבנות גרסה חדשה
+
+### TODO לסשן הבא
+- ⚠️ בניית AAB חדש (versionCode 5) להגשה מחדש ל-Google Play
+- ⚠️ hard delete חשבון עדיין שבור (FK constraints)
+- דף נחיתה + דפי הסבר
+- אוטומציה pipeline
+- דיוק ציוני התאמה (17 תכונות סגנון)
+
+---
+
+## Previous Session: 2026-09-30–10-01 (Deploy Stability + WW Language Fixes + Admin Tools + UX Fixes)
+
+### ✅ תיקוני Deploy/Crash
+- **`ERR_ERL_KEY_GEN_IPV6`** — express-rate-limit זרק ValidationError בכל startup בגלל `req.ip` ב-keyGenerator. תוקן עם bracket notation
+- **`railway.json`** — bypass npm ב-startup, מריץ `node` ישירות. מבטל npm warn שגרם למיילי crash מ-Railway
+- **חקירת downtime** — 5 דקות ב-30.09 10:36, 404 Not Found מ-North America, לא קשור ל-deploy — כנראה Railway auto-restart
+
+### ✅ תיקוני WW / לשון נקבה
+- **הודעת couple tester בצ'אט** — "שואלת רווקות" במקום "שואל רווקים" ב-WW
+- **פרומפט couple tester** — כל ההוראות ללשון נקבה (המשתמשת, שאלי, אל תניחי)
+- **הודעת מסך הבית לזוגות** — "בת הזוג" במקום "בן הזוג", "בעזרתכן", "שלכן" ב-WW
+- **Enneagram העוזר** — "חמה ונדיבה" במקום "חם ונדיב"
+- **הוראות כרטיס התאמה** — CLAUDE.md + User Management Agent עודכנו: לשון נקבה בלבד ל-WW
+
+### ✅ פיצ'רים
+- **זיהוי אוטומטי של בת זוג במערכת** — בדיקת partner_email מול DB, עדכון אוטומטי של partner_in_system
+- **שדה אימייל בת הזוג** ב-ProfileEdit למשתמשות couple tester
+- **תגית "הגיעה דרך סאשה"** באדמין (רשימה + פרופיל) למשתמשות עם entry_point=meme
+- **טאב גילאים באדמין** — גרף עמודות + טבלה: התפלגות גילאים WW (סה"כ / במאגר / קיבלו התאמה)
+
+### ✅ תיקוני UX
+- **כפתור חזרה** בדפי תנאי שימוש ומדיניות פרטיות
+- **הערת push notifications** בהגדרות — "רלוונטי למי שהורידה את אפליקציית Android"
+- **DB defaults** — marital_status/has_children/smoker מתחילים כ-NULL (="בחרי") במקום ערכים pre-filled
+- **תיקון insight card כפול** — non-pool users ראו כרטיס "מה למדנו עליך" פעמיים (standalone + allDone)
+
+### TODO לסשן הבא
+- ⚠️ מחיקת חשבון: hard delete עדיין שבור (FK constraints)
+- ⚠️ "עומדים" → "עומדות" — לבדוק gender/looking_for_gender של סאשה ב-DB
+- דף נחיתה + דפי הסבר משכנעים
+- אוטומציה pipeline
+- דיוק ציוני התאמה (17 תכונות סגנון)
+
+---
+
+## Previous Session: 2026-09-30 (Couple Testers + Marketer Dashboard + Android Pushes + Insight Card + Pool Gating)
+
+### ✅ Couple Tester Onboarding Flow
+- **לינק `/couples`** בתחתית דף הנחיתה forwomen — "בזוגיות ורוצה לעזור לנו לאמן את One? כנסי לכאן"
+- **CoupleWelcome.tsx** — מסך הסבר חדש לזוגות: טקסט מותאם + שם בת זוג + אימייל בת זוג
+- **Flow**: landing → auth → ProfileSetup (WW defaults, auto Couple Tester) → CoupleWelcome → Consent → new_chat
+- **`partner_email`** — עמודה חדשה על users (schema + migration + PATCH endpoint)
+- לינק onClick (לא href) — מעדכן entryPoint ב-state בלי רענון
+
+### ✅ עיצוב מחדש — 3 מסכי Onboarding
+- **ProfileSetup, ConsentScreen, CoupleWelcome** — שפה אחידה: רקע עם תמונה, כרטיסים frosted glass, אינפוטים עם focus סגול, טיפוגרפיה מותאמת
+
+### ✅ Android Tester Push Reminders
+- **`androidTesterNudges.ts`** — רשימה hardcoded של 13 בודקים
+- FCM push כל 48 שעות ב-13:00 (שעון ישראל) — "פליז כנס/י ותעשה/י כמה פעולות"
+- **`sendPushOnly`** — בלי fallback למייל, בלי בדיקות preference, עוקף פילטרי couple tester
+- Dedup 44 שעות, gender-aware Hebrew
+- Admin: כפתור trigger ידני + endpoint סטטוס (`/admin/android-tester-status`)
+
+### ✅ Marketer Landing + Dashboard
+- **`/meme`** — דף נחיתה זהה ל-forwomen, שומר `entry_point = "meme"` על המשתמשת
+- **מעקב ביקורים** — `trackPage("landing_meme")` לביקורים אנונימיים
+- **`/meme-dash-7x9k`** — דשבורד עצמאי למשווקת (סאשה)
+- **MemeDashboard.tsx** — 4 כרטיסי סטטיסטיקה + גרף 30 יום (ביקורים + הרשמות)
+- **גישה**: JWT + email allowlist (`chen.hagag@gmail.com` + `s.jo.design@gmail.com`)
+- **כפתור "דשבורד שיווק"** בסיידבר — רק לשני האימיילים
+- **טאב "דשבורד סאשה"** באדמין
+
+### ✅ תיקון Pool Gating
+- **בעיה**: completionPipeline הכניס משתמשות למאגר בלי לבדוק שום תנאי
+- **תוקן**: 6 בדיקות לפני כניסה — general closed, cognitive done, taste done, תמונה, גיל, עיר
+- לוג מפורט של מה חסר + step `pool_blocked`
+- **סאשה** נכנסה למאגר בטעות — הוצאה ידנית
+
+### ✅ Insight Card — הצגה למשתמשות שלא במאגר
+- **בעיה**: כרטיס "מה למדנו עליך" הוצג רק ל-allDone או in_pool
+- **תוקן**: מוצג לכל מי שיש לה `analysis_run_count >= 1`
+- **Standalone card** למשתמשות לא במאגר — מופיע מעל ההמלצות
+- **סקר** מוזז למטה למשתמשות שלא במאגר (כדי שהתובנות יהיו למעלה)
+
+### ✅ React Crash Alerting
+- שליחת מייל לאדמין כש-React crash מדווח (via Resend)
+- הכנסה אוטומטית ל-bug_reports עם prefix `[auto-crash]`
+- סיווג ReferenceError/TypeError/SyntaxError כ-critical בלוג שגיאות
+
+### ✅ הסרת באנר תחזוקה
+- באנר "עבודות תחזוקה" הוסר לחלוטין מהמסך הראשי
+
+### באג שתוקן בזמן אמת
+- **ReferenceError: chatClosed** — standalone insight card השתמש במשתנים מ-IIFE פנימי
+- **כפילות insight card** — pool-incomplete users קיבלו כרטיס מהבלוק הפנימי + standalone
+
+### TODO לסשן הבא
+- ⚠️ תגית "הגיעה דרך סאשה" במסך משתמשת באדמין (entry_point = 'meme')
+- ⚠️ מחיקת חשבון: hard delete עדיין שבור (FK constraints)
+- ⚠️ "איפה אנחנו עומדים" → "עומדות" (אם המשתמשת לא מזוהה כ-WW — לבדוק gender של סאשה)
+- דף נחיתה + דפי הסבר משכנעים
+- אוטומציה pipeline
+- דיוק ציוני התאמה (17 תכונות סגנון)
+
+---
+
+## Previous Session: 2026-09-27–30 (Rating Lock + Special Attention + Admin Overhaul + Android Testers)
+
+### ✅ תיקוני באגים
+- **isWW crash** — `PotentialMatchScreen` השתמשה ב-isWW בלי שהוגדר. תוקן — מקבלת כפרופ
+- **candidate-matches 502** — הגנה: `setData` רק אם התשובה מערך
+- **דגלי moderation שבורים** — שמות traits ישנים (`toxicity_score`, `sexual_identity`) הוחלפו לנוכחיים (`toxicity`, `trollness`, `trans`). הדגלים TOXIC/TROLL/IDENTITY לא עבדו בכלל
+- **staging שולח מיילים** — `NODE_ENV=production` ב-Railway staging. תוקן: בדיקת `STAGING_URL` env var
+- **מייל כפול בעריכת הודעה** — בדיקה אם `admin_message_sent_at` כבר קיים לפני שליחה
+- **femininity preference הפוך** — תצוגה תוקנה: 100=נשית, 0=גברית (כמו בפרומפט)
+
+### ✅ החלפת מערכת freeze ב-rating lock
+- **מערכת freeze הוסרה לחלוטין** — `freezeUserMatches`, `freezeBothUsersMatches`, `unfreezeUserMatchesSafe`, `unfreezeMatchesSafe`, `hasAnyFreezeReason`, `isUserCurrentlyNeeded`, endpoint `unfreeze-all-matches` — הכל נמחק
+- **`isUserLocked` + `isUserInMatch`** — פונקציות חדשות, derived מסטטוס התאמות
+- **כלל נעילה**: נעולה אם active rater ב-waiting_first/second_rating או ב-in_match
+- **`pending_second_rating`** — סטטוס חדש: דירוג ראשון חיובי אבל הצד השני לא זמין
+- **Auto-promote**: דירוג חיובי → pending → אם הצד השני פנוי → waiting_second_rating אוטומטית
+- **Endpoint חדש: `send-second-rating`** — promote ידני מ-pending
+- **Lock checks** על send-for-rating ו-send (in_match) — מחזיר שגיאה אם משתמשת נעולה
+- **תגיות נעילה** באדמין: "ממתינה לדירוג" / "בהתאמה" ליד שמות משתמשות
+- **כפתורי שליחת דירוג** בכרטיס התאמה (צפה) — "שלח דירוג ל-X" עם חסימה אם נעולה
+- **מיגרציה**: 82 התאמות שוחררו ב-staging, 85 בפרודקשן
+- **Nudges**: pending_second_rating לא מקבל nudges (מטופל אוטומטית — הסטטוס לא waiting)
+
+### ✅ Special Attention System
+- **עמודה `special_attention`** על users: NULL=אוטו, TRUE=ידני, FALSE=override
+- **זיהוי אוטומטי**: trans≥50, trollness≥50, photo flags (fake/AI/mismatch), deal_breakers keywords
+- **SPECIAL_KEYWORDS**: מוגבלות, נכות, חירשת, כיסא גלגלים, סיעוד, א-בינארי, טרנס, קווירית, פוליאמורית, BDSM
+- **כפתור פילטר "⚠ מיוחדות"** בטאב candidates עם מונה
+- **תגית "⚠ מיוחדת"** ליד שמות משתמשות
+- **כפתור toggle** בפרופיל: null → true → false → null
+
+### ✅ Admin overrides — identity + toxicity
+- **`identity_override`**: NULL=אוטו, TRUE=forced, FALSE=cleared. כפתור toggle בפרופיל
+- **`toxicity_override`**: NULL=אוטו, FALSE=approved not toxic. כפתור toggle בפרופיל
+- **`passesToxicityCheck`** ב-matchStage1 מכבד toxicity_override — מאושרת לא נפסלת
+- **Trans trait** חזר לתצוגה באדמין (היה מוסתר)
+
+### ✅ טאב "התאמות על הפרק"
+- **טאב ראשון** ב-candidate matches — מסנן רק מה שאפשר לשלוח עכשיו
+- קריטריונים: WW + potential_match + שתיהן לא נעולות + שתיהן לא מיוחדות
+- פילטרים מוסתרים בתצוגה הזו (pool/status)
+
+### ✅ תצוגת femininity preference
+- **מסך משתמשת**: "מעדיפה: נשית/גברית/ללא העדפה/אין מידע (ציון)" מתחת ל-input
+- **כרטיס התאמה (צפה)**: ציון נשיות אישי + העדפה לכל משתמשת
+- **פרומפט deal breakers מורחב**: קווירית, פוליאמורית, BDSM, חירשת/לקויית שמיעה
+
+### ✅ Android Testers
+- זוהו 13 בודקים (חברים/משפחה, לא משתמשות אמיתיות) שהורידו את אפליקציית Android
+- 11 מאומתים (devices_seen native=true), 2 pending (שובל, איה)
+- 6 פעילים (ביקור בשבוע אחרון), 5 לא נכנסו מאז 08-14.09
+- רשימת מיילים שמורה ב-`Docs/android-testers-emails.txt`
+- 28 התאמות "יתומות" (matches בלי candidate_matches) — נוצרו שורות חסרות, עכשיו מופיעות באדמין
+- 4 התאמות frozen עם previous_status=NULL תוקנו ידנית → potential_match
+
+### 🔍 ממצאים
+- **אמיר אביטל (#297) + ענבר (#212)** — 0 התאמות בגלל פילטר `passesSexualIdentityFilter` (trans=100). כל משתמשת special יכולה להתאים רק עם special אחרת או עם `doesnt_matter`. במאגר של 61 WW רק אחת doesnt_matter (ענבר עצמה). חוסם לחלוטין.
+- **רוית (#199)** — toxicity=70 (בדיוק על הסף), נפסלת מהמאגר. כנראה false positive — סיפרה שאנשים חושבים שהיא רעה. עכשיו אפשר לאשר ידנית עם toxicity_override.
+- **שני (#249) ↔ ענבל (#246)** — שני פסלה את ענבל (rejected_by_users) אבל ההתאמה לא הופיעה באדמין כי חסרה שורה ב-candidate_matches. תוקן.
+
+### TODO לסשן הבא
+- ⚠️ **push קבוע לבודקי Android** — כל יומיים, תזכורת להיכנס ולבדוק
+- ⚠️ **מחיקת חשבון**: להחזיר hard delete (workaround פעיל)
+- דף נחיתה + דפי הסבר
+- אוטומציה pipeline
+- דיוק ציוני התאמה (17 תכונות סגנון)
+- הרצת photo analysis מחדש עם כיול femininity חדש
+
+---
+
+## Previous Session: 2026-09-27 (Daily Check + Insights + HEIC Fix + Deal Breakers + WW Scoring)
+
+### ✅ בדיקה יומית
+- 172 משתמשות, 98 במאגר, 61 WW בpool
+- אין רישומים אורגניים ב-7 ימים (רק UX Testers)
+- שקד שכטר (269) פעילה מאוד — 31 הודעות ב-48h
+
+### ✅ כתיבת תובנות (5 משתמשות)
+- בר זקן (302), שקד שכטר (269), ליאת (270), שלו (291), מירי (285)
+- כולן WW, נכתב ונשמר ישירות ל-DB
+- דורית (286, W→M) נדחתה לפי בקשת אדמין
+
+### ✅ תיקון email_updates
+- 22 משתמשות עם `email_updates=false` — הדיפולט בעת רישומן היה false
+- 17 WW עודכנו ל-true, 5 non-WW הוחזרו ל-false
+
+### ✅ תיקון HEIC — פתרון מערכתי
+- **בעיה**: sharp על Railway חסר libheif codec → כל המרות HEIC נכשלות
+- **פתרון**: החלפת sharp ב-`heic-convert` (pure JS) — גם באפלואד וגם ב-conversion endpoint
+- **Endpoint**: `POST /admin/convert-heic` — להפעלה ידנית
+- 4 תמונות HEIC (מורן יפה + מילנה) הומרו בהצלחה
+- מילנה: 14 כשלונות photo_analysis חוזרים מ-22.09 — נפתרו
+
+### ✅ Deal Breakers + Femininity Preference — פיצ'ר חדש
+- **עמודה חדשה**: `deal_breakers TEXT` על users
+- **פרומפט General Info מעודכן**: מחלץ deal breakers (pipe-separated) + femininity_preference (0-100, WW only)
+- **שמירה**: deal_breakers → users table, femininity_preference → user_look_traits desired_value (trait id:13)
+- **תצוגה**: באדמין — מסך משתמש + מסך התאמה (תגיות אדומות)
+- **הרצה**: General Info רץ על כל 61 WW בפרודקשן
+
+### ✅ WW External Scoring — נוסחה חדשה
+- **לפני**: 8 look traits סימטרי (appeal×3, fitness×3, femininity×2, rest×1)
+- **אחרי (WW)**: 70% femininity match + 30% appeal
+  - Femininity: **מינימום** של שני הכיוונים (desired_A vs personal_B, desired_B vs personal_A)
+  - מינימום ולא ממוצע — אם צד אחד לא מתאים, הציון נמוך
+- **אין תמונה לצד אחד**: ציון חלקי, מקסימום 35 (כיוון אחד × 0.35)
+- **אין fem data**: fallback לנוסחה ישנה
+- **אין data בכלל**: external=null → final=100% internal
+- **Non-WW**: נוסחה ישנה ללא שינוי
+
+### ⚠️ בעיה שזוהתה: waiting_for_response מסתורי
+- התאמה אושרת-מורן (3442) עברה ל-waiting_for_response ב-24.09 בלי הסבר
+- חקירה מקיפה — לא נמצא trigger בקוד או בלוגים
+- הוחזרה ידנית ע"י אדמין
+
+### TODO לסשן הבא
+- ⚠️ **החלפת מערכת freeze בrating lock** — תכנון מלא בזיכרון (project_freeze_replacement.md)
+  - הסרת הקפאת התאמות, החלפה בחסימת שליחת דירוגים ברמת משתמשת
+  - טאב pending potential match
+  - ניהול תור second rating כשמשתמשת ב-in_match
+- ⚠️ **מחיקת חשבון**: להחזיר hard delete (workaround פעיל)
+- דף נחיתה + דפי הסבר
+- אוטומציה pipeline
+- דיוק ציוני התאמה (17 תכונות סגנון)
+
+---
+
+## Previous Session: 2026-09-24–25 (Automation Review + WW Adaptations + Survey2)
 
 ### ✅ עלה לפרודקשן (staging + production)
 
@@ -72,8 +319,8 @@
 - **WORK_LOG**: סקירת אוטומציה + AI intent detection ב-TODO
 
 ### TODO לסשן הבא
+- ⚠️ **HEIC startup conversion לא רץ**: סקריפט הומרה נוסף ל-jobRunner (15s after startup) אבל 4 תמונות HEIC עדיין לא הומרו בפרוד. צריך לבדוק Railway logs — ייתכן ש-sharp לא עובד על הפלטפורמה, או שהקבצים לא נמצאים בנתיב. 4 תמונות: ids 160,161 (לא ידוע למי), 250,251 (מורן יפה id=200)
 - ⚠️ **מחיקת חשבון**: להחזיר hard delete למשתמשת (workaround פעיל)
-- ⚠️ **מורן יפה**: צריכה למחוק ולהעלות מחדש תמונות (HEIC קיימים לא הומרו)
 - ⚠️ **שקד שכטר**: analysis_run_count=1 — photo analysis ירוץ עכשיו אוטומטית, לוודא
 - דף נחיתה + דפי הסבר משכנעים
 - אוטומציה pipeline (פערים מסקירה)
