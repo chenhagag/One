@@ -19,7 +19,7 @@
 |-------|---------|--------|---------|
 | **User Management** (ראשי) | `Management Agents/` | ✅ | ניהול מחזור חיי משתמשים — סריקת שיחות, כרטיסי התאמה, look traits, דו"חות. מכיר ומפנה לסוכנים משניים |
 | **Insights Writer** | `Management Agents/Insights Writer/` | ✅ | כתיבת תובנות אישיות: מציאת משתמשות ללא תובנות, קריאת שיחות, כתיבה בעברית |
-| **Marketing** | `Management Agents/Marketing/` | 📋 TODO | דפי נחיתה, פוסטים, דשבורד סאשה, LGBTQ+ launch |
+| **Marketing** | `Management Agents/Marketing/` | ✅ | דפי נחיתה, פוסטים, דשבורד סאשה, LGBTQ+ launch, מודל תשלום |
 
 ### קבצי הנחיות כלליים (Management/)
 - `claude-working-guidelines.md` — כללי deploy, prompts, insights, match cards
