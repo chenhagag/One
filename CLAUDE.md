@@ -10,7 +10,7 @@
 | **Backend** | `Dev Agents/Backend/` | ✅ | Express server, API routes, DB schema, auth, RAG system, conversation agents, analysis |
 | **Automation** | `Dev Agents/Automation/` | ✅ | Pipelines, cron jobs, nudges (4 מערכות), daily matching, reanalysis, photo management |
 | **Design** | `Dev Agents/Design/` | ✅ | שפה עיצובית, brand identity, color palette, UX patterns, Instagram post style |
-| **Frontend** | `Dev Agents/Frontend/` | 📋 TODO | React 18, UI/UX, PWA, state routing, components |
+| **Frontend** | `Dev Agents/Frontend/` | ✅ | React 18, inline styles, state routing, NewChat, AdminView, PWA, chat channels |
 | **Matching** | `Dev Agents/Matching/` | ✅ | אלגוריתם התאמות: Stage 1 filtering, Stage 2 scoring, profile scores, expanded matches, style prompt |
 | **Security** | `Dev Agents/Security/` | 📁 קבצים בלבד | IDOR tests, security audit |
 
