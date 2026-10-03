@@ -1,5 +1,37 @@
 # CLAUDE.md — One Project Context
 
+## Agent System
+הפרויקט מנוהל דרך מערכת סוכנים. כל סוכן אחראי על תחום מוגדר. **לפני שמתחילים לעבוד — לזהות איזה סוכן רלוונטי ולקרוא את ה-CONTEXT.md שלו.**
+
+### סוכני פיתוח (Management/Dev Agents/)
+| סוכן | תיקייה | אחריות |
+|-------|---------|---------|
+| **Android** | `Dev Agents/Android/` | בניית AAB, Capacitor, Google Play, testers |
+| **Backend** | `Dev Agents/Backend/` | Express server, API routes, DB schema, auth, RAG system, conversation agents, analysis |
+| **Automation** | `Dev Agents/Automation/` | Pipelines, cron jobs, nudges (4 מערכות), daily matching, reanalysis, photo management |
+| **Security** | `Dev Agents/Security/` | IDOR tests, security audit (ללא CONTEXT עדיין) |
+
+### סוכני ניהול (Management/Management Agents/)
+| סוכן | תיקייה | אחריות |
+|-------|---------|---------|
+| **User Management** (ראשי) | `Management Agents/` | ניהול מחזור חיי משתמשים — סריקת שיחות, כרטיסי התאמה, look traits, דו"חות. מכיר ומפנה לסוכנים משניים |
+| **Insights Writer** | `Management Agents/Insights Writer/` | כתיבת תובנות אישיות: מציאת משתמשות ללא תובנות, קריאת שיחות, כתיבה בעברית |
+
+### קבצי הנחיות כלליים (Management/)
+- `claude-working-guidelines.md` — כללי deploy, prompts, insights, match cards
+- `project-status.md` — סטטוס מערכות, בעיות ידועות, אנשים
+- `AGENTS-GUIDE.md` — איך ליצור סוכנים חדשים + מיפוי זיכרון
+
+### מתי לגשת לאיזה סוכן
+- "בוא נבנה AAB" / Google Play → **Android**
+- באג ב-API / שינוי DB / RAG / prompt → **Backend**
+- nudge שבור / pipeline תקוע / matching / cron → **Automation**
+- "תכתוב תובנות" / "תבדוק מי חסר תובנות" → **Insights Writer**
+- "בוא נעשה ניהול יומי" / סריקת שיחות / כרטיסי התאמה → **User Management**
+- אבטחה / IDOR / auth issues → **Security** + **Backend**
+
+---
+
 ## Project Purpose
 One (formerly MatchMe) is a matchmaking platform that uses AI conversations to build deep personality profiles, then matches users based on multi-dimensional compatibility scoring. Users chat naturally (in Hebrew), the system analyzes their personality traits, values, and communication style, then runs a matching algorithm to find compatible partners.
 

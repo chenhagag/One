@@ -96,16 +96,15 @@
 
 ---
 
-## RAG System (`rag.ts` + `seedKnowledge.ts`)
-- pgvector, 53 chunks מערכתיים (scope=system)
-- User memory chunks — תשתית מוכנה, לא מאוכלס
-- Threshold: 0.30 (Hebrew embedding scores נמוכים)
-- **כלל תחזוקה קריטי**: שינוי בפיצ'ר → עדכון chunks ב-seedKnowledge.ts → seed staging + prod
+## RAG — חלק האוטומציה בלבד
+התשתית המלאה של ה-RAG (rag.ts, seedKnowledge.ts, embedding, search) מתועדת ב-**סוכן Backend** (`Management/Dev Agents/Backend/CONTEXT.md`).
 
-### RAG Insights (staging בלבד)
-- הזרקה ישירה לערוצים אישיים (qa_about_me, qa_search, qa_match_feedback)
-- RAG בלבד לערוצים טכניים (qa_system, qa_general, qa_status)
-- **⚠️ Scaling issue**: reconcileInsightChunks בלי LIMIT — צריך batching לפני השקה
+מה שרלוונטי לסוכן אוטומציה:
+- **Auto-upsert insight chunks**: כשנכתבות תובנות → chunk נוצר/מתעדכן ב-knowledge_chunks (one per user, scope=user)
+- **Daily reconciliation**: מתקן upsert failures תוך 24 שעות (cron ב-jobRunner)
+- **Backfill**: 90 שניות אחרי startup — בדיקה שכל המשתמשות עם תובנות יש להם chunk
+- **⚠️ Scaling**: reconcileInsightChunks בלי LIMIT — צריך batching לפני השקה (100+ users)
+- **סינון כפילויות**: ערוצים עם הזרקה ישירה (qa_about_me וכו') מסננים insight chunks מ-RAG
 
 ---
 
@@ -140,8 +139,6 @@
 | `backend/src/pipeline/reanalysisScan.ts` | QA channel reanalysis triggers |
 | `backend/src/pipeline/generateInsights.ts` | GPT insights (exists but not auto-called) |
 | `backend/src/pipeline/welcomeEmail.ts` | Pool entry welcome email |
-| `backend/src/rag.ts` | RAG embedding + search |
-| `backend/src/seedKnowledge.ts` | Knowledge chunk seeding |
 | `backend/src/matchStage1.ts` | Candidate filtering (age, gender, location, cognitive) |
 | `backend/src/matchStage2.ts` | Scoring: internal + external + per-category |
 | `backend/src/cognitiveScore.ts` | Cognitive profile computation |
