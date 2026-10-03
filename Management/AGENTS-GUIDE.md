@@ -8,9 +8,12 @@
 Management/
 ├── Dev Agents/          ← סוכני פיתוח
 │   ├── Android/         ← בניית AAB, Capacitor, Google Play
-│   ├── Frontend/        ← (עתידי) React, UI/UX, PWA
-│   ├── Backend/         ← (עתידי) Express, API, DB, automation
-│   ├── Matching/        ← (עתידי) אלגוריתם התאמות, ציונים, ניתוח
+│   ├── Backend/         ← Express, API, DB, RAG infra, analysis agent
+│   ├── Conversation/    ← מערכת השיחה: chatManager, prompts, NewChat.tsx, ערוצים
+│   ├── Frontend/        ← React, UI/UX, PWA, auth, admin, landing pages
+│   ├── Automation/      ← Pipelines, cron, nudges, matching, reanalysis
+│   ├── Design/          ← שפה עיצובית, brand, UX patterns
+│   ├── Matching/        ← אלגוריתם התאמות, ציונים, ניתוח
 │   └── Security/        ← אבטחה, הרשאות, validation
 ├── User Management Agents/ ← סוכני ניהול משתמשים
 │   ├── User Management/ ← ניהול מחזור חיים, סריקות, כרטיסים
@@ -126,9 +129,13 @@ Management/
 
 ## זיכרונות שממתינים להעברה לסוכנים עתידיים
 
+### Conversation Agent
+- project_chat_history_menu.md — GPT-style chat list
+- project_chat_quality_rag.md — insights RAG injection into chat
+- project_agent_context.md — per-user AI context
+
 ### Frontend Agent
 - project_forwomen_landing.md — /forwomen landing + isWW flag
-- project_chat_history_menu.md — GPT-style chat list
 - project_ux_overhaul_todos.md — fine-tuning questions + future insight types
 - project_pool_count_display.md — hide pool count until 100+
 - project_account_deletion_overhaul.md — deletion UX redesign
@@ -144,8 +151,6 @@ Management/
 - project_reanalysis_design.md — qa channel reanalysis
 - project_email_system.md — Resend integration
 - project_rag_system.md — pgvector knowledge base
-- project_chat_quality_rag.md — insights RAG injection
-- project_agent_context.md — per-user AI context
 - project_photo_match_flow.md — waiting_for_photo flow
 - project_pool_gating.md — 6 prerequisites for pool entry
 

@@ -1,7 +1,9 @@
 # Frontend Dev Agent — Context
 
 ## Role
-אחראי על כל צד הלקוח: React components, state management, routing, API calls, PWA, ו-UX flows. עבודה לפי הנחיות סוכן Design (שפה עיצובית, צבעים, patterns).
+אחראי על צד הלקוח: React components, state management, routing, API calls, PWA, ו-UX flows. עבודה לפי הנחיות סוכן Design (שפה עיצובית, צבעים, patterns).
+
+**לא כולל**: NewChat.tsx ומערכת הצ'אט (סוכן Conversation). Frontend agent מטפל בכל שאר ה-UI: App.tsx routing, auth screens, admin, insights, profile, landing pages, PWA.
 
 ---
 
@@ -32,7 +34,7 @@
 | File | Lines | Purpose |
 |------|-------|---------|
 | `App.tsx` | ~1500 | Main router, auth, view state, PWA detection |
-| `NewChat.tsx` | ~3000 | Primary user screen: sidebar + chat + sub-screens + recommendations |
+| `NewChat.tsx` | ~3000 | **→ Conversation agent** (chat + channels + recommendations) |
 | `AdminView.tsx` | ~3000 | Admin panel with all management tabs |
 | `AdminPipeline.tsx` | ~800 | Pipeline dashboard, email templates, nudge controls |
 | `Insights.tsx` | ~600 | User-facing personality insights with expandable sections |
@@ -49,15 +51,16 @@
 
 ---
 
-## NewChat (Primary User Interface)
+## NewChat & Chat System
+**Full documentation in Conversation agent** (`Management/Dev Agents/Conversation/CONTEXT.md`).
 
-### Structure
-- Sidebar (always visible, toggle on mobile) with navigation items
-- Main area: chat OR sub-screen (ProfileEdit, Insights, Feedback, Settings, CoupleInsights)
-- Mobile header with user avatar for logout
-- Home screen with expert recommendations
+NewChat.tsx (~3000 lines) is the primary user screen — managed by Conversation agent. It contains:
+- Chat UI with 8 channels (separate message history per channel)
+- Sidebar with navigation to sub-screens
+- Expert recommendations on home screen
+- Post-close bubbles
 
-### Sub-Screens (inside NewChat)
+**Sub-screens rendered inside NewChat** (owned by Frontend agent):
 | Screen | Trigger |
 |--------|---------|
 | ProfileEdit | Sidebar "פרופיל" |
@@ -66,26 +69,7 @@
 | Settings | Sidebar "הגדרות" — photo consent, email, WhatsApp, delete account |
 | CoupleInsights | Sidebar "כרטיס התאמה" (when couple_insights exists) |
 
-### Chat Channels
-Each channel has **separate message history** — `Record<string, Message[]>` keyed by channel name.
-
-| Channel | Display Name | Guide Value |
-|---------|-------------|-------------|
-| היכרות | General | `new_chat` |
-| סגנון חשיבה | Cognitive | `new_chat_cognitive` |
-| טעם אישי | Taste Test | `new_chat_taste` |
-| מה הסטטוס שלי | Status | `qa_status` |
-| מה את מחפשת לי | Search | `qa_search` |
-| איך המערכת עובדת | System | `qa_system` |
-| שאלה על התהליך | General QA | `qa_general` |
-| מה למדת עליי | About Me | `qa_about_me` |
-
-### Expert Recommendations (Home Screen)
-- **Reloads on every home screen visit** (useEffect on `screen === "home"`)
-- Priority: (1) "בוא נמשיך" if chat incomplete, (2) cognitive, (3) taste, (4) all-done message
-- Respects `closedChannels` — loaded from API on mount
-- All-done: thank message + conditional photo/profile prompt
-- Post-close bubbles for incomplete channels
+Note: Sub-screen components (ProfileEdit.tsx, Insights.tsx, etc.) are Frontend agent's responsibility. The chat/channel/recommendation logic inside NewChat.tsx is Conversation agent's responsibility.
 
 ---
 
@@ -98,7 +82,7 @@ Used in: NewChat, ProfileEdit, Insights, ConsentScreen, MatchCardConsentScreen, 
 **NOT tied to entry point** — applies to ALL WW users regardless of how they signed up.
 
 Effects:
-- Feminine text throughout
+- Feminine text throughout (chat-specific effects → Conversation agent)
 - Hide gender/height fields in ProfileSetup
 - WW demo match card on /forwomen
 - `wwRel()` helper (Insights.tsx) converts masculine → feminine Hebrew via regex
@@ -147,14 +131,8 @@ Effects:
 
 ## Planned Features
 
-### Chat History Menu (Priority)
-Replace "חזרה לשיחה" with GPT/Gemini-style conversation list:
-- Show all channels sorted by last update
-- Channel name + preview of last message
-- `channelMessages` state already has per-channel history
-- Need `last_updated` tracking per channel
-- Must work in PWA + native Android (Capacitor with server.url)
-- Mobile: drawer/panel that slides in, not permanent sidebar
+### Chat History Menu (Priority) → Conversation Agent
+Moved to Conversation agent — see `Management/Dev Agents/Conversation/CONTEXT.md`.
 
 ### Pool Count Display
 Backend returns `pool_profile_count`, but hidden from UI until critical mass:
@@ -205,10 +183,10 @@ Never pre-fill name from OAuth/email — user must enter their own name.
 1. This file (CONTEXT.md)
 2. WORKLOG.md of this agent
 3. `Management/Dev Agents/Design/CONTEXT.md` — brand identity, colors, patterns
-4. `CLAUDE.md` — general architecture
-5. `Management/claude-working-guidelines.md` — deploy/staging rules
-6. `frontend/src/App.tsx` — main router
-7. `frontend/src/NewChat.tsx` — primary user interface
+4. `Management/Dev Agents/Conversation/CONTEXT.md` — chat system (if touching NewChat.tsx)
+5. `CLAUDE.md` — general architecture
+6. `Management/claude-working-guidelines.md` — deploy/staging rules
+7. `frontend/src/App.tsx` — main router
 
 ## Rules
 - **Inline styles only** — no CSS files

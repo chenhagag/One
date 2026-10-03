@@ -22,7 +22,25 @@
 
 ---
 
-## Latest Session: 2026-10-03 (Agent System + AAB + Full Project Restructure)
+## Latest Session: 2026-10-03 (Conversation Agent + Docs Reorganization)
+
+### ✅ סוכן Conversation חדש
+- הופרד מ-Backend + Frontend — מכסה את כל מערכת השיחה (backend + frontend)
+- **CONTEXT.md** (316 שורות): chatManager, microTopics, promptTemplates, summarizer, autoAnalysis, agent context, RAG injection, NewChat.tsx, 8 ערוצי צ'אט, recommendations, closing flow, prompt safety rules
+- **WORKLOG.md**: היסטוריה מאוחדת מ-Backend + Frontend
+- Backend agent עודכן: conversation sections הוסרו, cross-references נשארו (RAG infra, DB)
+- Frontend agent עודכן: NewChat/chat sections הוסרו, sub-screens נשארו (ProfileEdit, Insights, Settings)
+- CLAUDE.md, AGENTS-GUIDE.md עודכנו עם routing חדש
+
+### ✅ קבצי Docs הועברו לסוכנים שלהם (ע"י Chen)
+- `System Jobs.md` → Automation agent
+- `android-testers-emails.txt` → Android agent
+- `insights-writing-guide.md` → Insights Writer agent
+- `security-hardening-plan.md` → Security agent
+
+---
+
+## Previous Session: 2026-10-03 (Agent System + AAB + Full Project Restructure)
 
 ### ✅ ארגון מחדש של הפרויקט
 - **תיקיית `Management/`** — מבנה חדש: `Dev Agents/`, `User Management Agents/`, `Marketing/`, `Docs/`
@@ -43,10 +61,11 @@
 | סוכן | תוכן מרכזי |
 |-------|------------|
 | Android | AAB build, Capacitor, signing, Google Play, 13 testers |
-| Backend | API routes, DB schema, RAG system, conversation agents, auth, HEIC conversion |
+| Backend | API routes, DB schema, RAG infra, analysis agent, auth, HEIC conversion |
+| Conversation | chatManager, prompts, summarizer, autoAnalysis, NewChat.tsx, ערוצי צ'אט (הופרד מ-Backend+Frontend) |
 | Automation | 4 nudge systems, pipelines, daily matching, reanalysis, photo management |
 | Design | Brand identity, color palette (#7b5fa3), typography, inline styles, post style |
-| Frontend | React views, NewChat, chat channels, isWW, PWA, planned features |
+| Frontend | React views, auth screens, admin, landing pages, PWA, planned features |
 | Matching | Stage 1 filtering, Stage 2 scoring (Gaussian σ=12), WW formula, 13 categories, style traits |
 | Security | Auth architecture, audit history, IDOR tests, 6 open items |
 

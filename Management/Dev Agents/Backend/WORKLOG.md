@@ -1,9 +1,14 @@
 # Backend Dev Agent — Work Log
 
-## Latest: 2026-10-03 — Agent Created
+## Latest: 2026-10-03 — Conversation System Split to Dedicated Agent
+- Conversation system (chatManager, prompts, summarizer, autoAnalysis, agent context) moved to **Conversation agent** (`Dev Agents/Conversation/`)
+- Backend agent retains: RAG infrastructure, DB schema, analysis agent, auth, API routes, notifications
+- Cross-references added for coordination points (seedKnowledge, DB schema)
+
+### 2026-10-03 — Agent Created
 - Backend agent context file created with full architecture documentation
 - RAG system documentation consolidated here (was split across Automation)
-- Conversation system (Love Agent), analysis, auth, DB all documented
+- Analysis, auth, DB all documented
 
 ---
 

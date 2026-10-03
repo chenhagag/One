@@ -1,7 +1,9 @@
 # Backend Dev Agent — Context
 
 ## Role
-אחראי על תשתית ה-backend: Express server, API routes, DB schema, auth, RAG system, AI agents (conversation + analysis), notifications, וכל מה שלא pipeline/cron (שזה סוכן Automation).
+אחראי על תשתית ה-backend: Express server, API routes, DB schema, auth, RAG infrastructure, Analysis agent, notifications, וכל מה שלא pipeline/cron (סוכן Automation) ולא conversation/chat (סוכן Conversation).
+
+**לא כולל**: Conversation system (chatManager, prompts, summarizer — סוכן Conversation), Pipeline/cron (סוכן Automation), Matching algorithm (סוכן Matching).
 
 ---
 
@@ -47,42 +49,16 @@
 
 ---
 
-## Conversation System (Love Agent)
+## Conversation System
+**Full documentation in Conversation agent** (`Management/Dev Agents/Conversation/CONTEXT.md`).
 
-### Micro-Topic State Machine (`agents/conversation/chatManager.ts`)
-```
-User message → buildChatPrompt()
-  → detectIntent() → "profile" | "system" | "general"
-  → ConversationState (from DB): current_topic_index, turn_in_topic, closing_stage
-  ↓
-profile → Prompt C (answer about self, ask to continue)
-system  → Prompt C (answer system question)
-closing_stage 1 → Prompt E Insight
-closing_stage 2 → Prompt E Final
-closing_stage 3 → Prompt D (already closed)
-general, turn 0 → Prompt A (required opening question from micro-topic)
-general, turn 1 → Prompt B (follow-up, advance to next topic)
-```
+Backend owns the infrastructure that conversation uses:
+- RAG system (rag.ts, seedKnowledge.ts) — conversation injects RAG context per message
+- DB tables: `conversation_messages`, `user_chat_summaries`, `conversation_state`
+- API routes: `POST /new-chat/message`, `GET /new-chat/status/:user_id`
+- `safeOutputLayer.ts` — returns user-safe trait data for chat/insights
 
-14 micro-topics, 5 prompt templates (A-E), context injected via RAG when needed.
-
-### Chat Channels
-| Channel | Guide value | Description |
-|---------|-------------|-------------|
-| General | `new_chat` | Main personality conversation |
-| Cognitive | `new_chat_cognitive` | Thinking style simulation (27 questions, ~6 per session) |
-| Taste Test | `new_chat_taste` | React to 13 profiles (gender-matched profile bank) |
-| QA channels | `qa_*` | System questions, insights, status, refinement |
-
-### Agent Context System
-- `agent_context` TEXT per-user — injected into prompts
-- 4 system config keys: `system_summary_general`, `_male`, `_female`, `_female_ff`
-- Injection: QA channels always, general/cognitive/taste only if in_matching_pool
-- **Closed-world rule**: AI must NOT invent details about match candidates
-
-### Summarizer (`agents/conversation/summarizer.ts`)
-- Every 8 messages → structured JSON extraction → `user_chat_summaries`
-- Triggers auto-analysis when thresholds met
+When changing RAG infrastructure or DB schema, coordinate with Conversation agent.
 
 ---
 
@@ -127,12 +103,8 @@ general, turn 1 → Prompt B (follow-up, advance to next topic)
 | `backend/src/matchStage1.ts` | Candidate filtering |
 | `backend/src/matchStage2.ts` | Scoring algorithm |
 | `backend/src/cognitiveScore.ts` | Cognitive profile computation |
-| `agents/conversation/chatManager.ts` | Micro-topic state machine |
-| `agents/conversation/microTopics.ts` | 14 micro-topics with questions |
-| `agents/conversation/promptTemplates.ts` | Prompt A/B/C/D/E builders |
-| `agents/conversation/summarizer.ts` | Structured summary extraction |
-| `agents/conversation/autoAnalysis.ts` | Two-run auto-analysis |
 | `agents/analysis/agent.ts` | Grouped AI analysis (7 prompt groups) |
+| `agents/conversation/*` | **→ Conversation agent** |
 
 ---
 
@@ -170,8 +142,7 @@ general, turn 1 → Prompt B (follow-up, advance to next topic)
 
 ## Known Issues
 - **Hard delete**: FK constraints block user deletion — workaround via bug report
-- **RAG scaling**: reconcileInsightChunks without LIMIT
-- **Reanalysis per-group**: global last_analysis_at masks other groups
+- **RAG scaling**: reconcileInsightChunks without LIMIT (affects Conversation agent)
 - **Trans filter**: passesSexualIdentityFilter blocks trans users completely
 
 ---
@@ -184,9 +155,7 @@ general, turn 1 → Prompt B (follow-up, advance to next topic)
 5. `Management/claude-working-guidelines.md` — deploy/staging/prompt safety rules
 
 ## Rules
-- **seedKnowledge.ts must be updated** with any feature change that affects user-facing info
+- **seedKnowledge.ts must be updated** with any feature change that affects user-facing info — coordinate with Conversation agent
 - **Schema changes** need both CREATE TABLE + ALTER TABLE blocks
-- **Prompt changes**: staging first, minimal changes, prefer chatManager logic over prompt text
-- **SYSTEM_IDENTITY** must be in every chat prompt (anti-referral, system name, link)
-- **Closed-world**: AI must never invent candidate details
 - **STAGING_URL check** in every new notification function
+- **Conversation/prompt changes** → redirect to Conversation agent (`Management/Dev Agents/Conversation/`)

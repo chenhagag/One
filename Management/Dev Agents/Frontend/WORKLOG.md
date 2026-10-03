@@ -1,9 +1,13 @@
 # Frontend Dev Agent — Work Log
 
-## Latest: 2026-10-03 — Agent Created
+## Latest: 2026-10-03 — Chat System Split to Conversation Agent
+- NewChat.tsx, chat channels, recommendations, chat history menu → **Conversation agent** (`Dev Agents/Conversation/`)
+- Frontend agent retains: App.tsx routing, auth screens, admin, insights, profile, landing pages, PWA, sub-screens (ProfileEdit, Insights, Settings, Feedback)
+- Planned features remaining here: pool count, account deletion UX, insight types
+
+### 2026-10-03 — Agent Created
 - Full frontend architecture documented
-- All components, views, chat channels, API patterns
-- Planned features: chat history menu, pool count, account deletion UX, insight types
+- All components, views, API patterns
 
 ---
 

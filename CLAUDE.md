@@ -11,10 +11,11 @@
 | סוכן | תיקייה | סטטוס | אחריות |
 |-------|---------|--------|---------|
 | **Android** | `Dev Agents/Android/` | ✅ | בניית AAB, Capacitor, Google Play, testers |
-| **Backend** | `Dev Agents/Backend/` | ✅ | Express server, API routes, DB schema, auth, RAG system, conversation agents, analysis |
+| **Backend** | `Dev Agents/Backend/` | ✅ | Express server, API routes, DB schema, auth, RAG infrastructure, analysis agent |
+| **Conversation** | `Dev Agents/Conversation/` | ✅ | מערכת השיחה: chatManager, prompts, summarizer, autoAnalysis, NewChat.tsx, ערוצי צ'אט, recommendations |
 | **Automation** | `Dev Agents/Automation/` | ✅ | Pipelines, cron jobs, nudges (4 מערכות), daily matching, reanalysis, photo management |
 | **Design** | `Dev Agents/Design/` | ✅ | שפה עיצובית, brand identity, color palette, UX patterns, Instagram post style |
-| **Frontend** | `Dev Agents/Frontend/` | ✅ | React 18, inline styles, state routing, NewChat, AdminView, PWA, chat channels |
+| **Frontend** | `Dev Agents/Frontend/` | ✅ | React 18, inline styles, state routing, AdminView, PWA, auth screens, landing pages |
 | **Matching** | `Dev Agents/Matching/` | ✅ | אלגוריתם התאמות: Stage 1 filtering, Stage 2 scoring, profile scores, expanded matches, style prompt |
 | **Security** | `Dev Agents/Security/` | ✅ | Auth architecture, IDOR tests, audit status, open items (signed URLs), error monitoring |
 
@@ -36,11 +37,12 @@
 
 ### מתי לגשת לאיזה סוכן
 - "בוא נבנה AAB" / Google Play → **Android**
-- באג ב-API / שינוי DB / RAG / prompt → **Backend**
-- nudge שבור / pipeline תקוע / matching / cron → **Automation**
+- באג ב-API / שינוי DB / RAG infra / analysis agent → **Backend**
+- שיחה / צ'אט / prompt / chatManager / NewChat / ערוצים / recommendations / taste test / cognitive → **Conversation**
+- nudge שבור / pipeline תקוע / matching cron / reanalysis → **Automation**
 - עיצוב / צבעים / brand / UX / מבנה מסך → **Design**
-- באג ב-React / UI / component / state → **Frontend** (TODO)
-- ציוני התאמה / style traits / filtering → **Matching** (TODO)
+- באג ב-React / UI / component / state (לא צ'אט) / admin / auth / landing → **Frontend**
+- ציוני התאמה / style traits / filtering → **Matching**
 - "תכתוב תובנות" / "תבדוק מי חסר תובנות" → **Insights Writer**
 - "בוא נעשה ניהול יומי" / סריקת שיחות / כרטיסי התאמה → **User Management**
 - דף נחיתה / פוסטים / שיווק → **Marketing**
