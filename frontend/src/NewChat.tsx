@@ -1074,10 +1074,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 {/* Category chips */}
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
                   {[
-                    { value: "bug", icon: "🐛", label: "משהו לא עובד" },
-                    { value: "idea", icon: "💡", label: "רעיון / הצעה" },
-                    { value: "general", icon: "💬", label: "שיתוף כללי" },
-                    { value: "request", icon: "⚙️", label: "בקשה מהמערכת" },
+                    { value: "bug", icon: "/icons/settingsTrans.png", label: "משהו לא עובד" },
+                    { value: "idea", icon: "/icons/idea.png", label: "רעיון / הצעה" },
+                    { value: "general", icon: "/icons/Conversation.png", label: "שיתוף כללי" },
+                    { value: "request", icon: "/icons/Improve.png", label: "בקשה מהמערכת" },
                   ].map(cat => (
                     <button
                       key={cat.value}
@@ -1089,10 +1089,11 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                         color: feedbackCategory === cat.value ? "#fff" : "#555",
                         fontWeight: feedbackCategory === cat.value ? 600 : 400,
                         fontFamily: "inherit",
+                        display: "flex", alignItems: "center", gap: 6,
                       }}
                       onClick={() => setFeedbackCategory(cat.value)}
                     >
-                      {cat.icon} {cat.label}
+                      <IconImg src={cat.icon} size={18} /> {cat.label}
                     </button>
                   ))}
                 </div>
