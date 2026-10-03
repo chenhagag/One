@@ -283,12 +283,14 @@ export default function App() {
     console.log("[entryPoint] pathname:", raw, "normalized:", path);
     if (path.startsWith("/main")) {
       localStorage.setItem("one_entry_point", "main");
+      trackPage("landing_main");
       window.history.replaceState({}, "", "/");
       console.log("[entryPoint] → main (from URL)");
       return "main";
     }
     if (path.startsWith("/couples")) {
       localStorage.setItem("one_entry_point", "couples");
+      trackPage("landing_couples");
       window.history.replaceState({}, "", "/");
       console.log("[entryPoint] → couples (from URL)");
       return "couples";
@@ -306,12 +308,19 @@ export default function App() {
       console.log("[entryPoint] → meme (from URL)");
       return "meme";
     }
-    // Default (/ or /forwomen) = forwomen — always override localStorage
-    if (path === "/" || path.startsWith("/forwomen")) {
+    // /forwomen explicit path
+    if (path.startsWith("/forwomen")) {
       localStorage.setItem("one_entry_point", "forwomen");
       trackPage("landing_forwomen");
-      if (path.startsWith("/forwomen")) window.history.replaceState({}, "", "/");
-      console.log("[entryPoint] → forwomen (default)");
+      window.history.replaceState({}, "", "/");
+      console.log("[entryPoint] → forwomen (from URL)");
+      return "forwomen";
+    }
+    // Default (/) = joinone.io root
+    if (path === "/") {
+      localStorage.setItem("one_entry_point", "forwomen");
+      trackPage("landing_home");
+      console.log("[entryPoint] → forwomen (root)");
       return "forwomen";
     }
     // Other paths (e.g. /auth/callback) — use stored value
