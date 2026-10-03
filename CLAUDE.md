@@ -11,7 +11,7 @@
 | **Automation** | `Dev Agents/Automation/` | ✅ | Pipelines, cron jobs, nudges (4 מערכות), daily matching, reanalysis, photo management |
 | **Design** | `Dev Agents/Design/` | ✅ | שפה עיצובית, brand identity, color palette, UX patterns, Instagram post style |
 | **Frontend** | `Dev Agents/Frontend/` | 📋 TODO | React 18, UI/UX, PWA, state routing, components |
-| **Matching** | `Dev Agents/Matching/` | 📋 TODO | אלגוריתם התאמות, ציונים, style traits, filtering |
+| **Matching** | `Dev Agents/Matching/` | ✅ | אלגוריתם התאמות: Stage 1 filtering, Stage 2 scoring, profile scores, expanded matches, style prompt |
 | **Security** | `Dev Agents/Security/` | 📁 קבצים בלבד | IDOR tests, security audit |
 
 ### סוכני ניהול (Management/Management Agents/)
