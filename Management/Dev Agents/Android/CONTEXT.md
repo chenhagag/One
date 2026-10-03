@@ -11,7 +11,7 @@ This includes AAB builds, Google Play Console management, native plugin configur
 - **Updates**: Frontend changes deploy via Railway without new AAB. AAB rebuild only for: native plugin changes, AndroidManifest changes, Capacitor config changes, icon changes, or Google Play version bumps
 
 ## Current State (as of 2026-10-03)
-- **Latest AAB**: v1.2.0 (versionCode 4) — **REJECTED by Google Play**, needs new submission with fixes
+- **Latest AAB**: v1.3.0 (versionCode 5) — built 2026-10-03, pending upload to Google Play
 - **Previous**: v1.1.0 (versionCode 3) was on internal testing
 - **Testing track**: Internal testing (closed), 13 testers (friends/family, not real users)
 - **OAuth**: Google login working on real device, Apple Sign-In NOT implemented
@@ -96,7 +96,8 @@ Emails in `Management/Docs/android-testers-emails.txt`
 | 1.0.0 | 1 | Superseded | Initial TWA build (bubblewrap) |
 | 1.0.1 | 2 | Superseded | Switched to Capacitor, bundled frontend |
 | 1.1.0 | 3 | Internal testing | server.url live frontend, OAuth fix |
-| 1.2.0 | 4 | **Rejected** | Needs fixes for resubmission |
+| 1.2.0 | 4 | Rejected | Low tester activity, no version updates |
+| 1.3.0 | 5 | **Pending upload** | Built 2026-10-03, ready for Google Play |
 
 ## What to Read
 When activated, this agent should read:
@@ -109,7 +110,7 @@ When activated, this agent should read:
 
 ## Rules
 - NEVER recreate the release keystore — it's locked to Google Play
-- Always bump versionCode (current: 4) for new AAB submissions
+- Always bump versionCode (current: 5) for new AAB submissions
 - Run `npx cap sync android` before every build
 - Test OAuth on real device after any auth changes
 - `google-services.json` is a secret — never commit to git

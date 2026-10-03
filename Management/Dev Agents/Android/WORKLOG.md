@@ -1,9 +1,12 @@
 # Android Dev Agent — Work Log
 
-## Latest: 2026-10-03 — Agent Created
-- Agent context file created with full build/signing/versioning info
-- Current AAB v1.2.0 (versionCode 4) rejected by Google Play
-- Next step: build new AAB (versionCode 5) for resubmission
+## Latest: 2026-10-03 — AAB v5 (1.3.0) Built for Resubmission
+- Agent created with full build/signing/versioning info
+- Bumped versionCode 4→5, versionName 1.2.0→1.3.0
+- `cap sync android` — 5 plugins synced (app, browser, push-notifications, splash-screen, status-bar)
+- `gradlew bundleRelease` — BUILD SUCCESSFUL, AAB at `frontend/android/app/build/outputs/bundle/release/app-release.aab` (39.7MB)
+- **Next step**: upload to Google Play Console → Internal testing → Create new release
+- Previous v1.2.0 rejected likely due to low tester activity + no version updates (not code issues)
 
 ---
 
