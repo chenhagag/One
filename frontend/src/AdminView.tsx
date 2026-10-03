@@ -15,7 +15,7 @@ import AdminPipeline from "./AdminPipeline";
 
 type Tab = "overview" | "users" | "traits" | "look_traits" | "matches" | "candidates" | "bugs" | "card_requests" | "errors" | "email" | "analytics" | "user_mgmt" | "outreach" | "deleted_users" | "system_log";
 
-type AnalyticsSubTab = "page_views" | "age_dist" | "meme_dash" | "survey" | "survey2";
+type AnalyticsSubTab = "page_views" | "landings" | "age_dist" | "meme_dash" | "survey" | "survey2";
 
 const s: Record<string, React.CSSProperties> = {
   heading: { marginTop: 0, marginBottom: 8, fontSize: 22 },
@@ -5681,6 +5681,7 @@ function AnalyticsContainerTab() {
 
   const subTabs: [AnalyticsSubTab, string][] = [
     ["page_views", "נתוני כניסה"],
+    ["landings", "דפי נחיתה"],
     ["age_dist", "גילאים"],
     ["meme_dash", "דשבורד סאשה"],
     ["survey", "סקר"],
@@ -5710,6 +5711,7 @@ function AnalyticsContainerTab() {
         ))}
       </div>
       {subTab === "page_views" && <AnalyticsTab />}
+      {subTab === "landings" && <LandingStatsTab />}
       {subTab === "age_dist" && <AgeDistributionTab />}
       {subTab === "meme_dash" && <MemeDashTab />}
       {subTab === "survey" && <SurveyAdminTab />}
@@ -5928,6 +5930,153 @@ function AnalyticsTab() {
           </tbody>
         </table>
       )}
+    </div>
+  );
+}
+
+function LandingStatsTab() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [expandedPage, setExpandedPage] = useState<string | null>(null);
+
+  useEffect(() => {
+    apiFetch("/admin/landing-stats")
+      .then(r => r.json())
+      .then(setData)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <p>טוען...</p>;
+  if (!data) return <p>שגיאה בטעינת נתונים</p>;
+
+  const { byPage, byDay, byPageDay, conversions } = data;
+  const totalVisits = byPage.reduce((s: number, p: any) => s + p.total_visits, 0);
+  const totalUnique = byPage.reduce((s: number, p: any) => s + p.unique_ips, 0);
+  const totalRegistered = conversions.reduce((s: number, c: any) => s + c.registered, 0);
+
+  // Map landing page names to entry_point for conversion lookup
+  const pageToEntry: Record<string, string> = { landing_meme: "meme", landing_forwomen: "forwomen" };
+
+  // Group byPageDay by page for expanded view
+  const pageDaily: Record<string, any[]> = {};
+  for (const row of byPageDay) {
+    if (!pageDaily[row.page]) pageDaily[row.page] = [];
+    pageDaily[row.page].push(row);
+  }
+
+  const maxDayVisits = Math.max(...byDay.map((d: any) => d.visits), 1);
+
+  return (
+    <div dir="rtl" style={{ padding: "12px 0" }}>
+      <h3 style={{ margin: "0 0 16px", fontSize: 18 }}>דפי נחיתה</h3>
+
+      {/* Summary cards */}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 24 }}>
+        {[
+          { label: "כניסות סה\"כ", value: totalVisits, bg: "#ede9fe" },
+          { label: "IP ייחודיים", value: totalUnique, bg: "#e0e7ff" },
+          { label: "נרשמו סה\"כ", value: totalRegistered, bg: "#d1fae5" },
+          { label: "המרה", value: totalUnique > 0 ? `${(totalRegistered / totalUnique * 100).toFixed(1)}%` : "—", bg: "#fef9c3" },
+        ].map(c => (
+          <div key={c.label} style={{ background: c.bg, borderRadius: 12, padding: "14px 20px", minWidth: 110, textAlign: "center" }}>
+            <div style={{ fontSize: 28, fontWeight: 700 }}>{c.value}</div>
+            <div style={{ fontSize: 12, color: "#555", marginTop: 4 }}>{c.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Per-page breakdown */}
+      <h4 style={{ margin: "0 0 8px", fontSize: 14, fontWeight: 600 }}>לפי דף</h4>
+      <table style={{ borderCollapse: "collapse", fontSize: 13, width: "100%", maxWidth: 700, marginBottom: 24 }}>
+        <thead>
+          <tr style={{ borderBottom: "2px solid #e5e7eb" }}>
+            <th style={{ padding: "8px 12px", textAlign: "right" }}>דף</th>
+            <th style={{ padding: "8px 12px", textAlign: "center" }}>כניסות</th>
+            <th style={{ padding: "8px 12px", textAlign: "center" }}>IP ייחודיים</th>
+            <th style={{ padding: "8px 12px", textAlign: "center" }}>נרשמו</th>
+            <th style={{ padding: "8px 12px", textAlign: "center" }}>המרה</th>
+            <th style={{ padding: "8px 12px", textAlign: "center" }}>כניסה אחרונה</th>
+          </tr>
+        </thead>
+        <tbody>
+          {byPage.map((p: any) => {
+            const entryPoint = pageToEntry[p.page] || p.page.replace("landing_", "");
+            const conv = conversions.find((c: any) => c.entry_point === entryPoint);
+            const registered = conv ? conv.registered : 0;
+            const convRate = p.unique_ips > 0 ? (registered / p.unique_ips * 100).toFixed(1) + "%" : "—";
+            return (
+              <Fragment key={p.page}>
+                <tr
+                  style={{ borderBottom: "1px solid #f3f4f6", cursor: "pointer", background: expandedPage === p.page ? "#f5f3ff" : undefined }}
+                  onClick={() => setExpandedPage(expandedPage === p.page ? null : p.page)}
+                >
+                  <td style={{ padding: "6px 12px", fontWeight: 500 }}>
+                    <span style={{ color: "#7c3aed", marginLeft: 4, fontSize: 10 }}>{expandedPage === p.page ? "▼" : "▶"}</span>
+                    {p.page.replace("landing_", "")}
+                  </td>
+                  <td style={{ padding: "6px 12px", textAlign: "center" }}>{p.total_visits}</td>
+                  <td style={{ padding: "6px 12px", textAlign: "center" }}>{p.unique_ips}</td>
+                  <td style={{ padding: "6px 12px", textAlign: "center" }}>{registered}</td>
+                  <td style={{ padding: "6px 12px", textAlign: "center" }}>{convRate}</td>
+                  <td style={{ padding: "6px 12px", textAlign: "center", color: "#64748b", fontSize: 12 }}>{new Date(p.last_visit).toLocaleString("he-IL")}</td>
+                </tr>
+                {expandedPage === p.page && pageDaily[p.page] && (
+                  <tr>
+                    <td colSpan={6} style={{ padding: "8px 24px 12px", background: "#faf9fc", borderBottom: "1px solid #e5e7eb" }}>
+                      <table style={{ borderCollapse: "collapse", fontSize: 12, width: "100%", maxWidth: 400 }}>
+                        <thead>
+                          <tr>
+                            <th style={{ textAlign: "right", padding: "4px 8px", borderBottom: "1px solid #e2e8f0" }}>תאריך</th>
+                            <th style={{ textAlign: "center", padding: "4px 8px", borderBottom: "1px solid #e2e8f0" }}>כניסות</th>
+                            <th style={{ textAlign: "center", padding: "4px 8px", borderBottom: "1px solid #e2e8f0" }}>IP ייחודיים</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pageDaily[p.page].map((d: any) => (
+                            <tr key={d.date}>
+                              <td style={{ padding: "3px 8px", borderBottom: "1px solid #f1f5f9" }}>{new Date(d.date).toLocaleDateString("he-IL")}</td>
+                              <td style={{ padding: "3px 8px", textAlign: "center", borderBottom: "1px solid #f1f5f9" }}>{d.visits}</td>
+                              <td style={{ padding: "3px 8px", textAlign: "center", borderBottom: "1px solid #f1f5f9" }}>{d.unique_ips}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+
+      {/* Daily chart — all landings combined */}
+      <h4 style={{ margin: "0 0 8px", fontSize: 14, fontWeight: 600 }}>30 יום אחרונים — כל דפי הנחיתה</h4>
+      <div style={{ display: "flex", gap: 4, marginBottom: 8, fontSize: 12, color: "#888" }}>
+        <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#c4b5fd", marginLeft: 4 }} />כניסות</span>
+        <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#7c3aed", marginLeft: 4 }} />IP ייחודיים</span>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 120, direction: "ltr", background: "#faf9fc", borderRadius: 10, padding: "8px 4px" }}>
+        {byDay.map((d: any, i: number) => {
+          const vH = (d.visits / maxDayVisits) * 100;
+          const uH = (d.unique_ips / maxDayVisits) * 100;
+          const dayLabel = new Date(d.date).getDate().toString();
+          const isToday = i === byDay.length - 1;
+          return (
+            <div key={d.date} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", minWidth: 0 }} title={`${d.date}: ${d.visits} כניסות, ${d.unique_ips} ייחודיים`}>
+              <div style={{ display: "flex", gap: 1, alignItems: "flex-end", height: 100 }}>
+                <div style={{ width: "50%", height: Math.max(vH, d.visits > 0 ? 3 : 0), background: "#c4b5fd", borderRadius: "2px 2px 0 0" }} />
+                <div style={{ width: "50%", height: Math.max(uH, d.unique_ips > 0 ? 3 : 0), background: "#7c3aed", borderRadius: "2px 2px 0 0" }} />
+              </div>
+              {(i % 5 === 0 || isToday) && (
+                <span style={{ fontSize: 9, color: isToday ? "#7c3aed" : "#bbb", marginTop: 2, fontWeight: isToday ? 700 : 400 }}>{dayLabel}</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

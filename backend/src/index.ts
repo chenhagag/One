@@ -4537,9 +4537,10 @@ app.post("/track-page", optionalAuth, async (req: any, res) => {
   const uid = req.user?.id || user_id || null;
 
   try {
+    const ip = req.ip || null;
     await pgQueryOne(
-      "INSERT INTO page_views (user_id, page) VALUES ($1, $2) RETURNING id",
-      [uid, page.slice(0, 100)]
+      "INSERT INTO page_views (user_id, page, ip) VALUES ($1, $2, $3) RETURNING id",
+      [uid, page.slice(0, 100), ip]
     );
     return res.json({ ok: true });
   } catch (err: any) {
@@ -4981,6 +4982,73 @@ app.get("/api/meme-dashboard", requireAuth, async (req: any, res) => {
     return res.json({ ...stats, by_day: byDay });
   } catch (err: any) {
     console.error("[meme-dashboard] Error:", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /admin/landing-stats — Landing page analytics with unique IPs
+app.get("/admin/landing-stats", async (_req, res) => {
+  try {
+    // Per-landing-page summary
+    const byPage = await pgQueryAll<any>(`
+      SELECT page,
+        COUNT(*)::int AS total_visits,
+        COUNT(DISTINCT ip)::int AS unique_ips,
+        MIN(viewed_at) AS first_visit,
+        MAX(viewed_at) AS last_visit
+      FROM page_views
+      WHERE page LIKE 'landing_%'
+      GROUP BY page ORDER BY total_visits DESC
+    `);
+
+    // Daily breakdown across all landing pages
+    const byDay = await pgQueryAll<any>(`
+      WITH days AS (
+        SELECT generate_series(
+          (CURRENT_DATE - INTERVAL '29 days')::date,
+          CURRENT_DATE::date,
+          '1 day'::interval
+        )::date AS day
+      )
+      SELECT
+        d.day::text AS date,
+        COALESCE(v.visits, 0)::int AS visits,
+        COALESCE(v.unique_ips, 0)::int AS unique_ips
+      FROM days d
+      LEFT JOIN (
+        SELECT viewed_at::date AS day, COUNT(*) AS visits, COUNT(DISTINCT ip) AS unique_ips
+        FROM page_views WHERE page LIKE 'landing_%'
+        GROUP BY viewed_at::date
+      ) v ON v.day = d.day
+      ORDER BY d.day
+    `);
+
+    // Per-page daily breakdown
+    const byPageDay = await pgQueryAll<any>(`
+      SELECT page, viewed_at::date::text AS date,
+        COUNT(*)::int AS visits,
+        COUNT(DISTINCT ip)::int AS unique_ips
+      FROM page_views
+      WHERE page LIKE 'landing_%'
+        AND viewed_at >= CURRENT_DATE - INTERVAL '29 days'
+      GROUP BY page, viewed_at::date
+      ORDER BY viewed_at::date DESC
+    `);
+
+    // Conversion: how many landing visitors actually registered
+    const conversions = await pgQueryAll<any>(`
+      SELECT
+        COALESCE(u.entry_point, 'unknown') AS entry_point,
+        COUNT(*)::int AS registered
+      FROM users u
+      WHERE u.entry_point IS NOT NULL
+      GROUP BY u.entry_point
+      ORDER BY registered DESC
+    `);
+
+    return res.json({ byPage, byDay, byPageDay, conversions });
+  } catch (err: any) {
+    console.error("[admin] landing-stats error:", err.message);
     return res.status(500).json({ error: err.message });
   }
 });

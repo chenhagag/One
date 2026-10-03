@@ -309,6 +309,7 @@ export default function App() {
     // Default (/ or /forwomen) = forwomen — always override localStorage
     if (path === "/" || path.startsWith("/forwomen")) {
       localStorage.setItem("one_entry_point", "forwomen");
+      trackPage("landing_forwomen");
       if (path.startsWith("/forwomen")) window.history.replaceState({}, "", "/");
       console.log("[entryPoint] → forwomen (default)");
       return "forwomen";
