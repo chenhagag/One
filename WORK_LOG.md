@@ -22,34 +22,55 @@
 
 ---
 
-## Latest Session: 2026-10-03 (Project Restructure + Android Agent)
+## Latest Session: 2026-10-03 (Agent System + AAB + Full Project Restructure)
 
 ### ✅ ארגון מחדש של הפרויקט
-- **תיקיית `Management/`** — מבנה חדש: `Docs/`, `Marketing/`, `Dev Agents/`, `Management Agents/`
-- `Docs/` ו-`cut/Posts+screenShots` הועברו לתוך Management
+- **תיקיית `Management/`** — מבנה חדש: `Dev Agents/`, `User Management Agents/`, `Marketing/`, `Docs/`
+- `Docs/`, `cut/` (posts, screenshots, icons, logos) הועברו לתוך Management
 - `matchmaker.db` הוסר מ-git tracking
 - `.gitignore` עודכן: `logs/`, `test-idor.ts`
+- תיקיות ריקות נמחקו: `twa/`, `user-photos/`, `uploads/`, `conversations/`
 
-### ✅ סוכן פיתוח Android נוצר
-- `Management/Dev Agents/Android/CONTEXT.md` — הקשר מלא: ארכיטקטורה, build, signing, testers, version history
-- `Management/Dev Agents/Android/WORKLOG.md` — יומן עבודה ייעודי
-- כל המידע על Android/Capacitor/Google Play מנוהל דרך הסוכן
-
-### ✅ מערכת סוכנים
-- `Management/claude-working-guidelines.md` — כל הנחיות העבודה (מהזיכרון לקובץ בגיט)
-- `Management/project-status.md` — סטטוס פרויקט מרוכז
-- `Management/AGENTS-GUIDE.md` — איך ליצור ולהפעיל סוכנים + מיפוי זיכרון לסוכנים עתידיים
-
-### ✅ AAB v1.3.0 (versionCode 5) נבנה בהצלחה
+### ✅ AAB v1.3.0 (versionCode 5) — נבנה והועלה
 - Bump מ-v1.2.0 (שנפסל) ל-v1.3.0
-- cap sync + gradlew bundleRelease — 39.7MB AAB מוכן
-- ממתין להעלאה ל-Google Play Console → Internal testing
+- cap sync (5 plugins כולל push-notifications) + gradlew bundleRelease — 39.7MB
+- הועלה ל-Google Play Console → Internal testing
+
+### ✅ מערכת סוכנים מלאה — 10 סוכנים
+כל סוכן עם CONTEXT.md + WORKLOG.md, כל המידע מהזיכרון הועבר ואומת.
+
+**סוכני פיתוח (Dev Agents/):**
+| סוכן | תוכן מרכזי |
+|-------|------------|
+| Android | AAB build, Capacitor, signing, Google Play, 13 testers |
+| Backend | API routes, DB schema, RAG system, conversation agents, auth, HEIC conversion |
+| Automation | 4 nudge systems, pipelines, daily matching, reanalysis, photo management |
+| Design | Brand identity, color palette (#7b5fa3), typography, inline styles, post style |
+| Frontend | React views, NewChat, chat channels, isWW, PWA, planned features |
+| Matching | Stage 1 filtering, Stage 2 scoring (Gaussian σ=12), WW formula, 13 categories, style traits |
+| Security | Auth architecture, audit history, IDOR tests, 6 open items |
+
+**סוכני ניהול (User Management Agents/ + Marketing/):**
+| סוכן | תוכן מרכזי |
+|-------|------------|
+| User Management (ראשי) | מחזור חיים, סריקות, כרטיסים — מפנה לסוכנים משניים |
+| Insights Writer | כתיבת תובנות: queries, style rules, quality checklist |
+| Marketing | Landing pages, Sasha dashboard, Instagram posts, LGBTQ+ plan |
+
+**תשתית:**
+- `claude-working-guidelines.md` — כללי deploy, prompts, insights, match cards (מהזיכרון לגיט)
+- `project-status.md` — סטטוס מערכות, בעיות ידועות, אנשים
+- `AGENTS-GUIDE.md` — מדריך יצירת סוכנים
+- `CLAUDE.md` — מפת סוכנים + הנחייה לקרוא guidelines בכל עבודה
+
+**ניקוי זיכרון:** 61 קבצי זיכרון הועברו לקבצי סוכנים בגיט → 4 כלליים נשארו (user_role, prod DB, Ron setup, next session)
 
 ### TODO לסשן הבא
 - ⚠️ hard delete חשבון עדיין שבור (FK constraints)
 - דף נחיתה + דפי הסבר
 - אוטומציה pipeline
 - דיוק ציוני התאמה (17 תכונות סגנון)
+- פירוק סוכן ניהול משתמשים (match cards, chat review, look traits)
 
 ---
 
