@@ -145,14 +145,28 @@ general, turn 1 → Prompt B (follow-up, advance to next topic)
 
 ---
 
+## HEIC Auto-Conversion
+- On photo upload: if ext is .heic/.heif or mimetype is image/heic → convert to JPEG (90% quality via `heic-convert`)
+- Replaces original file, updates filename/mimetype in DB
+- Existing HEIC files NOT retroactively converted — users need to re-upload
+- `sharp` on Railway lacks libheif codec → using `heic-convert` (pure JS) instead
+
 ## Security
 - All 22 `/users/:id` routes → `requireUserAuth`
 - All 65 `/admin/*` routes → `requireAdmin`
 - Error logging: `error_logs` table + frontend auto-reports + backend unhandled exceptions
 - Input validation: name 1-50, age 18-120, height 100-250, gender enum, message max 5000
-- **Open**: signed URLs for /uploads (photos accessible without auth if URL known)
+
+### Security Audit (Sep 2026)
+- Full audit 2026-09-23/24 + external pentest (0 exploits, 1,483+ requests)
+- Fixed: set-primary endpoint unprotected, pending-rating IDOR, profile_complete user-editable, auth rate limiting
+- **Open**: signed URLs for /uploads, NaN param validation, per-user rate limit on messaging
 
 ---
+
+## Important Coding Rules
+- **Cancelled matches shown to users**: any query returning cancelled matches to users MUST filter by `match_card_sent_at IS NOT NULL` — otherwise admin-cancelled potential_matches appear as "past matches"
+- **Schema changes**: need both CREATE TABLE definition + ALTER TABLE migration block in schema.pg.ts
 
 ## Known Issues
 - **Hard delete**: FK constraints block user deletion — workaround via bug report

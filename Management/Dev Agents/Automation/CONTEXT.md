@@ -148,9 +148,18 @@
 
 ---
 
+## Outreach Log (Admin Tab "יומן פניות")
+- 3 sections: דירוגי התאמות, שאלות מערכת, ביטולי התאמות
+- "נצפה" column: compares user's last page_views against sent date
+- "ראיתי" button: sets `rating_admin_seen = TRUE`
+- Endpoint: `GET /admin/outreach-log`
+
+---
+
 ## Admin Endpoints
 | Endpoint | Purpose |
 |----------|---------|
+| `GET /admin/outreach-log` | Unified view of ratings, questions, cancellations |
 | `POST /admin/users/:id/run-pipeline` | Trigger completion pipeline |
 | `POST /admin/users/:id/run-photo-analysis` | Trigger photo analysis |
 | `GET /admin/pipeline-jobs` | View job status |
