@@ -288,7 +288,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
             <>
               <p style={{ fontSize: 14, fontWeight: 600, color: "#64748b", margin: "0 0 8px 0" }}>לא דייקנו לדעת{g("ך", "ך")}?</p>
               <button style={s.topicBubble} onClick={() => onOpenChat(msg, "qa_about_me")}>
-                <span style={{ fontSize: 14, opacity: 0.6 }}>💬</span> {msg}
+                <IconImg src="/icons/Conversation.png" size={18} /> {msg}
               </button>
             </>
           );
@@ -308,7 +308,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
     return (
       <div style={s.container}><div style={s.content}>
         <button style={s.backBtn} onClick={() => setDetailView("main")}>← חזרה לתובנות</button>
-        <h2 style={s.heading}><IconImg src="/icons/insights-mbti.png" size={22} /> טיפוס MBTI: {type}</h2>
+        <h2 style={s.heading}><IconImg src="/icons/insights-mbti.png" size={55} /> טיפוס MBTI: {type}</h2>
 
         <div style={s.card}>
           <div style={{ textAlign: "center", marginBottom: 16 }}>
@@ -376,7 +376,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
     return (
       <div style={s.container}><div style={s.content}>
         <button style={s.backBtn} onClick={() => setDetailView("main")}>← חזרה לתובנות</button>
-        <h2 style={s.heading}><IconImg src="/icons/insights-values.png" size={22} /> הערכים {g("שלך", "שלך")} (שוורץ)</h2>
+        <h2 style={s.heading}><IconImg src="/icons/insights-values.png" size={55} /> הערכים {g("שלך", "שלך")} (שוורץ)</h2>
 
         <div style={s.explainCard}>
           <p style={s.explainTitle}>מהו מודל הערכים של שוורץ?</p>
@@ -436,7 +436,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
     return (
       <div style={s.container}><div style={s.content}>
         <button style={s.backBtn} onClick={() => setDetailView("main")}>← חזרה לתובנות</button>
-        <h2 style={s.heading}><IconImg src="/icons/insights-bigfive.png" size={22} /> תכונות אישיות (Big Five)</h2>
+        <h2 style={s.heading}><IconImg src="/icons/insights-bigfive.png" size={55} /> תכונות אישיות (Big Five)</h2>
 
         <div style={s.explainCard}>
           <p style={s.explainTitle}>מהו מודל Big Five?</p>
@@ -484,7 +484,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
     return (
       <div style={s.container}><div style={s.content}>
         <button style={s.backBtn} onClick={() => setDetailView("main")}>← חזרה לתובנות</button>
-        <h2 style={s.heading}><IconImg src="/icons/insights-enneagram.png" size={22} /> אניאגרם: טיפוס {ennea.typeLabel}</h2>
+        <h2 style={s.heading}><IconImg src="/icons/insights-enneagram.png" size={55} /> אניאגרם: טיפוס {ennea.typeLabel}</h2>
 
         <div style={s.card}>
           <div style={{ textAlign: "center", marginBottom: 16 }}>
@@ -533,7 +533,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
     return (
       <div style={s.container}><div style={s.content}>
         <button style={s.backBtn} onClick={() => setDetailView("main")}>← חזרה לתובנות</button>
-        <h2 style={s.heading}><IconImg src="/icons/insights-attachment.png" size={22} /> סגנון ההתקשרות {g("שלך", "שלך")}</h2>
+        <h2 style={s.heading}><IconImg src="/icons/insights-attachment.png" size={55} /> סגנון ההתקשרות {g("שלך", "שלך")}</h2>
 
         <div style={s.card}>
           <div style={{ textAlign: "center", marginBottom: 16 }}>
@@ -587,7 +587,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
     return (
       <div style={s.container}><div style={s.content}>
         <button style={s.backBtn} onClick={() => setDetailView("main")}>← חזרה לתובנות</button>
-        <h2 style={s.heading}><IconImg src="/icons/insights-fullanalysis.png" size={22} /> הניתוח המלא</h2>
+        <h2 style={s.heading}><IconImg src="/icons/insights-fullanalysis.png" size={55} /> הניתוח המלא</h2>
         <div style={s.card}>
           <p style={{ fontSize: 14, color: "#333", lineHeight: 1.8, whiteSpace: "pre-wrap", margin: 0 }}>
             {personalInsights.full}
@@ -596,7 +596,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
         {onOpenChat && (
           <div style={{ marginTop: 16 }}>
             <button style={s.topicBubble} onClick={() => onOpenChat("אני רוצה לדייק משהו לגבי הניתוח שלי", "qa_about_me")}>
-              <span style={{ fontSize: 14, opacity: 0.6 }}>💬</span> {g("אני רוצה לדייק משהו", "אני רוצה לדייק משהו")} לגבי הניתוח שלי
+              <IconImg src="/icons/Conversation.png" size={18} /> {g("אני רוצה לדייק משהו", "אני רוצה לדייק משהו")} לגבי הניתוח שלי
             </button>
           </div>
         )}
@@ -642,7 +642,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
           {profile?.mbti?.type && (
             <div style={s.card}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><IconImg src="/icons/insights-mbti.png" size={18} /> טיפוס MBTI</h3>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><IconImg src="/icons/insights-mbti.png" size={36} /> טיפוס MBTI</h3>
                 <button style={s.expandBtn} onClick={() => setDetailView("mbti")}>הרחבה →</button>
               </div>
               <div style={{ textAlign: "center", marginTop: 12 }}>
@@ -655,7 +655,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
           {profile?.attachment?.dominant && (
             <div style={s.card}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><IconImg src="/icons/insights-attachment.png" size={18} /> סגנון התקשרות</h3>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><IconImg src="/icons/insights-attachment.png" size={36} /> סגנון התקשרות</h3>
                 <button style={s.expandBtn} onClick={() => setDetailView("attachment")}>הרחבה →</button>
               </div>
               <div style={{ marginTop: 12 }}>
@@ -668,7 +668,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
           {profile && profile.allBigFive.length > 0 && (
             <div style={s.card}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><IconImg src="/icons/insights-bigfive.png" size={18} /> תכונות אישיות</h3>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><IconImg src="/icons/insights-bigfive.png" size={36} /> תכונות אישיות</h3>
                 <button style={s.expandBtn} onClick={() => setDetailView("bigfive")}>הרחבה →</button>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
@@ -688,7 +688,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
           {strongValues.length > 0 && (
             <div style={s.card}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><IconImg src="/icons/insights-values.png" size={18} /> ערכים מרכזיים</h3>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><IconImg src="/icons/insights-values.png" size={36} /> ערכים מרכזיים</h3>
                 <button style={s.expandBtn} onClick={() => setDetailView("values")}>הרחבה →</button>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
@@ -706,7 +706,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
           {profile?.enneagram?.primaryType && (
             <div style={s.card}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><IconImg src="/icons/insights-enneagram.png" size={18} /> אניאגרם</h3>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><IconImg src="/icons/insights-enneagram.png" size={36} /> אניאגרם</h3>
                 <button style={s.expandBtn} onClick={() => setDetailView("enneagram")}>הרחבה →</button>
               </div>
               <div style={{ textAlign: "center", marginTop: 12 }}>
@@ -721,7 +721,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
           {personalInsights.full && (
             <div style={s.card}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><IconImg src="/icons/insights-fullanalysis.png" size={18} /> הניתוח המלא</h3>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><IconImg src="/icons/insights-fullanalysis.png" size={36} /> הניתוח המלא</h3>
                 <button style={s.expandBtn} onClick={() => setDetailView("personal_full")}>קריאת הניתוח המלא →</button>
               </div>
               <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, margin: "10px 0 0", whiteSpace: "pre-wrap" }}>
