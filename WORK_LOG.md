@@ -62,7 +62,7 @@
 - cap sync (5 plugins כולל push-notifications) + gradlew bundleRelease — 39.7MB
 - הועלה ל-Google Play Console → Internal testing
 
-### ✅ מערכת סוכנים מלאה — 10 סוכנים
+### ✅ מערכת סוכנים מלאה — 12 סוכנים
 כל סוכן עם CONTEXT.md + WORKLOG.md, כל המידע מהזיכרון הועבר ואומת.
 
 **סוכני פיתוח (Dev Agents/):**

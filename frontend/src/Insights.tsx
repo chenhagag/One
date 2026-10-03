@@ -2,6 +2,10 @@ import { useState, useEffect } from "react";
 import { apiFetch } from "./lib/api";
 import { trackPage } from "./lib/trackPage";
 
+const IconImg = ({ src, size = 18 }: { src: string; size?: number }) => (
+  <img src={src} alt="" style={{ width: size, height: size, objectFit: "contain", flexShrink: 0 }} />
+);
+
 interface InsightsProps {
   user: { id: number; first_name: string; email: string };
   onBack: () => void;
@@ -304,7 +308,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
     return (
       <div style={s.container}><div style={s.content}>
         <button style={s.backBtn} onClick={() => setDetailView("main")}>← חזרה לתובנות</button>
-        <h2 style={s.heading}>🧠 טיפוס MBTI: {type}</h2>
+        <h2 style={s.heading}><IconImg src="/icons/insights-mbti.png" size={22} /> טיפוס MBTI: {type}</h2>
 
         <div style={s.card}>
           <div style={{ textAlign: "center", marginBottom: 16 }}>
@@ -372,7 +376,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
     return (
       <div style={s.container}><div style={s.content}>
         <button style={s.backBtn} onClick={() => setDetailView("main")}>← חזרה לתובנות</button>
-        <h2 style={s.heading}>💎 הערכים {g("שלך", "שלך")} (שוורץ)</h2>
+        <h2 style={s.heading}><IconImg src="/icons/insights-values.png" size={22} /> הערכים {g("שלך", "שלך")} (שוורץ)</h2>
 
         <div style={s.explainCard}>
           <p style={s.explainTitle}>מהו מודל הערכים של שוורץ?</p>
@@ -432,7 +436,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
     return (
       <div style={s.container}><div style={s.content}>
         <button style={s.backBtn} onClick={() => setDetailView("main")}>← חזרה לתובנות</button>
-        <h2 style={s.heading}>🎭 תכונות אישיות (Big Five)</h2>
+        <h2 style={s.heading}><IconImg src="/icons/insights-bigfive.png" size={22} /> תכונות אישיות (Big Five)</h2>
 
         <div style={s.explainCard}>
           <p style={s.explainTitle}>מהו מודל Big Five?</p>
@@ -480,7 +484,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
     return (
       <div style={s.container}><div style={s.content}>
         <button style={s.backBtn} onClick={() => setDetailView("main")}>← חזרה לתובנות</button>
-        <h2 style={s.heading}>🔷 אניאגרם: טיפוס {ennea.typeLabel}</h2>
+        <h2 style={s.heading}><IconImg src="/icons/insights-enneagram.png" size={22} /> אניאגרם: טיפוס {ennea.typeLabel}</h2>
 
         <div style={s.card}>
           <div style={{ textAlign: "center", marginBottom: 16 }}>
@@ -529,7 +533,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
     return (
       <div style={s.container}><div style={s.content}>
         <button style={s.backBtn} onClick={() => setDetailView("main")}>← חזרה לתובנות</button>
-        <h2 style={s.heading}>🔗 סגנון ההתקשרות {g("שלך", "שלך")}</h2>
+        <h2 style={s.heading}><IconImg src="/icons/insights-attachment.png" size={22} /> סגנון ההתקשרות {g("שלך", "שלך")}</h2>
 
         <div style={s.card}>
           <div style={{ textAlign: "center", marginBottom: 16 }}>
@@ -583,7 +587,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
     return (
       <div style={s.container}><div style={s.content}>
         <button style={s.backBtn} onClick={() => setDetailView("main")}>← חזרה לתובנות</button>
-        <h2 style={s.heading}>📋 הניתוח המלא</h2>
+        <h2 style={s.heading}><IconImg src="/icons/insights-fullanalysis.png" size={22} /> הניתוח המלא</h2>
         <div style={s.card}>
           <p style={{ fontSize: 14, color: "#333", lineHeight: 1.8, whiteSpace: "pre-wrap", margin: 0 }}>
             {personalInsights.full}
@@ -638,7 +642,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
           {profile?.mbti?.type && (
             <div style={s.card}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0 }}>🧠 טיפוס MBTI</h3>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><IconImg src="/icons/insights-mbti.png" size={18} /> טיפוס MBTI</h3>
                 <button style={s.expandBtn} onClick={() => setDetailView("mbti")}>הרחבה →</button>
               </div>
               <div style={{ textAlign: "center", marginTop: 12 }}>
@@ -651,7 +655,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
           {profile?.attachment?.dominant && (
             <div style={s.card}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0 }}>🔗 סגנון התקשרות</h3>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><IconImg src="/icons/insights-attachment.png" size={18} /> סגנון התקשרות</h3>
                 <button style={s.expandBtn} onClick={() => setDetailView("attachment")}>הרחבה →</button>
               </div>
               <div style={{ marginTop: 12 }}>
@@ -664,7 +668,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
           {profile && profile.allBigFive.length > 0 && (
             <div style={s.card}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0 }}>🎭 תכונות אישיות</h3>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><IconImg src="/icons/insights-bigfive.png" size={18} /> תכונות אישיות</h3>
                 <button style={s.expandBtn} onClick={() => setDetailView("bigfive")}>הרחבה →</button>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
@@ -684,7 +688,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
           {strongValues.length > 0 && (
             <div style={s.card}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0 }}>💎 ערכים מרכזיים</h3>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><IconImg src="/icons/insights-values.png" size={18} /> ערכים מרכזיים</h3>
                 <button style={s.expandBtn} onClick={() => setDetailView("values")}>הרחבה →</button>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
@@ -702,7 +706,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
           {profile?.enneagram?.primaryType && (
             <div style={s.card}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0 }}>🔷 אניאגרם</h3>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><IconImg src="/icons/insights-enneagram.png" size={18} /> אניאגרם</h3>
                 <button style={s.expandBtn} onClick={() => setDetailView("enneagram")}>הרחבה →</button>
               </div>
               <div style={{ textAlign: "center", marginTop: 12 }}>
@@ -717,7 +721,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
           {personalInsights.full && (
             <div style={s.card}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0 }}>📋 הניתוח המלא</h3>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#333", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><IconImg src="/icons/insights-fullanalysis.png" size={18} /> הניתוח המלא</h3>
                 <button style={s.expandBtn} onClick={() => setDetailView("personal_full")}>קריאת הניתוח המלא →</button>
               </div>
               <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, margin: "10px 0 0", whiteSpace: "pre-wrap" }}>
@@ -734,7 +738,7 @@ export default function Insights({ user, onBack, onOpenChat, initialView, resetK
 const s: Record<string, React.CSSProperties> = {
   container: { direction: "rtl", background: "#f9fafb", minHeight: "100vh", fontFamily: "'Segoe UI', 'Arial', sans-serif" },
   content: { maxWidth: 720, margin: "0 auto", padding: "32px 24px" },
-  heading: { fontSize: 22, fontWeight: 700, color: "#1a1a2e", marginTop: 0, marginBottom: 24 },
+  heading: { fontSize: 22, fontWeight: 700, color: "#1a1a2e", marginTop: 0, marginBottom: 24, display: "flex" as const, alignItems: "center" as const, gap: 8 },
   backBtn: { background: "none", border: "none", color: "#6366f1", fontSize: 14, cursor: "pointer", padding: "4px 0", marginBottom: 16, fontFamily: "inherit" },
   card: { background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: "20px 24px", marginBottom: 12 },
   expandBtn: { background: "none", border: "none", color: "#6366f1", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: 0 },

@@ -128,55 +128,9 @@ Management/
 
 ---
 
-## זיכרונות שממתינים להעברה לסוכנים עתידיים
+## זיכרונות שממתינים להעברה לסוכנים
 
-### Conversation Agent
-- project_chat_history_menu.md — GPT-style chat list
-- project_chat_quality_rag.md — insights RAG injection into chat
-- project_agent_context.md — per-user AI context
+כל 61 קבצי הזיכרון המקוריים הועברו לקבצי הסוכנים בסשן 2026-10-03.
+הרשימה שהייתה כאן כבר לא רלוונטית — כל המידע נמצא ב-CONTEXT.md של הסוכן המתאים.
 
-### Frontend Agent
-- project_forwomen_landing.md — /forwomen landing + isWW flag
-- project_ux_overhaul_todos.md — fine-tuning questions + future insight types
-- project_pool_count_display.md — hide pool count until 100+
-- project_account_deletion_overhaul.md — deletion UX redesign
-
-### Backend/Automation Agent
-- project_nudge_system.md — welcome/not-started/incomplete nudges
-- project_message_nudges.md — unanswered message reminders
-- project_rating_nudges.md — rating auto-send + reminders
-- project_photo_nudges.md — photo requests + blind match
-- project_nudge_next_steps.md — detailed nudge plans
-- project_daily_matching.md — 4AM matching cron
-- project_admin_pipeline.md — completion + photo analysis pipelines
-- project_reanalysis_design.md — qa channel reanalysis
-- project_email_system.md — Resend integration
-- project_rag_system.md — pgvector knowledge base
-- project_photo_match_flow.md — waiting_for_photo flow
-- project_pool_gating.md — 6 prerequisites for pool entry
-
-### Matching Algorithm Agent
-- project_score_gap.md — category vs trait score gap
-- project_style_prompt_work.md — 17 traits pending
-- project_expanded_matches.md — expanded_potential_match status
-- project_trans_filter_issue.md — filter blocks trans users
-- project_freeze_replacement.md — rating lock system
-- project_special_attention.md — sensitive user detection
-
-### Security Agent
-- project_security_hardening.md — full audit status
-- project_dm_fixes.md — auth + error monitoring
-- project_staging_log_errors.md — non-critical errors
-
-### User Management Agent
-- project_insights_agent_workflow.md — autonomous insights workflow
-- project_insights_chat_quality.md — qa_about_me improvement
-- project_insights_claude_agent.md — Claude writes insights, not GPT
-- project_admin_agents.md — three repeatable admin tasks
-
-### Marketing Agent
-- project_instagram_posts.md — HTML carousel builder
-- project_marketer_dashboard.md — Sasha's dashboard
-- project_lgbtq_launch.md — lesbian community launch
-- project_forwomen_landing.md — also relevant here
-- project_women_only_pivot.md — WW-only adaptations
+אם יש זיכרון חדש שצריך להיכנס לסוכן — לעדכן ישירות את ה-CONTEXT.md או WORKLOG.md של הסוכן.
