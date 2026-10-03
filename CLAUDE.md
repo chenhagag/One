@@ -11,7 +11,8 @@
 | סוכן | תיקייה | סטטוס | אחריות |
 |-------|---------|--------|---------|
 | **Android** | `Dev Agents/Android/` | ✅ | בניית AAB, Capacitor, Google Play, testers |
-| **Backend** | `Dev Agents/Backend/` | ✅ | Express server, API routes, DB schema, auth, RAG infrastructure, analysis agent |
+| **Analysis** | `Dev Agents/Analysis/` | ✅ | מערכת הניתוח: 8 prompt groups, 60+ traits, validation, cognitiveScore, safeOutputLayer (MBTI/Enneagram/Attachment) |
+| **Backend** | `Dev Agents/Backend/` | ✅ | Express server, API routes, DB schema, auth, RAG infrastructure |
 | **Conversation** | `Dev Agents/Conversation/` | ✅ | מערכת השיחה: chatManager, prompts, summarizer, autoAnalysis, NewChat.tsx, ערוצי צ'אט, recommendations |
 | **Automation** | `Dev Agents/Automation/` | ✅ | Pipelines, cron jobs, nudges (4 מערכות), daily matching, reanalysis, photo management |
 | **Design** | `Dev Agents/Design/` | ✅ | שפה עיצובית, brand identity, color palette, UX patterns, Instagram post style |
@@ -37,7 +38,8 @@
 
 ### מתי לגשת לאיזה סוכן
 - "בוא נבנה AAB" / Google Play → **Android**
-- באג ב-API / שינוי DB / RAG infra / analysis agent → **Backend**
+- ניתוח / traits / prompts של analysis / cognitiveScore / safeOutputLayer / MBTI / Enneagram → **Analysis**
+- באג ב-API / שינוי DB / RAG infra → **Backend**
 - שיחה / צ'אט / prompt / chatManager / NewChat / ערוצים / recommendations / taste test / cognitive → **Conversation**
 - nudge שבור / pipeline תקוע / matching cron / reanalysis → **Automation**
 - עיצוב / צבעים / brand / UX / מבנה מסך → **Design**

@@ -1,9 +1,9 @@
 # Backend Dev Agent — Context
 
 ## Role
-אחראי על תשתית ה-backend: Express server, API routes, DB schema, auth, RAG infrastructure, Analysis agent, notifications, וכל מה שלא pipeline/cron (סוכן Automation) ולא conversation/chat (סוכן Conversation).
+אחראי על תשתית ה-backend: Express server, API routes, DB schema, auth, RAG infrastructure, notifications, וכל מה שלא pipeline/cron (סוכן Automation), לא conversation/chat (סוכן Conversation), לא analysis (סוכן Analysis), ולא matching (סוכן Matching).
 
-**לא כולל**: Conversation system (chatManager, prompts, summarizer — סוכן Conversation), Pipeline/cron (סוכן Automation), Matching algorithm (סוכן Matching).
+**לא כולל**: Conversation system (סוכן Conversation), Analysis system (סוכן Analysis), Pipeline/cron (סוכן Automation), Matching algorithm (סוכן Matching).
 
 ---
 
@@ -62,12 +62,15 @@ When changing RAG infrastructure or DB schema, coordinate with Conversation agen
 
 ---
 
-## Analysis System (`agents/analysis/agent.ts`)
-- 7 prompt groups run sequentially
-- Extracts 60+ personality traits from all conversation transcripts
-- Two auto-analysis runs: #1 when general closes, #2 when all channels done
-- `analysis_run_count` column tracks runs (max 2 auto)
-- Raw output saved to `analysis_runs` table
+## Analysis System
+**Full documentation in Analysis agent** (`Management/Dev Agents/Analysis/CONTEXT.md`).
+
+Backend owns the infrastructure that analysis uses:
+- DB tables: `trait_definitions`, `user_traits`, `look_trait_definitions`, `user_look_traits`, `analysis_runs`
+- API routes: admin reanalyze endpoints, analysis run viewer
+- Token tracking (`tokenTracker.ts`)
+
+When changing trait_definitions schema or adding DB columns, coordinate with Analysis agent.
 
 ---
 
@@ -99,11 +102,11 @@ When changing RAG infrastructure or DB schema, coordinate with Conversation agen
 | `backend/src/notifications.ts` | notifyUser, sendPushOnly, STAGING_URL guard |
 | `backend/src/openai.ts` | OpenAI client wrapper |
 | `backend/src/tokenTracker.ts` | Token usage tracking per user/action |
-| `backend/src/safeOutputLayer.ts` | User-safe data (MBTI, values, Big Five) |
 | `backend/src/matchStage1.ts` | Candidate filtering |
 | `backend/src/matchStage2.ts` | Scoring algorithm |
-| `backend/src/cognitiveScore.ts` | Cognitive profile computation |
-| `agents/analysis/agent.ts` | Grouped AI analysis (7 prompt groups) |
+| `agents/analysis/*` | **→ Analysis agent** |
+| `backend/src/cognitiveScore.ts` | **→ Analysis agent** |
+| `backend/src/safeOutputLayer.ts` | **→ Analysis agent** |
 | `agents/conversation/*` | **→ Conversation agent** |
 
 ---

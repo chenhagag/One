@@ -8,7 +8,8 @@
 Management/
 ├── Dev Agents/          ← סוכני פיתוח
 │   ├── Android/         ← בניית AAB, Capacitor, Google Play
-│   ├── Backend/         ← Express, API, DB, RAG infra, analysis agent
+│   ├── Analysis/        ← מערכת הניתוח: 8 prompt groups, traits, cognitiveScore, safeOutputLayer
+│   ├── Backend/         ← Express, API, DB, RAG infra
 │   ├── Conversation/    ← מערכת השיחה: chatManager, prompts, NewChat.tsx, ערוצים
 │   ├── Frontend/        ← React, UI/UX, PWA, auth, admin, landing pages
 │   ├── Automation/      ← Pipelines, cron, nudges, matching, reanalysis

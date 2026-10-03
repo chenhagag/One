@@ -22,7 +22,15 @@
 
 ---
 
-## Latest Session: 2026-10-03 (Conversation Agent + Docs Reorganization)
+## Latest Session: 2026-10-03 (Conversation + Analysis Agents + Docs Reorganization)
+
+### ✅ סוכן Analysis חדש
+- הופרד מ-Backend — מכסה את כל מערכת הניתוח
+- **CONTEXT.md**: agent.ts (765 שורות), loader.ts (309), cognitiveScore.ts (62), safeOutputLayer.ts (660), 12 prompt files (~1,600), types, tests
+- 8 prompt groups מתועדים: routing logic, anti-flattery rules, confidence calibration, trait anchors
+- Validation: fuzzy matching, dedup, mirrored value stripping, COALESCE DB logic
+- Safe output layer: MBTI (16 types + borderline + alternate), Enneagram (9 types + wing), Attachment (3 + compound), Big Five, Schwartz Values
+- Coordination points מתועדים: Conversation (triggers), Automation (reanalysis), Matching (consumers), Backend (DB), Insights Writer (readers)
 
 ### ✅ סוכן Conversation חדש
 - הופרד מ-Backend + Frontend — מכסה את כל מערכת השיחה (backend + frontend)
@@ -61,7 +69,8 @@
 | סוכן | תוכן מרכזי |
 |-------|------------|
 | Android | AAB build, Capacitor, signing, Google Play, 13 testers |
-| Backend | API routes, DB schema, RAG infra, analysis agent, auth, HEIC conversion |
+| Analysis | 8 prompt groups, 60+ traits, validation, cognitiveScore, safeOutputLayer (הופרד מ-Backend) |
+| Backend | API routes, DB schema, RAG infra, auth, HEIC conversion |
 | Conversation | chatManager, prompts, summarizer, autoAnalysis, NewChat.tsx, ערוצי צ'אט (הופרד מ-Backend+Frontend) |
 | Automation | 4 nudge systems, pipelines, daily matching, reanalysis, photo management |
 | Design | Brand identity, color palette (#7b5fa3), typography, inline styles, post style |

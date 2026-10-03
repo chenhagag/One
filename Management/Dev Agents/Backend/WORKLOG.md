@@ -1,8 +1,11 @@
 # Backend Dev Agent — Work Log
 
-## Latest: 2026-10-03 — Conversation System Split to Dedicated Agent
+## Latest: 2026-10-03 — Analysis System Split to Dedicated Agent
+- Analysis system (agent.ts, loader.ts, cognitiveScore.ts, safeOutputLayer.ts, 12 prompts) moved to **Analysis agent** (`Dev Agents/Analysis/`)
+- Backend agent retains: RAG infrastructure, DB schema, auth, API routes, notifications, token tracking
+
+### 2026-10-03 — Conversation System Split to Dedicated Agent
 - Conversation system (chatManager, prompts, summarizer, autoAnalysis, agent context) moved to **Conversation agent** (`Dev Agents/Conversation/`)
-- Backend agent retains: RAG infrastructure, DB schema, analysis agent, auth, API routes, notifications
 - Cross-references added for coordination points (seedKnowledge, DB schema)
 
 ### 2026-10-03 — Agent Created

@@ -120,7 +120,7 @@ Each topic has a required opening question + follow-up guidance.
 - **Run 2**: When all channels done (cognitive >= 5 msgs + taste >= 5 msgs)
 - Max 2 automatic runs (tracked via `analysis_run_count` column)
 - Saves raw output to `analysis_runs` table
-- **IMPORTANT**: Do NOT modify the analysis agent (`agents/analysis/`) when changing conversation flow
+- **IMPORTANT**: Do NOT modify the analysis agent (`agents/analysis/`) when changing conversation flow — coordinate with **Analysis agent** (`Management/Dev Agents/Analysis/`)
 
 ### Analysis Helpers (`agents/conversation/analysisHelpers.ts`)
 - `buildTranscript()` — builds analysis transcript from all chat types
