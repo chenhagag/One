@@ -4,18 +4,22 @@
 הפרויקט מנוהל דרך מערכת סוכנים. כל סוכן אחראי על תחום מוגדר. **לפני שמתחילים לעבוד — לזהות איזה סוכן רלוונטי ולקרוא את ה-CONTEXT.md שלו.**
 
 ### סוכני פיתוח (Management/Dev Agents/)
-| סוכן | תיקייה | אחריות |
-|-------|---------|---------|
-| **Android** | `Dev Agents/Android/` | בניית AAB, Capacitor, Google Play, testers |
-| **Backend** | `Dev Agents/Backend/` | Express server, API routes, DB schema, auth, RAG system, conversation agents, analysis |
-| **Automation** | `Dev Agents/Automation/` | Pipelines, cron jobs, nudges (4 מערכות), daily matching, reanalysis, photo management |
-| **Security** | `Dev Agents/Security/` | IDOR tests, security audit (ללא CONTEXT עדיין) |
+| סוכן | תיקייה | סטטוס | אחריות |
+|-------|---------|--------|---------|
+| **Android** | `Dev Agents/Android/` | ✅ | בניית AAB, Capacitor, Google Play, testers |
+| **Backend** | `Dev Agents/Backend/` | ✅ | Express server, API routes, DB schema, auth, RAG system, conversation agents, analysis |
+| **Automation** | `Dev Agents/Automation/` | ✅ | Pipelines, cron jobs, nudges (4 מערכות), daily matching, reanalysis, photo management |
+| **Design** | `Dev Agents/Design/` | ✅ | שפה עיצובית, brand identity, color palette, UX patterns, Instagram post style |
+| **Frontend** | `Dev Agents/Frontend/` | 📋 TODO | React 18, UI/UX, PWA, state routing, components |
+| **Matching** | `Dev Agents/Matching/` | 📋 TODO | אלגוריתם התאמות, ציונים, style traits, filtering |
+| **Security** | `Dev Agents/Security/` | 📁 קבצים בלבד | IDOR tests, security audit |
 
 ### סוכני ניהול (Management/Management Agents/)
-| סוכן | תיקייה | אחריות |
-|-------|---------|---------|
-| **User Management** (ראשי) | `Management Agents/` | ניהול מחזור חיי משתמשים — סריקת שיחות, כרטיסי התאמה, look traits, דו"חות. מכיר ומפנה לסוכנים משניים |
-| **Insights Writer** | `Management Agents/Insights Writer/` | כתיבת תובנות אישיות: מציאת משתמשות ללא תובנות, קריאת שיחות, כתיבה בעברית |
+| סוכן | תיקייה | סטטוס | אחריות |
+|-------|---------|--------|---------|
+| **User Management** (ראשי) | `Management Agents/` | ✅ | ניהול מחזור חיי משתמשים — סריקת שיחות, כרטיסי התאמה, look traits, דו"חות. מכיר ומפנה לסוכנים משניים |
+| **Insights Writer** | `Management Agents/Insights Writer/` | ✅ | כתיבת תובנות אישיות: מציאת משתמשות ללא תובנות, קריאת שיחות, כתיבה בעברית |
+| **Marketing** | `Management Agents/Marketing/` | 📋 TODO | דפי נחיתה, פוסטים, דשבורד סאשה, LGBTQ+ launch |
 
 ### קבצי הנחיות כלליים (Management/)
 - `claude-working-guidelines.md` — כללי deploy, prompts, insights, match cards
@@ -26,8 +30,12 @@
 - "בוא נבנה AAB" / Google Play → **Android**
 - באג ב-API / שינוי DB / RAG / prompt → **Backend**
 - nudge שבור / pipeline תקוע / matching / cron → **Automation**
+- עיצוב / צבעים / brand / UX / מבנה מסך → **Design**
+- באג ב-React / UI / component / state → **Frontend** (TODO)
+- ציוני התאמה / style traits / filtering → **Matching** (TODO)
 - "תכתוב תובנות" / "תבדוק מי חסר תובנות" → **Insights Writer**
 - "בוא נעשה ניהול יומי" / סריקת שיחות / כרטיסי התאמה → **User Management**
+- דף נחיתה / פוסטים / שיווק → **Marketing** (TODO)
 - אבטחה / IDOR / auth issues → **Security** + **Backend**
 
 ---
