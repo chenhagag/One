@@ -12,7 +12,7 @@
 | **Design** | `Dev Agents/Design/` | ✅ | שפה עיצובית, brand identity, color palette, UX patterns, Instagram post style |
 | **Frontend** | `Dev Agents/Frontend/` | ✅ | React 18, inline styles, state routing, NewChat, AdminView, PWA, chat channels |
 | **Matching** | `Dev Agents/Matching/` | ✅ | אלגוריתם התאמות: Stage 1 filtering, Stage 2 scoring, profile scores, expanded matches, style prompt |
-| **Security** | `Dev Agents/Security/` | 📁 קבצים בלבד | IDOR tests, security audit |
+| **Security** | `Dev Agents/Security/` | ✅ | Auth architecture, IDOR tests, audit status, open items (signed URLs), error monitoring |
 
 ### סוכני ניהול (Management/Management Agents/)
 | סוכן | תיקייה | סטטוס | אחריות |
