@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700&family=Cormorant+Garamond:wght@400;500;600&family=JetBrains+Mono:wght@300;400&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#666;font-family:'Heebo',sans-serif;display:flex;flex-direction:column;align-items:center;padding:40px 0}
+
+.frame{
+  width:1080px;height:1080px;
+  overflow:hidden;
+  position:relative;
+  display:flex;flex-direction:column;
+  direction:rtl;
+  margin-bottom:30px;
+  flex-shrink:0;
+}
+
+/* backgrounds */
+.bg-cream{background:#FAFAFE}
+.bg-lavender{background:#F0EFF8}
+.bg-soft{background:#E9E8F4}
+.bg-dark{background:#0E0A4D}
+
+/* grain */
+.grain{position:absolute;inset:0;opacity:0.8;mix-blend-mode:multiply;pointer-events:none;z-index:1;background-size:510px 510px}
+.bg-dark .grain{mix-blend-mode:screen;opacity:0.4}
+
+/* orb */
+.orb{position:absolute;pointer-events:none;z-index:1;width:340px;height:340px;object-fit:cover;object-position:bottom left;opacity:0.7;border-radius:50%;transform:rotate(3deg);top:-140px;right:-128px}
+.bg-dark .orb{opacity:0.4}
+
+/* layout zones */
+.content{position:relative;z-index:3;flex:1;display:flex;flex-direction:column;justify-content:center;padding:80px 90px}
+.footer{position:relative;z-index:3;padding:28px 90px;display:flex;align-items:center;justify-content:space-between;border-top:1.5px solid rgba(54,30,176,0.15)}
+.bg-dark .footer{border-top-color:rgba(107,95,208,0.25)}
+
+/* step number */
+.step-num{font-family:'JetBrains Mono',monospace;font-size:18px;letter-spacing:4px;color:#8378D0;margin-bottom:20px;opacity:0.7}
+.bg-dark .step-num{color:#6B5FD0}
+
+/* icon area */
+.icon-area{margin-bottom:44px}
+.icon-area svg{filter:drop-shadow(0 4px 20px rgba(21,16,139,0.08))}
+
+/* typography */
+.headline{font-family:'Cormorant Garamond',serif;font-size:66px;font-weight:500;color:#15108B;line-height:1.25;margin-bottom:28px}
+.sub{font-size:30px;font-weight:300;color:#3A3568;line-height:1.6;letter-spacing:0.2px}
+.sub strong{font-weight:500;color:#15108B}
+.anchor{height:4px;background:linear-gradient(270deg,#15108B,rgba(21,16,139,0.04));width:140px;margin-bottom:32px;border-radius:2px}
+
+/* dark overrides */
+.bg-dark .headline{color:#E8E6FF}
+.bg-dark .sub{color:#9890D8}
+.bg-dark .sub strong{color:#D4D0F5}
+.bg-dark .anchor{background:linear-gradient(270deg,#9890D8,rgba(152,144,216,0.04))}
+
+/* footer */
+.f-tag{font-family:'JetBrains Mono',monospace;font-size:22px;color:#8378D0;letter-spacing:2.8px;direction:ltr}
+.f-tag .dot{color:#15108B;margin-right:4px}
+.f-mark{font-family:'JetBrains Mono',monospace;font-size:24px;color:#361EB0;letter-spacing:7px;font-weight:400}
+.bg-dark .f-tag{color:#6B5FD0}
+.bg-dark .f-tag .dot{color:#9890D8}
+.bg-dark .f-mark{color:#9890D8}
+
+/* cover special */
+.cover-headline{font-family:'Cormorant Garamond',serif;font-size:88px;font-weight:500;color:#15108B;line-height:1.2;margin-bottom:32px}
+.cover-sub{font-size:33px;font-weight:300;color:#3A3568;line-height:1.6}
+.swipe{font-family:'JetBrains Mono',monospace;font-size:17px;color:#8378D0;letter-spacing:2px;margin-top:48px;opacity:0.6}
+
+/* cta */
+.cta-btn{display:inline-block;margin-top:36px;padding:22px 60px;border:1.5px solid rgba(152,144,216,0.5);border-radius:60px;font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:400;color:#E8E6FF;letter-spacing:3px}
+</style>
+</head>
+<body>
+
+<!-- ====== SLIDE 1 — COVER ====== -->
+<div class="frame bg-cream" id="s1">
+  <div class="grain"></div>
+  <img src="icon_only.png" class="orb" alt="">
+  <div class="content">
+    <div class="cover-headline" style="transform:rotate(-0.4deg)">One עושה לכן<br>חתונמי.</div>
+    <div class="anchor"></div>
+    <div class="cover-sub">מכירות אתכן לעומק.<br>מחפשות מישהי שמתאימה לכן באמת.</div>
+    <div class="swipe"><<< איך זה עובד?</div>
+  </div>
+  <div class="footer">
+    <span class="f-tag">meet, as you are<span class="dot">.</span></span>
+    <span class="f-mark">One</span>
+  </div>
+</div>
+
+<!-- ====== SLIDE 2 — נרשמות ומשוחחות ====== -->
+<div class="frame bg-lavender" id="s2">
+  <div class="grain"></div>
+  <img src="icon_only.png" class="orb" alt="">
+  <div class="content">
+    <div class="step-num">01</div>
+    <div class="icon-area">
+      <svg width="100" height="100" viewBox="0 0 100 100" fill="none">
+        <rect x="8" y="16" width="84" height="68" rx="18" stroke="#15108B" stroke-width="3" opacity="0.3"/>
+        <rect x="8" y="16" width="84" height="68" rx="18" fill="#15108B" opacity="0.06"/>
+        <circle cx="36" cy="44" r="5" fill="#6B5FD0" opacity="0.7"/>
+        <circle cx="50" cy="44" r="5" fill="#6B5FD0" opacity="0.5"/>
+        <circle cx="64" cy="44" r="5" fill="#6B5FD0" opacity="0.3"/>
+        <path d="M30 58 L70 58" stroke="#15108B" stroke-width="2.5" stroke-linecap="round" opacity="0.15"/>
+        <path d="M30 66 L56 66" stroke="#15108B" stroke-width="2.5" stroke-linecap="round" opacity="0.1"/>
+      </svg>
+    </div>
+    <div class="headline" style="transform:rotate(0.3deg)">נרשמות ומתחילות<br>שיחה טבעית.</div>
+    <div class="anchor"></div>
+    <div class="sub">הצ׳אט שלנו ישאל אתכן שאלות על עצמכן<br>ועל מה אתן מחפשות.<br><br><strong>בלי פרופיל, בלי לשווק את עצמך.</strong></div>
+  </div>
+  <div class="footer">
+    <span class="f-tag">meet, as you are<span class="dot">.</span></span>
+    <span class="f-mark">One</span>
+  </div>
+</div>
+
+<!-- ====== SLIDE 3 — מפת אישיות ====== -->
+<div class="frame bg-cream" id="s3">
+  <div class="grain"></div>
+  <img src="icon_only.png" class="orb" alt="">
+  <div class="content">
+    <div class="step-num">02</div>
+    <div class="icon-area">
+      <svg width="100" height="100" viewBox="0 0 100 100" fill="none">
+        <!-- brain/map abstract -->
+        <circle cx="50" cy="46" r="30" stroke="#15108B" stroke-width="3" opacity="0.25"/>
+        <circle cx="50" cy="46" r="30" fill="#15108B" opacity="0.04"/>
+        <circle cx="38" cy="38" r="6" fill="#6B5FD0" opacity="0.5"/>
+        <circle cx="58" cy="34" r="5" fill="#6B5FD0" opacity="0.35"/>
+        <circle cx="50" cy="54" r="7" fill="#6B5FD0" opacity="0.6"/>
+        <circle cx="65" cy="50" r="4" fill="#6B5FD0" opacity="0.3"/>
+        <line x1="38" y1="38" x2="50" y2="54" stroke="#15108B" stroke-width="1.5" opacity="0.2"/>
+        <line x1="58" y1="34" x2="50" y2="54" stroke="#15108B" stroke-width="1.5" opacity="0.2"/>
+        <line x1="38" y1="38" x2="58" y2="34" stroke="#15108B" stroke-width="1.5" opacity="0.15"/>
+        <line x1="50" y1="54" x2="65" y2="50" stroke="#15108B" stroke-width="1.5" opacity="0.15"/>
+      </svg>
+    </div>
+    <div class="headline" style="transform:rotate(-0.3deg)">המערכת יוצרת לך<br>מפת אישיות.</div>
+    <div class="anchor"></div>
+    <div class="sub">פרופיל פסיכולוגי וקוגניטיבי שלם —<br>ותוכלי לראות תובנות אישיות על עצמך.<br><br><strong>כל מה שקשה לסכם בכמה מילים.</strong></div>
+  </div>
+  <div class="footer">
+    <span class="f-tag">meet, as you are<span class="dot">.</span></span>
+    <span class="f-mark">One</span>
+  </div>
+</div>
+
+<!-- ====== SLIDE 4 — חיפוש התאמה ====== -->
+<div class="frame bg-lavender" id="s4">
+  <div class="grain"></div>
+  <img src="icon_only.png" class="orb" alt="">
+  <div class="content">
+    <div class="step-num">03</div>
+    <div class="icon-area">
+      <svg width="100" height="100" viewBox="0 0 100 100" fill="none">
+        <!-- search/magnifier with heart -->
+        <circle cx="44" cy="44" r="24" stroke="#15108B" stroke-width="3" opacity="0.3"/>
+        <circle cx="44" cy="44" r="24" fill="#15108B" opacity="0.04"/>
+        <line x1="62" y1="62" x2="80" y2="80" stroke="#15108B" stroke-width="4" stroke-linecap="round" opacity="0.25"/>
+        <path d="M44 36 C44 30 36 26 36 34 C36 40 44 48 44 48 C44 48 52 40 52 34 C52 26 44 30 44 36Z" fill="#6B5FD0" opacity="0.45"/>
+      </svg>
+    </div>
+    <div class="headline" style="transform:rotate(0.4deg)">One מחפשת עבורך<br>מישהי שמתאימה באמת.</div>
+    <div class="anchor"></div>
+    <div class="sub">על סמך המפה שלך וכל מה שסיפרת —<br>רק כשנמצאה מישהי שבאמת שווה להכיר.</div>
+  </div>
+  <div class="footer">
+    <span class="f-tag">meet, as you are<span class="dot">.</span></span>
+    <span class="f-mark">One</span>
+  </div>
+</div>
+
+<!-- ====== SLIDE 5 — תמונה + כרטיס התאמה ====== -->
+<div class="frame bg-soft" id="s5">
+  <div class="grain"></div>
+  <img src="icon_only.png" class="orb" alt="">
+  <div class="content">
+    <div class="step-num">04</div>
+    <div class="icon-area">
+      <svg width="110" height="100" viewBox="0 0 110 100" fill="none">
+        <!-- photo frame -->
+        <rect x="6" y="14" width="52" height="62" rx="8" stroke="#15108B" stroke-width="2.5" opacity="0.25"/>
+        <rect x="6" y="14" width="52" height="62" rx="8" fill="#15108B" opacity="0.04"/>
+        <circle cx="24" cy="36" r="8" fill="#6B5FD0" opacity="0.3"/>
+        <path d="M8 62 L22 48 L34 58 L44 46 L56 62" stroke="#6B5FD0" stroke-width="2" opacity="0.3" fill="none"/>
+        <!-- arrow -->
+        <path d="M66 45 L78 45" stroke="#15108B" stroke-width="2" stroke-linecap="round" opacity="0.2"/>
+        <path d="M75 40 L80 45 L75 50" stroke="#15108B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.2" fill="none"/>
+        <!-- heart/card -->
+        <rect x="86" y="26" width="18" height="38" rx="4" stroke="#6B5FD0" stroke-width="2" opacity="0.4"/>
+        <path d="M95 38 C95 35 91 33 91 37 C91 40 95 44 95 44 C95 44 99 40 99 37 C99 33 95 35 95 38Z" fill="#6B5FD0" opacity="0.5"/>
+      </svg>
+    </div>
+    <div class="headline" style="transform:rotate(-0.35deg)">בודקות שיש משיכה,<br>ומתחילות להכיר.</div>
+    <div class="anchor"></div>
+    <div class="sub">שתיכן מקבלות תמונה ומאשרות.<br><br>אם שתיכן בעניין — תקבלו כרטיס התאמה<br>שמסביר בדיוק למה חיברנו ביניכן.</div>
+  </div>
+  <div class="footer">
+    <span class="f-tag">meet, as you are<span class="dot">.</span></span>
+    <span class="f-mark">One</span>
+  </div>
+</div>
+
+<!-- ====== SLIDE 6 — CTA ====== -->
+<div class="frame bg-dark" id="s6">
+  <div class="grain"></div>
+  <img src="icon_only.png" class="orb" alt="">
+  <div class="content">
+    <div class="headline" style="transform:rotate(-0.3deg);margin-bottom:36px">אנחנו בונות את<br>המאגר שלנו.</div>
+    <div class="anchor"></div>
+    <div class="sub">ככל שיותר נשים יצטרפו,<br>ככה נוכל למצוא עבור כולכן<br>את ההתאמה הנכונה.<br><br><strong>בואי, ותביאי חברה.</strong></div>
+    <div class="cta-btn">joinone.io</div>
+  </div>
+  <div class="footer">
+    <span class="f-tag">meet, as you are<span class="dot">.</span></span>
+    <span class="f-mark">One</span>
+  </div>
+</div>
+
+<script>
+const grainSVG = `<svg xmlns='http://www.w3.org/2000/svg' width='510' height='510' viewBox='0 0 510 510'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.3' numOctaves='3' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/><feComponentTransfer><feFuncA type='linear' slope='0.65'/></feComponentTransfer></filter><rect width='510' height='510' filter='url(%23n)'/></svg>`;
+const grainBg = `data:image/svg+xml,${encodeURIComponent(grainSVG)}`;
+document.querySelectorAll('.grain').forEach(el => {
+  el.style.backgroundImage = `url('${grainBg}')`;
+});
+</script>
+
+</body>
+</html>

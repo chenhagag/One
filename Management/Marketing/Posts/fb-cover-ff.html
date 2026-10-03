@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700&family=Cormorant+Garamond:wght@400;500&family=JetBrains+Mono:wght@300;400&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0E0A4D;font-family:'Heebo',sans-serif;display:flex;flex-direction:column;align-items:center;padding:40px 0;gap:0}
+
+.wrap{
+  width:min(100vw, 1640px);
+  aspect-ratio:1640/624;
+  overflow:hidden;
+}
+
+.frame{
+  width:1640px;height:624px;
+  overflow:hidden;
+  position:relative;
+  display:flex;flex-direction:column;
+  justify-content:center;
+  direction:rtl;
+  transform-origin:top right;
+}
+
+.frame.dark{background:#0E0A4D}
+
+.grain{position:absolute;inset:0;opacity:1;mix-blend-mode:multiply;pointer-events:none;z-index:1;background-size:510px 510px}
+.frame.dark .grain{mix-blend-mode:screen;opacity:0.3}
+
+/* Icon ornament — top-right corner, large and cropped like original post */
+.icon-orb{
+  position:absolute;
+  pointer-events:none;
+  z-index:1;
+  width:400px;height:400px;
+  object-fit:cover;
+  object-position:bottom left;
+  opacity:0.65;
+  border-radius:50%;
+  transform:rotate(3deg);
+  top:-165px;
+  right:-148px;
+}
+
+/* Content zone — right-aligned */
+.content{
+  position:relative;z-index:3;
+  padding:0 85px;
+}
+
+/* Headline — right-aligned */
+.headline{
+  font-family:'Cormorant Garamond',serif;
+  font-size:62px;font-weight:500;
+  color:#FFFFFF;
+  line-height:1.32;
+  text-align:right;
+  transform:rotate(-0.3deg);
+  margin-bottom:36px;
+}
+.dot-accent{color:#C4BDFF;font-size:1.05em}
+
+/* Anchor line — right-aligned */
+.anchor-line{
+  height:4px;
+  background:linear-gradient(270deg,#B0A8FF,rgba(176,168,255,0.08));
+  width:170px;
+  border-radius:2px;
+}
+
+/* Bottom bar */
+.bottom-bar{
+  position:absolute;
+  bottom:0;left:0;right:0;
+  z-index:3;
+  padding:18px 85px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  border-top:1.5px solid rgba(107,95,208,0.4);
+}
+
+.cta{
+  font-family:'Cormorant Garamond',serif;
+  font-size:36px;
+  font-weight:500;
+  color:#FFFFFF;
+  letter-spacing:0.5px;
+}
+
+.footer-tag{font-family:'JetBrains Mono',monospace;font-size:20px;color:#9890D8;letter-spacing:2.5px;direction:ltr}
+.footer-tag .tag-dot{color:#B0A8FF;margin-right:4px}
+</style>
+</head>
+<body>
+
+<!-- FACEBOOK COVER PHOTO — ONE: WOMEN SEEKING WOMEN -->
+<div class="wrap"><div class="frame dark" id="frame-1">
+  <div class="grain"></div>
+
+  <!-- Logo icon — large, cropped at top-right corner -->
+  <img class="icon-orb" src="icon_only.png" alt="">
+
+  <!-- Content — right-aligned -->
+  <div class="content">
+    <div class="headline">את לא צריכה לחפש<span class="dot-accent">.</span><br>One מחפש בשבילך<span class="dot-accent">.</span></div>
+    <div class="anchor-line"></div>
+  </div>
+
+  <!-- Bottom bar -->
+  <div class="bottom-bar">
+    <span class="footer-tag">meet, as you are<span class="tag-dot">.</span></span>
+    <span class="cta">הצטרפי ל-One</span>
+  </div>
+
+</div></div>
+
+<script>
+const grainSVG = `<svg xmlns='http://www.w3.org/2000/svg' width='510' height='510' viewBox='0 0 510 510'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.3' numOctaves='3' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/><feComponentTransfer><feFuncA type='linear' slope='0.65'/></feComponentTransfer></filter><rect width='510' height='510' filter='url(%23n)'/></svg>`;
+const grainBg = `data:image/svg+xml,${encodeURIComponent(grainSVG)}`;
+document.querySelectorAll('.grain').forEach(el => {
+  el.style.backgroundImage = `url('${grainBg}')`;
+});
+
+function scaleSlides() {
+  document.querySelectorAll('.wrap').forEach(wrap => {
+    const frame = wrap.querySelector('.frame');
+    const scale = wrap.offsetWidth / 1640;
+    frame.style.transform = `scale(${scale})`;
+    frame.style.transformOrigin = 'top right';
+  });
+}
+scaleSlides();
+window.addEventListener('resize', scaleSlides);
+</script>
+
+</body>
+</html>

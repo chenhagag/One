@@ -28,6 +28,12 @@ Picture Examples/
 # Temp files
 tmp_*
 
+# Logs
+logs/
+
+# Test files
+test-idor.ts
+
 # Android build artifacts
 *.apk
 *.aab

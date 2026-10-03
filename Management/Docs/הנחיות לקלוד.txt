@@ -1,0 +1,74 @@
+**Resolved incident on joinone.io**
+
+HTTP/S monitor for [https://joinone.io/](https://joinone.io/)
+
+Included
+
+Root cause
+
+**404 Not Found** in North America
+
+Status
+
+**Resolved**
+
+Started at Sep 30, 2026, 10:37:06 GMT+3
+
+Duration
+
+**0h 5m 4s**
+
+Resolved at Sep 30, 2026, 10:42:10 GMT+3
+
+Regions
+
+svgNorth America
+
+## Activity log.
+
+svg
+
+Email sent to chen h
+
+**SUCCESS**
+
+Sep 30, 2026, 10:44:06 GMT+3
+
+svg
+
+Incident resolved by North America
+
+Sep 30, 2026, 10:42:10 GMT+3
+
+svg
+
+Email sent to chen h
+
+**SUCCESS**
+
+Sep 30, 2026, 10:37:50 GMT+3
+
+svg
+
+404 Not Found confirmed by N. Virginia, USA: 3.212.128.62
+
+Sep 30, 2026, 10:37:06 GMT+3
+
+svg
+
+404 Not Found confirmed by Dallas, USA: 216.144.248.28
+
+Sep 30, 2026, 10:36:51 GMT+3
+
+svg
+
+404 Not Found confirmed by Ashburn, USA: 178.156.185.127
+
+Sep 30, 2026, 10:36:35 GMT+3
+
+svg
+
+404 Not Found detected by Ohio, USA: 3.12.251.153
+
+Sep 30, 2026, 10:36:19 GMT+3   |    404 Not Found :root { --bg: hsl(250, 24%, 9%); --fg: hsl(0, 0%, 100%); --pink: hsl(270, 60%, 52%); --pink-600: hsl(270, 70%, 65%); --green-600: hsl(152, 38%, 60%); --red-600: hsl(1, 62%, 60%); --gray-100: hsl(246, 18%, 15%); --gray-500: hsl(246, 6%, 55%); } html, body { margin: 0; padding: 10px; height: 100%; overflow: hidden; background-color: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen-Sans, Ubuntu, Cantarell, Helvetica Neue, sans-serif
+\
