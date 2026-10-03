@@ -171,7 +171,7 @@ WHERE id = $4
 2. WORKLOG.md של סוכן זה
 3. `Management/Docs/insights-writing-guide.md` — מדריך מפורט עם דוגמאות
 4. `Management/claude-working-guidelines.md` — הנחיות כלליות
-5. `Management/Management Agents/User Management Agent.md` — הקשר רחב יותר
+5. `Management/User Management Agents/User Management Agent.md` — הקשר רחב יותר
 
 ## Rules
 - תמיד להציג תובנות לאדמין לאישור לפני שמירה

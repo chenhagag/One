@@ -14,12 +14,16 @@
 | **Matching** | `Dev Agents/Matching/` | ✅ | אלגוריתם התאמות: Stage 1 filtering, Stage 2 scoring, profile scores, expanded matches, style prompt |
 | **Security** | `Dev Agents/Security/` | ✅ | Auth architecture, IDOR tests, audit status, open items (signed URLs), error monitoring |
 
-### סוכני ניהול (Management/Management Agents/)
+### סוכני ניהול משתמשים (Management/User Management Agents/)
 | סוכן | תיקייה | סטטוס | אחריות |
 |-------|---------|--------|---------|
-| **User Management** (ראשי) | `Management Agents/` | ✅ | ניהול מחזור חיי משתמשים — סריקת שיחות, כרטיסי התאמה, look traits, דו"חות. מכיר ומפנה לסוכנים משניים |
-| **Insights Writer** | `Management Agents/Insights Writer/` | ✅ | כתיבת תובנות אישיות: מציאת משתמשות ללא תובנות, קריאת שיחות, כתיבה בעברית |
-| **Marketing** | `Management Agents/Marketing/` | ✅ | דפי נחיתה, פוסטים, דשבורד סאשה, LGBTQ+ launch, מודל תשלום |
+| **User Management** (ראשי) | `User Management Agents/` | ✅ | ניהול מחזור חיי משתמשים — סריקת שיחות, כרטיסי התאמה, look traits, דו"חות. מכיר ומפנה לסוכנים משניים |
+| **Insights Writer** | `User Management Agents/Insights Writer/` | ✅ | כתיבת תובנות אישיות: מציאת משתמשות ללא תובנות, קריאת שיחות, כתיבה בעברית |
+
+### שיווק (Management/Marketing/)
+| סוכן | תיקייה | סטטוס | אחריות |
+|-------|---------|--------|---------|
+| **Marketing** | `Marketing/` | ✅ | דפי נחיתה, פוסטים, דשבורד סאשה, LGBTQ+ launch, מודל תשלום |
 
 ### קבצי הנחיות כלליים (Management/)
 - `claude-working-guidelines.md` — כללי deploy, prompts, insights, match cards
@@ -35,7 +39,7 @@
 - ציוני התאמה / style traits / filtering → **Matching** (TODO)
 - "תכתוב תובנות" / "תבדוק מי חסר תובנות" → **Insights Writer**
 - "בוא נעשה ניהול יומי" / סריקת שיחות / כרטיסי התאמה → **User Management**
-- דף נחיתה / פוסטים / שיווק → **Marketing** (TODO)
+- דף נחיתה / פוסטים / שיווק → **Marketing**
 - אבטחה / IDOR / auth issues → **Security** + **Backend**
 
 ---

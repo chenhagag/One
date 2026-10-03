@@ -11,10 +11,11 @@ Management/
 │   ├── Frontend/        ← (עתידי) React, UI/UX, PWA
 │   ├── Backend/         ← (עתידי) Express, API, DB, automation
 │   ├── Matching/        ← (עתידי) אלגוריתם התאמות, ציונים, ניתוח
-│   └── Security/        ← (עתידי) אבטחה, הרשאות, validation
-├── Management Agents/   ← סוכני ניהול
-│   ├── User Management/ ← (עתידי) תובנות, כרטיסים, look traits
-│   └── Marketing/       ← (עתידי) דפי נחיתה, פוסטים, דשבורד
+│   └── Security/        ← אבטחה, הרשאות, validation
+├── User Management Agents/ ← סוכני ניהול משתמשים
+│   ├── User Management/ ← ניהול מחזור חיים, סריקות, כרטיסים
+│   └── Insights Writer/ ← כתיבת תובנות אישיות
+├── Marketing/           ← דפי נחיתה, פוסטים, דשבורד סאשה
 ```
 
 ---
@@ -86,7 +87,7 @@ Management/
 - לא ליצור סוכן "ריק" — רק כשיש תוכן אמיתי
 
 ### תהליך
-1. **ליצור תיקייה** תחת Dev Agents/ או Management Agents/
+1. **ליצור תיקייה** תחת Dev Agents/, User Management Agents/, או Marketing/
 2. **לכתוב CONTEXT.md** עם כל המידע הרלוונטי — מקורות:
    - זיכרון מקומי (.claude/memory/) — להעביר תוכן רלוונטי
    - WORK_LOG.md — לחלץ היסטוריה רלוונטית
