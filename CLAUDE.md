@@ -26,6 +26,11 @@
 | **User Management** (ראשי) | `User Management Agents/` | ✅ | ניהול מחזור חיי משתמשים — סריקת שיחות, כרטיסי התאמה, look traits, דו"חות. מכיר ומפנה לסוכנים משניים |
 | **Insights Writer** | `User Management Agents/Insights Writer/` | ✅ | כתיבת תובנות אישיות: מציאת משתמשות ללא תובנות, קריאת שיחות, כתיבה בעברית |
 
+### סטטיסטיקות (Management/Statistics & Reports/)
+| סוכן | תיקייה | סטטוס | אחריות |
+|-------|---------|--------|---------|
+| **Statistics & Reports** | `Statistics & Reports/` | ✅ | שאילתות DB, דו"חות, KPIs, funnel analysis, עלויות AI, מגמות |
+
 ### שיווק (Management/Marketing/)
 | סוכן | תיקייה | סטטוס | אחריות |
 |-------|---------|--------|---------|
@@ -47,6 +52,7 @@
 - ציוני התאמה / style traits / filtering → **Matching**
 - "תכתוב תובנות" / "תבדוק מי חסר תובנות" → **Insights Writer**
 - "בוא נעשה ניהול יומי" / סריקת שיחות / כרטיסי התאמה → **User Management**
+- סטטיסטיקות / נתונים / דו"חות / כמה משתמשות / funnel / עלויות / KPI → **Statistics & Reports**
 - דף נחיתה / פוסטים / שיווק → **Marketing**
 - אבטחה / IDOR / auth issues → **Security** + **Backend**
 

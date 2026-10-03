@@ -19,6 +19,7 @@ Management/
 ├── User Management Agents/ ← סוכני ניהול משתמשים
 │   ├── User Management/ ← ניהול מחזור חיים, סריקות, כרטיסים
 │   └── Insights Writer/ ← כתיבת תובנות אישיות
+├── Statistics & Reports/ ← שאילתות DB, דו"חות, KPIs, funnel, עלויות
 ├── Marketing/           ← דפי נחיתה, פוסטים, דשבורד סאשה
 ```
 
