@@ -34,10 +34,18 @@
 - `Management/Dev Agents/Android/CONTEXT.md` — הקשר מלא: ארכיטקטורה, build, signing, testers, version history
 - `Management/Dev Agents/Android/WORKLOG.md` — יומן עבודה ייעודי
 - כל המידע על Android/Capacitor/Google Play מנוהל דרך הסוכן
-- **AAB v1.2.0 (versionCode 4) נפסל** — צריך לבנות גרסה חדשה
+
+### ✅ מערכת סוכנים
+- `Management/claude-working-guidelines.md` — כל הנחיות העבודה (מהזיכרון לקובץ בגיט)
+- `Management/project-status.md` — סטטוס פרויקט מרוכז
+- `Management/AGENTS-GUIDE.md` — איך ליצור ולהפעיל סוכנים + מיפוי זיכרון לסוכנים עתידיים
+
+### ✅ AAB v1.3.0 (versionCode 5) נבנה בהצלחה
+- Bump מ-v1.2.0 (שנפסל) ל-v1.3.0
+- cap sync + gradlew bundleRelease — 39.7MB AAB מוכן
+- ממתין להעלאה ל-Google Play Console → Internal testing
 
 ### TODO לסשן הבא
-- ⚠️ בניית AAB חדש (versionCode 5) להגשה מחדש ל-Google Play
 - ⚠️ hard delete חשבון עדיין שבור (FK constraints)
 - דף נחיתה + דפי הסבר
 - אוטומציה pipeline
