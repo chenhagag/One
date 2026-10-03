@@ -1,7 +1,11 @@
 # CLAUDE.md — One Project Context
 
 ## Agent System
-הפרויקט מנוהל דרך מערכת סוכנים. כל סוכן אחראי על תחום מוגדר. **לפני שמתחילים לעבוד — לזהות איזה סוכן רלוונטי ולקרוא את ה-CONTEXT.md שלו.**
+הפרויקט מנוהל דרך מערכת סוכנים. כל סוכן אחראי על תחום מוגדר.
+
+**בתחילת כל עבודה:**
+1. קרוא את `Management/claude-working-guidelines.md` — כללי עבודה קריטיים (deploy, staging, prompts, insights, match cards)
+2. לזהות איזה סוכן רלוונטי ולקרוא את ה-CONTEXT.md + WORKLOG.md שלו
 
 ### סוכני פיתוח (Management/Dev Agents/)
 | סוכן | תיקייה | סטטוס | אחריות |
