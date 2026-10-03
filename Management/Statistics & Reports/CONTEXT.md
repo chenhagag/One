@@ -87,12 +87,31 @@ Global page view stats + per-page detail view
 ### Sasha Marketing Dashboard (`GET /api/meme-dashboard`)
 Users from entry_point='meme': total_registered, started_chat, in_pool, daily signups (30 days)
 
-### Admin Tabs (Frontend)
-- **Overview**: stat cards (users, traits, matches, AI costs)
-- **Analytics**: page view tracking
-- **Age Distribution**: age breakdown chart
-- **System Log**: system_activity_log viewer
-- **Meme Dashboard**: Sasha's marketing stats
+### Admin Dashboard Structure (Frontend — `AdminView.tsx`)
+
+**Main Tabs** (14 tabs):
+overview, users, traits, look_traits, candidates, matches, bugs, card_requests, errors, analytics, email, user_mgmt, outreach, deleted_users, system_log
+
+**Analytics Tab — Sub-Tabs** (5 sub-tabs):
+| Sub-Tab | Label | Content |
+|---------|-------|---------|
+| `page_views` | נתוני כניסה | Page view stats + per-page drill-down |
+| `age_dist` | גילאים | WW age distribution chart + table |
+| `meme_dash` | דשבורד סאשה | Marketing funnel for entry_point='meme' |
+| `survey` | סקר | Beta survey results (9 questions, stats/users/responses views) |
+| `survey2` | סקר WW | WW-specific survey (13 questions, same 3 views) |
+
+**Cost Tracking Columns on Users** (visible in admin user details):
+- `total_cost_usd` — Total AI cost per user
+- `conversation_cost_usd` — Chat-only AI cost
+- `analysis_cost_usd` — Analysis-only AI cost
+
+### Additional Admin Endpoints
+- `GET /admin/users/:id/token-usage` — Per-user token usage breakdown
+- `GET /admin/survey/stats` — Survey aggregate stats (total_eligible, emails_sent, completed, partial, dismissed)
+- `GET /admin/survey/responses` — Individual survey responses
+- `GET /admin/survey2/stats` — WW survey stats
+- `GET /admin/survey2/responses` — WW survey individual responses
 
 ### Token Tracking (`tokenTracker.ts`)
 Per-user, per-action tracking: model, prompt_tokens, completion_tokens, total_tokens, estimated_cost_usd

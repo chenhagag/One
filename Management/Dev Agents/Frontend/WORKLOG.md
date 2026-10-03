@@ -1,6 +1,13 @@
 # Frontend Dev Agent — Work Log
 
-## Latest: 2026-10-03 — Chat System Split to Conversation Agent
+## Latest: 2026-10-03 — Insights + Feedback Icons Replaced
+- Insights.tsx: 6 emoji icons replaced with brush-stroke PNG icons (55px detail, 36px cards)
+- IconImg component added to Insights.tsx
+- Heading style updated with flex alignment
+- Feedback categories in NewChat.tsx: emojis replaced with existing app icons
+- CTA buttons: Conversation.png instead of 💬
+
+### 2026-10-03 — Chat System Split to Conversation Agent
 - NewChat.tsx, chat channels, recommendations, chat history menu → **Conversation agent** (`Dev Agents/Conversation/`)
 - Frontend agent retains: App.tsx routing, auth screens, admin, insights, profile, landing pages, PWA, sub-screens (ProfileEdit, Insights, Settings, Feedback)
 - Planned features remaining here: pool count, account deletion UX, insight types

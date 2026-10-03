@@ -13,7 +13,9 @@ import AdminPipeline from "./AdminPipeline";
  * - Matches
  */
 
-type Tab = "overview" | "users" | "traits" | "look_traits" | "matches" | "candidates" | "bugs" | "card_requests" | "errors" | "email" | "analytics" | "user_mgmt" | "outreach" | "deleted_users" | "survey" | "survey2" | "system_log" | "meme_dash" | "age_dist";
+type Tab = "overview" | "users" | "traits" | "look_traits" | "matches" | "candidates" | "bugs" | "card_requests" | "errors" | "email" | "analytics" | "user_mgmt" | "outreach" | "deleted_users" | "system_log";
+
+type AnalyticsSubTab = "page_views" | "age_dist" | "meme_dash" | "survey" | "survey2";
 
 const s: Record<string, React.CSSProperties> = {
   heading: { marginTop: 0, marginBottom: 8, fontSize: 22 },
@@ -447,11 +449,7 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
           ["user_mgmt", "ניהול משתמשים"],
           ["outreach", "יומן פניות"],
           ["deleted_users", "משתמשים שנמחקו"],
-          ["survey", "סקר"],
-          ["survey2", "סקר WW"],
           ["system_log", "לוג מערכת"],
-          ["age_dist", "גילאים"],
-          ["meme_dash", "דשבורד סאשה"],
         ] as [Tab, string][]).map(([key, label]) => (
           <button
             key={key}
@@ -484,16 +482,12 @@ export default function AdminView({ onBack, onStartChat, onViewDashboard, onView
       {tab === "bugs" && <BugReportsTab />}
       {tab === "card_requests" && <CardRequestsTab requests={cardRequests} />}
       {tab === "errors" && <ErrorLogsTab />}
-      {tab === "analytics" && <AnalyticsTab />}
+      {tab === "analytics" && <AnalyticsContainerTab />}
       {tab === "email" && <SendEmailTab />}
       {tab === "user_mgmt" && <AdminPipeline onSelectUser={(userId) => { setTab("users"); setTimeout(() => window.dispatchEvent(new CustomEvent("admin-select-user", { detail: userId })), 100); }} />}
       {tab === "outreach" && <OutreachLogTab />}
       {tab === "deleted_users" && <DeletedUsersTab />}
-      {tab === "survey" && <SurveyAdminTab />}
-      {tab === "survey2" && <Survey2AdminTab />}
       {tab === "system_log" && <SystemActivityLogTab />}
-      {tab === "age_dist" && <AgeDistributionTab />}
-      {tab === "meme_dash" && <MemeDashTab />}
     </div>
   );
 }
@@ -5682,6 +5676,48 @@ function parseFeedbackCategory(text: string): { category: string | null; body: s
   return { category: null, body: text };
 }
 
+function AnalyticsContainerTab() {
+  const [subTab, setSubTab] = useState<AnalyticsSubTab>("page_views");
+
+  const subTabs: [AnalyticsSubTab, string][] = [
+    ["page_views", "נתוני כניסה"],
+    ["age_dist", "גילאים"],
+    ["meme_dash", "דשבורד סאשה"],
+    ["survey", "סקר"],
+    ["survey2", "סקר WW"],
+  ];
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 4, marginBottom: 16, flexWrap: "wrap" }}>
+        {subTabs.map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setSubTab(key)}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 8,
+              border: subTab === key ? "2px solid #7c3aed" : "1px solid #e2e8f0",
+              background: subTab === key ? "#f5f3ff" : "#fff",
+              color: subTab === key ? "#7c3aed" : "#64748b",
+              fontWeight: subTab === key ? 700 : 500,
+              fontSize: 13,
+              cursor: "pointer",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {subTab === "page_views" && <AnalyticsTab />}
+      {subTab === "age_dist" && <AgeDistributionTab />}
+      {subTab === "meme_dash" && <MemeDashTab />}
+      {subTab === "survey" && <SurveyAdminTab />}
+      {subTab === "survey2" && <Survey2AdminTab />}
+    </div>
+  );
+}
+
 function AnalyticsTab() {
   const [stats, setStats] = useState<{ byPage: any[]; byDay: any[] } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -5689,12 +5725,23 @@ function AnalyticsTab() {
   const [pageDetail, setPageDetail] = useState<{ page: string; visits: any[] } | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  // Per-user view
+  const [userList, setUserList] = useState<{ id: number; first_name: string; email: string }[]>([]);
+  const [userSearch, setUserSearch] = useState("");
+  const [selectedUser, setSelectedUser] = useState<{ id: number; first_name: string } | null>(null);
+  const [userViews, setUserViews] = useState<{ views: any[]; summary: any[] } | null>(null);
+  const [userViewsLoading, setUserViewsLoading] = useState(false);
+
   useEffect(() => {
     apiFetch("/admin/page-views/stats")
       .then(r => r.json())
       .then(setStats)
       .catch(() => {})
       .finally(() => setLoading(false));
+    apiFetch("/admin/users")
+      .then(r => r.json())
+      .then((users: any[]) => setUserList(users.map(u => ({ id: u.id, first_name: u.first_name || "", email: u.email || "" }))))
+      .catch(() => {});
   }, []);
 
   function togglePageDetail(page: string) {
@@ -5711,12 +5758,95 @@ function AnalyticsTab() {
       .finally(() => setDetailLoading(false));
   }
 
+  function selectUser(user: { id: number; first_name: string }) {
+    setSelectedUser(user);
+    setUserSearch("");
+    setUserViewsLoading(true);
+    apiFetch(`/admin/users/${user.id}/page-views`)
+      .then(r => r.json())
+      .then(setUserViews)
+      .catch(() => {})
+      .finally(() => setUserViewsLoading(false));
+  }
+
   if (loading) return <div>Loading analytics...</div>;
   if (!stats) return <div>Failed to load analytics</div>;
 
+  const filteredUsers = userSearch.length >= 2
+    ? userList.filter(u =>
+        u.first_name.includes(userSearch) || String(u.id).includes(userSearch) || u.email.includes(userSearch)
+      ).slice(0, 15)
+    : [];
+
   return (
     <div>
-      <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Page Analytics</h3>
+      <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>נתוני כניסה</h3>
+
+      {/* Per-user lookup */}
+      <div style={{ marginBottom: 24, padding: 16, background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0" }}>
+        <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, marginTop: 0 }}>כניסות לפי יוזרית</h4>
+        <div style={{ position: "relative", maxWidth: 350 }}>
+          <input
+            type="text"
+            placeholder="חיפוש לפי שם, ID או אימייל..."
+            value={selectedUser ? `${selectedUser.first_name} (#${selectedUser.id})` : userSearch}
+            onChange={e => { setUserSearch(e.target.value); setSelectedUser(null); setUserViews(null); }}
+            style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 13, direction: "rtl", boxSizing: "border-box" }}
+          />
+          {filteredUsers.length > 0 && !selectedUser && (
+            <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, marginTop: 2, maxHeight: 220, overflow: "auto", zIndex: 10, boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
+              {filteredUsers.map(u => (
+                <div
+                  key={u.id}
+                  onClick={() => selectUser(u)}
+                  style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13, display: "flex", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9" }}
+                  onMouseEnter={e => (e.currentTarget.style.background = "#f0f9ff")}
+                  onMouseLeave={e => (e.currentTarget.style.background = "")}
+                >
+                  <span style={{ fontWeight: 500 }}>{u.first_name || "—"}</span>
+                  <span style={{ color: "#94a3b8" }}>#{u.id} · {u.email}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {userViewsLoading && <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 12 }}>טוען...</p>}
+
+        {selectedUser && userViews && !userViewsLoading && (
+          <div style={{ marginTop: 16 }}>
+            {userViews.summary.length > 0 && (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                {userViews.summary.map((s: any) => (
+                  <span key={s.page} style={{ background: "#ede9fe", borderRadius: 6, padding: "4px 10px", fontSize: 12 }}>
+                    {s.page} <b>×{s.count}</b>
+                  </span>
+                ))}
+              </div>
+            )}
+            {userViews.views.length === 0 ? (
+              <p style={{ fontSize: 13, color: "#94a3b8" }}>אין נתוני כניסה</p>
+            ) : (
+              <table style={{ borderCollapse: "collapse", fontSize: 13, width: "100%", maxWidth: 500 }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "right", padding: "6px 12px 6px 0", borderBottom: "1px solid #e2e8f0", fontWeight: 600 }}>תאריך</th>
+                    <th style={{ textAlign: "right", padding: "6px 0", borderBottom: "1px solid #e2e8f0", fontWeight: 600 }}>דף</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {userViews.views.map((v: any, i: number) => (
+                    <tr key={i}>
+                      <td style={{ padding: "4px 12px 4px 0", borderBottom: "1px solid #f1f5f9", color: "#64748b", whiteSpace: "nowrap" }}>{new Date(v.viewed_at).toLocaleString("he-IL")}</td>
+                      <td style={{ padding: "4px 0", borderBottom: "1px solid #f1f5f9" }}>{v.page}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Pages table */}
       <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Pages</h4>

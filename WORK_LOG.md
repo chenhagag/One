@@ -22,7 +22,18 @@
 
 ---
 
-## Latest Session: 2026-10-03 (Conversation + Analysis Agents + Docs Reorganization)
+## Latest Session: 2026-10-03 (3 New Agents + Insights Icons + Feedback Icons)
+
+### ✅ סוכן Statistics & Reports חדש
+- סוכן מומחה לסטטיסטיקות, אנליטיקות ודו"חות
+- 16 טבלאות DB מתועדות, funnel queries מוכנות, WW filtering, AI cost tracking
+- תיקייה: `Management/Statistics & Reports/`
+
+### ✅ אייקוני Insights + Feedback — אימוג'ים הוחלפו באייקונים מעוצבים
+- פירוט מלא בסוכן Design (`Management/Dev Agents/Design/WORKLOG.md`)
+
+### ✅ ארגון קבצים נוסף (ע"י Chen)
+- תמונות match card, Idea.png, Docs ישנים
 
 ### ✅ סוכן Analysis חדש
 - הופרד מ-Backend — מכסה את כל מערכת הניתוח

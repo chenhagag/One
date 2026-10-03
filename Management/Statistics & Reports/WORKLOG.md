@@ -1,6 +1,12 @@
 # Statistics & Reports Agent — Work Log
 
-## Latest: 2026-10-03 — Agent Created
+## Latest: 2026-10-03 — Admin Analytics Tab Consolidation
+- Consolidated 5 separate admin tabs (Analytics, גילאים, דשבורד סאשה, סקר, סקר WW) into single "Analytics" tab with sub-tabs
+- Current "Analytics" page views renamed to "נתוני כניסה" as first sub-tab
+- Updated CONTEXT.md with full admin dashboard structure, survey endpoints, cost tracking columns
+- Sub-tabs: נתוני כניסה | גילאים | דשבורד סאשה | סקר | סקר WW
+
+## 2026-10-03 — Agent Created
 - Statistics & Reports agent created
 - Documented all data sources: 16 key DB tables, guide values, user lifecycle stages, match status flow
 - Existing analytics infrastructure mapped: admin stats, age distribution, page views, meme dashboard, token tracking
