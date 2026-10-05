@@ -8451,7 +8451,7 @@ function MemeDashTab() {
   return (
     <div dir="rtl" style={{ padding: "12px 0" }}>
       <h3 style={{ margin: "0 0 4px", fontSize: 18 }}>דשבורד סאשה</h3>
-      <p style={{ fontSize: 13, color: "#8b7ba8", margin: "0 0 16px" }}>לינק: /meme &nbsp;·&nbsp; דשבורד: /meme-dash-7x9k</p>
+      <p style={{ fontSize: 13, color: "#8b7ba8", margin: "0 0 16px" }}>לינק: joinone.io/meme &nbsp;·&nbsp; דשבורד: joinone.io/meme-dash-7x9k</p>
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 24 }}>
         {[
@@ -8536,7 +8536,7 @@ function AdiDashTab() {
   return (
     <div dir="rtl" style={{ padding: "12px 0" }}>
       <h3 style={{ margin: "0 0 4px", fontSize: 18 }}>דשבורד עדי ברזני</h3>
-      <p style={{ fontSize: 13, color: "#8b7ba8", margin: "0 0 16px" }}>לינק: /barazany &nbsp;·&nbsp; דשבורד: /adi-dash-3k7q</p>
+      <p style={{ fontSize: 13, color: "#8b7ba8", margin: "0 0 16px" }}>לינק: joinone.io/barazany &nbsp;·&nbsp; דשבורד: joinone.io/adi-dash-3k7q</p>
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 24 }}>
         {[

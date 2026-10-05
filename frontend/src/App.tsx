@@ -780,7 +780,7 @@ export default function App() {
           onBack={() => setView("new_chat")}
           endpoint="/api/adi-dashboard"
           title="דשבורד שיווק"
-          linkLabel="/barazany"
+          linkLabel="joinone.io/barazany"
         />
       )}
 

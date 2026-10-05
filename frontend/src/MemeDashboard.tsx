@@ -72,7 +72,7 @@ export default function MemeDashboard({ userEmail, onBack }: MemeDashboardProps)
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
           <div>
             <h1 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", margin: "0 0 4px" }}>דשבורד שיווק</h1>
-            <p style={{ fontSize: 13, color: "#8b7ba8", margin: 0 }}>לינק: /meme</p>
+            <p style={{ fontSize: 13, color: "#8b7ba8", margin: 0 }}>לינק: joinone.io/meme</p>
           </div>
           <button onClick={onBack} style={{
             padding: "8px 16px", fontSize: 13, background: "#1a1a2e", color: "#fff",
