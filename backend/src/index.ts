@@ -4936,7 +4936,7 @@ app.get("/admin/android-tester-status", async (_req, res) => {
   }
 });
 
-// ── Marketer Dashboards (meme/Sasha, adi_barazani/Adi) ──────────────────
+// ── Marketer Dashboards (meme/Sasha, barazany/Adi) ──────────────────
 // Shared helper for marketer dashboard stats
 async function getMarketerDashboard(entryPoint: string, landingPage: string) {
   const stats = await pgQueryOne<any>(`
@@ -5001,7 +5001,7 @@ app.get("/api/adi-dashboard", requireAuth, async (req: any, res) => {
     return res.status(403).json({ error: "Access denied" });
   }
   try {
-    const data = await getMarketerDashboard("adi_barazani", "landing_adi_barazani");
+    const data = await getMarketerDashboard("barazany", "landing_barazany");
     return res.json(data);
   } catch (err: any) {
     console.error("[adi-dashboard] Error:", err.message);

@@ -310,12 +310,12 @@ export default function App() {
       console.log("[entryPoint] → meme (from URL)");
       return "meme";
     }
-    if (path.startsWith("/adi_barazani") || path.startsWith("/adi-barazani")) {
-      localStorage.setItem("one_entry_point", "adi_barazani");
-      trackPage("landing_adi_barazani");
+    if (path.startsWith("/barazany")) {
+      localStorage.setItem("one_entry_point", "barazany");
+      trackPage("landing_barazany");
       window.history.replaceState({}, "", "/");
-      console.log("[entryPoint] → adi_barazani (from URL)");
-      return "adi_barazani";
+      console.log("[entryPoint] → barazany (from URL)");
+      return "barazany";
     }
     // /forwomen explicit path
     if (path.startsWith("/forwomen")) {
@@ -780,7 +780,7 @@ export default function App() {
           onBack={() => setView("new_chat")}
           endpoint="/api/adi-dashboard"
           title="דשבורד שיווק"
-          linkLabel="/adi_barazani"
+          linkLabel="/barazany"
         />
       )}
 
