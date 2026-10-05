@@ -4994,7 +4994,7 @@ app.get("/api/meme-dashboard", requireAuth, async (req: any, res) => {
 });
 
 // GET /api/adi-dashboard — Adi Barazani's marketer dashboard
-const ADI_DASHBOARD_EMAILS = ["chen.hagag@gmail.com"]; // Adi's email will be added when she registers
+const ADI_DASHBOARD_EMAILS = ["chen.hagag@gmail.com", "adibar90@gmail.com"];
 app.get("/api/adi-dashboard", requireAuth, async (req: any, res) => {
   const email = req.auth?.email;
   if (!email || !ADI_DASHBOARD_EMAILS.includes(email)) {
