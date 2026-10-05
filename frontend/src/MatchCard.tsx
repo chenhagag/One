@@ -225,20 +225,6 @@ export default function MatchCard({ user, onBack, matchData, isDemo, isBlindMatc
           </div>
         </div>
 
-        {/* Date idea */}
-        <div style={{
-          background: "#fff", borderRadius: 14, padding: "20px 22px",
-          border: "1px solid #e5e7eb", marginBottom: 14,
-          boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
-        }}>
-          <h3 style={{ fontSize: 15, fontWeight: 600, color: "#1a1a2e", margin: "0 0 10px" }}>
-            הצעה למפגש ראשון
-          </h3>
-          <p style={{ fontSize: 13, color: "#555", lineHeight: 1.75, margin: 0 }}>
-            {data.dateIdea}
-          </p>
-        </div>
-
         {/* Caveat */}
         <div style={{
           background: "#fefce8", borderRadius: 14, padding: "20px 22px",
@@ -250,6 +236,20 @@ export default function MatchCard({ user, onBack, matchData, isDemo, isBlindMatc
           </h3>
           <p style={{ fontSize: 13, color: "#713f12", lineHeight: 1.75, margin: 0 }}>
             {data.caveat}
+          </p>
+        </div>
+
+        {/* Date idea */}
+        <div style={{
+          background: "#fff", borderRadius: 14, padding: "20px 22px",
+          border: "1px solid #e5e7eb", marginBottom: 14,
+          boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+        }}>
+          <h3 style={{ fontSize: 15, fontWeight: 600, color: "#1a1a2e", margin: "0 0 10px" }}>
+            הצעה למפגש ראשון
+          </h3>
+          <p style={{ fontSize: 13, color: "#555", lineHeight: 1.75, margin: 0 }}>
+            {data.dateIdea}
           </p>
         </div>
 

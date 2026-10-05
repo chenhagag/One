@@ -4082,8 +4082,8 @@ function MatchesTab() {
                       <p style={{ margin: "4px 0 0" }}>{cp.text}</p>
                     </div>
                   ))}
-                  {card.dateIdea && <div style={{ marginBottom: 12 }}><strong style={{ color: "#059669" }}>רעיון לדייט:</strong> {card.dateIdea}</div>}
                   {card.caveat && <div style={{ marginBottom: 12 }}><strong style={{ color: "#d97706" }}>שימו לב:</strong> {card.caveat}</div>}
+                  {card.dateIdea && <div style={{ marginBottom: 12 }}><strong style={{ color: "#059669" }}>רעיון לדייט:</strong> {card.dateIdea}</div>}
                   {card.closing && <p style={{ marginTop: 16, fontStyle: "italic", color: "#666" }}>{card.closing}</p>}
                 </div>
               );
@@ -5552,14 +5552,14 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                       </div>
                     ))}
 
-                    <div style={{ background: "#fff", borderRadius: 10, padding: 16, marginBottom: 10, border: "1px solid #eee" }}>
-                      <strong>הצעה למפגש ראשון:</strong>
-                      <p style={{ fontSize: 13, color: "#555", lineHeight: 1.7, whiteSpace: "pre-wrap", margin: "6px 0 0" }}>{d.dateIdea}</p>
-                    </div>
-
                     <div style={{ background: "#fefce8", borderRadius: 10, padding: 16, marginBottom: 10, border: "1px solid #fde68a" }}>
                       <strong style={{ color: "#854d0e" }}>נקודת תורפה:</strong>
                       <p style={{ fontSize: 13, color: "#713f12", lineHeight: 1.7, whiteSpace: "pre-wrap", margin: "6px 0 0" }}>{d.caveat}</p>
+                    </div>
+
+                    <div style={{ background: "#fff", borderRadius: 10, padding: 16, marginBottom: 10, border: "1px solid #eee" }}>
+                      <strong>הצעה למפגש ראשון:</strong>
+                      <p style={{ fontSize: 13, color: "#555", lineHeight: 1.7, whiteSpace: "pre-wrap", margin: "6px 0 0" }}>{d.dateIdea}</p>
                     </div>
 
                     <div style={{ background: "#f0eef8", borderRadius: 10, padding: 16, border: "1px solid #e0ddf5" }}>
