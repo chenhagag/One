@@ -913,14 +913,41 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               <span>תצוגת אדמין</span>
             </button>
           )}
-          {/* Meme dashboard — chen + marketer only */}
-          {(user.email === "chen.hagag@gmail.com" || user.email === "s.jo.design@gmail.com") && (
+          {/* Marketer dashboards */}
+          {user.email === "chen.hagag@gmail.com" && (
+            <>
+              <button
+                style={styles.sidebarItem}
+                onClick={() => { onNavigate?.("meme_dashboard"); setMenuOpen(false); }}
+              >
+                <span style={{ fontSize: 18, width: 22, textAlign: "center" }}>📊</span>
+                <span>דשבורד סאשה</span>
+              </button>
+              <button
+                style={styles.sidebarItem}
+                onClick={() => { onNavigate?.("adi_dashboard"); setMenuOpen(false); }}
+              >
+                <span style={{ fontSize: 18, width: 22, textAlign: "center" }}>📊</span>
+                <span>דשבורד עדי</span>
+              </button>
+            </>
+          )}
+          {user.email === "s.jo.design@gmail.com" && (
             <button
               style={styles.sidebarItem}
               onClick={() => { onNavigate?.("meme_dashboard"); setMenuOpen(false); }}
             >
               <span style={{ fontSize: 18, width: 22, textAlign: "center" }}>📊</span>
-              <span>דשבורד שיווק</span>
+              <span>דשבורד כניסות</span>
+            </button>
+          )}
+          {user.email === "adibar90@gmail.com" && (
+            <button
+              style={styles.sidebarItem}
+              onClick={() => { onNavigate?.("adi_dashboard"); setMenuOpen(false); }}
+            >
+              <span style={{ fontSize: 18, width: 22, textAlign: "center" }}>📊</span>
+              <span>דשבורד כניסות</span>
             </button>
           )}
           {/* Match hub — shown when user has an active match */}
