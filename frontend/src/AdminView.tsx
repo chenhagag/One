@@ -5936,18 +5936,64 @@ function AnalyticsTab() {
   );
 }
 
+function MonthPicker({ months, selected, onChange }: { months: string[]; selected: string | null; onChange: (m: string | null) => void }) {
+  if (!months || months.length === 0) return null;
+  const hebrewMonth = (m: string) => {
+    const [y, mo] = m.split("-");
+    const names = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
+    return `${names[parseInt(mo, 10) - 1]} ${y}`;
+  };
+  // Current month — don't show as a button (it's the "30 יום אחרונים" default)
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const pastMonths = months.filter(m => m < currentMonth);
+  if (pastMonths.length === 0) return null;
+  return (
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16, alignItems: "center" }}>
+      <span style={{ fontSize: 12, color: "#64748b", marginLeft: 4 }}>תקופה:</span>
+      <button
+        onClick={() => onChange(null)}
+        style={{
+          padding: "4px 12px", borderRadius: 6, fontSize: 12, cursor: "pointer",
+          border: !selected ? "2px solid #7c3aed" : "1px solid #e2e8f0",
+          background: !selected ? "#f5f3ff" : "#fff",
+          color: !selected ? "#7c3aed" : "#64748b",
+          fontWeight: !selected ? 700 : 400,
+        }}
+      >30 יום אחרונים</button>
+      {pastMonths.map(m => (
+        <button
+          key={m}
+          onClick={() => onChange(m)}
+          style={{
+            padding: "4px 12px", borderRadius: 6, fontSize: 12, cursor: "pointer",
+            border: selected === m ? "2px solid #7c3aed" : "1px solid #e2e8f0",
+            background: selected === m ? "#f5f3ff" : "#fff",
+            color: selected === m ? "#7c3aed" : "#64748b",
+            fontWeight: selected === m ? 700 : 400,
+          }}
+        >{hebrewMonth(m)}</button>
+      ))}
+    </div>
+  );
+}
+
 function LandingStatsTab() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [expandedPage, setExpandedPage] = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
 
-  useEffect(() => {
-    apiFetch("/admin/landing-stats")
+  function loadData(month: string | null) {
+    setLoading(true);
+    const url = month ? `/admin/landing-stats?month=${month}` : "/admin/landing-stats";
+    apiFetch(url)
       .then(r => r.json())
       .then(setData)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(() => { loadData(null); }, []);
 
   if (loading) return <p>טוען...</p>;
   if (!data) return <p>שגיאה בטעינת נתונים</p>;
@@ -5972,6 +6018,8 @@ function LandingStatsTab() {
   return (
     <div dir="rtl" style={{ padding: "12px 0" }}>
       <h3 style={{ margin: "0 0 16px", fontSize: 18 }}>דפי נחיתה</h3>
+
+      <MonthPicker months={data.available_months || []} selected={selectedMonth} onChange={(m) => { setSelectedMonth(m); loadData(m); }} />
 
       {/* Summary cards */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 24 }}>
@@ -6054,7 +6102,7 @@ function LandingStatsTab() {
       </table>
 
       {/* Daily chart — all landings combined */}
-      <h4 style={{ margin: "0 0 8px", fontSize: 14, fontWeight: 600 }}>30 יום אחרונים — כל דפי הנחיתה</h4>
+      <h4 style={{ margin: "0 0 8px", fontSize: 14, fontWeight: 600 }}>{selectedMonth ? `${selectedMonth} — כל דפי הנחיתה` : "30 יום אחרונים — כל דפי הנחיתה"}</h4>
       <div style={{ display: "flex", gap: 4, marginBottom: 8, fontSize: 12, color: "#888" }}>
         <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#c4b5fd", marginLeft: 4 }} />כניסות</span>
         <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#7c3aed", marginLeft: 4 }} />IP ייחודיים</span>
@@ -8433,14 +8481,15 @@ function AgeDistributionTab() {
 function MemeDashTab() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
 
-  useEffect(() => {
-    apiFetch("/api/meme-dashboard")
-      .then(r => r.json())
-      .then(setData)
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+  function loadData(month: string | null) {
+    setLoading(true);
+    const url = month ? `/api/meme-dashboard?month=${month}` : "/api/meme-dashboard";
+    apiFetch(url).then(r => r.json()).then(setData).catch(() => {}).finally(() => setLoading(false));
+  }
+
+  useEffect(() => { loadData(null); }, []);
 
   if (loading) return <p>טוען...</p>;
   if (!data) return <p>שגיאה בטעינת נתונים</p>;
@@ -8452,6 +8501,8 @@ function MemeDashTab() {
     <div dir="rtl" style={{ padding: "12px 0" }}>
       <h3 style={{ margin: "0 0 4px", fontSize: 18 }}>דשבורד סאשה</h3>
       <p style={{ fontSize: 13, color: "#8b7ba8", margin: "0 0 16px" }}>לינק: joinone.io/meme &nbsp;·&nbsp; דשבורד: joinone.io/meme-dash-7x9k</p>
+
+      <MonthPicker months={data.available_months || []} selected={selectedMonth} onChange={(m) => { setSelectedMonth(m); loadData(m); }} />
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 24 }}>
         {[
@@ -8467,7 +8518,7 @@ function MemeDashTab() {
         ))}
       </div>
 
-      <h4 style={{ margin: "0 0 8px" }}>30 יום אחרונים</h4>
+      <h4 style={{ margin: "0 0 8px" }}>{selectedMonth || "30 יום אחרונים"}</h4>
       <div style={{ display: "flex", gap: 4, marginBottom: 8, fontSize: 12, color: "#888" }}>
         <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#c4b5fd", marginLeft: 4 }} />ביקורים</span>
         <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#6366f1", marginLeft: 4 }} />הרשמות</span>
@@ -8518,14 +8569,15 @@ function MemeDashTab() {
 function AdiDashTab() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
 
-  useEffect(() => {
-    apiFetch("/api/adi-dashboard")
-      .then(r => r.json())
-      .then(setData)
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+  function loadData(month: string | null) {
+    setLoading(true);
+    const url = month ? `/api/adi-dashboard?month=${month}` : "/api/adi-dashboard";
+    apiFetch(url).then(r => r.json()).then(setData).catch(() => {}).finally(() => setLoading(false));
+  }
+
+  useEffect(() => { loadData(null); }, []);
 
   if (loading) return <p>טוען...</p>;
   if (!data) return <p>שגיאה בטעינת נתונים</p>;
@@ -8537,6 +8589,8 @@ function AdiDashTab() {
     <div dir="rtl" style={{ padding: "12px 0" }}>
       <h3 style={{ margin: "0 0 4px", fontSize: 18 }}>דשבורד עדי ברזני</h3>
       <p style={{ fontSize: 13, color: "#8b7ba8", margin: "0 0 16px" }}>לינק: joinone.io/barazany &nbsp;·&nbsp; דשבורד: joinone.io/adi-dash-3k7q</p>
+
+      <MonthPicker months={data.available_months || []} selected={selectedMonth} onChange={(m) => { setSelectedMonth(m); loadData(m); }} />
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 24 }}>
         {[
@@ -8552,7 +8606,7 @@ function AdiDashTab() {
         ))}
       </div>
 
-      <h4 style={{ margin: "0 0 8px" }}>30 יום אחרונים</h4>
+      <h4 style={{ margin: "0 0 8px" }}>{selectedMonth || "30 יום אחרונים"}</h4>
       <div style={{ display: "flex", gap: 4, marginBottom: 8, fontSize: 12, color: "#888" }}>
         <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#f9a8d4", marginLeft: 4 }} />ביקורים</span>
         <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#ec4899", marginLeft: 4 }} />הרשמות</span>

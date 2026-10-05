@@ -18,6 +18,7 @@ interface DashboardData {
   in_pool: number;
   landing_visits_total: number;
   by_day: DayData[];
+  available_months?: string[];
 }
 
 const ALLOWED = ["chen.hagag@gmail.com", "s.jo.design@gmail.com"];
@@ -26,14 +27,17 @@ export default function MemeDashboard({ userEmail, onBack }: MemeDashboardProps)
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
 
-  useEffect(() => {
+  function loadData(month: string | null) {
     if (!ALLOWED.includes(userEmail)) {
       setError("אין גישה");
       setLoading(false);
       return;
     }
-    apiFetch("/api/meme-dashboard")
+    setLoading(true);
+    const url = month ? `/api/meme-dashboard?month=${month}` : "/api/meme-dashboard";
+    apiFetch(url)
       .then(r => {
         if (!r.ok) throw new Error("Access denied");
         return r.json();
@@ -41,7 +45,9 @@ export default function MemeDashboard({ userEmail, onBack }: MemeDashboardProps)
       .then(setData)
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(() => { loadData(null); }, []);
 
   if (loading) {
     return (
@@ -88,13 +94,46 @@ export default function MemeDashboard({ userEmail, onBack }: MemeDashboardProps)
           <StatCard label="במאגר" value={data.in_pool} color="#10b981" />
         </div>
 
+        {/* Month picker */}
+        {data.available_months && data.available_months.length > 0 && (() => {
+          const currentMonth = new Date().toISOString().slice(0, 7);
+          const pastMonths = data.available_months!.filter(m => m < currentMonth);
+          if (pastMonths.length === 0) return null;
+          const hebrewMonth = (m: string) => {
+            const [y, mo] = m.split("-");
+            const names = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
+            return `${names[parseInt(mo, 10) - 1]} ${y}`;
+          };
+          return (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16, alignItems: "center" }}>
+              <span style={{ fontSize: 12, color: "#8b7ba8" }}>תקופה:</span>
+              <button onClick={() => { setSelectedMonth(null); loadData(null); }} style={{
+                padding: "4px 12px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontFamily: "inherit",
+                border: !selectedMonth ? "2px solid #6366f1" : "1px solid #e2e8f0",
+                background: !selectedMonth ? "#eef2ff" : "#fff",
+                color: !selectedMonth ? "#6366f1" : "#888",
+                fontWeight: !selectedMonth ? 700 : 400,
+              }}>30 יום אחרונים</button>
+              {pastMonths.map(m => (
+                <button key={m} onClick={() => { setSelectedMonth(m); loadData(m); }} style={{
+                  padding: "4px 12px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontFamily: "inherit",
+                  border: selectedMonth === m ? "2px solid #6366f1" : "1px solid #e2e8f0",
+                  background: selectedMonth === m ? "#eef2ff" : "#fff",
+                  color: selectedMonth === m ? "#6366f1" : "#888",
+                  fontWeight: selectedMonth === m ? 700 : 400,
+                }}>{hebrewMonth(m)}</button>
+              ))}
+            </div>
+          );
+        })()}
+
         {/* Chart */}
         <div style={{
           background: "#fff", borderRadius: 18, padding: "20px 20px 16px",
           boxShadow: "0 2px 12px rgba(139,123,168,0.08)",
         }}>
           <h3 style={{ fontSize: 15, fontWeight: 600, color: "#1a1a2e", margin: "0 0 16px" }}>
-            30 יום אחרונים
+            {selectedMonth || "30 יום אחרונים"}
           </h3>
 
           {/* Legend */}

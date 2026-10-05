@@ -4938,7 +4938,18 @@ app.get("/admin/android-tester-status", async (_req, res) => {
 
 // ── Marketer Dashboards (meme/Sasha, barazany/Adi) ──────────────────
 // Shared helper for marketer dashboard stats
-async function getMarketerDashboard(entryPoint: string, landingPage: string) {
+// month: optional YYYY-MM string. If omitted, shows last 30 days.
+async function getMarketerDashboard(entryPoint: string, landingPage: string, month?: string) {
+  // Date range for daily breakdown
+  let startDate: string, endDate: string;
+  if (month && /^\d{4}-\d{2}$/.test(month)) {
+    startDate = `${month}-01`;
+    endDate = `(DATE '${month}-01' + INTERVAL '1 month' - INTERVAL '1 day')::date`;
+  } else {
+    startDate = `(CURRENT_DATE - INTERVAL '29 days')::date`;
+    endDate = `CURRENT_DATE`;
+  }
+
   const stats = await pgQueryOne<any>(`
     SELECT
       (SELECT COUNT(*) FROM users WHERE entry_point = $1 AND id != ALL($3)) AS total_registered,
@@ -4951,8 +4962,8 @@ async function getMarketerDashboard(entryPoint: string, landingPage: string) {
   const byDay = await pgQueryAll<any>(`
     WITH days AS (
       SELECT generate_series(
-        (CURRENT_DATE - INTERVAL '29 days')::date,
-        CURRENT_DATE::date,
+        ${startDate}::date,
+        ${endDate}::date,
         '1 day'::interval
       )::date AS day
     )
@@ -4974,7 +4985,17 @@ async function getMarketerDashboard(entryPoint: string, landingPage: string) {
     ORDER BY d.day
   `, [entryPoint, landingPage, ANALYTICS_EXCLUDED_USERS]);
 
-  return { ...stats, by_day: byDay };
+  // Available months (all months that have data)
+  const months = await pgQueryAll<any>(`
+    SELECT DISTINCT TO_CHAR(viewed_at, 'YYYY-MM') AS month
+    FROM page_views WHERE page = $1 AND (user_id IS NULL OR user_id != ALL($2))
+    UNION
+    SELECT DISTINCT TO_CHAR(created_at, 'YYYY-MM') AS month
+    FROM users WHERE entry_point = $3 AND id != ALL($2)
+    ORDER BY month DESC
+  `, [landingPage, ANALYTICS_EXCLUDED_USERS, entryPoint]);
+
+  return { ...stats, by_day: byDay, available_months: months.map((m: any) => m.month) };
 }
 
 // GET /api/meme-dashboard — Sasha's marketer dashboard
@@ -4985,7 +5006,8 @@ app.get("/api/meme-dashboard", requireAuth, async (req: any, res) => {
     return res.status(403).json({ error: "Access denied" });
   }
   try {
-    const data = await getMarketerDashboard("meme", "landing_meme");
+    const month = req.query.month as string | undefined;
+    const data = await getMarketerDashboard("meme", "landing_meme", month);
     return res.json(data);
   } catch (err: any) {
     console.error("[meme-dashboard] Error:", err.message);
@@ -5001,7 +5023,8 @@ app.get("/api/adi-dashboard", requireAuth, async (req: any, res) => {
     return res.status(403).json({ error: "Access denied" });
   }
   try {
-    const data = await getMarketerDashboard("barazany", "landing_barazany");
+    const month = req.query.month as string | undefined;
+    const data = await getMarketerDashboard("barazany", "landing_barazany", month);
     return res.json(data);
   } catch (err: any) {
     console.error("[adi-dashboard] Error:", err.message);
@@ -5010,9 +5033,14 @@ app.get("/api/adi-dashboard", requireAuth, async (req: any, res) => {
 });
 
 // GET /admin/landing-stats — Landing page analytics with unique IPs
-app.get("/admin/landing-stats", async (_req, res) => {
+app.get("/admin/landing-stats", async (req, res) => {
   try {
-    // Per-landing-page summary
+    const month = req.query.month as string | undefined;
+    const hasMonth = month && /^\d{4}-\d{2}$/.test(month);
+    const startExpr = hasMonth ? `DATE '${month}-01'` : `(CURRENT_DATE - INTERVAL '29 days')::date`;
+    const endExpr = hasMonth ? `(DATE '${month}-01' + INTERVAL '1 month' - INTERVAL '1 day')::date` : `CURRENT_DATE`;
+
+    // Per-landing-page summary (always all-time)
     const byPage = await pgQueryAll<any>(`
       SELECT page,
         COUNT(*)::int AS total_visits,
@@ -5028,8 +5056,8 @@ app.get("/admin/landing-stats", async (_req, res) => {
     const byDay = await pgQueryAll<any>(`
       WITH days AS (
         SELECT generate_series(
-          (CURRENT_DATE - INTERVAL '29 days')::date,
-          CURRENT_DATE::date,
+          ${startExpr},
+          ${endExpr},
           '1 day'::interval
         )::date AS day
       )
@@ -5053,7 +5081,8 @@ app.get("/admin/landing-stats", async (_req, res) => {
         COUNT(DISTINCT ip)::int AS unique_ips
       FROM page_views
       WHERE page LIKE 'landing_%'
-        AND viewed_at >= CURRENT_DATE - INTERVAL '29 days'
+        AND viewed_at::date >= ${startExpr}
+        AND viewed_at::date <= ${endExpr}
         AND (user_id IS NULL OR user_id != ALL($1))
       GROUP BY page, viewed_at::date
       ORDER BY viewed_at::date DESC
@@ -5070,7 +5099,14 @@ app.get("/admin/landing-stats", async (_req, res) => {
       ORDER BY registered DESC
     `, [ANALYTICS_EXCLUDED_USERS]);
 
-    return res.json({ byPage, byDay, byPageDay, conversions });
+    // Available months
+    const months = await pgQueryAll<any>(`
+      SELECT DISTINCT TO_CHAR(viewed_at, 'YYYY-MM') AS month
+      FROM page_views WHERE page LIKE 'landing_%' AND (user_id IS NULL OR user_id != ALL($1))
+      ORDER BY month DESC
+    `, [ANALYTICS_EXCLUDED_USERS]);
+
+    return res.json({ byPage, byDay, byPageDay, conversions, available_months: months.map((m: any) => m.month) });
   } catch (err: any) {
     console.error("[admin] landing-stats error:", err.message);
     return res.status(500).json({ error: err.message });
