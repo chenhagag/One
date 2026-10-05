@@ -4566,14 +4566,17 @@ app.get("/admin/users/:id/page-views", async (req, res) => {
 });
 
 // GET /admin/page-views/stats — Global page view stats
+const ANALYTICS_EXCLUDED_USERS = [150]; // Admin users excluded from analytics
 app.get("/admin/page-views/stats", async (_req, res) => {
   const byPage = await pgQueryAll<any>(
     `SELECT page, COUNT(*)::int AS views, COUNT(DISTINCT user_id)::int AS unique_users
-     FROM page_views GROUP BY page ORDER BY views DESC`
+     FROM page_views WHERE (user_id IS NULL OR user_id != ALL($1)) GROUP BY page ORDER BY views DESC`,
+    [ANALYTICS_EXCLUDED_USERS]
   );
   const byDay = await pgQueryAll<any>(
     `SELECT DATE(viewed_at) AS day, COUNT(*)::int AS views, COUNT(DISTINCT user_id)::int AS unique_users
-     FROM page_views GROUP BY DATE(viewed_at) ORDER BY day DESC LIMIT 30`
+     FROM page_views WHERE (user_id IS NULL OR user_id != ALL($1)) GROUP BY DATE(viewed_at) ORDER BY day DESC LIMIT 30`,
+    [ANALYTICS_EXCLUDED_USERS]
   );
   return res.json({ byPage, byDay });
 });
@@ -4933,55 +4936,75 @@ app.get("/admin/android-tester-status", async (_req, res) => {
   }
 });
 
-// GET /api/meme-dashboard — Stats for marketer dashboard (restricted to specific emails)
+// ── Marketer Dashboards (meme/Sasha, adi_barazani/Adi) ──────────────────
+// Shared helper for marketer dashboard stats
+async function getMarketerDashboard(entryPoint: string, landingPage: string) {
+  const stats = await pgQueryOne<any>(`
+    SELECT
+      (SELECT COUNT(*) FROM users WHERE entry_point = $1 AND id != ALL($3)) AS total_registered,
+      (SELECT COUNT(DISTINCT cm.user_id) FROM conversation_messages cm
+       JOIN users u ON u.id = cm.user_id WHERE u.entry_point = $1 AND u.id != ALL($3)) AS started_chat,
+      (SELECT COUNT(*) FROM users WHERE entry_point = $1 AND in_matching_pool = TRUE AND id != ALL($3)) AS in_pool,
+      (SELECT COUNT(*) FROM page_views WHERE page = $2 AND (user_id IS NULL OR user_id != ALL($3))) AS landing_visits_total
+  `, [entryPoint, landingPage, ANALYTICS_EXCLUDED_USERS]);
+
+  const byDay = await pgQueryAll<any>(`
+    WITH days AS (
+      SELECT generate_series(
+        (CURRENT_DATE - INTERVAL '29 days')::date,
+        CURRENT_DATE::date,
+        '1 day'::interval
+      )::date AS day
+    )
+    SELECT
+      d.day::text AS date,
+      COALESCE(v.visits, 0)::int AS visits,
+      COALESCE(r.registrations, 0)::int AS registrations
+    FROM days d
+    LEFT JOIN (
+      SELECT viewed_at::date AS day, COUNT(*) AS visits
+      FROM page_views WHERE page = $2 AND (user_id IS NULL OR user_id != ALL($3))
+      GROUP BY viewed_at::date
+    ) v ON v.day = d.day
+    LEFT JOIN (
+      SELECT created_at::date AS day, COUNT(*) AS registrations
+      FROM users WHERE entry_point = $1 AND id != ALL($3)
+      GROUP BY created_at::date
+    ) r ON r.day = d.day
+    ORDER BY d.day
+  `, [entryPoint, landingPage, ANALYTICS_EXCLUDED_USERS]);
+
+  return { ...stats, by_day: byDay };
+}
+
+// GET /api/meme-dashboard — Sasha's marketer dashboard
 const MEME_DASHBOARD_EMAILS = ["chen.hagag@gmail.com", "s.jo.design@gmail.com"];
 app.get("/api/meme-dashboard", requireAuth, async (req: any, res) => {
   const email = req.auth?.email;
   if (!email || !MEME_DASHBOARD_EMAILS.includes(email)) {
     return res.status(403).json({ error: "Access denied" });
   }
-
   try {
-    // Summary stats
-    const stats = await pgQueryOne<any>(`
-      SELECT
-        (SELECT COUNT(*) FROM users WHERE entry_point = 'meme') AS total_registered,
-        (SELECT COUNT(DISTINCT cm.user_id) FROM conversation_messages cm
-         JOIN users u ON u.id = cm.user_id WHERE u.entry_point = 'meme') AS started_chat,
-        (SELECT COUNT(*) FROM users WHERE entry_point = 'meme' AND in_matching_pool = TRUE) AS in_pool,
-        (SELECT COUNT(*) FROM page_views WHERE page = 'landing_meme') AS landing_visits_total
-    `);
-
-    // Daily breakdown (last 30 days)
-    const byDay = await pgQueryAll<any>(`
-      WITH days AS (
-        SELECT generate_series(
-          (CURRENT_DATE - INTERVAL '29 days')::date,
-          CURRENT_DATE::date,
-          '1 day'::interval
-        )::date AS day
-      )
-      SELECT
-        d.day::text AS date,
-        COALESCE(v.visits, 0)::int AS visits,
-        COALESCE(r.registrations, 0)::int AS registrations
-      FROM days d
-      LEFT JOIN (
-        SELECT viewed_at::date AS day, COUNT(*) AS visits
-        FROM page_views WHERE page = 'landing_meme'
-        GROUP BY viewed_at::date
-      ) v ON v.day = d.day
-      LEFT JOIN (
-        SELECT created_at::date AS day, COUNT(*) AS registrations
-        FROM users WHERE entry_point = 'meme'
-        GROUP BY created_at::date
-      ) r ON r.day = d.day
-      ORDER BY d.day
-    `);
-
-    return res.json({ ...stats, by_day: byDay });
+    const data = await getMarketerDashboard("meme", "landing_meme");
+    return res.json(data);
   } catch (err: any) {
     console.error("[meme-dashboard] Error:", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/adi-dashboard — Adi Barazani's marketer dashboard
+const ADI_DASHBOARD_EMAILS = ["chen.hagag@gmail.com"]; // Adi's email will be added when she registers
+app.get("/api/adi-dashboard", requireAuth, async (req: any, res) => {
+  const email = req.auth?.email;
+  if (!email || !ADI_DASHBOARD_EMAILS.includes(email)) {
+    return res.status(403).json({ error: "Access denied" });
+  }
+  try {
+    const data = await getMarketerDashboard("adi_barazani", "landing_adi_barazani");
+    return res.json(data);
+  } catch (err: any) {
+    console.error("[adi-dashboard] Error:", err.message);
     return res.status(500).json({ error: err.message });
   }
 });
@@ -4997,9 +5020,9 @@ app.get("/admin/landing-stats", async (_req, res) => {
         MIN(viewed_at) AS first_visit,
         MAX(viewed_at) AS last_visit
       FROM page_views
-      WHERE page LIKE 'landing_%'
+      WHERE page LIKE 'landing_%' AND (user_id IS NULL OR user_id != ALL($1))
       GROUP BY page ORDER BY total_visits DESC
-    `);
+    `, [ANALYTICS_EXCLUDED_USERS]);
 
     // Daily breakdown across all landing pages
     const byDay = await pgQueryAll<any>(`
@@ -5017,11 +5040,11 @@ app.get("/admin/landing-stats", async (_req, res) => {
       FROM days d
       LEFT JOIN (
         SELECT viewed_at::date AS day, COUNT(*) AS visits, COUNT(DISTINCT ip) AS unique_ips
-        FROM page_views WHERE page LIKE 'landing_%'
+        FROM page_views WHERE page LIKE 'landing_%' AND (user_id IS NULL OR user_id != ALL($1))
         GROUP BY viewed_at::date
       ) v ON v.day = d.day
       ORDER BY d.day
-    `);
+    `, [ANALYTICS_EXCLUDED_USERS]);
 
     // Per-page daily breakdown
     const byPageDay = await pgQueryAll<any>(`
@@ -5031,9 +5054,10 @@ app.get("/admin/landing-stats", async (_req, res) => {
       FROM page_views
       WHERE page LIKE 'landing_%'
         AND viewed_at >= CURRENT_DATE - INTERVAL '29 days'
+        AND (user_id IS NULL OR user_id != ALL($1))
       GROUP BY page, viewed_at::date
       ORDER BY viewed_at::date DESC
-    `);
+    `, [ANALYTICS_EXCLUDED_USERS]);
 
     // Conversion: how many landing visitors actually registered
     const conversions = await pgQueryAll<any>(`
@@ -5041,10 +5065,10 @@ app.get("/admin/landing-stats", async (_req, res) => {
         COALESCE(u.entry_point, 'unknown') AS entry_point,
         COUNT(*)::int AS registered
       FROM users u
-      WHERE u.entry_point IS NOT NULL
+      WHERE u.entry_point IS NOT NULL AND u.id != ALL($1)
       GROUP BY u.entry_point
       ORDER BY registered DESC
-    `);
+    `, [ANALYTICS_EXCLUDED_USERS]);
 
     return res.json({ byPage, byDay, byPageDay, conversions });
   } catch (err: any) {

@@ -12,6 +12,7 @@ import ProfileSetup from "./ProfileSetup";
 import ConsentScreen from "./ConsentScreen";
 import CoupleWelcome from "./CoupleWelcome";
 import MemeDashboard from "./MemeDashboard";
+import MarketerDashboard from "./MarketerDashboard";
 import SurveyPage from "./SurveyPage";
 import SurveyPage2 from "./SurveyPage2";
 import { supabase } from "./lib/supabase";
@@ -38,6 +39,7 @@ type View =
   | "consent"
   | "couple_welcome"
   | "meme_dashboard"
+  | "adi_dashboard"
   | "survey"
   | "survey2";
 
@@ -274,6 +276,7 @@ export default function App() {
   const [pendingSurvey] = useState(() => window.location.pathname === "/survey");
   const [pendingSurvey2] = useState(() => window.location.pathname === "/survey2");
   const [pendingMemeDash] = useState(() => window.location.pathname.toLowerCase().startsWith("/meme-dash-7x9k"));
+  const [pendingAdiDash] = useState(() => window.location.pathname.toLowerCase().startsWith("/adi-dash-3k7q"));
 
   // ── Entry point detection ────────────────
   // Default: forwomen (women-only). /main = general audience.
@@ -295,18 +298,24 @@ export default function App() {
       console.log("[entryPoint] → couples (from URL)");
       return "couples";
     }
-    if (path.startsWith("/meme-dash")) {
+    if (path.startsWith("/meme-dash") || path.startsWith("/adi-dash")) {
       // Dashboard URL — don't change entryPoint, just use stored value
       const stored = localStorage.getItem("one_entry_point");
       return stored || "forwomen";
     }
     if (path.startsWith("/meme")) {
       localStorage.setItem("one_entry_point", "meme");
-      // Track anonymous landing visit before auth
       trackPage("landing_meme");
       window.history.replaceState({}, "", "/");
       console.log("[entryPoint] → meme (from URL)");
       return "meme";
+    }
+    if (path.startsWith("/adi_barazani") || path.startsWith("/adi-barazani")) {
+      localStorage.setItem("one_entry_point", "adi_barazani");
+      trackPage("landing_adi_barazani");
+      window.history.replaceState({}, "", "/");
+      console.log("[entryPoint] → adi_barazani (from URL)");
+      return "adi_barazani";
     }
     // /forwomen explicit path
     if (path.startsWith("/forwomen")) {
@@ -404,6 +413,8 @@ export default function App() {
                   setView("admin");
                 } else if (pendingMemeDash) {
                   setView("meme_dashboard");
+                } else if (pendingAdiDash) {
+                  setView("adi_dashboard");
                 } else if (data.profile_complete === false) {
                   setView("profile_setup");
                 } else if (!data.consent_accepted) {
@@ -559,13 +570,15 @@ export default function App() {
   // ── OAuth callback handlers ───────────────────────────────────
   const handleAuthSuccess = useCallback((u: User, profileComplete: boolean) => {
     // Clean URL so refresh doesn't re-trigger auth callback
-    window.history.replaceState({}, "", pendingSurvey ? "/survey" : pendingSurvey2 ? "/survey2" : pendingMemeDash ? "/meme-dash-7x9k" : "/");
+    window.history.replaceState({}, "", pendingSurvey ? "/survey" : pendingSurvey2 ? "/survey2" : pendingMemeDash ? "/meme-dash-7x9k" : pendingAdiDash ? "/adi-dash-3k7q" : "/");
     saveSession(u);
     setUser(u);
     // Register for push notifications (native app only, non-blocking)
     initPushNotifications().catch(() => {});
     if (pendingMemeDash) {
       setView("meme_dashboard");
+    } else if (pendingAdiDash) {
+      setView("adi_dashboard");
     } else if (!profileComplete) {
       setView("profile_setup");
     } else if (!u.consent_accepted) {
@@ -614,7 +627,7 @@ export default function App() {
   }
 
   // Hide header in full-screen views
-  const showHeader = view !== "landing" && view !== "admin" && view !== "welcome" && view !== "new_chat" && view !== "insights" && view !== "auth" && view !== "auth_callback" && view !== "profile_setup" && view !== "couple_welcome" && view !== "meme_dashboard" && view !== "survey" && view !== "survey2";
+  const showHeader = view !== "landing" && view !== "admin" && view !== "welcome" && view !== "new_chat" && view !== "insights" && view !== "auth" && view !== "auth_callback" && view !== "profile_setup" && view !== "couple_welcome" && view !== "meme_dashboard" && view !== "adi_dashboard" && view !== "survey" && view !== "survey2";
 
   return (
     <ErrorBoundary>
@@ -759,6 +772,16 @@ export default function App() {
 
       {view === "meme_dashboard" && user && (
         <MemeDashboard userEmail={user.email} onBack={() => setView("new_chat")} />
+      )}
+
+      {view === "adi_dashboard" && user && (
+        <MarketerDashboard
+          userEmail={user.email}
+          onBack={() => setView("new_chat")}
+          endpoint="/api/adi-dashboard"
+          title="דשבורד שיווק"
+          linkLabel="/adi_barazani"
+        />
       )}
 
       {view === "new_chat" && user && (
