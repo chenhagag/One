@@ -396,7 +396,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [sending, setSending] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [channel, setChannel] = useState<string>("new_chat");
-  const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "insights" | "couple_insights" | "bug_report" | "settings" | "how_it_works" | "potential_matches" | "match_card_consent" | "match_card" | "match_chat" | "match_hub" | "cancel_match" | "past_matches" | "past_match_detail">("home");
+  const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "insights" | "couple_insights" | "bug_report" | "settings" | "how_it_works" | "potential_matches" | "match_card_consent" | "match_card" | "match_card_demo" | "match_chat" | "match_hub" | "cancel_match" | "past_matches" | "past_match_detail">("home");
   const [unreadMatchMessages, setUnreadMatchMessages] = useState(0);
   const [matchChatStarted, setMatchChatStarted] = useState(false);
   const [hasPastMatches, setHasPastMatches] = useState(false);
@@ -583,7 +583,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
       how_it_works: "איך זה עובד",
       potential_matches: "בדיקת תמונות",
       match_card_consent: "הסכמה לכרטיס התאמה",
-      match_card: activeMatchCard ? "כרטיס התאמה" : "דוגמה לכרטיס התאמה",
+      match_card: "כרטיס התאמה",
+      match_card_demo: "דוגמה לכרטיס התאמה",
       match_chat: "צ׳אט התאמה",
       match_hub: "מרכז התאמות",
       cancel_match: "ביטול התאמה",
@@ -1022,6 +1023,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
              screen === "match_chat" ? "שיחה" :
              screen === "match_hub" ? "ההתאמה שלי" :
              screen === "match_card" ? "כרטיס התאמה" :
+             screen === "match_card_demo" ? "דוגמה לכרטיס התאמה" :
              screen === "match_card_consent" ? "כרטיס התאמה" :
              screen === "cancel_match" ? "ביטול התאמה" :
              screen === "past_matches" ? "התאמות קודמות" :
@@ -1349,6 +1351,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           )
         )}
 
+        {screen === "match_card_demo" && (
+          <MatchCard user={user} onBack={() => setScreen("match_card_consent")} isDemo={true} />
+        )}
+
         {screen === "match_chat" && activeMatchCard && (
           <MatchChat
             user={user}
@@ -1368,7 +1374,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               setScreen("home");
               loadRecommendations();
             }}
-            onShowExample={() => setScreen("match_card")}
+            onShowExample={() => setScreen("match_card_demo")}
             alreadyApproved={recommendations.match_card_consent === "approved"}
           />
         )}
