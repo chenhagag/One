@@ -6002,7 +6002,7 @@ function LandingStatsTab() {
   const { byPage, byDay, byPageDay, conversions } = data;
   const totalVisits = byPage.reduce((s: number, p: any) => s + p.total_visits, 0);
   const totalUnique = byPage.reduce((s: number, p: any) => s + p.unique_ips, 0);
-  const totalRegistered = conversions.reduce((s: number, c: any) => s + c.registered, 0);
+  const totalRegistered = data.total_registered_all ?? conversions.reduce((s: number, c: any) => s + c.registered, 0);
 
   // Map landing page names to entry_point for conversion lookup
   const pageToEntry: Record<string, string> = { landing_meme: "meme", landing_forwomen: "forwomen" };

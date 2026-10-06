@@ -5058,7 +5058,7 @@ app.get("/admin/landing-stats", async (req, res) => {
     const startExpr = hasMonth ? `DATE '${month}-01'` : `(CURRENT_DATE - INTERVAL '29 days')::date`;
     const endExpr = hasMonth ? `(DATE '${month}-01' + INTERVAL '1 month' - INTERVAL '1 day')::date` : `CURRENT_DATE`;
 
-    // Per-landing-page summary (always all-time)
+    // Per-landing-page summary (filtered by selected period)
     const byPage = await pgQueryAll<any>(`
       SELECT page,
         COUNT(*)::int AS total_visits,
@@ -5067,6 +5067,8 @@ app.get("/admin/landing-stats", async (req, res) => {
         MAX(viewed_at) AS last_visit
       FROM page_views
       WHERE page LIKE 'landing_%' AND (user_id IS NULL OR user_id != ALL($1))
+        AND viewed_at::date >= ${startExpr}
+        AND viewed_at::date <= ${endExpr}
       GROUP BY page ORDER BY total_visits DESC
     `, [ANALYTICS_EXCLUDED_USERS]);
 
@@ -5106,25 +5108,38 @@ app.get("/admin/landing-stats", async (req, res) => {
       ORDER BY viewed_at::date DESC
     `, [ANALYTICS_EXCLUDED_USERS]);
 
-    // Conversion: how many landing visitors actually registered
+    // Conversion: how many landing visitors actually registered (filtered by period)
     const conversions = await pgQueryAll<any>(`
       SELECT
         COALESCE(u.entry_point, 'unknown') AS entry_point,
         COUNT(*)::int AS registered
       FROM users u
       WHERE u.entry_point IS NOT NULL AND u.id != ALL($1)
+        AND u.created_at::date >= ${startExpr}
+        AND u.created_at::date <= ${endExpr}
       GROUP BY u.entry_point
       ORDER BY registered DESC
     `, [ANALYTICS_EXCLUDED_USERS]);
 
-    // Available months
+    // Available months — only months with actual visits
     const months = await pgQueryAll<any>(`
-      SELECT DISTINCT TO_CHAR(viewed_at, 'YYYY-MM') AS month
+      SELECT TO_CHAR(viewed_at, 'YYYY-MM') AS month, COUNT(*)::int AS cnt
       FROM page_views WHERE page LIKE 'landing_%' AND (user_id IS NULL OR user_id != ALL($1))
+      GROUP BY TO_CHAR(viewed_at, 'YYYY-MM')
+      HAVING COUNT(*) > 0
       ORDER BY month DESC
     `, [ANALYTICS_EXCLUDED_USERS]);
 
-    return res.json({ byPage, byDay, byPageDay, conversions, available_months: months.map((m: any) => m.month) });
+    // Total registrations in period (regardless of entry_point)
+    const totalReg = await pgQueryOne<any>(`
+      SELECT COUNT(*)::int AS total
+      FROM users
+      WHERE id != ALL($1)
+        AND created_at::date >= ${startExpr}
+        AND created_at::date <= ${endExpr}
+    `, [ANALYTICS_EXCLUDED_USERS]);
+
+    return res.json({ byPage, byDay, byPageDay, conversions, total_registered_all: totalReg?.total || 0, available_months: months.map((m: any) => m.month) });
   } catch (err: any) {
     console.error("[admin] landing-stats error:", err.message);
     return res.status(500).json({ error: err.message });
