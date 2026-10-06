@@ -15,9 +15,10 @@ interface DayData {
   registrations: number;
 }
 
-interface Visit {
-  viewed_at: string;
-  ip: string | null;
+interface Registration {
+  id: number;
+  first_name: string;
+  created_at: string;
 }
 
 interface DashboardData {
@@ -27,7 +28,7 @@ interface DashboardData {
   landing_visits_total: number;
   by_day: DayData[];
   available_months?: string[];
-  visits?: Visit[];
+  registrations?: Registration[];
 }
 
 export default function MarketerDashboard({ userEmail, onBack, endpoint, title, linkLabel }: MarketerDashboardProps) {
@@ -188,30 +189,32 @@ export default function MarketerDashboard({ userEmail, onBack, endpoint, title, 
           )}
         </div>
 
-        {/* Individual visits table */}
-        {data.visits && data.visits.length > 0 && (
+        {/* Registrations detail table */}
+        {data.registrations && data.registrations.length > 0 && (
           <div style={{
             background: "#fff", borderRadius: 18, padding: "20px 20px 16px",
             boxShadow: "0 2px 12px rgba(139,123,168,0.08)", marginTop: 16,
           }}>
             <h3 style={{ fontSize: 15, fontWeight: 600, color: "#1a1a2e", margin: "0 0 12px" }}>
-              ביקורים בודדים ({data.visits.length})
+              פירוט הרשמות ({data.registrations.length})
             </h3>
             <div style={{ maxHeight: 300, overflowY: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead>
                   <tr style={{ borderBottom: "2px solid #f0eef5" }}>
                     <th style={{ textAlign: "right", padding: "6px 8px", color: "#8b7ba8", fontWeight: 600 }}>#</th>
+                    <th style={{ textAlign: "right", padding: "6px 8px", color: "#8b7ba8", fontWeight: 600 }}>שם</th>
                     <th style={{ textAlign: "right", padding: "6px 8px", color: "#8b7ba8", fontWeight: 600 }}>תאריך</th>
                     <th style={{ textAlign: "right", padding: "6px 8px", color: "#8b7ba8", fontWeight: 600 }}>שעה</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.visits.map((v, i) => {
-                    const dt = new Date(v.viewed_at);
+                  {data.registrations.map((r, i) => {
+                    const dt = new Date(r.created_at);
                     return (
-                      <tr key={i} style={{ borderBottom: "1px solid #f8f7fc" }}>
+                      <tr key={r.id} style={{ borderBottom: "1px solid #f8f7fc" }}>
                         <td style={{ padding: "5px 8px", color: "#bbb" }}>{i + 1}</td>
+                        <td style={{ padding: "5px 8px", color: "#1a1a2e", fontWeight: 500 }}>{r.first_name || "—"}</td>
                         <td style={{ padding: "5px 8px", color: "#555" }}>{dt.toLocaleDateString("he-IL", { day: "numeric", month: "short", year: "numeric" })}</td>
                         <td style={{ padding: "5px 8px", color: "#555" }}>{dt.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}</td>
                       </tr>
