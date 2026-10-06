@@ -5003,7 +5003,17 @@ async function getMarketerDashboard(entryPoint: string, landingPage: string, mon
     ORDER BY month DESC
   `, [landingPage, ANALYTICS_EXCLUDED_USERS, entryPoint]);
 
-  return { ...stats, by_day: byDay, available_months: months.map((m: any) => m.month) };
+  // Individual visits with timestamps
+  const visits = await pgQueryAll<any>(`
+    SELECT viewed_at, ip
+    FROM page_views
+    WHERE page = $1 AND (user_id IS NULL OR user_id != ALL($2))
+      AND viewed_at::date >= ${startDate}::date
+      AND viewed_at::date <= ${endDate}::date
+    ORDER BY viewed_at DESC
+  `, [landingPage, ANALYTICS_EXCLUDED_USERS]);
+
+  return { ...stats, by_day: byDay, available_months: months.map((m: any) => m.month), visits };
 }
 
 // GET /api/meme-dashboard — Sasha's marketer dashboard
