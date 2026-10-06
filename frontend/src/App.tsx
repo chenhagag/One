@@ -403,7 +403,7 @@ export default function App() {
                   "Content-Type": "application/json",
                   Authorization: `Bearer ${session.access_token}`,
                 },
-                body: JSON.stringify(getDeviceInfo()),
+                body: JSON.stringify({ ...getDeviceInfo(), entry_point: localStorage.getItem("one_entry_point") || null }),
               });
               if (res.ok) {
                 const data = await res.json();

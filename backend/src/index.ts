@@ -407,7 +407,7 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
     user_metadata?.full_name || user_metadata?.name || email.split("@")[0];
 
   // Device info from frontend
-  const { device, pwa_installed, dark_mode, native_app } = req.body || {};
+  const { device, pwa_installed, dark_mode, native_app, entry_point } = req.body || {};
   // Android WebView sends X-Requested-With: <package_name> automatically
   const xRequestedWith = req.get("x-requested-with") || "";
   const isNativeFromHeader = xRequestedWith === "io.joinone.app";
@@ -448,7 +448,7 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
     // Safe fields to return from /auth/sync (no admin_notes, devices_seen, etc.)
     const SYNC_SAFE_FIELDS = `id, email, first_name, age, gender, city, looking_for_gender,
             profile_complete, consent_accepted, photo_ai_consent, supabase_uid, auth_provider,
-            last_device, pwa_installed, dark_mode, test_user_type, match_card_consent`;
+            last_device, pwa_installed, dark_mode, test_user_type, match_card_consent, entry_point`;
 
     // 1. Check if already linked by supabase_uid
     let user = await pgQueryOne<any>(
@@ -457,6 +457,10 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
     );
     if (user) {
       await updateDeviceInfo(user.id);
+      // Backfill entry_point if user doesn't have one yet
+      if (!user.entry_point && entry_point) {
+        await pgQueryAll(`UPDATE users SET entry_point = $1, updated_at = NOW() WHERE id = $2`, [entry_point, user.id]);
+      }
       return res.json({ ...user, last_device: device || user.last_device, pwa_installed: pwa_installed ?? user.pwa_installed, profile_complete: user.profile_complete ?? true });
     }
 
@@ -471,16 +475,20 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
         [supabaseUid, provider, user.id]
       );
       await updateDeviceInfo(user.id);
+      // Backfill entry_point if user doesn't have one yet
+      if (!user.entry_point && entry_point) {
+        await pgQueryAll(`UPDATE users SET entry_point = $1, updated_at = NOW() WHERE id = $2`, [entry_point, user.id]);
+      }
       return res.json({ ...user, supabase_uid: supabaseUid, auth_provider: provider, last_device: device || user.last_device, pwa_installed: pwa_installed ?? user.pwa_installed, profile_complete: user.profile_complete ?? true });
     }
 
     // 3. Brand new user — create minimal row, profile_complete = false
     // Don't pre-fill first_name from OAuth — let user enter it in ProfileSetup
     const newUser = await pgQueryOne<any>(
-      `INSERT INTO users (first_name, email, supabase_uid, auth_provider, profile_complete, last_device, pwa_installed)
-       VALUES ($1, $2, $3, $4, false, $5, $6)
+      `INSERT INTO users (first_name, email, supabase_uid, auth_provider, profile_complete, last_device, pwa_installed, entry_point)
+       VALUES ($1, $2, $3, $4, false, $5, $6, $7)
        RETURNING ${SYNC_SAFE_FIELDS}`,
-      ["", email.trim().toLowerCase(), supabaseUid, provider, device || null, !!pwa_installed]
+      ["", email.trim().toLowerCase(), supabaseUid, provider, device || null, !!pwa_installed, entry_point || null]
     );
 
     return res.status(201).json(newUser);

@@ -80,7 +80,7 @@ export default function AuthCallback({ onSuccess, onError, deepLinkCode }: AuthC
             "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
-          body: JSON.stringify(deviceInfo),
+          body: JSON.stringify({ ...deviceInfo, entry_point: localStorage.getItem("one_entry_point") || null }),
         });
 
         if (!res.ok) {
