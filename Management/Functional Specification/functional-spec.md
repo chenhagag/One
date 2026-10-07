@@ -1,6 +1,6 @@
 # אפיון פונקציונלי — One (מערכת שידוכים מבוססת AI)
 
-> **גרסה**: 3.0 — אפיון מקיף (כל הפרקים מעמיקים)
+> **גרסה**: 3.1 — Rating System + Sequence Diagrams
 > **עדכון אחרון**: 2026-10-07
 > **דומיין**: joinone.io
 
@@ -1773,9 +1773,80 @@ View = "landing" | "register" | "welcome" | "pwa_install" | "new_chat" |
 
 ---
 
-## 10. מערכת הודעות ישירות (Direct Messaging)
+## 10. מערכת דירוגים (Rating System)
 
-### 10.1 ארכיטקטורה
+### 10.1 ערכי דירוג
+| ערך | משמעות | אייקון |
+|------|---------|--------|
+| `bullseye` | כן, מסקרן | ✅ בול |
+| `possible` | לא בול, אבל אפשרי | 🟡 אפשרי |
+| `miss` | לא מרגיש מתאים | ❌ לא |
+| `known_person` | מכיר/ה אישית | 👤 מכיר/ה |
+
+### 10.2 זרימת סטטוסים
+
+```
+potential_match / expanded_potential_match
+  → Admin: send-for-rating →
+waiting_first_rating (צד ראשון מדרג)
+  → miss → rejected_by_users ■
+  → known_person → rejected_acquaintance ■
+  → bullseye/possible:
+      → צד שני לא נעול → waiting_second_rating (auto-notify)
+      → צד שני נעול → pending_second_rating (ממתין)
+          → Admin: send-second-rating → waiting_second_rating
+waiting_second_rating (צד שני מדרג)
+  → miss → rejected_by_users ■
+  → known_person → rejected_acquaintance ■
+  → bullseye/possible → approved_by_both ✓
+```
+
+### 10.3 מנגנון נעילה (Lock System)
+
+משתמשת **נעולה** אם בכל match אחר היא:
+- בסטטוס `in_match`, **או**
+- `sent_for_rating_to = userId` בסטטוס `waiting_first/second_rating`
+
+**שימוש**: לפני שליחה לדירוג — בדיקת נעילה של **שני** הצדדים. אם כל אחד נעול → HTTP 400.
+
+**אחרי דירוג חיובי ראשון**: אם הצד השני נעול **או** המדרגת ב-`in_match` → `pending_second_rating` (ממתין). אחרת → auto-promote ל-`waiting_second_rating`.
+
+### 10.4 שדות מפתח
+| שדה | תפקיד |
+|------|--------|
+| `sent_for_rating_to` | user ID שנדרש לדרג כרגע |
+| `sent_for_rating_at` | מתי נשלח — base לnudge scheduling |
+| `user1_rating` / `user2_rating` | הדירוג שכל צד נתן |
+| `rejection_reason` | `'known_person'` אם רלוונטי |
+| `rating_admin_seen` | האם Admin ראה את הדירוג |
+
+**ניקוי**: `sent_for_rating_to/at` מתאפסים ל-NULL בתוצאה סופית (miss/approved).
+
+### 10.5 "הבררנית קודם"
+**Admin convention, לא אכיפה אוטומטית** — Admin רואה `pickiness_score` per-user ובוחר ידנית למי לשלוח ראשון.
+
+### 10.6 Notifications
+| אירוע | מה נשלח |
+|-------|---------|
+| שליחה לדירוג (admin / auto) | Push: "מצאנו לך התאמה פוטנציאלית" + Email |
+| תזכורות | +2/5/12 ימים (`rating_reminder_1/2/3`) |
+| דירוג הוגש | **לא** נשלחת notification |
+
+### 10.7 API Endpoints
+| Method | Path | תפקיד |
+|--------|------|--------|
+| POST | `/matches/:id/rate` | הגשת דירוג (user) |
+| GET | `/matches/pending-rating` | match ממתין לדירוג (user, `?user_id=` admin override) |
+| POST | `/admin/matches/:id/send-for-rating` | שליחה לדירוג ראשון |
+| POST | `/admin/matches/:id/send-second-rating` | שליחה לדירוג שני |
+| POST | `/admin/matches/:id/mark-rating-seen` | סימון דירוג כנצפה ע"י admin |
+| GET | `/admin/match-ratings/pending` | דירוגים שadmin עוד לא ראה (limit 50) |
+
+---
+
+## 11. מערכת הודעות ישירות (Direct Messaging)
+
+### 11.1 ארכיטקטורה
 - טבלת `direct_messages` — הודעות בין מותאמים
 - `typing_status` — סטטוס הקלדה בזמן אמת (PK: match_id + user_id)
 - `blocked_by` על matches — חסימת בת זוג
@@ -3025,4 +3096,165 @@ flowchart TB
     style API fill:#7b5fa3,color:#fff
     style PG fill:#336791,color:#fff
     style OAI fill:#10a37f,color:#fff
+```
+
+### ג.12 Sequence — זרימת הודעת צ'אט
+
+```mermaid
+sequenceDiagram
+    participant U as משתמשת
+    participant FE as Frontend<br/>(NewChat.tsx)
+    participant API as Backend<br/>(index.ts)
+    participant CM as chatManager
+    participant RAG as RAG System
+    participant OAI as OpenAI GPT-4o
+    participant DB as PostgreSQL
+    participant SUM as Summarizer
+
+    U->>FE: הקלדה + שלח
+    FE->>API: POST /new-chat/message<br/>{user_id, message, history, channel}
+
+    API->>DB: load ConversationState<br/>(topic_injection_counts)
+    API->>DB: load user profile<br/>(gender, looking_for, test_user_type)
+
+    par טעינה מקבילית
+        API->>RAG: retrieveContext(lastMsg + msg)
+        API->>DB: loadAgentContext()<br/>(system summaries + per-user)
+        API->>DB: load conversation history
+    end
+
+    API->>CM: buildChatPrompt(message, channel, state)
+
+    CM->>CM: detectIntent()<br/>→ profile / system / general
+
+    alt new_chat channel
+        CM->>CM: select template (A/B/C/D/E)<br/>based on intent + closing_stage + turn
+        CM->>CM: inject micro-topic question<br/>+ RAG context + agent context + progress info
+    else cognitive / taste / QA
+        CM->>CM: channel-specific prompt logic
+    end
+
+    CM-->>API: system prompt + user messages
+
+    API->>OAI: chat.completions.create<br/>(gpt-4o, temp=0.5, messages)
+    OAI-->>API: AI response
+
+    API->>DB: INSERT conversation_messages<br/>(user msg + assistant msg)
+
+    API->>CM: update ConversationState<br/>(advance topic / closing_stage)
+    CM->>DB: saveConversationState (AWAIT!)
+
+    opt כל 8 הודעות user
+        API->>SUM: shouldSummarize?
+        SUM->>OAI: gpt-4o-mini (JSON mode)<br/>extract structured summary
+        SUM->>DB: UPSERT user_chat_summaries
+    end
+
+    API->>DB: trackTokens(userId, action, model)
+
+    API-->>FE: {reply, closingStage}
+
+    FE->>U: הצגת תשובה + באבלים
+
+    opt closing_stage ≥ 3 (שיחה נסגרת)
+        API->>API: maybeAutoAnalyzeAfterChat()
+        Note over API,DB: Analysis Run #1<br/>(async, non-blocking)
+    end
+```
+
+### ג.13 Sequence — העלאת תמונה
+
+```mermaid
+sequenceDiagram
+    participant U as משתמשת
+    participant FE as Frontend<br/>(ProfileEdit.tsx)
+    participant API as Backend<br/>(index.ts)
+    participant DB as PostgreSQL
+    participant VOL as Railway Volume<br/>(/app/data/uploads)
+    participant JR as Job Runner
+    participant GPT as GPT-4o Vision
+
+    U->>FE: בחירת תמונה (input file)
+    FE->>FE: בדיקת גודל (≤10MB)
+
+    alt העלאה ראשונה
+        FE->>FE: הצגת Photo Consent Modal
+        U->>FE: אישור (checkbox 1 חובה + checkbox 2 אופציונלי)
+        FE->>API: PATCH /users/:id<br/>{photo_ai_consent: true/false}
+    end
+
+    FE->>API: POST /users/:id/photos<br/>(multipart/form-data)
+
+    API->>API: multer: validate file type
+
+    opt HEIC format
+        API->>API: heic-convert → JPEG (quality 0.9)
+    end
+
+    API->>VOL: save file<br/>(unique filename ~10^19 combinations)
+    API->>DB: INSERT user_photos<br/>(filename, original_name, mime_type, size)
+
+    opt photo_ai_consent = TRUE
+        API->>DB: INSERT pipeline_jobs<br/>(type: 'photo_analysis', status: 'pending')
+    end
+
+    API-->>FE: {photo_id, url}
+    FE->>U: תמונה מופיעה בgrid
+
+    Note over JR: Job Runner polls כל 2 דקות
+
+    JR->>DB: SELECT pending photo_analysis jobs
+    JR->>DB: load user photos (max 4)
+    JR->>JR: encode photos as base64
+
+    JR->>GPT: chat.completions.create<br/>(gpt-4o, images, JSON mode)
+    GPT-->>JR: {11 traits + photo flags}
+
+    JR->>JR: validate traits<br/>skip source='manual'
+
+    JR->>DB: UPSERT user_look_traits<br/>(8 numeric + 3 categorical)
+
+    opt photo flags detected
+        JR->>DB: UPDATE users SET photo_flags
+    end
+
+    JR->>DB: UPDATE pipeline_jobs<br/>(status: 'completed')
+
+    opt match waiting_for_photo
+        JR->>DB: check both users have photos
+        JR->>DB: UPDATE matches<br/>waiting_for_photo → potential_match
+    end
+```
+
+### ג.14 Sequence — זרימת דירוג (Rating Flow)
+
+```mermaid
+sequenceDiagram
+    participant A as Admin
+    participant API as Backend
+    participant DB as PostgreSQL
+    participant U1 as משתמשת 1<br/>(בררנית יותר)
+    participant U2 as משתמשת 2
+    participant N as Notifications
+
+    A->>API: POST /admin/matches/:id/send-for-rating<br/>{user_id: U1}
+    API->>DB: check lock status (U1 + U2)
+    API->>DB: UPDATE matches<br/>→ waiting_first_rating<br/>sent_for_rating_to = U1
+    API->>N: notifySentForRating(U1)
+    N->>U1: Push: "מצאנו לך התאמה פוטנציאלית"
+
+    U1->>API: POST /matches/:id/rate<br/>{rating: "bullseye"}
+    API->>DB: SET user1_rating = 'bullseye'
+
+    alt U2 לא נעולה
+        API->>DB: UPDATE → waiting_second_rating<br/>sent_for_rating_to = U2
+        API->>N: notifySentForRating(U2)
+        N->>U2: Push: "מצאנו לך התאמה פוטנציאלית"
+    else U2 נעולה
+        API->>DB: UPDATE → pending_second_rating
+        Note over A: Admin ישלח ידנית כש-U2 תתפנה
+    end
+
+    U2->>API: POST /matches/:id/rate<br/>{rating: "possible"}
+    API->>DB: SET user2_rating = 'possible'<br/>status → approved_by_both<br/>clear sent_for_rating_*
 ```

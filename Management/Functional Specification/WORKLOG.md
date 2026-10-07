@@ -136,8 +136,11 @@
 - Matching: expanded_potential_match rule + trollness filter + neuroticism half-weight
 
 ### TODO לסשנים הבאים
-- [ ] הצלבה מול קוד בפועל לוודא דיוק (spot-check)
+- [x] הצלבה מול קוד בפועל — 10/10 spot-checks passed
+- [x] פרק Rating System (פרק 10 חדש) — 4 ערכי דירוג, זרימת סטטוסים, lock system, notifications
+- [x] דיאגרמת Sequence: הודעת צ'אט (ג.12) — Frontend → Backend → chatManager → OpenAI → DB → Summarizer
+- [x] דיאגרמת Sequence: העלאת תמונה (ג.13) — consent → upload → HEIC → save → photo_analysis job → GPT-4o Vision
+- [x] דיאגרמת Sequence: דירוג (ג.14) — Admin → send-for-rating → U1 rates → lock check → U2 rates → approved
+
+### TODO לסשנים הבאים
 - [ ] הוספת פרק Chat Reviewer (סריקת שיחות — daily vs full scan, violation categories)
-- [ ] הוספת פרק Statistics (user lifecycle funnel, WW filter canonical definition)
-- [ ] דיאגרמת Sequence לזרימת הודעה בצ'אט (message → prompt → OpenAI → response)
-- [ ] דיאגרמת Sequence לתהליך העלאת תמונה
