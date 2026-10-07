@@ -1,16 +1,17 @@
 # CLAUDE.md — One Project Context
 
+## Session Start — קרא אוטומטית בתחילת כל סשן
+1. `Management/claude-working-guidelines.md` — כללי עבודה קריטיים
+2. `WORK_LOG.md` (50 שורות ראשונות) — סשן אחרון + roadmap
+3. כשמזוהה נושא ספציפי — קרא `CONTEXT.md` + `WORKLOG.md` של הסוכן הרלוונטי (לפי הטבלה למטה)
+
 ## Agent System
 הפרויקט מנוהל דרך מערכת סוכנים. כל סוכן אחראי על תחום מוגדר.
-
-**בתחילת כל עבודה:**
-1. קרוא את `Management/claude-working-guidelines.md` — כללי עבודה קריטיים (deploy, staging, prompts, insights, match cards)
-2. לזהות איזה סוכן רלוונטי ולקרוא את ה-CONTEXT.md + WORKLOG.md שלו
 
 ### סוכני פיתוח (Management/Dev Agents/)
 | סוכן | תיקייה | סטטוס | אחריות |
 |-------|---------|--------|---------|
-| **Android** | `Dev Agents/Android/` | ✅ | בניית AAB, Capacitor, Google Play, testers |
+| **Mobile (Capacitor)** | `Dev Agents/Android/` | ✅ | Android (AAB, Google Play) + iOS (עתידי, דורש Mac), Capacitor config |
 | **Analysis** | `Dev Agents/Analysis/` | ✅ | מערכת הניתוח: 8 prompt groups, 60+ traits, validation, cognitiveScore, safeOutputLayer (MBTI/Enneagram/Attachment) |
 | **Backend** | `Dev Agents/Backend/` | ✅ | Express server, API routes, DB schema, auth, RAG infrastructure |
 | **Conversation** | `Dev Agents/Conversation/` | ✅ | מערכת השיחה: chatManager, prompts, summarizer, autoAnalysis, NewChat.tsx, ערוצי צ'אט, recommendations |
@@ -23,8 +24,10 @@
 ### סוכני ניהול משתמשים (Management/User Management Agents/)
 | סוכן | תיקייה | סטטוס | אחריות |
 |-------|---------|--------|---------|
-| **User Management** (ראשי) | `User Management Agents/` | ✅ | ניהול מחזור חיי משתמשים — סריקת שיחות, כרטיסי התאמה, look traits, דו"חות. מכיר ומפנה לסוכנים משניים |
-| **Insights Writer** | `User Management Agents/Insights Writer/` | ✅ | כתיבת תובנות אישיות: מציאת משתמשות ללא תובנות, קריאת שיחות, כתיבה בעברית |
+| **User Management** (ראשי) | `User Management Agents/` | ✅ | מתאם: סריקת DB, דו"ח מקדים, הפניה לסוכנים משניים. look traits, ניהול מאגר |
+| **Insights Writer** | `User Management Agents/Insights Writer/` | ✅ | כתיבת תובנות אישיות: קריאת שיחות + traits, כתיבה בעברית בגוף שני |
+| **Match Card Writer** | `User Management Agents/Match Card Writer/` | ✅ | כתיבת כרטיסי התאמה: קריאת שתי שיחות, consent, כללי סגנון, WW |
+| **Chat Reviewer** | `User Management Agents/Chat Reviewer/` | ✅ | סריקת שיחות לתקלות: יומי (חדשות) + מלא (היסטוריה), דו"חות חודשיים |
 
 ### סטטיסטיקות (Management/Statistics & Reports/)
 | סוכן | תיקייה | סטטוס | אחריות |
@@ -36,13 +39,23 @@
 |-------|---------|--------|---------|
 | **Marketing** | `Marketing/` | ✅ | דפי נחיתה, פוסטים, דשבורד סאשה, LGBTQ+ launch, מודל תשלום |
 
+### אפיון פונקציונלי (Management/Functional Specification/)
+| סוכן | תיקייה | סטטוס | אחריות |
+|-------|---------|--------|---------|
+| **Functional Specification** | `Functional Specification/` | ✅ | מסמך אפיון מפורט של המערכת, מסכי UI, דיאגרמות, תיעוד תהליכים |
+
 ### קבצי הנחיות כלליים (Management/)
 - `claude-working-guidelines.md` — כללי deploy, prompts, insights, match cards
 - `project-status.md` — סטטוס מערכות, בעיות ידועות, אנשים
 - `AGENTS-GUIDE.md` — איך ליצור סוכנים חדשים + מיפוי זיכרון
 
+### עדכון אפיון — חובה בשינוי מהותי
+כשסוכן כלשהו מבצע **שינוי מהותי** (API חדש, שינוי DB, פיצ'ר חדש, שינוי flow) —
+חייב להוסיף שורה ל-`Management/Functional Specification/CHANGES-QUEUE.md`:
+`- [YYYY-MM-DD] [שם סוכן] — תיאור קצר. קבצים: file1.ts, file2.tsx`
+
 ### מתי לגשת לאיזה סוכן
-- "בוא נבנה AAB" / Google Play → **Android**
+- "בוא נבנה AAB" / Google Play / iOS / Capacitor → **Mobile (Capacitor)**
 - ניתוח / traits / prompts של analysis / cognitiveScore / safeOutputLayer / MBTI / Enneagram → **Analysis**
 - באג ב-API / שינוי DB / RAG infra → **Backend**
 - שיחה / צ'אט / prompt / chatManager / NewChat / ערוצים / recommendations / taste test / cognitive → **Conversation**
@@ -51,10 +64,13 @@
 - באג ב-React / UI / component / state (לא צ'אט) / admin / auth / landing → **Frontend**
 - ציוני התאמה / style traits / filtering → **Matching**
 - "תכתוב תובנות" / "תבדוק מי חסר תובנות" → **Insights Writer**
-- "בוא נעשה ניהול יומי" / סריקת שיחות / כרטיסי התאמה → **User Management**
+- "תכתוב כרטיס התאמה" / כרטיס ל-X ו-Y → **Match Card Writer**
+- "בוא נעשה סריקת שיחות" / בדיקת צ'אטים → **Chat Reviewer**
+- "בוא נעשה ניהול יומי" / ניהול שבועי / look traits / מאגר → **User Management**
 - סטטיסטיקות / נתונים / דו"חות / כמה משתמשות / funnel / עלויות / KPI → **Statistics & Reports**
 - דף נחיתה / פוסטים / שיווק → **Marketing**
 - אבטחה / IDOR / auth issues → **Security** + **Backend**
+- אפיון / תיעוד מערכת / "מה המערכת עושה" / דיאגרמות → **Functional Specification**
 
 ---
 

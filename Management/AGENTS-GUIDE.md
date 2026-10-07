@@ -7,7 +7,7 @@
 ```
 Management/
 ├── Dev Agents/          ← סוכני פיתוח
-│   ├── Android/         ← בניית AAB, Capacitor, Google Play
+│   ├── Android/         ← Mobile (Capacitor): Android + iOS (עתידי)
 │   ├── Analysis/        ← מערכת הניתוח: 8 prompt groups, traits, cognitiveScore, safeOutputLayer
 │   ├── Backend/         ← Express, API, DB, RAG infra
 │   ├── Conversation/    ← מערכת השיחה: chatManager, prompts, NewChat.tsx, ערוצים
@@ -17,10 +17,13 @@ Management/
 │   ├── Matching/        ← אלגוריתם התאמות, ציונים, ניתוח
 │   └── Security/        ← אבטחה, הרשאות, validation
 ├── User Management Agents/ ← סוכני ניהול משתמשים
-│   ├── User Management/ ← ניהול מחזור חיים, סריקות, כרטיסים
-│   └── Insights Writer/ ← כתיבת תובנות אישיות
+│   ├── CONTEXT.md + WORKLOG.md ← סוכן ראשי (מתאם): סריקה, דו"ח, הפניה
+│   ├── Insights Writer/     ← כתיבת תובנות אישיות
+│   ├── Match Card Writer/   ← כתיבת כרטיסי התאמה
+│   └── Chat Reviewer/       ← סריקת שיחות לתקלות
 ├── Statistics & Reports/ ← שאילתות DB, דו"חות, KPIs, funnel, עלויות
 ├── Marketing/           ← דפי נחיתה, פוסטים, דשבורד סאשה
+├── Functional Specification/ ← אפיון פונקציונלי, מסכי UI, דיאגרמות, תיעוד
 ```
 
 ---
@@ -113,6 +116,14 @@ Management/
 - היסטוריית עבודה ייעודית
 - בעיות ידועות בתחום שלו
 - רשימת בודקים / אנשי קשר ספציפיים
+
+### עדכון אפיון פונקציונלי
+כשסוכן מבצע שינוי מהותי (API חדש, שינוי DB, פיצ'ר חדש, שינוי flow) —
+להוסיף שורה ל-`Management/Functional Specification/CHANGES-QUEUE.md`:
+```
+- [YYYY-MM-DD] [שם סוכן] — תיאור קצר. קבצים: file1.ts, file2.tsx
+```
+סוכן האפיון יקרא את ה-queue ויעדכן את מסמך האפיון.
 
 ---
 
