@@ -3099,7 +3099,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo, isWW }: { user: Use
       setEmailMarketing(!!data.email_marketing);
       setPhone(data.whatsapp_phone || "");
       setSelfFrozen(!!data.self_frozen);
-      setPushNotifications(data.push_notifications !== false);
+      setPushNotifications(!!data.push_notifications);
     }).catch(() => {}).finally(() => setLoading(false));
   }, [user.id]);
 

@@ -755,7 +755,7 @@ app.get("/users/:id", requireUserAuth, async (req, res) => {
             whatsapp_updates, whatsapp_phone,
             match_card_consent, match_card_restrictions, supabase_uid, created_at,
             COALESCE(self_frozen, FALSE) as self_frozen,
-            COALESCE(push_notifications, TRUE) as push_notifications
+            COALESCE(push_notifications, FALSE) as push_notifications
      FROM users WHERE id = $1`,
     [userId]
   );
@@ -6065,7 +6065,7 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
               COALESCE(admin_message_dismissed, FALSE) as admin_message_dismissed,
               COALESCE(admin_message_type, 'info') as admin_message_type,
               COALESCE(self_frozen, FALSE) as self_frozen,
-              COALESCE(push_notifications, TRUE) as push_notifications
+              COALESCE(push_notifications, FALSE) as push_notifications
        FROM users WHERE id = $1`, [userId]
     );
     const isWWUser2 = profileRow?.gender === "woman" && profileRow?.looking_for_gender && profileRow?.looking_for_gender !== "man";
