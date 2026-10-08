@@ -3087,7 +3087,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo, isWW }: { user: Use
   const [resetting, setResetting] = useState(false);
   const [selfFrozen, setSelfFrozen] = useState(false);
   const [freezeMsg, setFreezeMsg] = useState<string | null>(null);
-  const [pushNotifications, setPushNotifications] = useState(true);
+  const [pushNotifications, setPushNotifications] = useState(false);
 
   useEffect(() => {
     apiFetch(`/users/${user.id}`).then(r => r.json()).then(data => {

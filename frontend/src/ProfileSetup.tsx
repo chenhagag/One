@@ -52,6 +52,7 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
   const [cities, setCities] = useState<{ city_name: string; region: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [channelError, setChannelError] = useState(false);
 
   useEffect(() => {
     apiFetch("/cities").then(r => r.json()).then(setCities).catch(() => {});
@@ -80,9 +81,15 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setChannelError(false);
 
     if (!firstName.trim()) {
       setError("שם הוא שדה חובה");
+      return;
+    }
+
+    if (!emailUpdates && !whatsappUpdates && !noUpdates) {
+      setChannelError(true);
       return;
     }
 
@@ -303,14 +310,14 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
               {isForWomen ? "איך תרצי לקבל עדכונים?" : "איך תרצה לקבל עדכונים?"}
             </p>
             <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, margin: "0 0 14px" }}>
-              עד שתהיה אפליקציה להורדה ואפשרות לנוטיפיקיישנס — זו הדרך היחידה שלנו {isForWomen ? "לעדכן אותך" : "לעדכן אותך"} על התאמה או הודעה {isForWomen ? "שממתינה לך" : "שממתינה לך"} במערכת.
+              בקרוב תהיה אפליקציה להורדה, אבל בינתיים זו הדרך שלנו {isForWomen ? "לעדכן אותך" : "לעדכן אותך"} על התאמה או הודעה {isForWomen ? "שממתינה לך" : "שממתינה לך"} במערכת.
             </p>
             <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 13, color: "#555", lineHeight: 1.6, marginBottom: 10 }}>
-              <input type="checkbox" checked={emailUpdates} onChange={e => { setEmailUpdates(e.target.checked); if (e.target.checked) setNoUpdates(false); }} style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }} />
+              <input type="checkbox" checked={emailUpdates} onChange={e => { setEmailUpdates(e.target.checked); if (e.target.checked) { setNoUpdates(false); setChannelError(false); } }} style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }} />
               <span>במייל</span>
             </label>
             <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 13, color: "#555", lineHeight: 1.6 }}>
-              <input type="checkbox" checked={whatsappUpdates} onChange={e => { setWhatsappUpdates(e.target.checked); if (e.target.checked) setNoUpdates(false); }} style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }} />
+              <input type="checkbox" checked={whatsappUpdates} onChange={e => { setWhatsappUpdates(e.target.checked); if (e.target.checked) { setNoUpdates(false); setChannelError(false); } }} style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }} />
               <span>בוואטסאפ</span>
             </label>
             {whatsappUpdates && (
@@ -326,10 +333,10 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
               />
             )}
             <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 12, color: "#9ca3af", lineHeight: 1.6, marginTop: 12 }}>
-              <input type="checkbox" checked={noUpdates} onChange={e => { setNoUpdates(e.target.checked); if (e.target.checked) { setEmailUpdates(false); setWhatsappUpdates(false); } }} style={{ marginTop: 3, width: 16, height: 16, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }} />
+              <input type="checkbox" checked={noUpdates} onChange={e => { setNoUpdates(e.target.checked); if (e.target.checked) { setEmailUpdates(false); setWhatsappUpdates(false); setChannelError(false); } }} style={{ marginTop: 3, width: 16, height: 16, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }} />
               <span>{isForWomen ? "לא מעוניינת לקבל עדכונים, אכנס למערכת מדי פעם לבדוק" : "לא מעוניין/ת לקבל עדכונים, אכנס למערכת מדי פעם לבדוק"}</span>
             </label>
-            {!emailUpdates && !whatsappUpdates && !noUpdates && (
+            {channelError && (
               <p style={{ fontSize: 11, color: "#dc2626", margin: "8px 0 0" }}>
                 {isForWomen ? "יש לבחור לפחות אפשרות אחת" : "יש לבחור לפחות אפשרות אחת"}
               </p>
@@ -337,7 +344,7 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
             <div style={{ borderTop: "1px solid #e5e7eb", margin: "14px 0 0", paddingTop: 12 }}>
               <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 12, color: "#555", lineHeight: 1.6 }}>
                 <input type="checkbox" checked={emailMarketing} onChange={e => setEmailMarketing(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }} />
-                <span>עדכונים כלליים על המערכת, סקרים וחדשות במייל</span>
+                <span>{isForWomen ? "מעוניינת לקבל גם עדכונים כלליים על המערכת במייל" : "מעוניין/ת לקבל גם עדכונים כלליים על המערכת במייל"}</span>
               </label>
             </div>
           </div>
@@ -351,7 +358,7 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
               boxShadow: "0 2px 8px rgba(26,26,46,0.15)",
               transition: "opacity 0.2s",
             }}
-            type="submit" disabled={loading || (!emailUpdates && !whatsappUpdates && !noUpdates)}
+            type="submit" disabled={loading}
           >
             {loading ? "...שומר" : isForWomen ? "בואי נתחיל" : "בואו נתחיל"}
           </button>

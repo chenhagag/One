@@ -23,6 +23,7 @@ import db from "./db";
 import {
   initDb as initPgDb,
   syncConfigFromSqlite,
+  query as pgQuery,
   queryOne as pgQueryOne,
   queryAll as pgQueryAll,
   withTransaction,
@@ -45,7 +46,7 @@ import { generateInsights as generateInsightsFn } from "./pipeline/generateInsig
 import { startJobRunner, createJob as createPipelineJob, requeueOrCreateJob as requeueOrCreateJobFn, processPendingJobs as processPendingJobsFn } from "./pipeline/jobRunner";
 import { setReconcileFn } from "./pipeline/dailyMatching";
 import { promoteUserWaitingMatches } from "./pipeline/photoMatchPromotion";
-import { notifyUser, sendPushOnly, registerToken, unregisterToken, syncPermissionStatus, hasPushTokens, notifyMatchCardSent, notifyNewMessage, notifySentForRating, notifyAdminMessage, notifySystemQuestion } from "./notifications";
+import { notifyUser, sendPushOnly, registerToken, unregisterToken, syncPermissionStatus, hasPushTokens, notifyMatchCardSent, notifyNewMessage, notifySentForRating, notifyAdminMessage, notifySystemQuestion, verifyUnsubToken } from "./notifications";
 import { logActivity } from "./pipeline/activityLog";
 import { upsertUserInsights, deactivateUserInsightChunks } from "./rag";
 
@@ -6870,6 +6871,21 @@ app.use((err: any, _req: any, res: any, _next: any) => {
   console.error("[unhandled route error]", err?.message || err);
   if (!res.headersSent) {
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── Unsubscribe from emails (no auth required, token-based) ─────
+app.get("/api/unsubscribe", async (req, res) => {
+  const token = req.query.token as string;
+  if (!token) return res.status(400).send("Missing token");
+  const userId = verifyUnsubToken(token);
+  if (!userId) return res.status(400).send("Invalid or expired link");
+  try {
+    await pgQuery("UPDATE users SET email_updates = FALSE, email_marketing = FALSE WHERE id = $1", [userId]);
+    res.send(`<html dir="rtl"><head><meta charset="UTF-8"><title>One — הסרה</title></head><body style="font-family:sans-serif;text-align:center;padding:60px 24px"><h2>הוסרת בהצלחה מרשימת התפוצה</h2><p style="color:#666">לא תקבלי יותר מיילים מ-One.</p><p style="color:#666;margin-top:16px">אם תרצי לחזור — אפשר תמיד לעדכן בהגדרות באפליקציה.</p></body></html>`);
+  } catch (err: any) {
+    console.error("[unsubscribe] Error:", err.message);
+    res.status(500).send("שגיאה, נסי שוב מאוחר יותר");
   }
 });
 

@@ -577,6 +577,8 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
         WHERE table_name = 'users' AND column_name = 'email_marketing'
       ) THEN
         ALTER TABLE users ADD COLUMN email_marketing BOOLEAN DEFAULT FALSE;
+        -- Existing users who opted in to email_updates also get email_marketing
+        UPDATE users SET email_marketing = TRUE WHERE email_updates = TRUE AND email_marketing IS NOT TRUE;
       END IF;
 
       -- WhatsApp updates consent

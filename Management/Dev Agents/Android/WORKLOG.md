@@ -1,6 +1,16 @@
-# Android Dev Agent — Work Log
+# Mobile (Capacitor) Agent — Work Log
 
-## Latest: 2026-10-03 — AAB v5 (1.3.0) Built for Resubmission
+## Latest: 2026-10-07 — Renamed Android → Mobile (Capacitor)
+- Agent expanded to cover both Android (active) and iOS (future)
+- Added iOS section: requirements, steps when Mac available, App Store review notes
+- Shared vs platform-specific files documented
+
+### TODO (from Legal agent, 2026-10-08):
+- [ ] **Push notification permission prompt**: כשמשתמשת מורידה את האפליקציה, צריך להקפיץ הודעת בקשת הרשאה לקבלת push notifications. רק אחרי אישור — לעדכן `push_notifications = true` ב-DB. כרגע הצ'קבוקס ב-Settings מוצג כ-false כברירת מחדל ומתעדכן רק דרך הנטיב של האפליקציה.
+
+---
+
+## 2026-10-03 — AAB v5 (1.3.0) Built for Resubmission
 - Agent created with full build/signing/versioning info
 - Bumped versionCode 4→5, versionName 1.2.0→1.3.0
 - `cap sync android` — 5 plugins synced (app, browser, push-notifications, splash-screen, status-bar)

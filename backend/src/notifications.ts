@@ -12,10 +12,34 @@
 import { initializeApp, cert, getApps, App } from "firebase-admin/app";
 import { getMessaging, Messaging } from "firebase-admin/messaging";
 import { Resend } from "resend";
+import crypto from "crypto";
 import {
   queryOne as pgQueryOne,
   queryAll as pgQueryAll,
 } from "./db.pg";
+
+// ── Unsubscribe token helpers ───────────────────────────────────
+const UNSUB_SECRET = process.env.SUPABASE_JWT_SECRET || "one-unsubscribe-fallback-secret";
+
+export function generateUnsubToken(userId: number): string {
+  const hmac = crypto.createHmac("sha256", UNSUB_SECRET);
+  hmac.update(`unsub-${userId}`);
+  return `${userId}-${hmac.digest("hex").slice(0, 16)}`;
+}
+
+export function verifyUnsubToken(token: string): number | null {
+  const dash = token.indexOf("-");
+  if (dash < 1) return null;
+  const userId = parseInt(token.slice(0, dash), 10);
+  if (isNaN(userId)) return null;
+  const expected = generateUnsubToken(userId);
+  return token === expected ? userId : null;
+}
+
+export function getUnsubUrl(userId: number): string {
+  const domain = process.env.STAGING_URL || "https://joinone.io";
+  return `${domain}/api/unsubscribe?token=${generateUnsubToken(userId)}`;
+}
 
 // ── Firebase Admin init ──────────────────────────────────────────
 let firebaseApp: App | null = null;
@@ -51,10 +75,14 @@ function ensureFirebase(): boolean {
 // ── Resend email client ──────────────────────────────────────────
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
-const EMAIL_FOOTER = `<div dir="rtl" style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#999;text-align:center;line-height:1.8">
+function buildEmailFooter(userId?: number): string {
+  const unsubLink = userId ? `<p style="margin:4px 0 0"><a href="${getUnsubUrl(userId)}" style="color:#999;text-decoration:underline">להסרה מרשימת התפוצה</a></p>` : "";
+  return `<div dir="rtl" style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#999;text-align:center;line-height:1.8">
 <p style="margin:0">לא ניתן להשיב למייל זה.</p>
 <p style="margin:4px 0 0">מוזמנים לפנות אלינו ב<a href="https://wa.me/972549037400" style="color:#25D366">וואטסאפ</a> או ב<a href="mailto:one-support@googlegroups.com" style="color:#7b5fa3">מייל התמיכה</a></p>
+${unsubLink}
 </div>`;
+}
 
 // ── Types ────────────────────────────────────────────────────────
 export interface NotifyPayload {
@@ -246,7 +274,7 @@ async function sendEmail(
 
   const html =
     payload.emailHtml ||
-    buildNotificationEmail(payload.title, payload.body);
+    buildNotificationEmail(payload.title, payload.body, userId);
 
   try {
     const { error } = await resend.emails.send({
@@ -269,13 +297,13 @@ async function sendEmail(
 }
 
 // ── Email template builder ───────────────────────────────────────
-function buildNotificationEmail(title: string, body: string): string {
+function buildNotificationEmail(title: string, body: string, userId?: number): string {
   return `<div dir="rtl" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 500px; margin: 0 auto; padding: 32px 24px; text-align: center;">
   <img src="https://joinone.io/appLogo.png" alt="One" style="height: 44px; margin-bottom: 24px; display: block; margin-left: auto; margin-right: auto;" />
   <h2 style="font-size: 20px; color: #1a1a2e; margin: 0 0 12px;">${title}</h2>
   <p style="font-size: 15px; color: #444; line-height: 1.6; margin: 0 0 24px;">${body}</p>
   <a href="https://joinone.io" style="display:inline-block;background-color:#7b5fa3;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold">פתח את One</a>
-</div>` + EMAIL_FOOTER;
+</div>` + buildEmailFooter(userId);
 }
 
 // ── Log + return helper ──────────────────────────────────────────
@@ -534,7 +562,7 @@ export async function notifySystemQuestion(userId: number, questionText: string,
 }
 
 // ── Rich email builder (with CTA button) ─────────────────────────
-function buildRichEmail(title: string, bodyHtml: string, ctaText: string): string {
+function buildRichEmail(title: string, bodyHtml: string, ctaText: string, userId?: number): string {
   return `<div dir="rtl" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 500px; margin: 0 auto; padding: 32px 24px; color: #1a1a2e; line-height: 1.8;">
   <img src="https://joinone.io/appLogo.png" alt="One" style="height: 44px; margin-bottom: 24px; display: block; margin-left: auto; margin-right: auto;" />
   <h2 style="font-size: 20px; margin: 0 0 16px;">${title}</h2>
@@ -543,5 +571,5 @@ function buildRichEmail(title: string, bodyHtml: string, ctaText: string): strin
     <a href="https://joinone.io" style="display:inline-block;background-color:#7b5fa3;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:15px">${ctaText}</a>
   </div>
   <p style="font-size: 12px; color: #999; text-align: center;">One</p>
-</div>` + EMAIL_FOOTER;
+</div>` + buildEmailFooter(userId);
 }
