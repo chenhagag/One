@@ -750,7 +750,8 @@ app.get("/users/:id", requireUserAuth, async (req, res) => {
             desired_height_min, desired_height_max, height_flexibility,
             desired_location_range, marital_status, has_children, religion, smoker,
             partner_name, test_user_type, self_style, profile_complete, consent_accepted,
-            photo_ai_consent, email_updates, whatsapp_updates, whatsapp_phone,
+            photo_ai_consent, email_updates, COALESCE(email_marketing, FALSE) as email_marketing,
+            whatsapp_updates, whatsapp_phone,
             match_card_consent, match_card_restrictions, supabase_uid, created_at,
             COALESCE(self_frozen, FALSE) as self_frozen,
             COALESCE(push_notifications, TRUE) as push_notifications
@@ -771,7 +772,7 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
     desired_location_range,
     marital_status, has_children, religion, smoker,
     partner_name, partner_email, test_user_type, consent_accepted, photo_ai_consent,
-    email_updates, whatsapp_updates, whatsapp_phone,
+    email_updates, email_marketing, whatsapp_updates, whatsapp_phone,
     match_card_consent, match_card_restrictions,
     self_frozen, push_notifications,
   } = req.body;
@@ -843,6 +844,7 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
   if (consent_accepted !== undefined)     push("consent_accepted", consent_accepted);
   if (photo_ai_consent !== undefined)     push("photo_ai_consent", photo_ai_consent);
   if (email_updates !== undefined)        push("email_updates", email_updates);
+  if (email_marketing !== undefined)     push("email_marketing", email_marketing);
   if (whatsapp_updates !== undefined)     push("whatsapp_updates", whatsapp_updates);
   if (whatsapp_phone !== undefined)       push("whatsapp_phone", whatsapp_phone);
   if (match_card_consent !== undefined)   push("match_card_consent", match_card_consent);
@@ -2148,7 +2150,7 @@ app.patch("/admin/users/:id", async (req, res) => {
     "self_style", "desired_age_min", "desired_age_max", "age_flexibility",
     "desired_height_min", "desired_height_max", "height_flexibility",
     "desired_location_range", "profile_complete", "consent_accepted", "photo_ai_consent",
-    "email_updates", "whatsapp_updates", "whatsapp_phone", "in_matching_pool",
+    "email_updates", "email_marketing", "whatsapp_updates", "whatsapp_phone", "in_matching_pool",
     "marital_status", "has_children", "religion", "smoker", "admin_message", "admin_notes", "admin_location_override",
     "match_card_consent", "match_card_restrictions", "photo_request_sent_at",
     "agent_context", "admin_message_type", "blind_match_consent", "admin_message_match_id",
@@ -4620,7 +4622,7 @@ app.get("/admin/user-management", async (_req, res) => {
         u.created_at, u.updated_at, u.test_user_type, u.is_matchable, u.in_matching_pool,
         u.analysis_run_count, u.analysis_completed,
         u.couple_insights, u.personal_insights_short, u.personal_insights_full,
-        u.user_status, u.email_updates, u.partner_name, u.match_card_consent, u.match_card_restrictions,
+        u.user_status, u.email_updates, COALESCE(u.email_marketing, FALSE) as email_marketing, u.partner_name, u.match_card_consent, u.match_card_restrictions,
         u.photo_ai_consent,
         (SELECT COUNT(*)::int FROM user_photos WHERE user_id = u.id) AS photo_count,
         (SELECT COUNT(*)::int FROM user_look_traits WHERE user_id = u.id) AS look_trait_count

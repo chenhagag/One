@@ -82,7 +82,7 @@ export default function ConsentScreen({ user, onComplete }: ConsentScreenProps) 
           </p>
 
           <p style={{ margin: 0 }}>
-            המידע {f ? "שתשתפי" : "שתשתף"} לא יוצג {ww ? "למשתמשות אחרות" : "למשתמשים אחרים"}, לא יימכר לצדדים שלישיים, ויישמר בהתאם לצורכי השירות.
+            תוכן השיחה המלא אינו מוצג {ww ? "למשתמשות אחרות" : "למשתמשים אחרים"} במערכת. על בסיס השיחה, One מפיקה תובנות אישיות {f ? "עלייך" : "עליך"} ומשתמשת בהן כדי למצוא {f ? "לך" : "לך"} התאמה מדויקת. אם {f ? "תבחרי" : "תבחר"} לאשר בניית כרטיס התאמה, חלק מהתובנות עשוי להופיע בכרטיס שיוצג {ww ? "למשתמשת שהוצעה לך" : "למשתמש/ת שהוצע/ה לך"} כהתאמה. המידע לא יימכר לצדדים שלישיים ויישמר בהתאם לצורכי השירות.
           </p>
 
           <p style={{ margin: 0 }}>
@@ -111,7 +111,7 @@ export default function ConsentScreen({ user, onComplete }: ConsentScreenProps) 
               style={{ marginTop: 4, width: 18, height: 18, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }}
             />
             <span>
-              {f ? "קראתי ואני מסכימה" : "קראתי ואני מסכים"} ל<a href="/terms" target="_blank" style={{ color: "#8b7ba8", textDecoration: "underline" }}>תנאי השימוש</a> ול<a href="/privacy" target="_blank" style={{ color: "#8b7ba8", textDecoration: "underline" }}>מדיניות הפרטיות</a>, {f ? "ומסכימה" : "ומסכים"} ש־One תשתמש במידע שאשתף לצורך ניתוח באמצעות AI, יצירת תובנות והצעת התאמות.
+              {f ? "קראתי ואני מסכימה" : "קראתי ואני מסכים"} ל<a href="/terms" target="_blank" style={{ color: "#8b7ba8", textDecoration: "underline" }}>תנאי השימוש</a> ול<a href="/privacy" target="_blank" style={{ color: "#8b7ba8", textDecoration: "underline" }}>מדיניות הפרטיות</a>, {f ? "ומאשרת" : "ומאשר"} כי המידע שאשתף יישמר ויעובד על ידי One בכפוף למדיניות הפרטיות. {f ? "אני מסכימה" : "אני מסכים"} ש־One תשתמש במידע לצורך ניתוח באמצעות AI, יצירת תובנות והצעת התאמות.
             </span>
           </label>
         </div>

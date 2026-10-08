@@ -563,12 +563,20 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
         ALTER TABLE users ADD COLUMN photo_ai_consent BOOLEAN DEFAULT FALSE;
       END IF;
 
-      -- Email updates consent (default true)
+      -- Email updates consent (service notifications — matches, messages)
       IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_name = 'users' AND column_name = 'email_updates'
       ) THEN
-        ALTER TABLE users ADD COLUMN email_updates BOOLEAN DEFAULT TRUE;
+        ALTER TABLE users ADD COLUMN email_updates BOOLEAN DEFAULT FALSE;
+      END IF;
+
+      -- Email marketing consent (surveys, news, general updates)
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'email_marketing'
+      ) THEN
+        ALTER TABLE users ADD COLUMN email_marketing BOOLEAN DEFAULT FALSE;
       END IF;
 
       -- WhatsApp updates consent
