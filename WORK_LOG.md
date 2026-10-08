@@ -22,7 +22,43 @@
 
 ---
 
-## Latest Session: 2026-10-03 (3 New Agents + Insights Icons + Feedback Icons)
+## Latest Session: 2026-10-07 (Functional Specification Agent — v3.1)
+
+### ✅ סוכן אפיון פונקציונלי חדש
+- תיקייה: `Management/Functional Specification/`
+- מסמך `functional-spec.md` — **3,260 שורות**, 17 פרקים + 3 נספחים
+- מתאר את כל המערכת ברמת קוד: שיחה, ניתוח, התאמה, אוטומציה, UI, Admin, DB, API
+
+### מה כולל
+- **פרק 3 (שיחה)**: 14 micro-topics עם שאלות בעברית, 5 prompt templates, 11 ערוצים, RAG, summarizer, auto-analysis
+- **פרק 4 (ניתוח)**: 75 תכונות, 8+1 prompt groups, MBTI/Enneagram/Attachment, safe output layer, cognitive score formula
+- **פרק 5 (התאמה)**: Stage 1 (16 סינונים), Stage 2 (Gaussian σ=12), 13 categories, WW femininity, gender adjustments
+- **פרק 6 (UI)**: כל המסכים עם שדות, מצבים, אינטראקציות (landing → auth → profile → chat → match)
+- **פרק 7 (Admin)**: 16 טאבים, UserDetail עם ~30 פעולות, Candidate Matches, Card Preview
+- **פרק 8 (אוטומציה)**: job runner, completion pipeline, photo analysis (11 traits), 4 nudge systems, reanalysis
+- **פרק 10 (דירוגים)**: 4 ערכי דירוג, lock system, status flow, notifications
+- **פרקים 9,11-16**: כרטיסי התאמה, הודעות ישירות, אבטחה, מובייל, DB (35 טבלאות), API (~152 routes), שיווק, design system
+- **14 דיאגרמות Mermaid**: user journey, state machines, ERD, architecture, 3 sequence diagrams
+- **28 אילוצים קריטיים** מתועדים
+- **Spot-check**: 10/10 בדיקות הצלבה מול קוד עברו
+
+### תשתית סוכן
+- `CONTEXT.md` — הנחיות הפעלה + CHANGES-QUEUE mechanism
+- `CHANGES-QUEUE.md` — סוכנים אחרים מדווחים שינויים מהותיים, סוכן האפיון קורא ומעדכן
+- עודכנו: `CLAUDE.md`, `AGENTS-GUIDE.md`, `claude-working-guidelines.md`
+
+---
+
+## 2026-10-06 (Entry Point Fix + Landing Analytics)
+
+- **entry_point נשמר ב-auth/sync** — לפני זה נשמר רק ב-ProfileSetup, הרשמות לא נספרו בדשבורדים
+- **Badge "עדי" באדמין** — ורוד, ליד משתמשות שהגיעו דרך barazany
+- **תיקון אנליטיקות דפי נחיתה** — סיכום מסונן לפי תקופה (היה all-time), ספירת הרשמות כוללת
+- **פירוט הרשמות בדשבורדי משפיעניות** — שם + תאריך + שעה (החליף ביקורים אנונימיים)
+
+---
+
+## 2026-10-03 (3 New Agents + Insights Icons + Feedback Icons)
 
 ### ✅ סוכן Statistics & Reports חדש
 - סוכן מומחה לסטטיסטיקות, אנליטיקות ודו"חות
