@@ -9,36 +9,21 @@ interface ConsentScreenProps {
 
 export default function ConsentScreen({ user, onComplete }: ConsentScreenProps) {
   const [checked, setChecked] = useState(false);
-  const [emailUpdates, setEmailUpdates] = useState(false);
-  const [whatsappUpdates, setWhatsappUpdates] = useState(false);
-  const [emailMarketing, setEmailMarketing] = useState(false);
-  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const f = user.gender === "woman"; // female text forms
   const ww = user.gender === "woman" && !!user.looking_for_gender && user.looking_for_gender !== "man";
 
-  const [noUpdates, setNoUpdates] = useState(false);
-  const hasChannel = emailUpdates || whatsappUpdates || noUpdates;
-  const canProceed = checked && hasChannel && (!whatsappUpdates || phone.trim());
-
   async function handleAccept() {
-    if (!canProceed) return;
+    if (!checked) return;
     setLoading(true);
     setError("");
 
     try {
       const res = await apiFetch(`/users/${user.id}`, {
         method: "PATCH",
-        body: JSON.stringify({
-          consent_accepted: true,
-          email_updates: emailUpdates,
-          whatsapp_updates: whatsappUpdates,
-          whatsapp_phone: whatsappUpdates ? phone.trim() : undefined,
-          email_marketing: emailMarketing,
-          ...(noUpdates ? { email_updates: false, whatsapp_updates: false } : {}),
-        }),
+        body: JSON.stringify({ consent_accepted: true }),
       });
 
       if (!res.ok) {
@@ -131,82 +116,18 @@ export default function ConsentScreen({ user, onComplete }: ConsentScreenProps) 
           </label>
         </div>
 
-        {/* Channel selection */}
-        <div style={{
-          background: "rgba(255,255,255,0.88)", backdropFilter: "blur(8px)",
-          borderRadius: 18, padding: "18px 24px", marginTop: 16,
-          boxShadow: "0 2px 12px rgba(139,123,168,0.08)",
-        }}>
-          <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 4px" }}>
-            {f ? "איך תרצי לקבל עדכונים?" : "איך תרצה לקבל עדכונים?"}
-          </p>
-          <p style={{ fontSize: 12.5, color: "#6b7280", lineHeight: 1.6, margin: "0 0 14px" }}>
-            עד שתהיה אפליקציה להורדה ואפשרות לנוטיפיקיישנס — זו הדרך היחידה שלנו {f ? "לעדכן אותך" : "לעדכן אותך"} על התאמה או הודעה {f ? "שממתינה לך" : "שממתינה לך"} במערכת.
-          </p>
-
-          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 14, color: "#1a1a2e", lineHeight: 1.6, marginBottom: 10 }}>
-            <input
-              type="checkbox"
-              checked={emailUpdates}
-              onChange={(e) => { setEmailUpdates(e.target.checked); if (e.target.checked) setNoUpdates(false); }}
-              style={{ width: 18, height: 18, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }}
-            />
-            <span>במייל</span>
-          </label>
-
-          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 14, color: "#1a1a2e", lineHeight: 1.6, marginBottom: 4 }}>
-            <input
-              type="checkbox"
-              checked={whatsappUpdates}
-              onChange={(e) => { setWhatsappUpdates(e.target.checked); if (e.target.checked) setNoUpdates(false); }}
-              style={{ width: 18, height: 18, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }}
-            />
-            <span>בוואטסאפ</span>
-          </label>
-
-          {whatsappUpdates && (
-            <div style={{ paddingRight: 28, marginBottom: 10 }}>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="מספר טלפון (למשל 0501234567)"
-                dir="ltr"
-                style={{
-                  width: "100%", height: 40, borderRadius: 8, border: "1px solid #d1d5db",
-                  padding: "0 12px", fontSize: 14, color: "#374151", outline: "none",
-                  boxSizing: "border-box", marginTop: 6,
-                }}
-              />
-            </div>
-          )}
-
-          <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 13, color: "#6b7280", lineHeight: 1.6, marginTop: 10 }}>
-            <input
-              type="checkbox"
-              checked={noUpdates}
-              onChange={(e) => {
-                setNoUpdates(e.target.checked);
-                if (e.target.checked) { setEmailUpdates(false); setWhatsappUpdates(false); }
-              }}
-              style={{ marginTop: 3, width: 18, height: 18, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }}
-            />
-            <span>{f ? "לא מעוניינת לקבל עדכונים, אכנס למערכת מדי פעם לבדוק" : "לא מעוניין לקבל עדכונים, אכנס למערכת מדי פעם לבדוק"}</span>
-          </label>
-        </div>
-
         <button
           onClick={handleAccept}
-          disabled={!canProceed || loading}
+          disabled={!checked || loading}
           style={{
             width: "100%", height: 52, borderRadius: 14,
-            background: canProceed ? "#1a1a2e" : "#b0a8c0",
+            background: checked ? "#1a1a2e" : "#b0a8c0",
             color: "#fff", fontSize: 16, fontWeight: 600,
-            border: "none", cursor: canProceed ? "pointer" : "not-allowed",
+            border: "none", cursor: checked ? "pointer" : "not-allowed",
             opacity: loading ? 0.6 : 1, marginTop: 20,
             transition: "background 0.3s, opacity 0.2s",
             fontFamily: "inherit",
-            boxShadow: canProceed ? "0 2px 8px rgba(26,26,46,0.15)" : "none",
+            boxShadow: checked ? "0 2px 8px rgba(26,26,46,0.15)" : "none",
           }}
         >
           {loading ? "שומר..." : "המשך"}

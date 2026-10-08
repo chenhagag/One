@@ -41,8 +41,10 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
   const [locationRange, setLocationRange] = useState("bit_further");
   const [testUserType, setTestUserType] = useState(isCouples ? "Couple Tester" : "User Experience Tester");
   const [partnerName, setPartnerName] = useState("");
-  const [emailUpdates, setEmailUpdates] = useState(true);
-  const [whatsappUpdates, setWhatsappUpdates] = useState(isForWomen ? true : false);
+  const [emailUpdates, setEmailUpdates] = useState(false);
+  const [whatsappUpdates, setWhatsappUpdates] = useState(false);
+  const [noUpdates, setNoUpdates] = useState(false);
+  const [emailMarketing, setEmailMarketing] = useState(false);
   const [whatsappPhone, setWhatsappPhone] = useState("");
   const [focused, setFocused] = useState<string | null>(null);
 
@@ -106,9 +108,10 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
           desired_location_range: locationRange,
           test_user_type: testUserType || null,
           partner_name: partnerName.trim() || null,
-          email_updates: emailUpdates,
-          whatsapp_updates: whatsappUpdates,
+          email_updates: noUpdates ? false : emailUpdates,
+          whatsapp_updates: noUpdates ? false : whatsappUpdates,
           whatsapp_phone: whatsappPhone.trim() || null,
+          email_marketing: emailMarketing,
           entry_point: entryPoint || null,
         }),
       });
@@ -296,14 +299,19 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
             borderRadius: 18, padding: "20px 24px",
             boxShadow: "0 2px 12px rgba(139,123,168,0.08)",
           }}>
-            <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 14px" }}>עדכונים והתראות</p>
-            <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 13, color: "#555", lineHeight: 1.6, marginBottom: 10 }}>
-              <input type="checkbox" checked={emailUpdates} onChange={e => setEmailUpdates(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }} />
-              <span>{isForWomen ? "מעוניינת לקבל עדכונים במייל" : "אני מעוניין/ת לקבל עדכונים במייל"}</span>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 4px" }}>
+              {isForWomen ? "איך תרצי לקבל עדכונים?" : "איך תרצה לקבל עדכונים?"}
+            </p>
+            <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, margin: "0 0 14px" }}>
+              עד שתהיה אפליקציה להורדה ואפשרות לנוטיפיקיישנס — זו הדרך היחידה שלנו {isForWomen ? "לעדכן אותך" : "לעדכן אותך"} על התאמה או הודעה {isForWomen ? "שממתינה לך" : "שממתינה לך"} במערכת.
+            </p>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 13, color: "#555", lineHeight: 1.6, marginBottom: 10 }}>
+              <input type="checkbox" checked={emailUpdates} onChange={e => { setEmailUpdates(e.target.checked); if (e.target.checked) setNoUpdates(false); }} style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }} />
+              <span>במייל</span>
             </label>
-            <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 13, color: "#555", lineHeight: 1.6 }}>
-              <input type="checkbox" checked={whatsappUpdates} onChange={e => setWhatsappUpdates(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }} />
-              <span>{isForWomen ? "מעוניינת לקבל עדכונים גם ב-WhatsApp" : "אני מעוניין/ת לקבל עדכונים גם בהודעות WhatsApp"}</span>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 13, color: "#555", lineHeight: 1.6 }}>
+              <input type="checkbox" checked={whatsappUpdates} onChange={e => { setWhatsappUpdates(e.target.checked); if (e.target.checked) setNoUpdates(false); }} style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }} />
+              <span>בוואטסאפ</span>
             </label>
             {whatsappUpdates && (
               <input
@@ -313,10 +321,25 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
                 onChange={e => setWhatsappPhone(e.target.value)}
                 onFocus={() => setFocused("phone")}
                 onBlur={() => setFocused(null)}
-                placeholder="מספר טלפון"
+                placeholder="מספר טלפון (למשל 0501234567)"
                 dir="ltr"
               />
             )}
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 12, color: "#9ca3af", lineHeight: 1.6, marginTop: 12 }}>
+              <input type="checkbox" checked={noUpdates} onChange={e => { setNoUpdates(e.target.checked); if (e.target.checked) { setEmailUpdates(false); setWhatsappUpdates(false); } }} style={{ marginTop: 3, width: 16, height: 16, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }} />
+              <span>{isForWomen ? "לא מעוניינת לקבל עדכונים, אכנס למערכת מדי פעם לבדוק" : "לא מעוניין/ת לקבל עדכונים, אכנס למערכת מדי פעם לבדוק"}</span>
+            </label>
+            {!emailUpdates && !whatsappUpdates && !noUpdates && (
+              <p style={{ fontSize: 11, color: "#dc2626", margin: "8px 0 0" }}>
+                {isForWomen ? "יש לבחור לפחות אפשרות אחת" : "יש לבחור לפחות אפשרות אחת"}
+              </p>
+            )}
+            <div style={{ borderTop: "1px solid #e5e7eb", margin: "14px 0 0", paddingTop: 12 }}>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", fontSize: 12, color: "#555", lineHeight: 1.6 }}>
+                <input type="checkbox" checked={emailMarketing} onChange={e => setEmailMarketing(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, cursor: "pointer", accentColor: "#8b7ba8", flexShrink: 0 }} />
+                <span>עדכונים כלליים על המערכת, סקרים וחדשות במייל</span>
+              </label>
+            </div>
           </div>
 
           <button
@@ -328,7 +351,7 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
               boxShadow: "0 2px 8px rgba(26,26,46,0.15)",
               transition: "opacity 0.2s",
             }}
-            type="submit" disabled={loading}
+            type="submit" disabled={loading || (!emailUpdates && !whatsappUpdates && !noUpdates)}
           >
             {loading ? "...שומר" : isForWomen ? "בואי נתחיל" : "בואו נתחיל"}
           </button>
