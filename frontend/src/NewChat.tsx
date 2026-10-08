@@ -3073,7 +3073,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo, isWW }: { user: Use
   const [photoAI, setPhotoAI] = useState(false);
   const [matchCardConsent, setMatchCardConsent] = useState<string | null>(null);
   const [matchCardRestrictions, setMatchCardRestrictions] = useState<string>("");
-  const [emailUpdates, setEmailUpdates] = useState(false);
+  const [emailUpdates, setEmailUpdates] = useState(true);
   const [whatsappUpdates, setWhatsappUpdates] = useState(false);
   const [emailMarketing, setEmailMarketing] = useState(false);
   const [phone, setPhone] = useState("");
@@ -3094,7 +3094,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo, isWW }: { user: Use
       setPhotoAI(!!data.photo_ai_consent);
       setMatchCardConsent(data.match_card_consent || null);
       setMatchCardRestrictions(data.match_card_restrictions || "");
-      setEmailUpdates(!!data.email_updates);
+      setEmailUpdates(data.email_updates !== false);
       setWhatsappUpdates(!!data.whatsapp_updates);
       setEmailMarketing(!!data.email_marketing);
       setPhone(data.whatsapp_phone || "");
@@ -3266,33 +3266,28 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo, isWW }: { user: Use
 
         {/* Notifications */}
         <div style={sectionStyle}>
-          <h3 style={titleStyle}>{isWW ? "איך תרצי לקבל עדכונים?" : "איך תרצה לקבל עדכונים?"}</h3>
-          <p style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.6, margin: "0 0 16px" }}>
-            עד שתהיה אפליקציה להורדה ואפשרות לנוטיפיקיישנס — זו הדרך היחידה שלנו {isWW ? "לעדכן אותך" : "לעדכן אותך"} על התאמה או הודעה {isWW ? "שממתינה לך" : "שממתינה לך"} במערכת.
-          </p>
-
+          <h3 style={titleStyle}>התראות ועדכונים</h3>
+          <label style={{ ...labelStyle, marginBottom: 14 }}>
+            <input type="checkbox" checked={pushNotifications} disabled={saving || loading}
+              onChange={(e) => { setPushNotifications(e.target.checked); saveSetting({ push_notifications: e.target.checked }); }}
+              style={checkboxStyle} />
+            <span>התראות פוש באפליקציה</span>
+            <span style={{ display: "block", fontSize: 11, color: "#9ca3af", marginTop: 2, marginRight: 26 }}>רלוונטי למי {isWW ? "שהורידה" : "שהוריד/ה"} את אפליקציית Android</span>
+          </label>
           <label style={{ ...labelStyle, marginBottom: 14 }}>
             <input type="checkbox" checked={emailUpdates} disabled={saving || loading}
-              onChange={(e) => {
-                const val = e.target.checked;
-                if (!val && !whatsappUpdates) return; // must keep at least one
-                setEmailUpdates(val);
-                saveSetting({ email_updates: val });
-              }}
+              onChange={(e) => { setEmailUpdates(e.target.checked); saveSetting({ email_updates: e.target.checked }); }}
               style={checkboxStyle} />
-            <span>עדכונים על התאמות והודעות במייל</span>
+            <span>{isWW ? "אני מאשרת" : "אני מאשר/ת"} קבלת עדכונים במייל על התאמות והודעות</span>
           </label>
-
           <label style={labelStyle}>
             <input type="checkbox" checked={whatsappUpdates} disabled={saving || loading}
               onChange={(e) => {
-                const val = e.target.checked;
-                if (!val && !emailUpdates) return; // must keep at least one
-                setWhatsappUpdates(val);
-                if (!val) saveSetting({ whatsapp_updates: false });
+                setWhatsappUpdates(e.target.checked);
+                if (!e.target.checked) saveSetting({ whatsapp_updates: false });
               }}
               style={checkboxStyle} />
-            <span>עדכונים על התאמות והודעות בוואטסאפ</span>
+            <span>{isWW ? "אני מאשרת" : "אני מאשר/ת"} קבלת עדכונים בוואטסאפ</span>
           </label>
           {whatsappUpdates && (
             <div style={{ marginTop: 10, paddingRight: 28 }}>
@@ -3324,13 +3319,6 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo, isWW }: { user: Use
               </button>
             </div>
           )}
-
-          {!emailUpdates && !whatsappUpdates && (
-            <p style={{ fontSize: 12, color: "#dc2626", margin: "8px 0 0", paddingRight: 28 }}>
-              {isWW ? "חובה לבחור לפחות ערוץ אחד לקבלת עדכונים" : "חובה לבחור לפחות ערוץ אחד לקבלת עדכונים"}
-            </p>
-          )}
-
           <div style={{ borderTop: "1px solid #e5e7eb", margin: "16px 0 12px", paddingTop: 12 }}>
             <label style={labelStyle}>
               <input type="checkbox" checked={emailMarketing} disabled={saving || loading}
@@ -3339,14 +3327,6 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo, isWW }: { user: Use
               <span>עדכונים כלליים על המערכת, סקרים וחדשות במייל</span>
             </label>
           </div>
-
-          <label style={{ ...labelStyle, marginTop: 14 }}>
-            <input type="checkbox" checked={pushNotifications} disabled={saving || loading}
-              onChange={(e) => { setPushNotifications(e.target.checked); saveSetting({ push_notifications: e.target.checked }); }}
-              style={checkboxStyle} />
-            <span>התראות פוש באפליקציה</span>
-          </label>
-          <p style={{ ...hintStyle, margin: "4px 0 0", paddingRight: 28 }}>רלוונטי למי {isWW ? "שהורידה" : "שהוריד"} את אפליקציית Android</p>
         </div>
 
         {saved && <p style={{ fontSize: 12, color: "#22c55e", textAlign: "center", margin: "0 0 16px" }}>נשמר בהצלחה</p>}
