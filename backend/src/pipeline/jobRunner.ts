@@ -423,21 +423,20 @@ export function startJobRunner(): void {
     }, RATING_NUDGE_INTERVAL_MS);
   }, msToNudges);
 
-  // Android tester push reminders at 13:00 Israel time, every 48h
-  const msToTesterNudge = msUntilNextRun(13);
-  const hoursToTesterNudge = Math.round(msToTesterNudge / 1000 / 60 / 60 * 10) / 10;
-  console.log(`[jobRunner] Android tester nudges scheduled in ${hoursToTesterNudge}h (13:00 Israel)`);
-
-  setTimeout(() => {
-    runAndroidTesterNudges().catch(err => {
-      console.error("[jobRunner] Android tester nudge error:", err.message);
-    });
-    androidTesterHandle = setInterval(() => {
-      runAndroidTesterNudges().catch(err => {
-        console.error("[jobRunner] Android tester nudge error:", err.message);
-      });
-    }, ANDROID_TESTER_INTERVAL_MS);
-  }, msToTesterNudge);
+  // Android tester push reminders — DISABLED (2026-10-08, re-enable when needed)
+  // const msToTesterNudge = msUntilNextRun(13);
+  // const hoursToTesterNudge = Math.round(msToTesterNudge / 1000 / 60 / 60 * 10) / 10;
+  // console.log(`[jobRunner] Android tester nudges scheduled in ${hoursToTesterNudge}h (13:00 Israel)`);
+  // setTimeout(() => {
+  //   runAndroidTesterNudges().catch(err => {
+  //     console.error("[jobRunner] Android tester nudge error:", err.message);
+  //   });
+  //   androidTesterHandle = setInterval(() => {
+  //     runAndroidTesterNudges().catch(err => {
+  //       console.error("[jobRunner] Android tester nudge error:", err.message);
+  //     });
+  //   }, ANDROID_TESTER_INTERVAL_MS);
+  // }, msToTesterNudge);
 
   // Daily matching at 4:00 AM Israel time
   const msToFirstRun = msUntilNextRun(4);

@@ -6189,7 +6189,13 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
     const survey2BannerDismissed = await pgQueryOne<{ survey2_banner_dismissed: boolean }>(
       "SELECT COALESCE(survey2_banner_dismissed, FALSE) as survey2_banner_dismissed FROM users WHERE id = $1", [userId]
     );
-    const showSurvey2Banner = isWWUser && !survey2Row?.completed && !survey2BannerDismissed?.survey2_banner_dismissed;
+    // Survey2 only for users registered before 2026-10-08 (not shown to new users)
+    const survey2Cutoff = "2026-10-08";
+    const createdRow = await pgQueryOne<{ created_at: string }>(
+      "SELECT created_at FROM users WHERE id = $1", [userId]
+    );
+    const isOldUser = createdRow ? new Date(createdRow.created_at) < new Date(survey2Cutoff) : false;
+    const showSurvey2Banner = isWWUser && !survey2Row?.completed && !survey2BannerDismissed?.survey2_banner_dismissed && isOldUser;
 
     // Check if user has ever viewed the insights screen
     const insightsViewed = await pgQueryOne<{ id: number }>(
