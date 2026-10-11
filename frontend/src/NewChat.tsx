@@ -445,6 +445,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [nudgeConfirmationType, setNudgeConfirmationType] = useState<"unseen" | "help" | "chat_only" | "not_interested" | "not_available" | "moved_offline" | null>(null);
   const [showPushPrompt, setShowPushPrompt] = useState(false);
   const [pushPromptDismissed, setPushPromptDismissed] = useState<boolean>(() => localStorage.getItem(`push_prompt_done_${user.id}`) === "true");
+  const [noChannelsDismissed, setNoChannelsDismissed] = useState<boolean>(() => localStorage.getItem(`no_channels_dismissed_${user.id}`) === "true");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const loadGenRef = useRef(0); // Generation counter to prevent stale loadRecommendations responses
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -555,6 +556,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   useEffect(() => {
     if (screen === "home" && isNativeApp() && !pushPromptDismissed && !recommendations.push_notifications) {
       setShowPushPrompt(true);
+    } else {
+      setShowPushPrompt(false);
     }
   }, [screen, pushPromptDismissed, recommendations.push_notifications]);
   useEffect(() => {
@@ -2075,59 +2078,75 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 </div>
               )}
 
-              {/* Push notification prompt — native app, first time only */}
-              {screen === "home" && showPushPrompt && (
-                <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
-                  <div style={{ background: "#fff", borderRadius: 14, padding: "20px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #e5e7eb", textAlign: "right" }}>
-                    <p style={{ fontSize: 15, fontWeight: 600, color: "#1a1a2e", margin: "0 0 8px", lineHeight: 1.7 }}>
-                      {isWW ? "נרצה לעדכן אותך" : "נרצה לעדכן אותך"} כשיש התאמה חדשה או הודעה.
-                    </p>
-                    <p style={{ fontSize: 13, color: "#888", margin: "0 0 16px", lineHeight: 1.6 }}>
-                      {isWW ? "לאשר" : "לאשר"} קבלת התראות מ-One?
-                    </p>
-                    <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-                      <button
-                        onClick={async () => {
-                          setShowPushPrompt(false);
-                          localStorage.setItem(`push_prompt_done_${user.id}`, "true");
-                          setPushPromptDismissed(true);
-                          await initPushNotifications();
-                          loadRecommendations();
-                        }}
-                        style={{ padding: "10px 28px", fontSize: 14, fontWeight: 600, background: "#6366f1", color: "#fff", border: "none", borderRadius: 10, cursor: "pointer", fontFamily: "inherit" }}
-                      >
-                        {isWW ? "כן, אני מאשרת" : "כן, אשמח"}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowPushPrompt(false);
-                          localStorage.setItem(`push_prompt_done_${user.id}`, "true");
-                          setPushPromptDismissed(true);
-                        }}
-                        style={{ padding: "10px 28px", fontSize: 14, fontWeight: 500, background: "#f3f4f6", color: "#666", border: "none", borderRadius: 10, cursor: "pointer", fontFamily: "inherit" }}
-                      >
-                        לא כרגע
-                      </button>
+              {/* Unified notification banner — push prompt (native app) OR no-channels warning */}
+              {screen === "home" && (() => {
+                const hasAnyChannel = recommendations.push_notifications || recommendations.email_updates || recommendations.whatsapp_updates;
+                const showPush = showPushPrompt; // native app, first time, push not yet enabled
+                const showNoChannels = !hasAnyChannel && !showPush && !noChannelsDismissed;
+                if (!showPush && !showNoChannels) return null;
+
+                return (
+                  <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
+                    <div style={{ background: showPush ? "#fff" : "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)", borderRadius: 14, padding: "16px 20px", boxShadow: showPush ? "0 1px 4px rgba(0,0,0,0.06)" : "none", border: showPush ? "1px solid #e5e7eb" : "1px solid #fcd34d", textAlign: "right" }}>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: showPush ? "#1a1a2e" : "#92400e", margin: "0 0 6px", lineHeight: 1.7 }}>
+                        {showPush
+                          ? "נרצה לעדכן אותך כשיש התאמה חדשה או הודעה."
+                          : "כדאי לבדוק את האפליקציה מדי פעם כדי לא לפספס התאמות והודעות."}
+                      </p>
+                      <p style={{ fontSize: 13, color: showPush ? "#888" : "#92400e", margin: "0 0 12px", lineHeight: 1.6 }}>
+                        {showPush
+                          ? "אפשר להפעיל התראות כדי לדעת מיד כשמשהו קורה."
+                          : "לא מופעל אף ערוץ התראות — אפשר להפעיל במסך ההגדרות."}
+                      </p>
+                      <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+                        {showPush && (
+                          <button
+                            onClick={async () => {
+                              setShowPushPrompt(false);
+                              localStorage.setItem(`push_prompt_done_${user.id}`, "true");
+                              setPushPromptDismissed(true);
+                              setNoChannelsDismissed(true);
+                              localStorage.setItem(`no_channels_dismissed_${user.id}`, "true");
+                              await initPushNotifications();
+                              loadRecommendations();
+                            }}
+                            style={{ padding: "8px 22px", fontSize: 13, fontWeight: 600, background: "#6366f1", color: "#fff", border: "none", borderRadius: 10, cursor: "pointer", fontFamily: "inherit" }}
+                          >
+                            {isWW ? "כן, אני מאשרת" : "כן, אשמח"}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => {
+                            if (showPush) {
+                              setShowPushPrompt(false);
+                              localStorage.setItem(`push_prompt_done_${user.id}`, "true");
+                              setPushPromptDismissed(true);
+                            }
+                            setScreen("settings");
+                          }}
+                          style={{ padding: "8px 22px", fontSize: 13, fontWeight: 500, background: showPush ? "#f3f4f6" : "#fff", color: showPush ? "#666" : "#b45309", border: showPush ? "none" : "1px solid #fcd34d", borderRadius: 10, cursor: "pointer", fontFamily: "inherit" }}
+                        >
+                          {showPush ? "למסך ההגדרות" : "הגדרות התראות"}
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (showPush) {
+                              localStorage.setItem(`push_prompt_done_${user.id}`, "true");
+                              setPushPromptDismissed(true);
+                            }
+                            setShowPushPrompt(false);
+                            setNoChannelsDismissed(true);
+                            localStorage.setItem(`no_channels_dismissed_${user.id}`, "true");
+                          }}
+                          style={{ padding: "8px 22px", fontSize: 13, fontWeight: 500, background: "none", color: "#999", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                        >
+                          ראיתי, תודה
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-
-              {/* No notification channels warning — push+email+whatsapp all off */}
-              {screen === "home" && !showPushPrompt && !recommendations.push_notifications && !recommendations.email_updates && !recommendations.whatsapp_updates && (
-                <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
-                  <div style={{ background: "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)", borderRadius: 14, padding: "16px 20px", border: "1px solid #fcd34d" }}>
-                    <p style={{ fontSize: 13, color: "#92400e", lineHeight: 1.7, margin: 0 }}>
-                      {isWW
-                        ? "כדאי לבדוק את האפליקציה מדי פעם כדי לא לפספס התאמות והודעות, מכיוון שלא נוכל לשלוח לך התראות."
-                        : "כדאי לבדוק את האפליקציה מדי פעם כדי לא לפספס התאמות והודעות, מכיוון שלא נוכל לשלוח לך התראות."}
-                    </p>
-                    <p style={{ fontSize: 12, color: "#b45309", margin: "6px 0 0", cursor: "pointer", textDecoration: "underline" }} onClick={() => setScreen("settings")}>
-                      אפשר לשנות את זה בכל עת במסך ההגדרות
-                    </p>
-                  </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Match nudge — check-in flow for unresponsive match partner */}
               {screen === "home" && recommendations.active_nudge && (() => {

@@ -212,6 +212,32 @@ app.use(express.static(frontendDist, {
 // LOGIN
 // ════════════════════════════════════════════════════════════════
 
+// ── Unsubscribe from emails (no auth required, token-based) ─────
+app.get("/api/unsubscribe", async (req, res) => {
+  const token = req.query.token as string;
+  if (!token) return res.status(400).send("Missing token");
+  const userId = verifyUnsubToken(token);
+  if (!userId) return res.status(400).send("Invalid or expired link");
+  try {
+    await pgQuery("UPDATE users SET email_updates = FALSE, email_marketing = FALSE WHERE id = $1", [userId]);
+    const user = await pgQueryOne<{ first_name: string | null; gender: string | null }>("SELECT first_name, gender FROM users WHERE id = $1", [userId]);
+    const isFemale = user?.gender === "woman";
+    const g = (m: string, f: string) => isFemale ? f : m;
+    res.send(`<html dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>One — הסרה</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;text-align:center;padding:60px 24px;background:#fafafa;color:#1a1a2e">
+<div style="max-width:400px;margin:0 auto;background:#fff;border-radius:16px;padding:40px 24px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">
+<img src="https://joinone.io/appLogo.png" alt="One" style="height:44px;margin-bottom:24px" />
+<h2 style="margin:0 0 12px;font-size:20px">הסרה בוצעה בהצלחה</h2>
+<p style="color:#666;font-size:15px;line-height:1.7;margin:0 0 8px">לא ${g("תקבל", "תקבלי")} יותר מיילים מ-One.</p>
+<p style="color:#888;font-size:13px;line-height:1.6;margin:0">אם ${g("תרצה", "תרצי")} לחזור — אפשר תמיד לעדכן בהגדרות באפליקציה.</p>
+</div>
+</body></html>`);
+  } catch (err: any) {
+    console.error("[unsubscribe] Error:", err.message);
+    res.status(500).send("שגיאה, נסי שוב מאוחר יותר");
+  }
+});
+
 // GET /cities — List of cities for autocomplete
 app.get("/cities", async (_req, res) => {
   const rows = await pgQueryAll<{ city_name: string; region: string }>(
@@ -6940,20 +6966,6 @@ app.use((err: any, _req: any, res: any, _next: any) => {
   }
 });
 
-// ── Unsubscribe from emails (no auth required, token-based) ─────
-app.get("/api/unsubscribe", async (req, res) => {
-  const token = req.query.token as string;
-  if (!token) return res.status(400).send("Missing token");
-  const userId = verifyUnsubToken(token);
-  if (!userId) return res.status(400).send("Invalid or expired link");
-  try {
-    await pgQuery("UPDATE users SET email_updates = FALSE, email_marketing = FALSE WHERE id = $1", [userId]);
-    res.send(`<html dir="rtl"><head><meta charset="UTF-8"><title>One — הסרה</title></head><body style="font-family:sans-serif;text-align:center;padding:60px 24px"><h2>הוסרת בהצלחה מרשימת התפוצה</h2><p style="color:#666">לא תקבלי יותר מיילים מ-One.</p><p style="color:#666;margin-top:16px">אם תרצי לחזור — אפשר תמיד לעדכן בהגדרות באפליקציה.</p></body></html>`);
-  } catch (err: any) {
-    console.error("[unsubscribe] Error:", err.message);
-    res.status(500).send("שגיאה, נסי שוב מאוחר יותר");
-  }
-});
 
 // Health check endpoint for Railway zero-downtime deploys (must be before SPA catch-all)
 app.get("/health", (_req, res) => res.status(200).json({ ok: true }));
