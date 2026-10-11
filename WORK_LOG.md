@@ -22,7 +22,41 @@
 
 ---
 
-## Latest Session: 2026-10-07 (Functional Specification Agent — v3.1)
+## Latest Session: 2026-10-08 (Agent Restructuring + Legal + Infra)
+
+### ✅ מערכת סוכנים — ארגון מחדש
+- **User Management** — הפך למתאם (orchestrator): סורק DB → דו"ח → מפנה לסוכנים
+- **Match Card Writer** — סוכן חדש: כתיבת כרטיסי התאמה (style rules, consent, WW, closed-world)
+- **Chat Reviewer** — סוכן חדש: סריקת שיחות לתקלות (יומי + מלא)
+- **Mobile (Capacitor)** — Android Agent הורחב: סעיף iOS (דורש Mac), shared config
+- **Legal** — סוכן חדש: תנאי שימוש, פרטיות, הסכמות, GDPR, cookies, דרישות חנויות
+- כל 17 הסוכנים מפנים ל-CLAUDE.md + claude-working-guidelines.md
+- כלל "עבודה מקבילית" נוסף ל-guidelines (git safety כשכמה סוכנים עובדים)
+- `claude-working-guidelines.md` — נוקה מסעיפים שעברו לסוכנים ספציפיים
+- הוראת "Session Start" נוספה ל-CLAUDE.md (קריאה אוטומטית של guidelines + WORK_LOG)
+
+### ✅ פושים לבודקי אנדרואיד — הושבתו
+- קוד ב-jobRunner הועבר ל-comment (endpoint ידני עדיין עובד)
+
+### ✅ סקר משתמשות — מוסתר למשתמשות חדשות
+- survey2 banner לא מוצג למשתמשות שנרשמו מ-08/10/2026
+
+### ✅ ערים — 52 ערים חדשות נוספו
+- 51 ערים חדשות ל-DB (שוהם, גבעת שמואל, קריית אונו, קריית שמונה, נוף הגליל ועוד)
+- קרית טבעון נוספה עבור משתמשת #247
+- טקסט עודכן: "את יכולה להקליד ידנית" במקום "אפשר לבחור עיר קרובה"
+- בדיקה חדשה בסוכן יומי: משתמשות עם עיר ללא אזור
+
+### ✅ שנת לידה במקום גיל
+- DB: עמודות `birth_year` + `birth_month`, backfill אוטומטי מגיל קיים
+- ProfileSetup + ProfileEdit: שדה שנת לידה + חודש (אופציונלי) במקום שדה גיל
+- Backend PATCH: מקבל birth_year/birth_month, מחשב age אוטומטית
+- jobRunner: age refresh בכל startup — מעדכן age לכולן לפי birth_year/birth_month
+- כל שאר המערכת (matching, admin, prompts) ממשיכה לעבוד עם age כרגיל
+
+---
+
+## 2026-10-07 (Functional Specification Agent — v3.1)
 
 ### ✅ סוכן אפיון פונקציונלי חדש
 - תיקייה: `Management/Functional Specification/`
