@@ -23,6 +23,7 @@ Management/
 │   └── Chat Reviewer/       ← סריקת שיחות לתקלות
 ├── Statistics & Reports/ ← שאילתות DB, דו"חות, KPIs, funnel, עלויות
 ├── Marketing/           ← דפי נחיתה, פוסטים, דשבורד סאשה
+├── Legal/               ← תנאי שימוש, פרטיות, הסכמות, רגולציה
 ├── Functional Specification/ ← אפיון פונקציונלי, מסכי UI, דיאגרמות, תיעוד
 ```
 

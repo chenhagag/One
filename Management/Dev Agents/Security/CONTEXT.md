@@ -117,9 +117,10 @@ All admin routes must be defined AFTER `app.use("/admin", requireAdmin)` in inde
 ## What to Read
 1. This file (CONTEXT.md)
 2. WORKLOG.md of this agent
-3. `Management/Docs/security-hardening-plan.md` — full pulse-by-pulse audit plan
-4. `Management/claude-working-guidelines.md` — deploy/staging rules
-5. `backend/src/auth.ts` — auth middleware source
+3. `CLAUDE.md` — general architecture, API routes, auth flow
+4. `Management/claude-working-guidelines.md` — deploy/staging rules, concurrent work
+5. `Management/Docs/security-hardening-plan.md` — full pulse-by-pulse audit plan
+6. `backend/src/auth.ts` — auth middleware source
 
 ## Rules
 - **NEVER test write operations on real user accounts**

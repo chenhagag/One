@@ -1,6 +1,60 @@
 # Statistics & Reports Agent — Work Log
 
-## Latest: 2026-10-03 — Landing Page Analytics + IP Tracking
+## Latest: 2026-10-11 — IP-Based Entry Point Attribution for Native App
+
+### שיוך entry_point לפי IP למשתמשות אפליקציה נטיבית
+- כשמשתמשת נכנסת מהאפליקציה הנטיבית (Android) בלי entry_point ספציפי, המערכת מחפשת ב-`page_views` ביקור מאותו IP ב-48 שעות האחרונות
+- אם נמצא `landing_meme` / `landing_barazany` וכו' → המשתמשת מתויגת אוטומטית
+- פותר מצב: משתמשת גולשת לדף נחיתה בדפדפן → מורידה אפליקציה → נרשמת → עדיין מתויגת נכון
+- הלוגיקה רצה פעם אחת ב-`/auth/sync` — אחרי שתויגה, ה-entry_point קבוע
+- **שינוי ב-**: `backend/src/index.ts` — פונקציית `resolveEntryPoint()` ב-`/auth/sync`
+- **שינוי נלווה**: `/new-chat/status` מחזיר עכשיו גם `email_updates` + `whatsapp_updates` (לטובת push permission flow של סוכן Android)
+
+---
+
+## 2026-10-06 — Entry Point Fix + Landing Analytics Accuracy
+
+### תיקון entry_point בהרשמה
+- entry_point נשמר כעת ב-auth/sync (רגע ההרשמה), לא רק ב-ProfileSetup
+- Backfill למשתמשות קיימות בלי entry_point (לא דורס ערך קיים)
+- Badge ורוד "עדי" באדמין (טבלת משתמשים + דף משתמשת)
+
+### תיקוני דפי נחיתה באדמין
+- byPage + conversions מסוננים לפי תקופה נבחרת (היו all-time)
+- הוספת `total_registered_all` — ספירת כל הרשמות בתקופה ללא תלות ב-entry_point
+- available_months מציג רק חודשים עם ביקורים בפועל
+
+### דשבורדי משפיעניות
+- טבלת "פירוט הרשמות" (שם + תאריך + שעה) החליפה טבלת ביקורים אנונימיים
+
+---
+
+## 2026-10-05 — Adi Barazani Marketer Dashboard + Analytics Cleanup
+
+### מערכת דשבורד משפיענית — עדי ברזני
+- דף נחיתה: `joinone.io/barazany` → entry_point=`barazany`, tracking=`landing_barazany`
+- דשבורד חיצוני: `joinone.io/adi-dash-3k7q` — URL סודי, דורש login
+- Endpoint: `GET /api/adi-dashboard` — גישה רק ל-chen + adibar90@gmail.com
+- `MarketerDashboard.tsx` — קומפוננטה גנרית (configurable endpoint/title/link) לשימוש חוזר
+- Refactored: `getMarketerDashboard()` helper משותף ל-meme + adi endpoints
+- אדמין: טאב "דשבורד עדי" (ערכת צבעים ורודה) תחת Analytics
+
+### תפריט סיידבר — הפרדת גישות
+- חן: "דשבורד סאשה" + "דשבורד עדי" (שני כפתורים)
+- סאשה: "דשבורד כניסות" (meme בלבד)
+- עדי: "דשבורד כניסות" (adi בלבד)
+- אין cross-access בין משפיעניות, אין גישה לאדמין לאף אחת מהן
+
+### סינון אדמין מאנליטיקות
+- `ANALYTICS_EXCLUDED_USERS = [150]` — מסנן את חן מכל שאילתות page_views, landing stats, conversions, דשבורדי שיווק
+- נמחקו page_views של user #150 (1,022 + 8 נוספים)
+
+### שיפורי UI
+- לינקים מלאים בדשבורדים (`joinone.io/barazany`, `joinone.io/meme`) לנוחות העתקה
+
+---
+
+## 2026-10-03 — Landing Page Analytics + IP Tracking
 - New sub-tab **"דפי נחיתה"** under Analytics — dedicated landing page stats
   - Summary cards: total visits, unique IPs, registrations, conversion rate
   - Per-page table with drill-down to daily breakdown

@@ -46,7 +46,7 @@ import { generateInsights as generateInsightsFn } from "./pipeline/generateInsig
 import { startJobRunner, createJob as createPipelineJob, requeueOrCreateJob as requeueOrCreateJobFn, processPendingJobs as processPendingJobsFn } from "./pipeline/jobRunner";
 import { setReconcileFn } from "./pipeline/dailyMatching";
 import { promoteUserWaitingMatches } from "./pipeline/photoMatchPromotion";
-import { notifyUser, sendPushOnly, registerToken, unregisterToken, syncPermissionStatus, hasPushTokens, notifyMatchCardSent, notifyNewMessage, notifySentForRating, notifyAdminMessage, notifySystemQuestion, verifyUnsubToken } from "./notifications";
+import { notifyUser, sendPushOnly, registerToken, unregisterToken, syncPermissionStatus, hasPushTokens, notifyMatchCardSent, notifyNewMessage, notifySentForRating, notifyAdminMessage, notifySystemQuestion, verifyUnsubToken, buildEmailFooter } from "./notifications";
 import { logActivity } from "./pipeline/activityLog";
 import { upsertUserInsights, deactivateUserInsightChunks } from "./rag";
 
@@ -58,13 +58,8 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 // Resend email client (for admin emails + future notifications)
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
-const EMAIL_FOOTER = `<div dir="rtl" style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#999;text-align:center;line-height:1.8">
-<p style="margin:0">לא ניתן להשיב למייל זה.</p>
-<p style="margin:4px 0 0">מוזמנים לפנות אלינו ב<a href="https://wa.me/972549037400" style="color:#25D366">וואטסאפ</a> או ב<a href="mailto:one-support@googlegroups.com" style="color:#7b5fa3">מייל התמיכה</a></p>
-</div>`;
-
-function wrapEmailFooter(html: string): string {
-  return html + EMAIL_FOOTER;
+function wrapEmailFooter(html: string, userId?: number): string {
+  return html + buildEmailFooter(userId);
 }
 
 function round2(n: number): number {
@@ -409,6 +404,29 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
 
   // Device info from frontend
   const { device, pwa_installed, dark_mode, native_app, entry_point } = req.body || {};
+
+  // Resolve entry_point for native app users: if no specific source, try IP-based attribution
+  // from recent landing page visits (e.g., user visited /meme in browser then downloaded the app)
+  async function resolveEntryPoint(ip: string | null): Promise<string | null> {
+    const isNative = !!native_app || (req.get("x-requested-with") === "io.joinone.app");
+    if (!isNative || !ip) return entry_point || null;
+    // Only do IP lookup if entry_point is missing or is the default (root "/" sets "forwomen")
+    if (entry_point && entry_point !== "forwomen") return entry_point;
+    const recent = await pgQueryOne<{ page: string }>(
+      `SELECT page FROM page_views
+       WHERE ip = $1 AND page LIKE 'landing_%' AND page NOT IN ('landing_home', 'landing_forwomen')
+       AND viewed_at > NOW() - INTERVAL '48 hours'
+       ORDER BY viewed_at DESC LIMIT 1`,
+      [ip]
+    );
+    if (recent) {
+      // landing_meme → meme, landing_barazany → barazany, landing_main → main, etc.
+      const source = recent.page.replace("landing_", "");
+      console.log(`[auth/sync] IP-based entry_point attribution: ${source} (from ${recent.page})`);
+      return source;
+    }
+    return entry_point || null;
+  }
   // Android WebView sends X-Requested-With: <package_name> automatically
   const xRequestedWith = req.get("x-requested-with") || "";
   const isNativeFromHeader = xRequestedWith === "io.joinone.app";
@@ -456,11 +474,13 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
       `SELECT ${SYNC_SAFE_FIELDS} FROM users WHERE supabase_uid = $1`,
       [supabaseUid]
     );
+    const resolvedEntryPoint = await resolveEntryPoint(req.ip || null);
+
     if (user) {
       await updateDeviceInfo(user.id);
-      // Backfill entry_point if user doesn't have one yet
-      if (!user.entry_point && entry_point) {
-        await pgQueryAll(`UPDATE users SET entry_point = $1, updated_at = NOW() WHERE id = $2`, [entry_point, user.id]);
+      // Backfill entry_point if user doesn't have one yet (or upgrade from default via IP attribution)
+      if (resolvedEntryPoint && (!user.entry_point || (user.entry_point === "forwomen" && resolvedEntryPoint !== "forwomen"))) {
+        await pgQueryAll(`UPDATE users SET entry_point = $1, updated_at = NOW() WHERE id = $2`, [resolvedEntryPoint, user.id]);
       }
       return res.json({ ...user, last_device: device || user.last_device, pwa_installed: pwa_installed ?? user.pwa_installed, profile_complete: user.profile_complete ?? true });
     }
@@ -477,8 +497,8 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
       );
       await updateDeviceInfo(user.id);
       // Backfill entry_point if user doesn't have one yet
-      if (!user.entry_point && entry_point) {
-        await pgQueryAll(`UPDATE users SET entry_point = $1, updated_at = NOW() WHERE id = $2`, [entry_point, user.id]);
+      if (resolvedEntryPoint && (!user.entry_point || (user.entry_point === "forwomen" && resolvedEntryPoint !== "forwomen"))) {
+        await pgQueryAll(`UPDATE users SET entry_point = $1, updated_at = NOW() WHERE id = $2`, [resolvedEntryPoint, user.id]);
       }
       return res.json({ ...user, supabase_uid: supabaseUid, auth_provider: provider, last_device: device || user.last_device, pwa_installed: pwa_installed ?? user.pwa_installed, profile_complete: user.profile_complete ?? true });
     }
@@ -489,7 +509,7 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
       `INSERT INTO users (first_name, email, supabase_uid, auth_provider, profile_complete, last_device, pwa_installed, entry_point)
        VALUES ($1, $2, $3, $4, false, $5, $6, $7)
        RETURNING ${SYNC_SAFE_FIELDS}`,
-      ["", email.trim().toLowerCase(), supabaseUid, provider, device || null, !!pwa_installed, entry_point || null]
+      ["", email.trim().toLowerCase(), supabaseUid, provider, device || null, !!pwa_installed, resolvedEntryPoint || null]
     );
 
     return res.status(201).json(newUser);
@@ -4247,7 +4267,7 @@ app.post("/admin/send-pool-emails", async (req, res) => {
             </div>
             <p style="font-size: 12px; color: #999; text-align: center;">צוות One</p>
           </div>
-        ${EMAIL_FOOTER}`,
+        ${buildEmailFooter(u.id)}`,
       });
       await pgQueryAll(
         "INSERT INTO email_log (user_id, subject, sent_at) VALUES ($1, $2, NOW())",
@@ -4361,11 +4381,13 @@ app.post("/admin/send-email", async (req, res) => {
   if (!html?.trim()) return res.status(400).json({ error: "html body is required" });
 
   try {
+    // Look up user for unsubscribe link + logging
+    const targetUser = await pgQueryOne<any>("SELECT id FROM users WHERE email = $1", [to.trim()]);
     const { data, error } = await resend.emails.send({
       from: "One <noreply@joinone.io>",
       to: to.trim(),
       subject: subject.trim(),
-      html: wrapEmailFooter(html.trim()),
+      html: wrapEmailFooter(html.trim(), targetUser?.id),
     });
 
     if (error) {
@@ -4374,8 +4396,6 @@ app.post("/admin/send-email", async (req, res) => {
     }
 
     console.log(`[email] Sent successfully, subject: "${subject}", resend_id: ${data?.id}`);
-    // Log to email_log if we can find the user by email
-    const targetUser = await pgQueryOne<any>("SELECT id FROM users WHERE email = $1", [to.trim()]);
     if (targetUser) {
       await pgQueryOne("INSERT INTO email_log (user_id, subject) VALUES ($1, $2)", [targetUser.id, subject.trim()]);
     }
@@ -4405,7 +4425,7 @@ app.post("/admin/users/:id/send-email", async (req, res) => {
       from: "One <noreply@joinone.io>",
       to: user.email,
       subject: subject.trim(),
-      html: wrapEmailFooter(html.trim()),
+      html: wrapEmailFooter(html.trim(), userId),
     });
 
     if (error) {
@@ -6259,7 +6279,9 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       show_survey2_banner: showSurvey2Banner,
       survey2_partial: survey2Row && !survey2Row.completed ? true : false,
       self_frozen: !!profileRow?.self_frozen,
-      push_notifications: profileRow?.push_notifications !== false,
+      push_notifications: !!profileRow?.push_notifications,
+      email_updates: profileRow?.email_updates !== false,
+      whatsapp_updates: !!profileRow?.whatsapp_updates,
       active_nudge: activeNudge ? {
         id: activeNudge.id,
         match_id: activeNudge.match_id,
@@ -6673,7 +6695,7 @@ app.post("/admin/survey/send-emails", requireAdmin, async (req, res) => {
           from: "One <noreply@joinone.io>",
           to: u.email,
           subject: "עזרו לנו לבנות את One טוב יותר 🤍",
-          html: wrapEmailFooter(html),
+          html: wrapEmailFooter(html, u.id),
         });
         await pgQueryAll("UPDATE users SET survey_email_sent_at = NOW() WHERE id = $1", [u.id]);
         await pgQueryAll("INSERT INTO email_log (user_id, subject, email_type) VALUES ($1, $2, $3)",
@@ -6861,7 +6883,7 @@ app.post("/admin/survey2/send-emails", requireAdmin, async (req, res) => {
           from: "One <noreply@joinone.io>",
           to: u.email,
           subject: "One - היכרויות חכמות בין נשים",
-          html: wrapEmailFooter(html),
+          html: wrapEmailFooter(html, u.id),
         });
         await pgQueryAll("UPDATE users SET survey2_email_sent_at = NOW() WHERE id = $1", [u.id]);
         await pgQueryAll("INSERT INTO email_log (user_id, subject, email_type) VALUES ($1, $2, $3)",

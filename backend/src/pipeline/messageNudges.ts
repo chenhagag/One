@@ -22,7 +22,7 @@ import {
   queryOne as pgQueryOne,
   queryAll as pgQueryAll,
 } from "../db.pg";
-import { notifyUser, NotifyPayload, wasAnyNudgeSentToday } from "../notifications";
+import { notifyUser, NotifyPayload, wasAnyNudgeSentToday, buildEmailFooter } from "../notifications";
 import { logActivity } from "./activityLog";
 
 // ── Types ────────────────────────────────────────────────────────
@@ -124,16 +124,12 @@ async function getAdminMessageReminderStep(userId: number, sentAt: Date): Promis
 
 // ── Email builders ──────────────────────────────────────────────
 
-const EMAIL_FOOTER = `<div dir="rtl" style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#999;text-align:center;line-height:1.8">
-<p style="margin:0">לא ניתן להשיב למייל זה.</p>
-<p style="margin:4px 0 0">מוזמנים לפנות אלינו ב<a href="https://wa.me/972549037400" style="color:#25D366">וואטסאפ</a> או ב<a href="mailto:one-support@googlegroups.com" style="color:#7b5fa3">מייל התמיכה</a></p>
-</div>`;
-
 function buildReminderEmail(
   name: string,
   gender: string | null,
   type: "question" | "message",
-  matchLinked: boolean
+  matchLinked: boolean,
+  userId: number
 ): string {
   const g = (m: string, f: string) => gn(gender, m, f);
   const typeWord = type === "question" ? "שאלה" : "הודעה";
@@ -150,7 +146,7 @@ function buildReminderEmail(
     <a href="https://joinone.io" style="display:inline-block;background-color:#7b5fa3;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:15px">${g("כנס", "כנסי")} לענות</a>
   </div>
   <p style="font-size: 12px; color: #999; text-align: center;">One</p>
-</div>` + EMAIL_FOOTER;
+</div>` + buildEmailFooter(userId);
 }
 
 // ── Send reminder ───────────────────────────────────────────────
@@ -168,7 +164,7 @@ async function sendSystemQuestionReminder(
     body: `יש לנו שאלה${matchPhrase} שמחכה לך — ${g("כנס", "כנסי")} לענות`,
     event_type: `system_question_reminder_${step}` as any,
     data: { question_id: String(q.id) },
-    emailHtml: buildReminderEmail(q.first_name || "", q.gender, "question", matchLinked),
+    emailHtml: buildReminderEmail(q.first_name || "", q.gender, "question", matchLinked, q.user_id),
   };
 
   const result = await notifyUser(q.user_id, payload);
@@ -190,7 +186,7 @@ async function sendAdminMessageReminder(
     title: "תזכורת מ-One",
     body: `יש לנו הודעה${matchPhrase} שמחכה לך — ${g("כנס", "כנסי")} לענות`,
     event_type: `admin_question_reminder_${step}` as any,
-    emailHtml: buildReminderEmail(m.first_name || "", m.gender, "message", matchLinked),
+    emailHtml: buildReminderEmail(m.first_name || "", m.gender, "message", matchLinked, m.user_id),
   };
 
   const result = await notifyUser(m.user_id, payload);

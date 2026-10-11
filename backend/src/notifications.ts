@@ -75,11 +75,15 @@ function ensureFirebase(): boolean {
 // ── Resend email client ──────────────────────────────────────────
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
-function buildEmailFooter(userId?: number): string {
+export function buildEmailFooter(userId?: number): string {
   const unsubLink = userId ? `<p style="margin:4px 0 0"><a href="${getUnsubUrl(userId)}" style="color:#999;text-decoration:underline">להסרה מרשימת התפוצה</a></p>` : "";
   return `<div dir="rtl" style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#999;text-align:center;line-height:1.8">
 <p style="margin:0">לא ניתן להשיב למייל זה.</p>
 <p style="margin:4px 0 0">מוזמנים לפנות אלינו ב<a href="https://wa.me/972549037400" style="color:#25D366">וואטסאפ</a> או ב<a href="mailto:one-support@googlegroups.com" style="color:#7b5fa3">מייל התמיכה</a></p>
+<div style="margin:12px 0 4px">
+<a href="https://www.instagram.com/joinone.oneapp" style="margin:0 6px;display:inline-block"><img src="https://cdn-icons-png.flaticon.com/24/2111/2111463.png" alt="Instagram" style="width:24px;height:24px" /></a>
+<a href="https://www.facebook.com/profile.php?id=61594271867980" style="margin:0 6px;display:inline-block"><img src="https://cdn-icons-png.flaticon.com/24/733/733547.png" alt="Facebook" style="width:24px;height:24px" /></a>
+</div>
 ${unsubLink}
 </div>`;
 }
@@ -355,6 +359,10 @@ export async function registerToken(
        last_used_at = NOW()`,
     [userId, token, platform, permissionStatus]
   );
+  // When permission is granted, also enable push_notifications on users table
+  if (permissionStatus === "granted") {
+    await pgQueryAll("UPDATE users SET push_notifications = TRUE WHERE id = $1", [userId]);
+  }
   console.log(`[notifications] Token registered for user ${userId} (${platform})`);
 }
 
@@ -377,6 +385,9 @@ export async function syncPermissionStatus(
     "UPDATE fcm_tokens SET permission_status = $1 WHERE user_id = $2",
     [permissionStatus, userId]
   );
+  // Sync push_notifications preference on users table
+  const pushEnabled = permissionStatus === "granted";
+  await pgQueryAll("UPDATE users SET push_notifications = $1 WHERE id = $2", [pushEnabled, userId]);
 }
 
 /**

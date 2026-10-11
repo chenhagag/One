@@ -6,6 +6,8 @@ import MatchChat from "./MatchChat";
 import MatchCardConsentScreen from "./MatchCardConsentScreen";
 import { trackPage } from "./lib/trackPage";
 import { apiFetch } from "./lib/api";
+import { isNativeApp } from "./lib/platform";
+import { initPushNotifications } from "./lib/pushNotifications";
 import type { User } from "./App";
 
 interface Message {
@@ -415,7 +417,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [bugText, setBugText] = useState("");
   const [bugSent, setBugSent] = useState(false);
   const [feedbackCategory, setFeedbackCategory] = useState<string>("bug");
-  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; admin_message_type: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null; has_past_matches: boolean; show_survey_banner: boolean; survey_partial: boolean; show_survey2_banner: boolean; survey2_partial: boolean; self_frozen: boolean; active_nudge: { id: number; match_id: number; partner_name: string; partner_gender: string; nudge_type?: string } | null; pool_profile_count: number }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, admin_message_type: null, pending_rating: false, in_matching_pool: false, match_card_consent: null, has_past_matches: false, show_survey_banner: false, survey_partial: false, show_survey2_banner: false, survey2_partial: false, self_frozen: false, active_nudge: null, pool_profile_count: 0 });
+  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; admin_message_type: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null; has_past_matches: boolean; show_survey_banner: boolean; survey_partial: boolean; show_survey2_banner: boolean; survey2_partial: boolean; self_frozen: boolean; active_nudge: { id: number; match_id: number; partner_name: string; partner_gender: string; nudge_type?: string } | null; pool_profile_count: number; push_notifications: boolean; email_updates: boolean; whatsapp_updates: boolean }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, admin_message_type: null, pending_rating: false, in_matching_pool: false, match_card_consent: null, has_past_matches: false, show_survey_banner: false, survey_partial: false, show_survey2_banner: false, survey2_partial: false, self_frozen: false, active_nudge: null, pool_profile_count: 0, push_notifications: false, email_updates: true, whatsapp_updates: false });
   const [systemQuestion, setSystemQuestion] = useState<{ id: number; question_text: string; options?: string[] | null } | null>(null);
   const [answeredQuestion, setAnsweredQuestion] = useState<{ question_text: string; answer: string; options?: string[] | null } | null>(null);
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
@@ -441,6 +443,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [nudgeFreeText, setNudgeFreeText] = useState("");
   const [nudgeSubmitting, setNudgeSubmitting] = useState(false);
   const [nudgeConfirmationType, setNudgeConfirmationType] = useState<"unseen" | "help" | "chat_only" | "not_interested" | "not_available" | "moved_offline" | null>(null);
+  const [showPushPrompt, setShowPushPrompt] = useState(false);
+  const [pushPromptDismissed, setPushPromptDismissed] = useState<boolean>(() => localStorage.getItem(`push_prompt_done_${user.id}`) === "true");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const loadGenRef = useRef(0); // Generation counter to prevent stale loadRecommendations responses
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -487,6 +491,9 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             self_frozen: !!data.self_frozen,
             active_nudge: data.active_nudge || null,
             pool_profile_count: data.pool_profile_count || 0,
+            push_notifications: !!data.push_notifications,
+            email_updates: data.email_updates !== false,
+            whatsapp_updates: !!data.whatsapp_updates,
           });
           setHasPastMatches(!!data.has_past_matches);
           if (data.has_viewed_insights) setHasSeenInsights(true);
@@ -543,6 +550,13 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
   useEffect(() => { loadRecommendations(); }, [user.id]);
   useEffect(() => { if (screen === "home") loadRecommendations(); }, [screen]);
+
+  // Show push notification prompt for native app users who haven't been asked yet
+  useEffect(() => {
+    if (screen === "home" && isNativeApp() && !pushPromptDismissed && !recommendations.push_notifications) {
+      setShowPushPrompt(true);
+    }
+  }, [screen, pushPromptDismissed, recommendations.push_notifications]);
   useEffect(() => {
     if (screen === "past_matches") {
       setPastMatchesLoading(true);
@@ -757,7 +771,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter" && !e.shiftKey) {
+    // On mobile, Enter adds a new line — send only via Send button.
+    // On desktop, Enter sends (Shift+Enter for new line).
+    const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
+    if (e.key === "Enter" && !e.shiftKey && !isMobile) {
       e.preventDefault();
       sendMessage();
     }
@@ -866,7 +883,20 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     <button
                       key={c.key}
                       style={isActive ? { ...styles.sidebarItemActive, paddingRight: 24 } : { ...styles.sidebarItem, paddingRight: 24 }}
-                      onClick={() => { setChannel(c.key); setScreen("chat"); setMenuOpen(false); }}
+                      onClick={() => {
+                        setChannel(c.key);
+                        // Add greeting if entering new_chat for the first time with no messages
+                        if (c.key === "new_chat" && !(channelMessages["new_chat"]?.length > 0)) {
+                          const g = user.gender === "woman";
+                          const isCouple = (user as any).test_user_type === "Couple Tester";
+                          const greeting = isCouple
+                            ? `היי ${user.first_name}, תודה רבה על ההשתתפות בתהליך האימון שלי.\nככל שאני ${isWW ? "נבדקת" : "נבדק"} על זוגות ${isWW ? "רבות" : "רבים"} יותר - אני ${isWW ? "לומדת" : "לומד"} לדייק את ההתאמות ${isWW ? "למשתמשות שמחפשות" : "למשתמשים שמחפשים"} זוגיות אמיתית, והשתתפות שלך מסייעת לי מאוד.\nאשאל אותך שאלות כמו שהייתי ${isWW ? "שואלת רווקות אמיתיות שנכנסות" : "שואל רווקים-רווקות אמיתיים שנכנסים"} למערכת, ${g ? "אשמח אם תעני" : "אשמח אם תענה"} בכנות ובטבעיות כפי ש${g ? "היית עונה אם היית" : "היית עונה אם היית"} באמת ${g ? "מחפשת" : "מחפש"} שידוך.\nבסוף התהליך ${g ? "תוכלי" : "תוכל"} גם לקבל ממני קצת תובנות על ${g ? "עצמך" : "עצמך"} ועל הזוגיות ${g ? "שלך" : "שלך"} :)\nחשוב לי ש${g ? "תדעי" : "תדע"} שכל מה ש${g ? "את כותבת" : "אתה כותב"} לי כאן הוא לעיניי בלבד — שום דבר לא מופיע בפרופיל ${g ? "שלך" : "שלך"} ולא חשוף לאף משתמש אחר.\n${g ? "מוכנה להתחיל?" : "מוכן להתחיל?"}`
+                            : `היי ${user.first_name}, אני ${isWW ? "מומחית" : "מומחה"} ההתאמה שלך. אני כאן כדי למצוא ${g ? "לך" : "לך"} התאמה מדויקת על ידי היכרות מעמיקה.\nחשוב לי ש${g ? "תדעי" : "תדע"} שכל מה ש${g ? "את כותבת" : "אתה כותב"} לי כאן הוא לעיניי בלבד — שום דבר לא מופיע בפרופיל ${g ? "שלך" : "שלך"} ולא חשוף לאף ${isWW ? "משתמשת אחרת" : "משתמש אחר"}.\nככל ש${g ? "תשתפי" : "תשתף"} אותי יותר, נוכל לדייק את ההתאמה ${g ? "שלך" : "שלך"} יותר. ${g ? "מוכנה להתחיל?" : "מוכן להתחיל?"}`;
+                          setMessagesForChannel("new_chat", () => [{ role: "assistant", content: greeting }]);
+                        }
+                        setScreen("chat");
+                        setMenuOpen(false);
+                      }}
                     >
                       <span style={{ flex: 1 }}>{channelNameMap[c.key] || c.name}</span>
                       {isClosed && <span style={styles.completedBadge}>✓</span>}
@@ -2040,6 +2070,60 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       {recommendations.gender === "woman"
                         ? "במידה ותרצי להחזיר את החיפוש — כנסי למסך ההגדרות ונמשיך לחפש עבורך התאמה."
                         : "במידה ותרצה להחזיר את החיפוש — כנס למסך ההגדרות ונמשיך לחפש עבורך התאמה."}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Push notification prompt — native app, first time only */}
+              {screen === "home" && showPushPrompt && (
+                <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
+                  <div style={{ background: "#fff", borderRadius: 14, padding: "20px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #e5e7eb", textAlign: "right" }}>
+                    <p style={{ fontSize: 15, fontWeight: 600, color: "#1a1a2e", margin: "0 0 8px", lineHeight: 1.7 }}>
+                      {isWW ? "נרצה לעדכן אותך" : "נרצה לעדכן אותך"} כשיש התאמה חדשה או הודעה.
+                    </p>
+                    <p style={{ fontSize: 13, color: "#888", margin: "0 0 16px", lineHeight: 1.6 }}>
+                      {isWW ? "לאשר" : "לאשר"} קבלת התראות מ-One?
+                    </p>
+                    <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                      <button
+                        onClick={async () => {
+                          setShowPushPrompt(false);
+                          localStorage.setItem(`push_prompt_done_${user.id}`, "true");
+                          setPushPromptDismissed(true);
+                          await initPushNotifications();
+                          loadRecommendations();
+                        }}
+                        style={{ padding: "10px 28px", fontSize: 14, fontWeight: 600, background: "#6366f1", color: "#fff", border: "none", borderRadius: 10, cursor: "pointer", fontFamily: "inherit" }}
+                      >
+                        {isWW ? "כן, אני מאשרת" : "כן, אשמח"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowPushPrompt(false);
+                          localStorage.setItem(`push_prompt_done_${user.id}`, "true");
+                          setPushPromptDismissed(true);
+                        }}
+                        style={{ padding: "10px 28px", fontSize: 14, fontWeight: 500, background: "#f3f4f6", color: "#666", border: "none", borderRadius: 10, cursor: "pointer", fontFamily: "inherit" }}
+                      >
+                        לא כרגע
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* No notification channels warning — push+email+whatsapp all off */}
+              {screen === "home" && !showPushPrompt && !recommendations.push_notifications && !recommendations.email_updates && !recommendations.whatsapp_updates && (
+                <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
+                  <div style={{ background: "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)", borderRadius: 14, padding: "16px 20px", border: "1px solid #fcd34d" }}>
+                    <p style={{ fontSize: 13, color: "#92400e", lineHeight: 1.7, margin: 0 }}>
+                      {isWW
+                        ? "כדאי לבדוק את האפליקציה מדי פעם כדי לא לפספס התאמות והודעות, מכיוון שלא נוכל לשלוח לך התראות."
+                        : "כדאי לבדוק את האפליקציה מדי פעם כדי לא לפספס התאמות והודעות, מכיוון שלא נוכל לשלוח לך התראות."}
+                    </p>
+                    <p style={{ fontSize: 12, color: "#b45309", margin: "6px 0 0", cursor: "pointer", textDecoration: "underline" }} onClick={() => setScreen("settings")}>
+                      אפשר לשנות את זה בכל עת במסך ההגדרות
                     </p>
                   </div>
                 </div>

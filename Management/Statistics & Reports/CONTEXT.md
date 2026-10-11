@@ -212,10 +212,11 @@ Connection string in memory file `reference_prod_db.md` — use for read-only qu
 ## What to Read
 1. This file (CONTEXT.md)
 2. WORKLOG.md of this agent
-3. `Management/project-status.md` — current system state, known issues
-4. `CLAUDE.md` — DB tables overview, match status flow
-5. `backend/src/schema.pg.ts` — authoritative DB schema
-6. `backend/src/tokenTracker.ts` — token cost tracking
+3. `CLAUDE.md` — DB tables overview, match status flow
+4. `Management/claude-working-guidelines.md` — general rules, concurrent work
+5. `Management/project-status.md` — current system state, known issues
+6. `backend/src/schema.pg.ts` — authoritative DB schema
+7. `backend/src/tokenTracker.ts` — token cost tracking
 
 ## Rules
 - **SELECT only** — never run UPDATE, DELETE, INSERT on production

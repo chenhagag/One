@@ -127,12 +127,16 @@ ProfileSetup, ConsentScreen, CoupleWelcome — redesigned with unified language:
 
 ---
 
+## Project Context
+One (joinone.io) — פלטפורמת שידוכים מבוססת AI. משתמשות משוחחות בעברית, המערכת מנתחת אישיות ומתאימה. כרגע WW בלבד (נשים מחפשות נשים). Frontend: React 18 + inline styles, RTL.
+
 ## What to Read
 1. This file (CONTEXT.md)
 2. WORKLOG.md of this agent
-3. `Management/Dev Agents/Design/ONE_Brand_Guide_final.docx` — brand guide מקורי
-4. `Management/Marketing/Posts/square_html_package/carousel.html` — reference post
-5. `Management/claude-working-guidelines.md` — general rules
+3. `CLAUDE.md` — general architecture, frontend routing
+4. `Management/claude-working-guidelines.md` — general rules, concurrent work
+5. `Management/Dev Agents/Design/ONE_Brand_Guide_final.docx` — brand guide מקורי
+6. `Management/Marketing/Posts/square_html_package/carousel.html` — reference post
 
 ## Rules
 - **Inline styles only** — no CSS files, no Tailwind, no styled-components

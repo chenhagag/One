@@ -21,7 +21,7 @@ import {
   queryOne as pgQueryOne,
   queryAll as pgQueryAll,
 } from "../db.pg";
-import { notifyUser, NotifyPayload, wasAnyNudgeSentToday } from "../notifications";
+import { notifyUser, NotifyPayload, wasAnyNudgeSentToday, buildEmailFooter } from "../notifications";
 import { logActivity } from "./activityLog";
 
 // ── Types ────────────────────────────────────────────────────────
@@ -77,12 +77,7 @@ async function getRatingReminderStep(userId: number, sentAt: Date): Promise<numb
 
 // ── Email builder ───────────────────────────────────────────────
 
-const EMAIL_FOOTER = `<div dir="rtl" style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#999;text-align:center;line-height:1.8">
-<p style="margin:0">לא ניתן להשיב למייל זה.</p>
-<p style="margin:4px 0 0">מוזמנים לפנות אלינו ב<a href="https://wa.me/972549037400" style="color:#25D366">וואטסאפ</a> או ב<a href="mailto:one-support@googlegroups.com" style="color:#7b5fa3">מייל התמיכה</a></p>
-</div>`;
-
-function buildRatingReminderEmail(name: string, gender: string | null): string {
+function buildRatingReminderEmail(name: string, gender: string | null, userId: number): string {
   const g = (m: string, f: string) => gn(gender, m, f);
 
   return `<div dir="rtl" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 500px; margin: 0 auto; padding: 32px 24px; color: #1a1a2e; line-height: 1.8;">
@@ -97,7 +92,7 @@ function buildRatingReminderEmail(name: string, gender: string | null): string {
     <a href="https://joinone.io" style="display:inline-block;background-color:#7b5fa3;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:15px">${g("כנס", "כנסי")} לראות</a>
   </div>
   <p style="font-size: 12px; color: #999; text-align: center;">One</p>
-</div>` + EMAIL_FOOTER;
+</div>` + buildEmailFooter(userId);
 }
 
 // ── Send reminder ───────────────────────────────────────────────
@@ -112,7 +107,7 @@ async function sendRatingReminder(
     title: "תזכורת מ-One",
     body: `מצאנו לך התאמה פוטנציאלית — ${g("כנס", "כנסי")} לראות ולהגיב`,
     event_type: `rating_reminder_${step}`,
-    emailHtml: buildRatingReminderEmail(p.first_name || "", p.gender),
+    emailHtml: buildRatingReminderEmail(p.first_name || "", p.gender, p.user_id),
   };
 
   const result = await notifyUser(p.user_id, payload);

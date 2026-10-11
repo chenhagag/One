@@ -144,9 +144,10 @@ headline → explain (מתחת לכותרת) → anchor-line → match-tag → b
 ## What to Read
 1. This file (CONTEXT.md)
 2. WORKLOG.md of this agent
-3. `Management/Marketing/` — כל חומרי השיווק
-4. `Management/Dev Agents/Design/CONTEXT.md` — brand identity + post style (שם הפירוט העיצובי)
-5. `Management/claude-working-guidelines.md` — general rules
+3. `CLAUDE.md` — project overview, tech stack
+4. `Management/claude-working-guidelines.md` — general rules, concurrent work
+5. `Management/Marketing/` — כל חומרי השיווק
+6. `Management/Dev Agents/Design/CONTEXT.md` — brand identity + post style
 
 ## Rules
 - כל פוסט חדש מבוסס על brand template (`square_html_package/carousel.html`)

@@ -44,6 +44,11 @@
 |-------|---------|--------|---------|
 | **Functional Specification** | `Functional Specification/` | ✅ | מסמך אפיון מפורט של המערכת, מסכי UI, דיאגרמות, תיעוד תהליכים |
 
+### משפטי (Management/Legal/)
+| סוכן | תיקייה | סטטוס | אחריות |
+|-------|---------|--------|---------|
+| **Legal** | `Legal/` | ✅ | תנאי שימוש, פרטיות, הסכמות, GDPR, חוק הגנת הפרטיות, דרישות חנויות |
+
 ### קבצי הנחיות כלליים (Management/)
 - `claude-working-guidelines.md` — כללי deploy, prompts, insights, match cards
 - `project-status.md` — סטטוס מערכות, בעיות ידועות, אנשים
@@ -71,6 +76,7 @@
 - דף נחיתה / פוסטים / שיווק → **Marketing**
 - אבטחה / IDOR / auth issues → **Security** + **Backend**
 - אפיון / תיעוד מערכת / "מה המערכת עושה" / דיאגרמות → **Functional Specification**
+- תנאי שימוש / פרטיות / הסכמות / GDPR / משפטי / cookies / מחיקת חשבון (משפטית) → **Legal**
 
 ---
 

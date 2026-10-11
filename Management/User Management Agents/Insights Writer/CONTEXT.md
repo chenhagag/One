@@ -166,12 +166,14 @@ WHERE id = $4
 
 ---
 
+## Project Context
+One (joinone.io) — פלטפורמת שידוכים מבוססת AI. משתמשות משוחחות בעברית עם צ'אט AI, המערכת מנתחת 60+ תכונות אישיות ומתאימה. תובנות הן חלק קריטי באמון המשתמשות — הן צריכות להרגיש שמישהו באמת הבין אותן.
+
 ## What to Read
 1. קובץ זה (CONTEXT.md)
 2. WORKLOG.md של סוכן זה
-3. `Management/Docs/insights-writing-guide.md` — מדריך מפורט עם דוגמאות
-4. `Management/claude-working-guidelines.md` — הנחיות כלליות
-5. `Management/User Management Agents/User Management Agent.md` — הקשר רחב יותר
+3. `Insights Writer/insights-writing-guide.md` — מדריך מפורט עם דוגמאות
+4. `User Management Agents/CONTEXT.md` — הסוכן הראשי (הקשר רחב יותר)
 
 ## Rules
 - תמיד להציג תובנות לאדמין לאישור לפני שמירה

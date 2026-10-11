@@ -19,7 +19,7 @@ import {
   queryOne as pgQueryOne,
   queryAll as pgQueryAll,
 } from "../db.pg";
-import { notifyUser, NotifyPayload, wasAnyNudgeSentToday } from "../notifications";
+import { notifyUser, NotifyPayload, wasAnyNudgeSentToday, buildEmailFooter } from "../notifications";
 import { logActivity } from "./activityLog";
 
 // ── Nudge schedules ──────────────────────────────────────────────
@@ -167,7 +167,7 @@ async function sendWelcomeNudges(): Promise<NudgeCategoryResult> {
       title: `${g("ברוך הבא", "ברוכה הבאה")}`,
       body: `היי${name ? " " + name : ""}, ${g("שמחים שהצטרפת", "שמחים שהצטרפת")}. ${g("כנס", "כנסי")} כדי להתחיל את שיחת ההיכרות — היא הבסיס לחיפוש ההתאמות.`,
       event_type: "welcome",
-      emailHtml: buildWelcomeEmail(name, user.gender),
+      emailHtml: buildWelcomeEmail(name, user.gender, user.id),
     };
 
     try {
@@ -233,7 +233,7 @@ async function sendNotStartedNudges(): Promise<NudgeCategoryResult> {
 
     const g = (m: string, f: string) => gn(user.gender, m, f);
     const name = user.first_name || "";
-    const { title, body, emailHtml } = getNotStartedContent(contentNumber, name, user.gender);
+    const { title, body, emailHtml } = getNotStartedContent(contentNumber, name, user.gender, user.id);
 
     const payload: NotifyPayload = { title, body, event_type: eventType, emailHtml };
 
@@ -300,7 +300,7 @@ async function sendIncompleteNudges(): Promise<NudgeCategoryResult> {
 
     const g = (m: string, f: string) => gn(user.gender, m, f);
     const name = user.first_name || "";
-    const { title, body, emailHtml } = getIncompleteContent(contentNumber, name, user.gender);
+    const { title, body, emailHtml } = getIncompleteContent(contentNumber, name, user.gender, user.id);
 
     const payload: NotifyPayload = { title, body, event_type: eventType, emailHtml };
 
@@ -357,7 +357,8 @@ export async function runUserNudges(): Promise<NudgeResult> {
 function getNotStartedContent(
   nudgeNumber: number,
   name: string,
-  gender: string | null
+  gender: string | null,
+  userId: number
 ): { title: string; body: string; emailHtml: string } {
   const g = (m: string, f: string) => gn(gender, m, f);
   const hey = `היי${name ? " " + name : ""}`;
@@ -367,25 +368,25 @@ function getNotStartedContent(
       return {
         title: `התחלת התהליך`,
         body: `${hey}, ${g("נרשמת", "נרשמת")} אבל עוד לא ${g("התחלת", "התחלת")} את שיחת ההיכרות. השיחה היא הבסיס לחיפוש ההתאמות — ${g("כנס", "כנסי")} כדי להתחיל.`,
-        emailHtml: buildNotStartedEmail(nudgeNumber, name, gender),
+        emailHtml: buildNotStartedEmail(nudgeNumber, name, gender, userId),
       };
     case 2:
       return {
         title: `שיחת ההיכרות`,
         body: `${hey}, שיחת ההיכרות קצרה ופשוטה — כמה דקות של שיחה פתוחה, ועל בסיסה אנחנו מחפשים ${g("לך", "לך")} התאמה. אם ${g("נתקלת", "נתקלת")} בבעיה כלשהי — ${g("מוזמן", "מוזמנת")} לפנות אלינו.`,
-        emailHtml: buildNotStartedEmail(nudgeNumber, name, gender),
+        emailHtml: buildNotStartedEmail(nudgeNumber, name, gender, userId),
       };
     case 3:
       return {
         title: `שיחת ההיכרות`,
         body: `${hey}, אפשר להתחיל בכל רגע. כמה דקות של שיחה, ואנחנו מטפלים בשאר. ${g("כנס", "כנסי")} כש${g("מתאים לך", "מתאים לך")}.`,
-        emailHtml: buildNotStartedEmail(nudgeNumber, name, gender),
+        emailHtml: buildNotStartedEmail(nudgeNumber, name, gender, userId),
       };
     default: // 4
       return {
         title: `תזכורת מ-One`,
         body: `${hey}, עדיין אפשר להתחיל את שיחת ההיכרות — אחרי שנכיר אותך, אנחנו מטפלים בהכול.`,
-        emailHtml: buildNotStartedEmail(nudgeNumber, name, gender),
+        emailHtml: buildNotStartedEmail(nudgeNumber, name, gender, userId),
       };
   }
 }
@@ -393,7 +394,8 @@ function getNotStartedContent(
 function getIncompleteContent(
   nudgeNumber: number,
   name: string,
-  gender: string | null
+  gender: string | null,
+  userId: number
 ): { title: string; body: string; emailHtml: string } {
   const g = (m: string, f: string) => gn(gender, m, f);
   const hey = `היי${name ? " " + name : ""}`;
@@ -403,41 +405,36 @@ function getIncompleteContent(
       return {
         title: `השלמת התהליך`,
         body: `${hey}, עדיין לא ${g("השלמת", "השלמת")} את שיחות ההיכרות. השלמת התהליך תאפשר ${g("לך", "לך")} להצטרף למאגר ההתאמות. כל מה שכבר ${g("עשית", "עשית")} נשמר.`,
-        emailHtml: buildIncompleteEmail(nudgeNumber, name, gender),
+        emailHtml: buildIncompleteEmail(nudgeNumber, name, gender, userId),
       };
     case 2:
       return {
         title: `השלמת שיחות ההיכרות`,
         body: `${hey}, כל מה ש${g("עשית", "עשית")} נשמר ואפשר להמשיך מאותה נקודה. ככל שנכיר אותך יותר, ההתאמה תהיה מדויקת יותר.`,
-        emailHtml: buildIncompleteEmail(nudgeNumber, name, gender),
+        emailHtml: buildIncompleteEmail(nudgeNumber, name, gender, userId),
       };
     case 3:
       return {
         title: `עוד קצת ו${g("סיימת", "סיימת")}`,
         body: `${hey}, ${g("נשאר לך", "נשאר לך")} עוד קצת עד שנוכל להתחיל לחפש ${g("לך", "לך")} התאמה. ${g("כנס", "כנסי")} להמשיך — הכול שמור.`,
-        emailHtml: buildIncompleteEmail(nudgeNumber, name, gender),
+        emailHtml: buildIncompleteEmail(nudgeNumber, name, gender, userId),
       };
     default: // 4
       return {
         title: `תזכורת מ-One`,
         body: `${hey}, אחרי שנכיר אותך לעומק, נוכל למצוא ${g("לך", "לך")} את ההתאמה המדויקת ביותר. כל מה ש${g("עשית", "עשית")} נשמר.`,
-        emailHtml: buildIncompleteEmail(nudgeNumber, name, gender),
+        emailHtml: buildIncompleteEmail(nudgeNumber, name, gender, userId),
       };
   }
 }
 
 // ── Email templates ──────────────────────────────────────────────
 
-const EMAIL_FOOTER = `<div dir="rtl" style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#999;text-align:center;line-height:1.8">
-<p style="margin:0">לא ניתן להשיב למייל זה.</p>
-<p style="margin:4px 0 0">מוזמנים לפנות אלינו ב<a href="https://wa.me/972549037400" style="color:#25D366">וואטסאפ</a> או ב<a href="mailto:one-support@googlegroups.com" style="color:#7b5fa3">מייל התמיכה</a></p>
-</div>`;
-
-function wrapEmail(content: string): string {
+function wrapEmail(content: string, userId?: number): string {
   return `<div dir="rtl" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 500px; margin: 0 auto; padding: 32px 24px; color: #1a1a2e; line-height: 1.8;">
   <img src="https://joinone.io/appLogo.png" alt="One" style="height: 44px; margin-bottom: 24px; display: block; margin-left: auto; margin-right: auto;" />
   ${content}
-</div>` + EMAIL_FOOTER;
+</div>` + buildEmailFooter(userId);
 }
 
 function ctaButton(text: string): string {
@@ -446,7 +443,7 @@ function ctaButton(text: string): string {
   </div>`;
 }
 
-function buildWelcomeEmail(name: string, gender: string | null): string {
+function buildWelcomeEmail(name: string, gender: string | null, userId: number): string {
   const g = (m: string, f: string) => gn(gender, m, f);
   return wrapEmail(`
     <h2 style="font-size: 20px; margin: 0 0 16px;">${g("ברוך הבא", "ברוכה הבאה")}</h2>
@@ -455,10 +452,10 @@ function buildWelcomeEmail(name: string, gender: string | null): string {
     <p>השיחה לוקחת כמה דקות, ואפשר תמיד לחזור ולהמשיך מאותה נקודה.</p>
     ${ctaButton(g("כנס", "כנסי") + " להתחיל")}
     <p>בברכה,<br>צוות One</p>
-  `);
+  `, userId);
 }
 
-function buildNotStartedEmail(nudgeNumber: number, name: string, gender: string | null): string {
+function buildNotStartedEmail(nudgeNumber: number, name: string, gender: string | null, userId: number): string {
   const g = (m: string, f: string) => gn(gender, m, f);
   const hey = `היי${name ? " " + name : ""}`;
 
@@ -492,10 +489,10 @@ function buildNotStartedEmail(nudgeNumber: number, name: string, gender: string 
     `,
   };
 
-  return wrapEmail((bodies[nudgeNumber] || bodies[4]!) + `<p>בברכה,<br>צוות One</p>`);
+  return wrapEmail((bodies[nudgeNumber] || bodies[4]!) + `<p>בברכה,<br>צוות One</p>`, userId);
 }
 
-function buildIncompleteEmail(nudgeNumber: number, name: string, gender: string | null): string {
+function buildIncompleteEmail(nudgeNumber: number, name: string, gender: string | null, userId: number): string {
   const g = (m: string, f: string) => gn(gender, m, f);
   const hey = `היי${name ? " " + name : ""}`;
 
@@ -529,5 +526,5 @@ function buildIncompleteEmail(nudgeNumber: number, name: string, gender: string 
     `,
   };
 
-  return wrapEmail((bodies[nudgeNumber] || bodies[4]!) + `<p>בברכה,<br>צוות One</p>`);
+  return wrapEmail((bodies[nudgeNumber] || bodies[4]!) + `<p>בברכה,<br>צוות One</p>`, userId);
 }
