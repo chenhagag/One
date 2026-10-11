@@ -76,7 +76,7 @@ function ensureFirebase(): boolean {
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 export function buildEmailFooter(userId?: number): string {
-  const unsubLink = userId ? `<p style="margin:4px 0 0"><a href="${getUnsubUrl(userId)}" style="color:#999;text-decoration:underline">להסרה מרשימת התפוצה</a></p>` : "";
+  const unsubLink = userId ? `<p style="margin:4px 0 0"><a href="${getUnsubUrl(userId)}" style="color:#999;text-decoration:underline">לעדכון העדפות מיילים</a></p>` : "";
   return `<div dir="rtl" style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#999;text-align:center;line-height:1.8">
 <p style="margin:0">לא ניתן להשיב למייל זה.</p>
 <p style="margin:4px 0 0">מוזמנים לפנות אלינו ב<a href="https://wa.me/972549037400" style="color:#25D366">וואטסאפ</a> או ב<a href="mailto:one-support@googlegroups.com" style="color:#7b5fa3">מייל התמיכה</a></p>
