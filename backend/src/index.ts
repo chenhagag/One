@@ -213,28 +213,112 @@ app.use(express.static(frontendDist, {
 // ════════════════════════════════════════════════════════════════
 
 // ── Unsubscribe from emails (no auth required, token-based) ─────
+// GET: show preferences page; POST: apply changes
 app.get("/unsubscribe", async (req, res) => {
   const token = req.query.token as string;
   if (!token) return res.status(400).send("Missing token");
   const userId = verifyUnsubToken(token);
   if (!userId) return res.status(400).send("Invalid or expired link");
   try {
-    await pgQuery("UPDATE users SET email_updates = FALSE, email_marketing = FALSE WHERE id = $1", [userId]);
-    const user = await pgQueryOne<{ first_name: string | null; gender: string | null }>("SELECT first_name, gender FROM users WHERE id = $1", [userId]);
+    const user = await pgQueryOne<{ first_name: string | null; gender: string | null; email_updates: boolean; email_marketing: boolean }>(
+      "SELECT first_name, gender, email_updates, COALESCE(email_marketing, FALSE) as email_marketing FROM users WHERE id = $1", [userId]
+    );
+    const name = user?.first_name || "";
     const isFemale = user?.gender === "woman";
     const g = (m: string, f: string) => isFemale ? f : m;
-    res.send(`<html dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>One — הסרה</title></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;text-align:center;padding:60px 24px;background:#fafafa;color:#1a1a2e">
-<div style="max-width:400px;margin:0 auto;background:#fff;border-radius:16px;padding:40px 24px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">
-<img src="https://joinone.io/appLogo.png" alt="One" style="height:44px;margin-bottom:24px" />
-<h2 style="margin:0 0 12px;font-size:20px">הסרה בוצעה בהצלחה</h2>
-<p style="color:#666;font-size:15px;line-height:1.7;margin:0 0 8px">לא ${g("תקבל", "תקבלי")} יותר מיילים מ-One.</p>
-<p style="color:#888;font-size:13px;line-height:1.6;margin:0">אם ${g("תרצה", "תרצי")} לחזור — אפשר תמיד לעדכן בהגדרות באפליקציה.</p>
+    res.send(`<html dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>One — העדפות מיילים</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; text-align: center; padding: 40px 16px; background: #fafafa; color: #1a1a2e; margin: 0; }
+  .card { max-width: 420px; margin: 0 auto; background: #fff; border-radius: 16px; padding: 32px 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  .option { display: flex; align-items: flex-start; gap: 12px; text-align: right; padding: 14px 16px; border-radius: 10px; border: 1px solid #e5e7eb; margin: 10px 0; cursor: pointer; transition: border-color 0.2s; }
+  .option:hover { border-color: #7b5fa3; }
+  .option input { margin-top: 3px; accent-color: #7b5fa3; }
+  .option label { cursor: pointer; }
+  .option .title { font-size: 14px; font-weight: 600; color: #1a1a2e; margin: 0 0 2px; }
+  .option .desc { font-size: 12px; color: #888; margin: 0; line-height: 1.5; }
+  .btn { padding: 12px 32px; font-size: 14px; font-weight: 600; border: none; border-radius: 10px; cursor: pointer; font-family: inherit; margin: 6px; }
+  .btn-primary { background: #6366f1; color: #fff; }
+  .btn-secondary { background: #f3f4f6; color: #666; }
+  .result { display: none; }
+</style></head>
+<body>
+<div class="card" id="form">
+  <img src="https://joinone.io/appLogo.png" alt="One" style="height:44px;margin-bottom:20px" />
+  <h2 style="margin:0 0 6px;font-size:19px">היי${name ? " " + name : ""}, איזה מיילים ${g("תרצה", "תרצי")} לקבל?</h2>
+  <p style="color:#888;font-size:13px;margin:0 0 18px;line-height:1.6">${g("סמן", "סמני")} מה מתאים ${g("לך", "לך")}:</p>
+  <div class="option" onclick="this.querySelector('input').click()">
+    <input type="checkbox" id="cb_updates" ${user?.email_updates !== false ? "checked" : ""} />
+    <label for="cb_updates">
+      <p class="title">עדכונים על התאמות והודעות</p>
+      <p class="desc">כשנמצא ${g("לך", "לך")} התאמה, כשמישהו שלח ${g("לך", "לך")} הודעה, או כששלחנו ${g("לך", "לך")} שאלה.</p>
+    </label>
+  </div>
+  <div class="option" onclick="this.querySelector('input').click()">
+    <input type="checkbox" id="cb_marketing" ${user?.email_marketing ? "checked" : ""} />
+    <label for="cb_marketing">
+      <p class="title">עדכונים כלליים</p>
+      <p class="desc">סקרים, חדשות מהמערכת ועדכונים כלליים.</p>
+    </label>
+  </div>
+  <div style="margin-top:20px">
+    <button class="btn btn-primary" onclick="save()">שמירה</button>
+    <button class="btn btn-secondary" onclick="stopAll()">להפסיק את כל המיילים</button>
+  </div>
 </div>
+<div class="card result" id="result">
+  <img src="https://joinone.io/appLogo.png" alt="One" style="height:44px;margin-bottom:20px" />
+  <h2 style="margin:0 0 10px;font-size:19px" id="result_title"></h2>
+  <p style="color:#666;font-size:14px;line-height:1.7;margin:0" id="result_text"></p>
+</div>
+<script>
+function send(updates, marketing) {
+  fetch("/api/unsubscribe", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: "${token}", email_updates: updates, email_marketing: marketing })
+  }).then(r => r.json()).then(d => {
+    document.getElementById("form").style.display = "none";
+    var r = document.getElementById("result");
+    r.style.display = "block";
+    if (!updates && !marketing) {
+      document.getElementById("result_title").textContent = "ההעדפות עודכנו";
+      document.getElementById("result_text").textContent = "לא ${g("תקבל", "תקבלי")} יותר מיילים מ-One. אם ${g("תרצה", "תרצי")} לחזור — אפשר תמיד לעדכן בהגדרות באפליקציה.";
+    } else {
+      document.getElementById("result_title").textContent = "ההעדפות עודכנו בהצלחה";
+      document.getElementById("result_text").textContent = "תודה! עדכנו את ההעדפות ${g("שלך", "שלך")}.";
+    }
+  });
+}
+function save() {
+  send(document.getElementById("cb_updates").checked, document.getElementById("cb_marketing").checked);
+}
+function stopAll() {
+  send(false, false);
+}
+</script>
 </body></html>`);
   } catch (err: any) {
     console.error("[unsubscribe] Error:", err.message);
     res.status(500).send("שגיאה, נסי שוב מאוחר יותר");
+  }
+});
+
+// POST /unsubscribe — Apply email preference changes
+app.post("/unsubscribe", express.json(), async (req, res) => {
+  const { token, email_updates, email_marketing } = req.body;
+  if (!token) return res.status(400).json({ error: "Missing token" });
+  const userId = verifyUnsubToken(token);
+  if (!userId) return res.status(400).json({ error: "Invalid token" });
+  try {
+    await pgQuery(
+      "UPDATE users SET email_updates = $1, email_marketing = $2 WHERE id = $3",
+      [!!email_updates, !!email_marketing, userId]
+    );
+    console.log(`[unsubscribe] User ${userId}: email_updates=${email_updates}, email_marketing=${email_marketing}`);
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("[unsubscribe] Error:", err.message);
+    res.status(500).json({ error: "Internal error" });
   }
 });
 
