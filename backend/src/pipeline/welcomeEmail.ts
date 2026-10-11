@@ -10,7 +10,7 @@ import {
   queryOne as pgQueryOne,
   queryAll as pgQueryAll,
 } from "../db.pg";
-import { buildEmailFooter } from "../notifications";
+import { buildEmailFooter, getUnsubUrl } from "../notifications";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
@@ -74,6 +74,10 @@ export async function sendPoolWelcomeEmail(userId: number): Promise<WelcomeEmail
     to: user.email,
     subject,
     html: html + buildEmailFooter(userId),
+    headers: {
+      "List-Unsubscribe": `<${getUnsubUrl(userId)}>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    },
   });
 
   // Log with email_type for dedup (unique index will prevent duplicates even under race)

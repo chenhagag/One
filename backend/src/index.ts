@@ -46,7 +46,7 @@ import { generateInsights as generateInsightsFn } from "./pipeline/generateInsig
 import { startJobRunner, createJob as createPipelineJob, requeueOrCreateJob as requeueOrCreateJobFn, processPendingJobs as processPendingJobsFn } from "./pipeline/jobRunner";
 import { setReconcileFn } from "./pipeline/dailyMatching";
 import { promoteUserWaitingMatches } from "./pipeline/photoMatchPromotion";
-import { notifyUser, sendPushOnly, registerToken, unregisterToken, syncPermissionStatus, hasPushTokens, notifyMatchCardSent, notifyNewMessage, notifySentForRating, notifyAdminMessage, notifySystemQuestion, verifyUnsubToken, buildEmailFooter } from "./notifications";
+import { notifyUser, sendPushOnly, registerToken, unregisterToken, syncPermissionStatus, hasPushTokens, notifyMatchCardSent, notifyNewMessage, notifySentForRating, notifyAdminMessage, notifySystemQuestion, verifyUnsubToken, buildEmailFooter, getUnsubUrl } from "./notifications";
 import { logActivity } from "./pipeline/activityLog";
 import { upsertUserInsights, deactivateUserInsightChunks } from "./rag";
 
@@ -4268,6 +4268,10 @@ app.post("/admin/send-pool-emails", async (req, res) => {
             <p style="font-size: 12px; color: #999; text-align: center;">צוות One</p>
           </div>
         ${buildEmailFooter(u.id)}`,
+        headers: {
+          "List-Unsubscribe": `<${getUnsubUrl(u.id)}>`,
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        },
       });
       await pgQueryAll(
         "INSERT INTO email_log (user_id, subject, sent_at) VALUES ($1, $2, NOW())",
@@ -4388,6 +4392,7 @@ app.post("/admin/send-email", async (req, res) => {
       to: to.trim(),
       subject: subject.trim(),
       html: wrapEmailFooter(html.trim(), targetUser?.id),
+      ...(targetUser?.id ? { headers: { "List-Unsubscribe": `<${getUnsubUrl(targetUser.id)}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } } : {}),
     });
 
     if (error) {
@@ -4426,6 +4431,10 @@ app.post("/admin/users/:id/send-email", async (req, res) => {
       to: user.email,
       subject: subject.trim(),
       html: wrapEmailFooter(html.trim(), userId),
+      headers: {
+        "List-Unsubscribe": `<${getUnsubUrl(userId)}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
     });
 
     if (error) {
@@ -6696,6 +6705,10 @@ app.post("/admin/survey/send-emails", requireAdmin, async (req, res) => {
           to: u.email,
           subject: "עזרו לנו לבנות את One טוב יותר 🤍",
           html: wrapEmailFooter(html, u.id),
+          headers: {
+            "List-Unsubscribe": `<${getUnsubUrl(u.id)}>`,
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          },
         });
         await pgQueryAll("UPDATE users SET survey_email_sent_at = NOW() WHERE id = $1", [u.id]);
         await pgQueryAll("INSERT INTO email_log (user_id, subject, email_type) VALUES ($1, $2, $3)",
@@ -6884,6 +6897,10 @@ app.post("/admin/survey2/send-emails", requireAdmin, async (req, res) => {
           to: u.email,
           subject: "One - היכרויות חכמות בין נשים",
           html: wrapEmailFooter(html, u.id),
+          headers: {
+            "List-Unsubscribe": `<${getUnsubUrl(u.id)}>`,
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          },
         });
         await pgQueryAll("UPDATE users SET survey2_email_sent_at = NOW() WHERE id = $1", [u.id]);
         await pgQueryAll("INSERT INTO email_log (user_id, subject, email_type) VALUES ($1, $2, $3)",

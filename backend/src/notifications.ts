@@ -281,11 +281,16 @@ async function sendEmail(
     buildNotificationEmail(payload.title, payload.body, userId);
 
   try {
+    const unsubUrl = getUnsubUrl(userId);
     const { error } = await resend.emails.send({
       from: "One <noreply@joinone.io>",
       to: email,
       subject: payload.title,
       html,
+      headers: {
+        "List-Unsubscribe": `<${unsubUrl}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
     });
 
     if (error) {
