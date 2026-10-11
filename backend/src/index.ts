@@ -213,7 +213,7 @@ app.use(express.static(frontendDist, {
 // ════════════════════════════════════════════════════════════════
 
 // ── Unsubscribe from emails (no auth required, token-based) ─────
-app.get("/api/unsubscribe", async (req, res) => {
+app.get("/unsubscribe", async (req, res) => {
   const token = req.query.token as string;
   if (!token) return res.status(400).send("Missing token");
   const userId = verifyUnsubToken(token);
