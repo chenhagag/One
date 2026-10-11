@@ -49,6 +49,8 @@ export interface User {
   first_name: string;
   email: string;
   age?: number;
+  birth_year?: number;
+  birth_month?: number;
   gender?: string;
   looking_for_gender?: string;
   city?: string;

@@ -1490,4 +1490,18 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
     ALTER TABLE users ALTER COLUMN has_children DROP DEFAULT;
     ALTER TABLE users ALTER COLUMN smoker DROP DEFAULT;
   `);
+
+  // Birth year + month for dynamic age calculation
+  try {
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='birth_year') THEN
+          ALTER TABLE users ADD COLUMN birth_year INTEGER;
+          ALTER TABLE users ADD COLUMN birth_month INTEGER;
+          -- Backfill from existing age
+          UPDATE users SET birth_year = EXTRACT(YEAR FROM NOW())::INT - age WHERE age IS NOT NULL AND birth_year IS NULL;
+        END IF;
+      END $$;
+    `);
+  } catch (e) { /* column may already exist */ }
 }

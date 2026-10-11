@@ -9,6 +9,8 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
   // About me
   const [firstName, setFirstName] = useState(user.first_name || "");
   const [age, setAge] = useState(user.age ? String(user.age) : "");
+  const [birthYear, setBirthYear] = useState(user.birth_year ? String(user.birth_year) : "");
+  const [birthMonth, setBirthMonth] = useState(user.birth_month ? String(user.birth_month) : "");
   const [gender, setGender] = useState(user.gender || "");
   const [city, setCity] = useState(user.city || "");
   const [height, setHeight] = useState(user.height ? String(user.height) : "");
@@ -157,7 +159,8 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
         method: "PATCH",
         body: JSON.stringify({
           first_name: firstName.trim(),
-          age: age ? parseInt(age) : null,
+          birth_year: birthYear ? parseInt(birthYear) : null,
+          birth_month: birthMonth ? parseInt(birthMonth) : null,
           gender: gender || null,
           looking_for_gender: lookingForGender || null,
           city: city.trim() || null,
@@ -318,8 +321,17 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
 
           <div style={s.row}>
             <div style={s.rowItem}>
-              <label style={s.label}>גיל</label>
-              <input style={s.input} type="number" min="18" max="99" value={age} onChange={(e) => setAge(e.target.value)} />
+              <label style={s.label}>שנת לידה</label>
+              <input style={s.input} type="number" min="1940" max={new Date().getFullYear() - 18} value={birthYear} onChange={(e) => setBirthYear(e.target.value)} placeholder="שנה" />
+              <select style={{ ...s.input, fontSize: 13, marginTop: 4 }} value={birthMonth} onChange={(e) => setBirthMonth(e.target.value)}>
+                <option value="">חודש (אופציונלי)</option>
+                <option value="1">ינואר</option><option value="2">פברואר</option>
+                <option value="3">מרץ</option><option value="4">אפריל</option>
+                <option value="5">מאי</option><option value="6">יוני</option>
+                <option value="7">יולי</option><option value="8">אוגוסט</option>
+                <option value="9">ספטמבר</option><option value="10">אוקטובר</option>
+                <option value="11">נובמבר</option><option value="12">דצמבר</option>
+              </select>
             </div>
             {!isWW && <div style={s.rowItem}>
               <label style={s.label}>גובה (ס"מ)</label>
@@ -340,7 +352,7 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
           <datalist id="city-list">
             {cities.map(c => <option key={c.city_name} value={c.city_name} />)}
           </datalist>
-          <p style={{ fontSize: 11, color: "#aaa", marginTop: -10, marginBottom: 8 }}>אם העיר שלך לא מופיעה — אפשר לבחור עיר קרובה</p>
+          <p style={{ fontSize: 11, color: "#aaa", marginTop: -10, marginBottom: 8 }}>אם העיר שלך לא מופיעה ברשימה את יכולה להקליד אותה ידנית</p>
         </div>
 
         {/* ── Looking For / Couple Partner ── */}

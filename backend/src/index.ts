@@ -447,7 +447,7 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
     }
 
     // Safe fields to return from /auth/sync (no admin_notes, devices_seen, etc.)
-    const SYNC_SAFE_FIELDS = `id, email, first_name, age, gender, city, looking_for_gender,
+    const SYNC_SAFE_FIELDS = `id, email, first_name, age, birth_year, birth_month, gender, city, looking_for_gender,
             profile_complete, consent_accepted, photo_ai_consent, supabase_uid, auth_provider,
             last_device, pwa_installed, dark_mode, test_user_type, match_card_consent, entry_point`;
 
@@ -597,7 +597,7 @@ app.post("/auth/verify-otp", authLimiter, async (req, res) => {
   await pgQueryAll("UPDATE otp_codes SET used = TRUE WHERE id = $1", [otpRow.id]);
 
   try {
-    const OTP_SAFE_FIELDS = `id, email, first_name, age, gender, city, looking_for_gender,
+    const OTP_SAFE_FIELDS = `id, email, first_name, age, birth_year, birth_month, gender, city, looking_for_gender,
             profile_complete, consent_accepted, photo_ai_consent, supabase_uid, auth_provider,
             last_device, pwa_installed, test_user_type, match_card_consent`;
 
@@ -746,7 +746,7 @@ app.patch("/users/:id/guide", requireUserAuth, async (req, res) => {
 app.get("/users/:id", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const user = await pgQueryOne<any>(
-    `SELECT id, email, first_name, age, gender, city, height, looking_for_gender,
+    `SELECT id, email, first_name, age, birth_year, birth_month, gender, city, height, looking_for_gender,
             desired_age_min, desired_age_max, age_flexibility,
             desired_height_min, desired_height_max, height_flexibility,
             desired_location_range, marital_status, has_children, religion, smoker,
@@ -776,6 +776,7 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
     email_updates, email_marketing, whatsapp_updates, whatsapp_phone,
     match_card_consent, match_card_restrictions,
     self_frozen, push_notifications,
+    birth_year, birth_month,
   } = req.body;
 
   // ── Input validation ──────────────────────────────────────────
@@ -786,6 +787,14 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
   if (age !== undefined && age !== null) {
     if (typeof age !== "number" || !Number.isInteger(age) || age < 18 || age > 120)
       return res.status(400).json({ error: "age must be an integer between 18 and 120" });
+  }
+  if (birth_year !== undefined && birth_year !== null) {
+    if (typeof birth_year !== "number" || !Number.isInteger(birth_year) || birth_year < 1900 || birth_year > new Date().getFullYear() - 18)
+      return res.status(400).json({ error: "birth_year must be a valid year (18+)" });
+  }
+  if (birth_month !== undefined && birth_month !== null) {
+    if (typeof birth_month !== "number" || !Number.isInteger(birth_month) || birth_month < 1 || birth_month > 12)
+      return res.status(400).json({ error: "birth_month must be 1-12" });
   }
   if (height !== undefined && height !== null) {
     if (typeof height !== "number" || !Number.isInteger(height) || height < 100 || height > 250)
@@ -818,7 +827,19 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
   };
 
   if (first_name !== undefined)             push("first_name", first_name.trim());
-  if (age !== undefined)                    push("age", age);
+  if (birth_year !== undefined) {
+    push("birth_year", birth_year);
+    if (birth_month !== undefined) push("birth_month", birth_month);
+    // Auto-compute age from birth_year + birth_month
+    if (birth_year) {
+      const now = new Date();
+      let computed = now.getFullYear() - birth_year;
+      if (birth_month && now.getMonth() + 1 < birth_month) computed--;
+      push("age", computed);
+    }
+  } else if (age !== undefined) {
+    push("age", age);
+  }
   if (gender !== undefined)                 push("gender", gender);
   if (looking_for_gender !== undefined)     push("looking_for_gender", looking_for_gender);
   if (city !== undefined)                   push("city", city);

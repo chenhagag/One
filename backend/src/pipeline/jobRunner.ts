@@ -438,6 +438,27 @@ export function startJobRunner(): void {
   //   }, ANDROID_TESTER_INTERVAL_MS);
   // }, msToTesterNudge);
 
+  // Age refresh from birth_year/birth_month (runs on every deploy/restart)
+  (async () => {
+    try {
+      const ageResult = await pgQueryAll(`
+        UPDATE users SET age = EXTRACT(YEAR FROM NOW())::INT - birth_year
+          - CASE WHEN birth_month IS NOT NULL AND EXTRACT(MONTH FROM NOW()) < birth_month THEN 1 ELSE 0 END
+        WHERE birth_year IS NOT NULL
+          AND age IS DISTINCT FROM (
+            EXTRACT(YEAR FROM NOW())::INT - birth_year
+            - CASE WHEN birth_month IS NOT NULL AND EXTRACT(MONTH FROM NOW()) < birth_month THEN 1 ELSE 0 END
+          )
+        RETURNING id
+      `);
+      if (ageResult.length > 0) {
+        console.log(`[jobRunner] Age refresh: updated ${ageResult.length} users from birth_year`);
+      }
+    } catch (err: any) {
+      console.error("[jobRunner] Age refresh error:", err.message);
+    }
+  })();
+
   // Daily matching at 4:00 AM Israel time
   const msToFirstRun = msUntilNextRun(4);
   const hoursToFirstRun = Math.round(msToFirstRun / 1000 / 60 / 60 * 10) / 10;

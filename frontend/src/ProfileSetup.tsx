@@ -27,6 +27,8 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
   // Don't pre-fill from user object — let user type their own name
   const [firstName, setFirstName] = useState("");
   const [age, setAge] = useState("");
+  const [birthYear, setBirthYear] = useState("");
+  const [birthMonth, setBirthMonth] = useState("");
   const [gender, setGender] = useState(isForWomen ? "woman" : "");
   const [lookingForGender, setLookingForGender] = useState(isForWomen ? "woman" : "");
   const [city, setCity] = useState("");
@@ -100,7 +102,8 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
         method: "PATCH",
         body: JSON.stringify({
           first_name: firstName.trim(),
-          age: age ? parseInt(age) : null,
+          birth_year: birthYear ? parseInt(birthYear) : null,
+          birth_month: birthMonth ? parseInt(birthMonth) : null,
           gender: gender || null,
           looking_for_gender: lookingForGender || null,
           city: city.trim() || null,
@@ -202,15 +205,30 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
 
             <div style={{ display: "flex", gap: 12, marginBottom: 2 }}>
               <div style={{ flex: 1 }}>
-                <label style={labelStyle}>גיל</label>
+                <label style={labelStyle}>שנת לידה</label>
                 <input
-                  style={{ ...inputStyle("age"), marginBottom: 18 }}
-                  type="number" min="18" max="99" value={age}
-                  onChange={(e) => setAge(e.target.value)}
-                  onFocus={() => setFocused("age")}
+                  style={{ ...inputStyle("birthYear"), marginBottom: 2 }}
+                  type="number" min="1940" max={new Date().getFullYear() - 18} value={birthYear}
+                  onChange={(e) => setBirthYear(e.target.value)}
+                  onFocus={() => setFocused("birthYear")}
                   onBlur={() => setFocused(null)}
-                  placeholder="גיל"
+                  placeholder="שנה"
                 />
+                <select
+                  style={{ ...inputStyle("birthMonth"), marginBottom: 18, fontSize: 13 }}
+                  value={birthMonth}
+                  onChange={(e) => setBirthMonth(e.target.value)}
+                  onFocus={() => setFocused("birthMonth")}
+                  onBlur={() => setFocused(null)}
+                >
+                  <option value="">חודש (אופציונלי)</option>
+                  <option value="1">ינואר</option><option value="2">פברואר</option>
+                  <option value="3">מרץ</option><option value="4">אפריל</option>
+                  <option value="5">מאי</option><option value="6">יוני</option>
+                  <option value="7">יולי</option><option value="8">אוגוסט</option>
+                  <option value="9">ספטמבר</option><option value="10">אוקטובר</option>
+                  <option value="11">נובמבר</option><option value="12">דצמבר</option>
+                </select>
               </div>
               <div style={{ flex: 1 }}>
                 <label style={labelStyle}>עיר</label>
@@ -227,7 +245,7 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
                 <datalist id="setup-city-list">
                   {cities.map(c => <option key={c.city_name} value={c.city_name} />)}
                 </datalist>
-                <p style={{ fontSize: 11, color: "#aaa", margin: "2px 0 12px" }}>אם העיר שלך לא מופיעה — אפשר לבחור עיר קרובה</p>
+                <p style={{ fontSize: 11, color: "#aaa", margin: "2px 0 12px" }}>אם העיר שלך לא מופיעה ברשימה את יכולה להקליד אותה ידנית</p>
               </div>
             </div>
 
