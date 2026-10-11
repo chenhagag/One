@@ -246,40 +246,41 @@ app.get("/unsubscribe", async (req, res) => {
   <img src="https://joinone.io/appLogo.png" alt="One" style="height:44px;margin-bottom:20px" />
   <h2 style="margin:0 0 6px;font-size:19px">היי${name ? " " + name : ""}, איזה מיילים ${g("תרצה", "תרצי")} לקבל?</h2>
   <p style="color:#888;font-size:13px;margin:0 0 18px;line-height:1.6">${g("סמן", "סמני")} מה מתאים ${g("לך", "לך")}:</p>
-  <div class="option" onclick="this.querySelector('input').click()">
+  <div class="option" id="opt_updates">
     <input type="checkbox" id="cb_updates" ${user?.email_updates !== false ? "checked" : ""} />
-    <label for="cb_updates">
+    <div>
       <p class="title">עדכונים על התאמות והודעות</p>
-      <p class="desc">כשנמצא ${g("לך", "לך")} התאמה, כשמישהו שלח ${g("לך", "לך")} הודעה, או כששלחנו ${g("לך", "לך")} שאלה.</p>
-    </label>
+      <p class="desc">כשנמצאה ${g("לך", "לך")} התאמה, כשמישהי שלחה ${g("לך", "לך")} הודעה, או כששלחנו ${g("לך", "לך")} שאלה.</p>
+    </div>
   </div>
-  <div class="option" onclick="this.querySelector('input').click()">
+  <div class="option" id="opt_marketing">
     <input type="checkbox" id="cb_marketing" ${user?.email_marketing ? "checked" : ""} />
-    <label for="cb_marketing">
+    <div>
       <p class="title">עדכונים כלליים</p>
       <p class="desc">סקרים, חדשות מהמערכת ועדכונים כלליים.</p>
-    </label>
+    </div>
   </div>
   <div style="margin-top:20px">
-    <button class="btn btn-primary" onclick="save()">שמירה</button>
-    <button class="btn btn-secondary" onclick="stopAll()">להפסיק את כל המיילים</button>
+    <button class="btn btn-primary" id="btn_save">שמירה</button>
+    <button class="btn btn-secondary" id="btn_stop">להפסיק את כל המיילים</button>
   </div>
 </div>
-<div class="card result" id="result">
+<div class="card" id="result" style="display:none">
   <img src="https://joinone.io/appLogo.png" alt="One" style="height:44px;margin-bottom:20px" />
   <h2 style="margin:0 0 10px;font-size:19px" id="result_title"></h2>
   <p style="color:#666;font-size:14px;line-height:1.7;margin:0" id="result_text"></p>
 </div>
 <script>
+var token = "${token}";
 function send(updates, marketing) {
   fetch("/api/unsubscribe", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token: "${token}", email_updates: updates, email_marketing: marketing })
-  }).then(r => r.json()).then(d => {
+    body: JSON.stringify({ token: token, email_updates: updates, email_marketing: marketing })
+  }).then(function(resp) { return resp.json(); }).then(function() {
     document.getElementById("form").style.display = "none";
-    var r = document.getElementById("result");
-    r.style.display = "block";
+    var res = document.getElementById("result");
+    res.style.display = "block";
     if (!updates && !marketing) {
       document.getElementById("result_title").textContent = "ההעדפות עודכנו";
       document.getElementById("result_text").textContent = "לא ${g("תקבל", "תקבלי")} יותר מיילים מ-One. אם ${g("תרצה", "תרצי")} לחזור — אפשר תמיד לעדכן בהגדרות באפליקציה.";
@@ -289,12 +290,18 @@ function send(updates, marketing) {
     }
   });
 }
-function save() {
+document.getElementById("opt_updates").addEventListener("click", function(e) {
+  if (e.target.tagName !== "INPUT") document.getElementById("cb_updates").checked = !document.getElementById("cb_updates").checked;
+});
+document.getElementById("opt_marketing").addEventListener("click", function(e) {
+  if (e.target.tagName !== "INPUT") document.getElementById("cb_marketing").checked = !document.getElementById("cb_marketing").checked;
+});
+document.getElementById("btn_save").addEventListener("click", function() {
   send(document.getElementById("cb_updates").checked, document.getElementById("cb_marketing").checked);
-}
-function stopAll() {
+});
+document.getElementById("btn_stop").addEventListener("click", function() {
   send(false, false);
-}
+});
 </script>
 </body></html>`);
   } catch (err: any) {
@@ -6299,8 +6306,6 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
         }
         msg += "\n\nתודה רבה ממערכת One";
         displayMessage = msg;
-      } else if (noEmail && !profileRow?.whatsapp_updates) {
-        displayMessage = "מאחר וסימנת שאינך מעוניינת לקבל עדכונים במייל — נציג לך הודעות חשובות במסך כאן. כדאי להיכנס מדי פעם לבדוק אם יש התאמה שלא תתפספס :) את מוזמנת גם לשנות את ההגדרה במסך ההגדרות.";
       }
     }
 
