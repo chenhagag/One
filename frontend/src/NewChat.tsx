@@ -3370,13 +3370,14 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo, isWW }: { user: Use
         {/* Notifications */}
         <div style={sectionStyle}>
           <h3 style={titleStyle}>התראות ועדכונים</h3>
+          {isNativeApp() && (
           <label style={{ ...labelStyle, marginBottom: 14 }}>
             <input type="checkbox" checked={pushNotifications} disabled={saving || loading}
               onChange={(e) => { setPushNotifications(e.target.checked); saveSetting({ push_notifications: e.target.checked }); }}
               style={checkboxStyle} />
             <span>התראות פוש באפליקציה</span>
-            <span style={{ display: "block", fontSize: 11, color: "#9ca3af", marginTop: 2, marginRight: 26 }}>רלוונטי למי {isWW ? "שהורידה" : "שהוריד/ה"} את אפליקציית Android</span>
           </label>
+          )}
           <label style={{ ...labelStyle, marginBottom: 14 }}>
             <input type="checkbox" checked={emailUpdates} disabled={saving || loading}
               onChange={(e) => { setEmailUpdates(e.target.checked); saveSetting({ email_updates: e.target.checked }); }}
