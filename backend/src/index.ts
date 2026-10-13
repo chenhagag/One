@@ -5336,6 +5336,19 @@ app.get("/admin/system-health", requireAdmin, async (_req, res) => {
         (SELECT COUNT(DISTINCT user_id) FROM conversation_messages WHERE created_at > ${hours24} AND role = 'user' AND user_id != ALL($1)) AS sent_message
     `, [ANALYTICS_EXCLUDED_USERS]);
 
+    // 1b. Registration funnel by device (last 24h)
+    const funnelByDevice = await pgQueryAll<any>(`
+      SELECT COALESCE(last_device, 'unknown') AS device,
+        COUNT(*) AS registered,
+        COUNT(*) FILTER (WHERE profile_complete = true) AS completed_profile,
+        COUNT(*) FILTER (WHERE consent_accepted = true) AS accepted_consent,
+        COUNT(DISTINCT id) FILTER (WHERE id IN (
+          SELECT DISTINCT user_id FROM conversation_messages WHERE created_at > ${hours24} AND role = 'user'
+        )) AS sent_message
+      FROM users WHERE created_at > ${hours24} AND id != ALL($1)
+      GROUP BY last_device ORDER BY registered DESC
+    `, [ANALYTICS_EXCLUDED_USERS]);
+
     // 2. Funnel by entry_point (last 24h)
     const funnelBySource = await pgQueryAll<any>(`
       SELECT COALESCE(entry_point, 'unknown') AS source,
@@ -5370,13 +5383,13 @@ app.get("/admin/system-health", requireAdmin, async (_req, res) => {
 
     // 5. Users stuck on ProfileSetup (3+ page loads)
     const repeatedProfileSetup = await pgQueryAll<any>(`
-      SELECT pv.user_id, u.email, u.first_name, COUNT(*) AS attempts, u.profile_complete
+      SELECT pv.user_id, u.email, u.first_name, u.last_device, COUNT(*) AS attempts, u.profile_complete
       FROM page_views pv
       JOIN users u ON u.id = pv.user_id
       WHERE pv.page = 'נתוני פתיחה'
         AND pv.viewed_at > ${hours24}
         AND pv.user_id != ALL($1)
-      GROUP BY pv.user_id, u.email, u.first_name, u.profile_complete
+      GROUP BY pv.user_id, u.email, u.first_name, u.last_device, u.profile_complete
       HAVING COUNT(*) >= 3
       ORDER BY COUNT(*) DESC
     `, [ANALYTICS_EXCLUDED_USERS]);
@@ -5411,6 +5424,7 @@ app.get("/admin/system-health", requireAdmin, async (_req, res) => {
     return res.json({
       timestamp: new Date().toISOString(),
       funnel,
+      funnel_by_device: funnelByDevice,
       funnel_by_source: funnelBySource,
       push_health: pushHealth,
       stuck_users: stuckUsers,

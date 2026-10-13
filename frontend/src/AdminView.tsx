@@ -5737,6 +5737,37 @@ function SystemHealthTab() {
         <div style={metricRow}><span style={metricLabel}>שלחו הודעה</span><span style={metricVal}>{f.sent_message || 0}</span></div>
       </div>
 
+      {/* Funnel by device */}
+      {data.funnel_by_device?.length > 0 && (
+        <div style={cardStyle}>
+          <p style={titleS}>משפך לפי מכשיר</p>
+          <p style={{ fontSize: 11, color: "#999", margin: "-6px 0 8px" }}>android = אפליקציה או דפדפן אנדרואיד. אם android תקוע בפרופיל = בעיה באפליקציה</p>
+          <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
+            <thead><tr style={{ borderBottom: "2px solid #e5e7eb" }}>
+              <th style={{ textAlign: "right", padding: 4 }}>מכשיר</th>
+              <th style={{ textAlign: "center", padding: 4 }}>נרשמו</th>
+              <th style={{ textAlign: "center", padding: 4 }}>פרופיל</th>
+              <th style={{ textAlign: "center", padding: 4 }}>תנאים</th>
+              <th style={{ textAlign: "center", padding: 4 }}>צ'אט</th>
+            </tr></thead>
+            <tbody>
+              {data.funnel_by_device.map((d: any) => {
+                const stuck = parseInt(d.registered) > 0 && parseInt(d.completed_profile) === 0;
+                return (
+                  <tr key={d.device} style={{ borderBottom: "1px solid #f3f4f6", background: d.device === "android" ? "#fefce8" : "transparent" }}>
+                    <td style={{ padding: 4, fontWeight: d.device === "android" ? 700 : 400 }}>{d.device === "android" ? "Android" : d.device === "iphone" ? "iPhone" : d.device === "desktop" ? "Desktop" : d.device}</td>
+                    <td style={{ textAlign: "center", padding: 4 }}>{d.registered}</td>
+                    <td style={{ textAlign: "center", padding: 4, color: stuck ? "#dc2626" : "inherit", fontWeight: stuck ? 700 : 400 }}>{d.completed_profile}</td>
+                    <td style={{ textAlign: "center", padding: 4 }}>{d.accepted_consent}</td>
+                    <td style={{ textAlign: "center", padding: 4 }}>{d.sent_message}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Funnel by source */}
       {data.funnel_by_source?.length > 0 && (
         <div style={cardStyle}>
@@ -5805,7 +5836,7 @@ function SystemHealthTab() {
           {data.repeated_profile_setup.map((u: any) => (
             <div key={u.user_id} style={metricRow}>
               <span style={metricLabel}>#{u.user_id} {u.first_name || u.email}</span>
-              <span style={warnVal}>{u.attempts} ניסיונות {u.profile_complete ? "(הצליחה בסוף)" : "(עדיין תקועה)"}</span>
+              <span style={warnVal}>{u.last_device === "android" ? "Android " : ""}{u.attempts} ניסיונות {u.profile_complete ? "(הצליחה בסוף)" : "(עדיין תקועה)"}</span>
             </div>
           ))}
         </div>
