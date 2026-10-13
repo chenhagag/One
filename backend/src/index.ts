@@ -529,12 +529,15 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
     if (!isNative || !ip) return entry_point || null;
     // Only do IP lookup if entry_point is missing or is the default (root "/" sets "forwomen")
     if (entry_point && entry_point !== "forwomen") return entry_point;
+    // Match by /24 subnet (first 3 octets) to handle CGNAT IP variation on mobile networks
+    const ipParts = ip.split(".");
+    const subnetPrefix = ipParts.length === 4 ? ipParts.slice(0, 3).join(".") + ".%" : ip;
     const recent = await pgQueryOne<{ page: string }>(
       `SELECT page FROM page_views
-       WHERE ip = $1 AND page LIKE 'landing_%' AND page NOT IN ('landing_home', 'landing_forwomen')
+       WHERE ip LIKE $1 AND page LIKE 'landing_%' AND page NOT IN ('landing_home', 'landing_forwomen')
        AND viewed_at > NOW() - INTERVAL '48 hours'
        ORDER BY viewed_at DESC LIMIT 1`,
-      [ip]
+      [subnetPrefix]
     );
     if (recent) {
       // landing_meme → meme, landing_barazany → barazany, landing_main → main, etc.
