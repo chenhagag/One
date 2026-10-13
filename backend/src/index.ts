@@ -5365,6 +5365,8 @@ app.get("/admin/system-health", requireAdmin, async (_req, res) => {
         (SELECT COUNT(*) FROM users WHERE devices_seen::text LIKE '%"native":true%' AND id != ALL($1)) AS native_users,
         (SELECT COUNT(DISTINCT user_id) FROM fcm_tokens WHERE permission_status = 'granted') AS with_fcm_token,
         (SELECT COUNT(*) FROM users WHERE push_notifications = true AND id != ALL($1)) AS push_enabled,
+        (SELECT COUNT(*) FROM users WHERE push_notifications = true AND devices_seen::text LIKE '%"native":true%' AND id != ALL($1)) AS push_enabled_native,
+        (SELECT COUNT(*) FROM users WHERE push_notifications = true AND (devices_seen IS NULL OR devices_seen::text NOT LIKE '%"native":true%') AND id != ALL($1)) AS push_enabled_web_only,
         (SELECT COUNT(*) FROM notification_log WHERE channel = 'push' AND success = true AND sent_at > ${hours24}) AS push_sent_24h,
         (SELECT COUNT(*) FROM notification_log WHERE channel = 'push' AND success = false AND sent_at > ${hours24}) AS push_failed_24h
     `, [ANALYTICS_EXCLUDED_USERS]);

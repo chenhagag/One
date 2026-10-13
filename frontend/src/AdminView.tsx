@@ -5799,7 +5799,9 @@ function SystemHealthTab() {
         <p style={{ fontSize: 11, color: "#999", margin: "-6px 0 8px" }}>0 tokens מתוך הרבה native = הפרומפט לא עובד. הרבה failed = בעיית FCM</p>
         <div style={metricRow}><span style={metricLabel}>משתמשות עם אפליקציה נטיבית</span><span style={metricVal}>{p.native_users || 0}</span></div>
         <div style={metricRow}><span style={metricLabel}>עם FCM token רשום</span><span style={parseInt(p.native_users) > 3 && parseInt(p.with_fcm_token) === 0 ? warnVal : metricVal}>{p.with_fcm_token || 0}</span></div>
-        <div style={metricRow}><span style={metricLabel}>push_notifications מופעל</span><span style={metricVal}>{p.push_enabled || 0}</span></div>
+        <div style={metricRow}><span style={metricLabel}>push_notifications מופעל (סה"כ)</span><span style={metricVal}>{p.push_enabled || 0}</span></div>
+        <div style={metricRow}><span style={{ ...metricLabel, paddingRight: 16 }}>↳ עם אפליקציה נטיבית (אמיתי)</span><span style={okVal}>{p.push_enabled_native || 0}</span></div>
+        <div style={metricRow}><span style={{ ...metricLabel, paddingRight: 16, color: "#999" }}>↳ בלי אפליקציה (לא רלוונטי)</span><span style={{ ...metricVal, color: "#999" }}>{p.push_enabled_web_only || 0}</span></div>
         <div style={metricRow}><span style={metricLabel}>push נשלחו (24ש)</span><span style={okVal}>{p.push_sent_24h || 0}</span></div>
         <div style={metricRow}><span style={metricLabel}>push נכשלו (24ש)</span><span style={parseInt(p.push_failed_24h) > 0 ? warnVal : okVal}>{p.push_failed_24h || 0}</span></div>
       </div>
