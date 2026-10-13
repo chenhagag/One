@@ -15,7 +15,7 @@ import AdminPipeline from "./AdminPipeline";
 
 type Tab = "overview" | "users" | "traits" | "look_traits" | "matches" | "candidates" | "bugs" | "card_requests" | "errors" | "email" | "analytics" | "user_mgmt" | "outreach" | "deleted_users" | "system_log";
 
-type AnalyticsSubTab = "page_views" | "landings" | "age_dist" | "meme_dash" | "adi_dash" | "survey" | "survey2";
+type AnalyticsSubTab = "page_views" | "landings" | "age_dist" | "meme_dash" | "adi_dash" | "survey" | "survey2" | "health";
 
 const s: Record<string, React.CSSProperties> = {
   heading: { marginTop: 0, marginBottom: 8, fontSize: 22 },
@@ -5677,6 +5677,168 @@ function parseFeedbackCategory(text: string): { category: string | null; body: s
   return { category: null, body: text };
 }
 
+function SystemHealthTab() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState<string>("");
+
+  function load() {
+    setLoading(true);
+    apiFetch("/admin/system-health").then(r => r.json()).then(d => {
+      setData(d);
+      setLastRefresh(new Date().toLocaleTimeString("he-IL"));
+    }).catch(() => {}).finally(() => setLoading(false));
+  }
+  useEffect(() => { load(); }, []);
+
+  if (loading && !data) return <p>טוען...</p>;
+  if (!data) return <p>שגיאה בטעינה</p>;
+
+  const cardStyle: React.CSSProperties = { background: "#fff", borderRadius: 12, padding: "16px 20px", marginBottom: 14, border: "1px solid #e5e7eb" };
+  const titleS: React.CSSProperties = { fontSize: 15, fontWeight: 700, color: "#1a1a2e", margin: "0 0 10px" };
+  const metricRow: React.CSSProperties = { display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: 13, borderBottom: "1px solid #f3f4f6" };
+  const metricLabel: React.CSSProperties = { color: "#555" };
+  const metricVal: React.CSSProperties = { fontWeight: 600, color: "#1a1a2e" };
+  const warnVal: React.CSSProperties = { ...metricVal, color: "#dc2626" };
+  const okVal: React.CSSProperties = { ...metricVal, color: "#16a34a" };
+
+  const f = data.funnel || {};
+  const p = data.push_health || {};
+  const a = data.active_now || {};
+  const ch = data.channels || {};
+
+  return (
+    <div dir="rtl" style={{ maxWidth: 700 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>בריאות מערכת — 24 שעות אחרונות</h3>
+        <div>
+          <span style={{ fontSize: 11, color: "#999", marginLeft: 8 }}>עדכון: {lastRefresh}</span>
+          <button onClick={load} disabled={loading} style={{ padding: "4px 14px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", fontSize: 12, cursor: "pointer" }}>
+            {loading ? "..." : "רענן"}
+          </button>
+        </div>
+      </div>
+
+      {/* Active now */}
+      <div style={{ ...cardStyle, background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
+        <p style={titleS}>פעילות כרגע (שעה אחרונה)</p>
+        <div style={metricRow}><span style={metricLabel}>משתמשות פעילות</span><span style={metricVal}>{a.active_1h || 0}</span></div>
+        <div style={metricRow}><span style={metricLabel}>בשיחה עכשיו</span><span style={metricVal}>{a.chatting_1h || 0}</span></div>
+      </div>
+
+      {/* Funnel */}
+      <div style={cardStyle}>
+        <p style={titleS}>משפך הרשמה (24 שעות)</p>
+        <p style={{ fontSize: 11, color: "#999", margin: "-6px 0 8px" }}>פער גדול בין שלבים = בעיה פוטנציאלית</p>
+        <div style={metricRow}><span style={metricLabel}>ביקורי דף נחיתה (unique)</span><span style={metricVal}>{f.landing_unique || 0}</span></div>
+        <div style={metricRow}><span style={metricLabel}>נרשמו</span><span style={metricVal}>{f.new_registrations || 0}</span></div>
+        <div style={metricRow}><span style={metricLabel}>השלימו פרופיל</span><span style={parseInt(f.new_registrations) > 0 && parseInt(f.completed_profile) === 0 ? warnVal : metricVal}>{f.completed_profile || 0}</span></div>
+        <div style={metricRow}><span style={metricLabel}>אישרו תנאים</span><span style={metricVal}>{f.accepted_consent || 0}</span></div>
+        <div style={metricRow}><span style={metricLabel}>שלחו הודעה</span><span style={metricVal}>{f.sent_message || 0}</span></div>
+      </div>
+
+      {/* Funnel by source */}
+      {data.funnel_by_source?.length > 0 && (
+        <div style={cardStyle}>
+          <p style={titleS}>משפך לפי מקור</p>
+          <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
+            <thead><tr style={{ borderBottom: "2px solid #e5e7eb" }}>
+              <th style={{ textAlign: "right", padding: 4 }}>מקור</th>
+              <th style={{ textAlign: "center", padding: 4 }}>נרשמו</th>
+              <th style={{ textAlign: "center", padding: 4 }}>פרופיל</th>
+              <th style={{ textAlign: "center", padding: 4 }}>תנאים</th>
+            </tr></thead>
+            <tbody>
+              {data.funnel_by_source.map((s: any) => (
+                <tr key={s.source} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                  <td style={{ padding: 4 }}>{s.source}</td>
+                  <td style={{ textAlign: "center", padding: 4 }}>{s.registered}</td>
+                  <td style={{ textAlign: "center", padding: 4 }}>{s.completed_profile}</td>
+                  <td style={{ textAlign: "center", padding: 4 }}>{s.accepted_consent}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Push health */}
+      <div style={cardStyle}>
+        <p style={titleS}>בריאות Push Notifications</p>
+        <p style={{ fontSize: 11, color: "#999", margin: "-6px 0 8px" }}>0 tokens מתוך הרבה native = הפרומפט לא עובד. הרבה failed = בעיית FCM</p>
+        <div style={metricRow}><span style={metricLabel}>משתמשות עם אפליקציה נטיבית</span><span style={metricVal}>{p.native_users || 0}</span></div>
+        <div style={metricRow}><span style={metricLabel}>עם FCM token רשום</span><span style={parseInt(p.native_users) > 3 && parseInt(p.with_fcm_token) === 0 ? warnVal : metricVal}>{p.with_fcm_token || 0}</span></div>
+        <div style={metricRow}><span style={metricLabel}>push_notifications מופעל</span><span style={metricVal}>{p.push_enabled || 0}</span></div>
+        <div style={metricRow}><span style={metricLabel}>push נשלחו (24ש)</span><span style={okVal}>{p.push_sent_24h || 0}</span></div>
+        <div style={metricRow}><span style={metricLabel}>push נכשלו (24ש)</span><span style={parseInt(p.push_failed_24h) > 0 ? warnVal : okVal}>{p.push_failed_24h || 0}</span></div>
+      </div>
+
+      {/* Notification channels */}
+      <div style={cardStyle}>
+        <p style={titleS}>ערוצי התראות (כל המשתמשות)</p>
+        <p style={{ fontSize: 11, color: "#999", margin: "-6px 0 8px" }}>מספר גבוה ב"ללא ערוץ" = משתמשות שלא נוכל להגיע אליהן</p>
+        <div style={metricRow}><span style={metricLabel}>Push מופעל</span><span style={metricVal}>{ch.push_on || 0}</span></div>
+        <div style={metricRow}><span style={metricLabel}>מייל מופעל</span><span style={metricVal}>{ch.email_on || 0}</span></div>
+        <div style={metricRow}><span style={metricLabel}>ווטסאפ מופעל</span><span style={metricVal}>{ch.whatsapp_on || 0}</span></div>
+        <div style={metricRow}><span style={metricLabel}>ללא שום ערוץ</span><span style={parseInt(ch.no_channel) > 5 ? warnVal : metricVal}>{ch.no_channel || 0}</span></div>
+      </div>
+
+      {/* Stuck users */}
+      {data.stuck_users?.length > 0 && (
+        <div style={{ ...cardStyle, border: "1px solid #fca5a5", background: "#fef2f2" }}>
+          <p style={titleS}>משתמשות תקועות (לא סיימו פרופיל, 10+ דקות)</p>
+          <p style={{ fontSize: 11, color: "#999", margin: "-6px 0 8px" }}>לא עברו את ProfileSetup — בעיה בטופס? לא הבינו מה לעשות?</p>
+          {data.stuck_users.map((u: any) => (
+            <div key={u.id} style={{ ...metricRow, flexWrap: "wrap" }}>
+              <span style={metricLabel}>#{u.id} {u.first_name || u.email} ({u.last_device}) — {u.entry_point || "?"}</span>
+              <span style={{ fontSize: 11, color: "#999" }}>{new Date(u.created_at).toLocaleString("he-IL")}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Repeated ProfileSetup */}
+      {data.repeated_profile_setup?.length > 0 && (
+        <div style={{ ...cardStyle, border: "1px solid #fca5a5", background: "#fef2f2" }}>
+          <p style={titleS}>תקועות בנתוני פתיחה (3+ ניסיונות)</p>
+          <p style={{ fontSize: 11, color: "#999", margin: "-6px 0 8px" }}>טוענות את הדף שוב ושוב — כנראה לא מצליחות לשלוח את הטופס</p>
+          {data.repeated_profile_setup.map((u: any) => (
+            <div key={u.user_id} style={metricRow}>
+              <span style={metricLabel}>#{u.user_id} {u.first_name || u.email}</span>
+              <span style={warnVal}>{u.attempts} ניסיונות {u.profile_complete ? "(הצליחה בסוף)" : "(עדיין תקועה)"}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Recent errors */}
+      {data.recent_errors?.length > 0 && (
+        <div style={cardStyle}>
+          <p style={titleS}>שגיאות אחרונות (24 שעות)</p>
+          {data.recent_errors.map((e: any, i: number) => (
+            <div key={i} style={{ ...metricRow, flexDirection: "column", gap: 2 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: e.status_code >= 500 ? "#dc2626" : "#f59e0b" }}>{e.source} {e.route} {e.status_code || ""}</span>
+                <span style={{ fontSize: 11, color: "#999" }}>{new Date(e.created_at).toLocaleTimeString("he-IL")}</span>
+              </div>
+              <span style={{ fontSize: 11, color: "#666", wordBreak: "break-all" }}>{e.message?.slice(0, 120)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Legend */}
+      <div style={{ fontSize: 11, color: "#999", lineHeight: 1.8, marginTop: 8 }}>
+        <strong>מדריך קריאה:</strong><br />
+        <span style={{ color: "#16a34a" }}>ירוק</span> = תקין &nbsp;|&nbsp; <span style={{ color: "#dc2626" }}>אדום</span> = דורש תשומת לב<br />
+        • משפך: פער גדול בין "נרשמו" ל"השלימו פרופיל" = בעיה ב-ProfileSetup<br />
+        • Push: 0 tokens עם הרבה native users = הפרומפט לא מופיע<br />
+        • "ללא ערוץ" גבוה = משתמשות שלא נגיע אליהן בשום דרך
+      </div>
+    </div>
+  );
+}
+
 function AnalyticsContainerTab() {
   const [subTab, setSubTab] = useState<AnalyticsSubTab>("page_views");
 
@@ -5688,6 +5850,7 @@ function AnalyticsContainerTab() {
     ["adi_dash", "דשבורד עדי"],
     ["survey", "סקר"],
     ["survey2", "סקר WW"],
+    ["health", "בריאות מערכת"],
   ];
 
   return (
@@ -5719,6 +5882,7 @@ function AnalyticsContainerTab() {
       {subTab === "adi_dash" && <AdiDashTab />}
       {subTab === "survey" && <SurveyAdminTab />}
       {subTab === "survey2" && <Survey2AdminTab />}
+      {subTab === "health" && <SystemHealthTab />}
     </div>
   );
 }

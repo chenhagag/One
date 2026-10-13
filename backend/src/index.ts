@@ -5319,6 +5319,112 @@ app.get("/admin/landing-stats", async (req, res) => {
   }
 });
 
+// GET /admin/system-health — Launch-day health dashboard
+app.get("/admin/system-health", requireAdmin, async (_req, res) => {
+  try {
+    const hours24 = "NOW() - INTERVAL '24 hours'";
+    const hours1 = "NOW() - INTERVAL '1 hour'";
+
+    // 1. Registration funnel (last 24h)
+    const funnel = await pgQueryOne<any>(`
+      SELECT
+        (SELECT COUNT(*) FROM page_views WHERE page LIKE 'landing_%' AND viewed_at > ${hours24}) AS landing_visits,
+        (SELECT COUNT(DISTINCT ip) FROM page_views WHERE page LIKE 'landing_%' AND viewed_at > ${hours24}) AS landing_unique,
+        (SELECT COUNT(*) FROM users WHERE created_at > ${hours24} AND id != ALL($1)) AS new_registrations,
+        (SELECT COUNT(*) FROM users WHERE created_at > ${hours24} AND profile_complete = true AND id != ALL($1)) AS completed_profile,
+        (SELECT COUNT(*) FROM users WHERE created_at > ${hours24} AND consent_accepted = true AND id != ALL($1)) AS accepted_consent,
+        (SELECT COUNT(DISTINCT user_id) FROM conversation_messages WHERE created_at > ${hours24} AND role = 'user' AND user_id != ALL($1)) AS sent_message
+    `, [ANALYTICS_EXCLUDED_USERS]);
+
+    // 2. Funnel by entry_point (last 24h)
+    const funnelBySource = await pgQueryAll<any>(`
+      SELECT COALESCE(entry_point, 'unknown') AS source,
+        COUNT(*) AS registered,
+        COUNT(*) FILTER (WHERE profile_complete = true) AS completed_profile,
+        COUNT(*) FILTER (WHERE consent_accepted = true) AS accepted_consent
+      FROM users WHERE created_at > ${hours24} AND id != ALL($1)
+      GROUP BY entry_point ORDER BY registered DESC
+    `, [ANALYTICS_EXCLUDED_USERS]);
+
+    // 3. Push notifications health
+    const pushHealth = await pgQueryOne<any>(`
+      SELECT
+        (SELECT COUNT(*) FROM users WHERE devices_seen::text LIKE '%"native":true%' AND id != ALL($1)) AS native_users,
+        (SELECT COUNT(DISTINCT user_id) FROM fcm_tokens WHERE permission_status = 'granted') AS with_fcm_token,
+        (SELECT COUNT(*) FROM users WHERE push_notifications = true AND id != ALL($1)) AS push_enabled,
+        (SELECT COUNT(*) FROM notification_log WHERE channel = 'push' AND success = true AND sent_at > ${hours24}) AS push_sent_24h,
+        (SELECT COUNT(*) FROM notification_log WHERE channel = 'push' AND success = false AND sent_at > ${hours24}) AS push_failed_24h
+    `, [ANALYTICS_EXCLUDED_USERS]);
+
+    // 4. Stuck users — profile_complete=false for >10 min
+    const stuckUsers = await pgQueryAll<any>(`
+      SELECT id, email, first_name, created_at, last_device, entry_point,
+        profile_complete, consent_accepted
+      FROM users
+      WHERE profile_complete = false
+        AND created_at > ${hours24}
+        AND created_at < NOW() - INTERVAL '10 minutes'
+        AND id != ALL($1)
+      ORDER BY created_at DESC LIMIT 20
+    `, [ANALYTICS_EXCLUDED_USERS]);
+
+    // 5. Users stuck on ProfileSetup (3+ page loads)
+    const repeatedProfileSetup = await pgQueryAll<any>(`
+      SELECT pv.user_id, u.email, u.first_name, COUNT(*) AS attempts, u.profile_complete
+      FROM page_views pv
+      JOIN users u ON u.id = pv.user_id
+      WHERE pv.page = 'נתוני פתיחה'
+        AND pv.viewed_at > ${hours24}
+        AND pv.user_id != ALL($1)
+      GROUP BY pv.user_id, u.email, u.first_name, u.profile_complete
+      HAVING COUNT(*) >= 3
+      ORDER BY COUNT(*) DESC
+    `, [ANALYTICS_EXCLUDED_USERS]);
+
+    // 6. Recent errors
+    const recentErrors = await pgQueryAll<any>(`
+      SELECT source, route, message, user_id, status_code, created_at
+      FROM error_logs
+      WHERE created_at > ${hours24}
+      ORDER BY created_at DESC LIMIT 20
+    `);
+
+    // 7. Active users right now (last hour)
+    const activeNow = await pgQueryOne<any>(`
+      SELECT
+        (SELECT COUNT(DISTINCT user_id) FROM page_views WHERE viewed_at > ${hours1} AND user_id IS NOT NULL) AS active_1h,
+        (SELECT COUNT(DISTINCT user_id) FROM conversation_messages WHERE created_at > ${hours1} AND role = 'user') AS chatting_1h
+    `);
+
+    // 8. Notification channels breakdown (all users, not just 24h)
+    const channels = await pgQueryOne<any>(`
+      SELECT
+        COUNT(*) FILTER (WHERE push_notifications = true) AS push_on,
+        COUNT(*) FILTER (WHERE email_updates = true OR email_updates IS NULL) AS email_on,
+        COUNT(*) FILTER (WHERE whatsapp_updates = true) AS whatsapp_on,
+        COUNT(*) FILTER (WHERE COALESCE(push_notifications, false) = false
+          AND COALESCE(email_updates, true) = false
+          AND COALESCE(whatsapp_updates, false) = false) AS no_channel
+      FROM users WHERE id != ALL($1)
+    `, [ANALYTICS_EXCLUDED_USERS]);
+
+    return res.json({
+      timestamp: new Date().toISOString(),
+      funnel,
+      funnel_by_source: funnelBySource,
+      push_health: pushHealth,
+      stuck_users: stuckUsers,
+      repeated_profile_setup: repeatedProfileSetup,
+      recent_errors: recentErrors,
+      active_now: activeNow,
+      channels,
+    });
+  } catch (err: any) {
+    console.error("[admin] system-health error:", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /admin/system-activity-log — Unified log of automated system jobs
 app.get("/admin/system-activity-log", async (req, res) => {
   try {

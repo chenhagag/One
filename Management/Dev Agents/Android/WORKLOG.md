@@ -1,6 +1,49 @@
 # Mobile (Capacitor) Agent — Work Log
 
-## Latest: 2026-10-11 — Google Play Approved + Push Permission Flow
+## Latest: 2026-10-13 — Launch Day Health Dashboard + Settings + Fixes
+
+### Settings push toggle for all native app users — DONE
+- Toggle visible for anyone with `has_native_app` (from `devices_seen`), not just current WebView
+- From browser: shows hint "השינוי ייכנס לתוקף בפתיחה הבאה של האפליקציה"
+- From native app: enabling also triggers `initPushNotifications()` (FCM registration)
+- Backend: `/new-chat/status` returns `has_native_app` computed from `devices_seen`
+
+### ProfileSetup validation UX fix — DONE
+- User 312 (greatwave.blr) stuck 10 attempts on "נתוני פתיחה" — couldn't see error
+- Added auto-scroll to notification card on validation error
+- Added red border on the card when no channel selected
+- Files: `frontend/src/ProfileSetup.tsx`
+
+### IP attribution: subnet /24 matching — DONE
+- CGNAT on mobile networks causes IP to vary by last octet between browser and app
+- Changed `WHERE ip = $1` to `WHERE ip LIKE '152.233.13.%'` (first 3 octets)
+- Verified: user 313 (Shani Zandberg) had IPs `152.233.13.165` (browser) vs `152.233.13.164` (app)
+- Files: `backend/src/index.ts` (`resolveEntryPoint()`)
+
+### System Health Dashboard — DONE
+- אדמין → אנליטיקות → "בריאות מערכת"
+- **Endpoint**: `GET /admin/system-health`
+- **מה מוצג**:
+  - פעילות כרגע (שעה אחרונה) — פעילות + בשיחה
+  - משפך הרשמה 24ש — landing → registration → profile → consent → chat
+  - משפך לפי מקור (forwomen/meme/barazany)
+  - בריאות Push — native users vs FCM tokens vs push enabled, sent/failed
+  - ערוצי התראות — push/email/whatsapp/ללא ערוץ
+  - משתמשות תקועות — profile_complete=false אחרי 10+ דקות
+  - תקועות בנתוני פתיחה — 3+ ניסיונות טעינה
+  - שגיאות אחרונות מ-error_logs
+- **אינדיקטורים**: אדום = דורש תשומת לב, ירוק = תקין
+- **מדריך קריאה** בתחתית הדף
+
+### Google Play download button on landing page — DONE (by Chen)
+- Android users see download button on landing page
+- AuthScreen: "המשיכי בדפדפן" label for Android users alongside download option
+
+### AAB v1.4.0 (versionCode 6) — built and ready
+
+---
+
+## 2026-10-11 — Google Play Approved + Push Permission Flow
 
 ### Google Play approved!
 - App approved for production release

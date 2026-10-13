@@ -1,6 +1,16 @@
 # Statistics & Reports Agent — Work Log
 
-## Latest: 2026-10-11 — IP-Based Entry Point Attribution for Native App
+## Latest: 2026-10-13 — Subnet /24 Fix for IP Attribution
+
+### תיקון שיוך IP — התאמה לפי subnet /24
+- רשתות סלולריות (CGNAT) מחלקות IPs שונים בספרה אחרונה בין דפדפן לאפליקציה
+- שינוי: `WHERE ip = $1` → `WHERE ip LIKE '152.233.13.%'` (3 אוקטטים ראשונים)
+- אומת עם משתמשת 313 (Shani Zandberg): דפדפן `152.233.13.165`, אפליקציה `152.233.13.164`
+- **שינוי ב-**: `backend/src/index.ts` — `resolveEntryPoint()`
+
+---
+
+## 2026-10-11 — IP-Based Entry Point Attribution for Native App
 
 ### שיוך entry_point לפי IP למשתמשות אפליקציה נטיבית
 - כשמשתמשת נכנסת מהאפליקציה הנטיבית (Android) בלי entry_point ספציפי, המערכת מחפשת ב-`page_views` ביקור מאותו IP ב-48 שעות האחרונות
