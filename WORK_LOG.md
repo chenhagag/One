@@ -22,7 +22,42 @@
 
 ---
 
-## Latest Session: 2026-10-08 (Agent Restructuring + Legal + Infra)
+## Latest Session: 2026-10-11 (Email System Overhaul + Notification Banner + Android Agent)
+
+### ✅ מערכת מיילים — שדרוג מקיף
+- **פוטר מאוחד** — `buildEmailFooter()` exported מ-notifications.ts, מקור אמת יחיד
+- אייקוני אינסטגרם + פייסבוק בכל מייל
+- לינק "לעדכון העדפות מיילים" נוסף לכל מייל שיווקי (היה חסר ב-nudges)
+- List-Unsubscribe headers (RFC 8058) לשיפור Gmail deliverability
+- כפילויות EMAIL_FOOTER הוסרו מ-4 קבצים
+
+### ✅ דף העדפות מיילים — חדש
+- לחיצה על הלינק במייל → דף אינטראקטיבי עם 2 toggles (התאמות/הודעות + עדכונים כלליים)
+- כפתור "להפסיק את כל המיילים" ל-opt-out מלא
+- תיקון route: `/api/unsubscribe` → `/unsubscribe` (middleware מוריד prefix)
+- תיקון CSP: inline handlers → addEventListener
+
+### ✅ באנר התראות — איחוד
+- Push prompt + no-channels warning → באנר מאוחד אחד
+- Native app: "כן, אשמח" (push) + "הגדרות" + "ראיתי, תודה"
+- Web/PWA: "הגדרות התראות" + "ראיתי, תודה" (dismiss ב-localStorage)
+- הודעת backend כפולה ("מאחר וסימנת...") הוסרה
+- Toggle push בהגדרות — מוסתר למי שלא באפליקציית Android
+
+### ✅ סוכן אנדרואיד (מסשן מקביל)
+- Push notification permission prompt (native app)
+- IP-based entry_point attribution (48h window)
+- Enter במובייל = שורה חדשה (send via button only)
+- תיקון greeting בכניסה מסיידבר
+- `/new-chat/status` מחזיר push_notifications, email_updates, whatsapp_updates
+
+### ✅ Management
+- סוכנים חדשים: Chat Reviewer, Match Card Writer
+- מסמכים משפטיים, תמונות, אפיון
+
+---
+
+## 2026-10-08 (Agent Restructuring + Legal + Infra)
 
 ### ✅ מערכת סוכנים — ארגון מחדש
 - **User Management** — הפך למתאם (orchestrator): סורק DB → דו"ח → מפנה לסוכנים

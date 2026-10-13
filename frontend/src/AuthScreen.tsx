@@ -46,6 +46,7 @@ export default function AuthScreen({ onOtpSuccess, notice, entryPoint, onEntryPo
   const isInAppBrowser = /FBAN|FBAV|Instagram|LinkedInApp|Line\//i.test(navigator.userAgent);
   const isStandalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
   const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
+  const isAndroid = /android/i.test(navigator.userAgent);
 
   async function handleOAuth(provider: "google" | "apple") {
     setLoading(provider);
@@ -314,6 +315,22 @@ export default function AuthScreen({ onOtpSuccess, notice, entryPoint, onEntryPo
           >
             {isForWomen ? "המשיכי לאפליקציה" : "המשך לאפליקציה"}
           </button>
+          {isAndroid && !isNative && (
+            <a
+              href="https://play.google.com/store/apps/details?id=io.joinone.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                width: "100%", maxWidth: 320, padding: "12px 24px", fontSize: 14, fontWeight: 600,
+                background: "#fff", color: "#1a1a2e", border: "1px solid #e5e7eb", borderRadius: 14,
+                cursor: "pointer", fontFamily: "inherit", marginBottom: 8, textDecoration: "none",
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3.609 1.814L13.792 12 3.61 22.186a.996.996 0 01-.61-.92V2.734a1 1 0 01.609-.92zm10.89 10.893l2.302 2.302-10.937 6.333 8.635-8.635zm3.199-1.252l2.545 1.47a1 1 0 010 1.732l-2.545 1.47-2.532-2.535 2.532-2.137zM5.864 3.455L16.8 9.788l-2.302 2.302-8.634-8.635z" fill="#1a1a2e"/></svg>
+              {isForWomen ? "הורידי את האפליקציה" : "הורד את האפליקציה"}
+            </a>
+          )}
           {isForWomen && (
             <p style={{ fontSize: 13, color: "#888", textAlign: "center", margin: "20px 0 0", lineHeight: 1.7 }}>
               בזוגיות ורוצה לעזור לנו לאמן את One?{" "}
