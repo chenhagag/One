@@ -6223,6 +6223,7 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       admin_message_type: string | null;
       self_frozen: boolean | null;
       push_notifications: boolean | null;
+      devices_seen: any[] | null;
     }>(
       `SELECT age, city, height, looking_for_gender,
               desired_age_min, desired_age_max, desired_height_min, desired_height_max,
@@ -6232,7 +6233,8 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
               COALESCE(admin_message_dismissed, FALSE) as admin_message_dismissed,
               COALESCE(admin_message_type, 'info') as admin_message_type,
               COALESCE(self_frozen, FALSE) as self_frozen,
-              COALESCE(push_notifications, FALSE) as push_notifications
+              COALESCE(push_notifications, FALSE) as push_notifications,
+              devices_seen
        FROM users WHERE id = $1`, [userId]
     );
     const isWWUser2 = profileRow?.gender === "woman" && profileRow?.looking_for_gender && profileRow?.looking_for_gender !== "man";
@@ -6406,6 +6408,7 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       push_notifications: !!profileRow?.push_notifications,
       email_updates: profileRow?.email_updates !== false,
       whatsapp_updates: !!profileRow?.whatsapp_updates,
+      has_native_app: Array.isArray(profileRow?.devices_seen) && profileRow.devices_seen.some((d: any) => d.native === true),
       active_nudge: activeNudge ? {
         id: activeNudge.id,
         match_id: activeNudge.match_id,

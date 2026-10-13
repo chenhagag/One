@@ -313,7 +313,9 @@ export default function AuthScreen({ onOtpSuccess, notice, entryPoint, onEntryPo
               cursor: "pointer", fontFamily: "inherit", marginBottom: 8,
             }}
           >
-            {isForWomen ? "המשיכי לאפליקציה" : "המשך לאפליקציה"}
+            {isAndroid && !isNative
+              ? (isForWomen ? "המשיכי בדפדפן" : "המשך בדפדפן")
+              : (isForWomen ? "המשיכי לאפליקציה" : "המשך לאפליקציה")}
           </button>
           {isAndroid && !isNative && (
             <a

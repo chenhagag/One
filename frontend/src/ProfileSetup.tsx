@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { apiFetch } from "./lib/api";
 import { getApiBaseUrl } from "./lib/platform";
 import type { User } from "./App";
@@ -49,6 +49,7 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
   const [emailMarketing, setEmailMarketing] = useState(false);
   const [whatsappPhone, setWhatsappPhone] = useState("");
   const [focused, setFocused] = useState<string | null>(null);
+  const channelCardRef = useRef<HTMLDivElement>(null);
 
   const [enums, setEnums] = useState<Record<string, EnumOption[]>>({});
   const [cities, setCities] = useState<{ city_name: string; region: string }[]>([]);
@@ -92,6 +93,8 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
 
     if (!emailUpdates && !whatsappUpdates && !noUpdates) {
       setChannelError(true);
+      // Scroll to the notification card so user sees the error
+      setTimeout(() => channelCardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
       return;
     }
 
@@ -319,10 +322,12 @@ export default function ProfileSetup({ user, onComplete, entryPoint }: ProfileSe
           </div>
 
           {/* Notifications card */}
-          <div style={{
+          <div ref={channelCardRef} style={{
             background: "rgba(255,255,255,0.88)", backdropFilter: "blur(8px)",
             borderRadius: 18, padding: "20px 24px",
             boxShadow: "0 2px 12px rgba(139,123,168,0.08)",
+            border: channelError ? "2px solid #dc2626" : "none",
+            transition: "border-color 0.3s",
           }}>
             <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 4px" }}>
               {isForWomen ? "איך תרצי לקבל עדכונים?" : "איך תרצה לקבל עדכונים?"}

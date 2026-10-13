@@ -417,7 +417,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [bugText, setBugText] = useState("");
   const [bugSent, setBugSent] = useState(false);
   const [feedbackCategory, setFeedbackCategory] = useState<string>("bug");
-  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; admin_message_type: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null; has_past_matches: boolean; show_survey_banner: boolean; survey_partial: boolean; show_survey2_banner: boolean; survey2_partial: boolean; self_frozen: boolean; active_nudge: { id: number; match_id: number; partner_name: string; partner_gender: string; nudge_type?: string } | null; pool_profile_count: number; push_notifications: boolean; email_updates: boolean; whatsapp_updates: boolean }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, admin_message_type: null, pending_rating: false, in_matching_pool: false, match_card_consent: null, has_past_matches: false, show_survey_banner: false, survey_partial: false, show_survey2_banner: false, survey2_partial: false, self_frozen: false, active_nudge: null, pool_profile_count: 0, push_notifications: false, email_updates: true, whatsapp_updates: false });
+  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; admin_message_type: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null; has_past_matches: boolean; show_survey_banner: boolean; survey_partial: boolean; show_survey2_banner: boolean; survey2_partial: boolean; self_frozen: boolean; active_nudge: { id: number; match_id: number; partner_name: string; partner_gender: string; nudge_type?: string } | null; pool_profile_count: number; push_notifications: boolean; email_updates: boolean; whatsapp_updates: boolean; has_native_app: boolean }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, admin_message_type: null, pending_rating: false, in_matching_pool: false, match_card_consent: null, has_past_matches: false, show_survey_banner: false, survey_partial: false, show_survey2_banner: false, survey2_partial: false, self_frozen: false, active_nudge: null, pool_profile_count: 0, push_notifications: false, email_updates: true, whatsapp_updates: false, has_native_app: false });
   const [systemQuestion, setSystemQuestion] = useState<{ id: number; question_text: string; options?: string[] | null } | null>(null);
   const [answeredQuestion, setAnsweredQuestion] = useState<{ question_text: string; answer: string; options?: string[] | null } | null>(null);
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
@@ -495,6 +495,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             push_notifications: !!data.push_notifications,
             email_updates: data.email_updates !== false,
             whatsapp_updates: !!data.whatsapp_updates,
+            has_native_app: !!data.has_native_app,
           });
           setHasPastMatches(!!data.has_past_matches);
           if (data.has_viewed_insights) setHasSeenInsights(true);
@@ -3370,12 +3371,21 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo, isWW }: { user: Use
         {/* Notifications */}
         <div style={sectionStyle}>
           <h3 style={titleStyle}>התראות ועדכונים</h3>
-          {isNativeApp() && (
+          {(isNativeApp() || recommendations.has_native_app) && (
           <label style={{ ...labelStyle, marginBottom: 14 }}>
             <input type="checkbox" checked={pushNotifications} disabled={saving || loading}
-              onChange={(e) => { setPushNotifications(e.target.checked); saveSetting({ push_notifications: e.target.checked }); }}
+              onChange={async (e) => {
+                const checked = e.target.checked;
+                setPushNotifications(checked);
+                saveSetting({ push_notifications: checked });
+                if (checked && isNativeApp()) {
+                  // Also register for push if enabling from native app — triggers native permission + FCM token
+                  await initPushNotifications();
+                }
+              }}
               style={checkboxStyle} />
             <span>התראות פוש באפליקציה</span>
+            {!isNativeApp() && <span style={{ display: "block", fontSize: 11, color: "#9ca3af", marginTop: 2, marginRight: 26 }}>השינוי ייכנס לתוקף בפתיחה הבאה של האפליקציה</span>}
           </label>
           )}
           <label style={{ ...labelStyle, marginBottom: 14 }}>
