@@ -1,6 +1,30 @@
 # Statistics & Reports Agent — Work Log
 
-## Latest: 2026-10-13 — Subnet /24 Fix for IP Attribution
+## Latest: 2026-10-14 — Adi Barazany Launch Fixes
+
+### תיקון דשבורד משפיענית — השקת עדי ברזני
+- **הסרת בורר חודשים** — הציג "יולי 2026" לא רלוונטי. כרגע מוצג רק "30 יום אחרונים"
+- **תיקון אי-התאמה בפירוט הרשמות** — הסטטיסטיקה "נרשמו" ספרה all-time אבל טבלת הפירוט סיננה ל-30 יום. עכשיו שתיהן all-time
+- **הוספת user 308 (עדי עצמה) ל-`ANALYTICS_EXCLUDED_USERS`** — לא נספרת בדשבורד שלה
+- **שינוי ב-**: `frontend/src/MarketerDashboard.tsx`, `backend/src/index.ts`
+
+### הרחבת IP-based attribution לכל המשתמשות (לא רק native)
+- **בעיה**: משתמשות שנכנסו דרך לינק באינסטגרם איבדו localStorage במהלך OAuth redirect → entry_point חזר ל-"forwomen" או null
+- **פתרון**: `resolveEntryPoint()` עכשיו עושה IP lookup לכל משתמשת עם entry_point חסר/ברירת מחדל, לא רק native app
+- **תנאים**: IP subnet /24 match + ביקור ב-landing page (לא home/forwomen) ב-48 שעות אחרונות
+- **שינוי ב-**: `backend/src/index.ts` — פונקציית `resolveEntryPoint()`
+
+### תיקוני נתונים ידניים (DB ישיר)
+- User 260 (אלה): `barazany` → `forwomen` (נרשמה יולי, לפני הקמפיין — שיוך שגוי מ-backfill)
+- Users 314, 315, 317, 320: → `barazany` (IPs תואמים לביקורי landing, פספסו בגלל deploy timing / Instagram WebView)
+- User 319 (ניצן): IP שונה לגמרי (כנראה WiFi→סלולרי) — לא ניתן לשיוך אוטומטי
+
+### מגבלה ידועה
+- WiFi→סלולרי: אם משתמשת גולשת לדף נחיתה מ-WiFi ונרשמת מסלולרי, ה-IP שונה לגמרי ולא ניתן לשיוך אוטומטי
+
+---
+
+## 2026-10-13 — Subnet /24 Fix for IP Attribution
 
 ### תיקון שיוך IP — התאמה לפי subnet /24
 - רשתות סלולריות (CGNAT) מחלקות IPs שונים בספרה אחרונה בין דפדפן לאפליקציה

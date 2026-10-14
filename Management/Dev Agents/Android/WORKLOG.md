@@ -34,6 +34,20 @@
   - שגיאות אחרונות מ-error_logs
 - **אינדיקטורים**: אדום = דורש תשומת לב, ירוק = תקין
 - **מדריך קריאה** בתחתית הדף
+- **עדכון**: משפך לפי מכשיר (Android מודגש בצהוב, אדום אם תקוע)
+- **עדכון**: push enabled מפורק ל-native (אמיתי) vs web-only (לא רלוונטי)
+
+### Google Play download banner in web app — DONE
+- באנר במסך הבית למשתמשות Android web: "One זמינה עכשיו ב-Google Play!" + לינק להורדה
+- מופיע רק: Android UA + לא באפליקציה נטיבית + לא נסגר קודם
+- כפתור X לסגירה (localStorage flag, לא מופיע שוב)
+- טקסט בנשי תמיד (קהל יעד נשים)
+- Files: `frontend/src/NewChat.tsx`
+
+### Google Play email campaign — DONE (2026-10-14)
+- מייל "One זמינה עכשיו כאפליקציה" נשלח ל-35 משתמשות WW Android עם פרופיל מלא
+- לא כולל: couple testers, user 312 (greatwave), user 313 (shani zandberg)
+- כולל: לוגו, כפתור הורדה מ-Google Play, הערה שאפשר להמשיך בדפדפן, פוטר עם לינקי תמיכה
 
 ### Google Play download button on landing page — DONE (by Chen)
 - Android users see download button on landing page

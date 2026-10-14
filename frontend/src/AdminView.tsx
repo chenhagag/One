@@ -631,6 +631,9 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
   const flaggedTroll = filtered.filter((u: any) => u.flag_troll && !u.flag_toxic);
   const flaggedIdentity = filtered.filter((u: any) => u.flag_identity && !u.flag_toxic && !u.flag_troll);
   const unflagged = filtered.filter((u: any) => !u.flag_toxic && !u.flag_troll && !u.flag_identity);
+  const readyWithPhoto = unflagged.filter((u: any) => u.is_matchable && (u.photo_count || 0) >= 1);
+  const readyNoPhoto = unflagged.filter((u: any) => u.is_matchable && (u.photo_count || 0) < 1);
+  const notReady = unflagged.filter((u: any) => !u.is_matchable);
 
   const userHeaders = (
     <tr>
@@ -781,10 +784,16 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
       <FlaggedSection title="Users flagged as troll" color="#fd7e14" list={flaggedTroll} />
       <FlaggedSection title="Users flagged for declared identity variation" color="#6f42c1" list={flaggedIdentity} />
 
-      {/* All remaining users */}
+      {/* Ready with photo */}
+      <FlaggedSection title="מוכנים למאגר" color="#16a34a" list={readyWithPhoto} />
+
+      {/* Ready without photo */}
+      <FlaggedSection title="מוכנים למאגר ללא תמונה" color="#d97706" list={readyNoPhoto} />
+
+      {/* Not ready */}
       <table style={s.table}>
         <thead>{userHeaders}</thead>
-        <tbody>{unflagged.map(u => <UserRow key={u.id} u={u} />)}</tbody>
+        <tbody>{notReady.map(u => <UserRow key={u.id} u={u} />)}</tbody>
       </table>
     </div>
   );
