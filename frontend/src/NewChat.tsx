@@ -1811,7 +1811,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               })()}
 
               {/* Android web users — Google Play download banner */}
-              {screen === "home" && !isNativeApp() && /android/i.test(navigator.userAgent) && !localStorage.getItem(`gplay_banner_dismissed_${user.id}`) && (
+              {screen === "home" && !isNativeApp() && (/android/i.test(navigator.userAgent) || user.id === 178) && !localStorage.getItem(`gplay_banner_dismissed_${user.id}`) && (
                 <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
                   <div style={{ background: "#fff", borderRadius: 14, padding: "16px 20px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #e5e7eb", textAlign: "right", position: "relative" }}>
                     <button onClick={() => { localStorage.setItem(`gplay_banner_dismissed_${user.id}`, "true"); setRecommendations(r => ({ ...r })); }} style={{ position: "absolute", top: 8, left: 8, background: "none", border: "none", fontSize: 18, color: "#ccc", cursor: "pointer", lineHeight: 1 }}>×</button>
