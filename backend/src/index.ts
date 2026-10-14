@@ -522,28 +522,30 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
   // Device info from frontend
   const { device, pwa_installed, dark_mode, native_app, entry_point } = req.body || {};
 
-  // Resolve entry_point for native app users: if no specific source, try IP-based attribution
-  // from recent landing page visits (e.g., user visited /meme in browser then downloaded the app)
+  // Resolve entry_point via IP-based attribution when frontend value is missing/default.
+  // Covers: (1) native app users who visited landing page in browser before downloading,
+  // (2) web users in Instagram/Facebook in-app browsers where localStorage is lost during OAuth redirect.
   async function resolveEntryPoint(ip: string | null): Promise<string | null> {
-    const isNative = !!native_app || (req.get("x-requested-with") === "io.joinone.app");
-    if (!isNative || !ip) return entry_point || null;
-    // Only do IP lookup if entry_point is missing or is the default (root "/" sets "forwomen")
+    // If entry_point is already specific (not default), keep it
     if (entry_point && entry_point !== "forwomen") return entry_point;
-    // Match by /24 subnet (first 3 octets) to handle CGNAT IP variation on mobile networks
-    const ipParts = ip.split(".");
-    const subnetPrefix = ipParts.length === 4 ? ipParts.slice(0, 3).join(".") + ".%" : ip;
-    const recent = await pgQueryOne<{ page: string }>(
-      `SELECT page FROM page_views
-       WHERE ip LIKE $1 AND page LIKE 'landing_%' AND page NOT IN ('landing_home', 'landing_forwomen')
-       AND viewed_at > NOW() - INTERVAL '48 hours'
-       ORDER BY viewed_at DESC LIMIT 1`,
-      [subnetPrefix]
-    );
-    if (recent) {
-      // landing_meme → meme, landing_barazany → barazany, landing_main → main, etc.
-      const source = recent.page.replace("landing_", "");
-      console.log(`[auth/sync] IP-based entry_point attribution: ${source} (from ${recent.page})`);
-      return source;
+    // Try IP-based attribution for any user with default/missing entry_point
+    if (ip) {
+      // Match by /24 subnet (first 3 octets) to handle CGNAT IP variation on mobile networks
+      const ipParts = ip.split(".");
+      const subnetPrefix = ipParts.length === 4 ? ipParts.slice(0, 3).join(".") + ".%" : ip;
+      const recent = await pgQueryOne<{ page: string }>(
+        `SELECT page FROM page_views
+         WHERE ip LIKE $1 AND page LIKE 'landing_%' AND page NOT IN ('landing_home', 'landing_forwomen')
+         AND viewed_at > NOW() - INTERVAL '48 hours'
+         ORDER BY viewed_at DESC LIMIT 1`,
+        [subnetPrefix]
+      );
+      if (recent) {
+        // landing_meme → meme, landing_barazany → barazany, landing_main → main, etc.
+        const source = recent.page.replace("landing_", "");
+        console.log(`[auth/sync] IP-based entry_point attribution: ${source} (from ${recent.page})`);
+        return source;
+      }
     }
     return entry_point || null;
   }
@@ -4747,7 +4749,7 @@ app.get("/admin/users/:id/page-views", async (req, res) => {
 });
 
 // GET /admin/page-views/stats — Global page view stats
-const ANALYTICS_EXCLUDED_USERS = [150]; // Admin users excluded from analytics
+const ANALYTICS_EXCLUDED_USERS = [150, 308]; // Admin (150=Chen) + marketer (308=Adi) excluded from analytics
 app.get("/admin/page-views/stats", async (_req, res) => {
   const byPage = await pgQueryAll<any>(
     `SELECT page, COUNT(*)::int AS views, COUNT(DISTINCT user_id)::int AS unique_users
