@@ -2581,8 +2581,7 @@ app.get("/admin/users", async (_req, res) => {
       COALESCE(tu.conversation_cost_usd, 0) as conversation_cost_usd,
       COALESCE(tu.analysis_cost_usd, 0) as analysis_cost_usd,
       pv_last.last_visit,
-      COALESCE(pt.push_token_count, 0) as push_token_count,
-      (SELECT COUNT(*)::int FROM user_photos WHERE user_id = u.id) as photo_count
+      COALESCE(pt.push_token_count, 0) as push_token_count
     FROM users u
     LEFT JOIN LATERAL (
       SELECT raw_answer, analysis_json, created_at

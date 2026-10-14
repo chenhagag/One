@@ -67,7 +67,7 @@ interface PipelineUser {
   has_profile_details: boolean;
 }
 
-type Stage = "new" | "in_process" | "completed_partial" | "completed_all" | "ready_pool" | "auto_pool" | "pool" | "couples" | "couples_done";
+type Stage = "new" | "in_process" | "completed_partial" | "completed_all" | "ready_pool" | "ready_pool_no_photo" | "auto_pool" | "pool" | "couples" | "couples_done";
 
 function getStage(u: PipelineUser): Stage {
   if (u.test_user_type === "Couple Tester" && !u.in_matching_pool) {
@@ -82,7 +82,7 @@ function getStage(u: PipelineUser): Stage {
   }
   if (u.in_matching_pool && u.pool_email_pending) return "auto_pool";
   if (u.in_matching_pool) return "pool";
-  if (u.admin_processing_done) return "ready_pool";
+  if (u.admin_processing_done) return u.photo_count >= 1 ? "ready_pool" : "ready_pool_no_photo";
   if (u.chat_closed) {
     const allDone = u.chat_closed && u.cog_closed && u.taste_closed;
     return allDone ? "completed_all" : "completed_partial";
@@ -120,6 +120,7 @@ const STAGE_CONFIG: { key: Stage; title: string; color: string; bg: string }[] =
   { key: "completed_all", title: "השלימו את כל התהליך", color: "#0ea5e9", bg: "#f0f9ff" },
   { key: "completed_partial", title: "כמעט השלימו (חסרים ערוצים)", color: "#38bdf8", bg: "#f0f9ff" },
   { key: "ready_pool", title: "מוכנים למאגר", color: "#16a34a", bg: "#f0fdf4" },
+  { key: "ready_pool_no_photo", title: "מוכנים למאגר ללא תמונה", color: "#d97706", bg: "#fffbeb" },
   { key: "auto_pool", title: "📬 נכנסו אוטומטית למאגר — ממתינים למייל", color: "#7c3aed", bg: "#f5f3ff" },
   { key: "pool", title: "במאגר", color: "#059669", bg: "#ecfdf5" },
   { key: "in_process", title: "בתהליך (לא דורשים טיפול)", color: "#d97706", bg: "#fffbeb" },
@@ -218,7 +219,7 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
   const [users, setUsers] = useState<PipelineUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState<Record<Stage, boolean>>({
-    new: true, couples: true, couples_done: true, in_process: true, completed_all: true, completed_partial: true, ready_pool: true, auto_pool: false, pool: true,
+    new: true, couples: true, couples_done: true, in_process: true, completed_all: true, completed_partial: true, ready_pool: true, ready_pool_no_photo: true, auto_pool: false, pool: true,
   });
 
   const [answeredQuestions, setAnsweredQuestions] = useState<any[]>([]);
@@ -289,7 +290,7 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
   }
 
   // Group users by stage
-  const grouped: Record<Stage, PipelineUser[]> = { new: [], couples: [], couples_done: [], in_process: [], completed_all: [], completed_partial: [], ready_pool: [], auto_pool: [], pool: [] };
+  const grouped: Record<Stage, PipelineUser[]> = { new: [], couples: [], couples_done: [], in_process: [], completed_all: [], completed_partial: [], ready_pool: [], ready_pool_no_photo: [], auto_pool: [], pool: [] };
   for (const u of users) {
     const stage = getStage(u);
     grouped[stage].push(u);
@@ -569,7 +570,7 @@ function PipelineUserCard({
 
   // Red highlight: activity after admin marked this user as done
   const isRedHighlight =
-    ((stage === "ready_pool" || stage === "pool" || stage === "auto_pool") &&
+    ((stage === "ready_pool" || stage === "ready_pool_no_photo" || stage === "pool" || stage === "auto_pool") &&
       u.admin_processing_done_at && u.last_activity &&
       u.last_activity > u.admin_processing_done_at) ||
     (stage === "couples_done" &&
@@ -581,7 +582,7 @@ function PipelineUserCard({
     if (stage === "new") {
       const t = buildWelcomeEmail(name, isFemale);
       setEmailSubject(t.subject); setEmailHtml(t.html);
-    } else if (stage === "ready_pool" || stage === "pool" || stage === "auto_pool") {
+    } else if (stage === "ready_pool" || stage === "ready_pool_no_photo" || stage === "pool" || stage === "auto_pool") {
       const t = buildPoolEmail(name, isFemale);
       setEmailSubject(t.subject); setEmailHtml(t.html);
     } else if (stage === "couples") {
@@ -699,7 +700,7 @@ function PipelineUserCard({
 
       {/* Info row */}
       <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 10 }}>
-        {(stage === "in_process" || stage === "completed_all" || stage === "completed_partial" || stage === "ready_pool" || stage === "auto_pool" || stage === "pool" || stage === "couples_done") && (
+        {(stage === "in_process" || stage === "completed_all" || stage === "completed_partial" || stage === "ready_pool" || stage === "ready_pool_no_photo" || stage === "auto_pool" || stage === "pool" || stage === "couples_done") && (
           <>
             <div><span style={labelStyle}>כניסה אחרונה</span><br/><span style={valStyle}>{fmtTimeAgo(u.last_visit)}</span></div>
             <div><span style={labelStyle}>עדכון אחרון</span><br/><span style={valStyle}>{fmtTimeAgo(u.last_activity)}</span></div>
@@ -756,7 +757,7 @@ function PipelineUserCard({
       </div>
 
       {/* Matching filter details — ready_pool & pool */}
-      {(stage === "ready_pool" || stage === "pool" || stage === "auto_pool" || stage === "completed_all") && (
+      {(stage === "ready_pool" || stage === "ready_pool_no_photo" || stage === "pool" || stage === "auto_pool" || stage === "completed_all") && (
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 8, fontSize: 11, color: "#64748b" }}>
           <span>מחפש/ת: <b style={{ color: u.looking_for_gender ? "#0f172a" : "#dc2626" }}>{u.looking_for_gender === "woman" ? "נשים" : u.looking_for_gender === "man" ? "גברים" : u.looking_for_gender === "both" ? "גם וגם" : u.looking_for_gender === "doesnt_matter" ? "לא משנה" : "חסר"}</b></span>
           <span>גובה: <b style={{ color: u.height ? "#0f172a" : "#dc2626" }}>{u.height ? `${u.height} ס״מ` : "חסר"}</b></span>
@@ -849,7 +850,7 @@ function PipelineUserCard({
       )}
 
       {/* Checklist for stage 4 */}
-      {stage === "ready_pool" && (
+      {(stage === "ready_pool" || stage === "ready_pool_no_photo") && (
         <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: u.photo_count >= 1 ? "#16a34a" : "#dc2626" }}>
             {u.photo_count >= 1 ? `📷 ${u.photo_count} תמונות` : "📷 ללא תמונה"}
@@ -921,7 +922,7 @@ function PipelineUserCard({
         )}
 
         {/* Stage 4: Ready for pool — enter pool */}
-        {stage === "ready_pool" && (
+        {(stage === "ready_pool" || stage === "ready_pool_no_photo") && (
           <>
             <button style={btnStyle("#059669")} onClick={() => onPipelineAction(u.id, "enter_pool")}>🏊 כניסה למאגר</button>
             {u.email_updates ? (
@@ -964,7 +965,7 @@ function PipelineUserCard({
       </div>
 
       {/* Send question button — pool and ready_pool */}
-      {(stage === "pool" || stage === "auto_pool" || stage === "ready_pool") && (
+      {(stage === "pool" || stage === "auto_pool" || stage === "ready_pool" || stage === "ready_pool_no_photo") && (
         <div style={{ marginTop: 6 }}>
           {!showQuestion ? (
             <button style={{ fontSize: 11, color: "#7c3aed", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }} onClick={() => setShowQuestion(true)}>❓ שלח שאלה למשתמש</button>
