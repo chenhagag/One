@@ -1810,6 +1810,29 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 );
               })()}
 
+              {/* Android web users — Google Play download banner */}
+              {screen === "home" && !isNativeApp() && /android/i.test(navigator.userAgent) && !localStorage.getItem(`gplay_banner_dismissed_${user.id}`) && (
+                <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
+                  <div style={{ background: "#fff", borderRadius: 14, padding: "16px 20px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #e5e7eb", textAlign: "right", position: "relative" }}>
+                    <button onClick={() => { localStorage.setItem(`gplay_banner_dismissed_${user.id}`, "true"); setRecommendations(r => ({ ...r })); }} style={{ position: "absolute", top: 8, left: 8, background: "none", border: "none", fontSize: 18, color: "#ccc", cursor: "pointer", lineHeight: 1 }}>×</button>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", margin: "0 0 6px", lineHeight: 1.7 }}>
+                      One זמינה עכשיו ב-Google Play!
+                    </p>
+                    <p style={{ fontSize: 13, color: "#888", margin: "0 0 12px", lineHeight: 1.6 }}>
+                      {isWW ? "הורידי" : "הורד"} את האפליקציה לחוויה טובה יותר וקבלת התראות על התאמות והודעות.
+                    </p>
+                    <a
+                      href="https://play.google.com/store/apps/details?id=io.joinone.app"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ display: "inline-block", padding: "10px 24px", fontSize: 14, fontWeight: 600, background: "#1a1a2e", color: "#fff", borderRadius: 10, textDecoration: "none", fontFamily: "inherit" }}
+                    >
+                      להורדה מ-Google Play
+                    </a>
+                  </div>
+                </div>
+              )}
+
               {screen === "chat" && (
                 <>
                   {messages.map((msg, i) => (
