@@ -5176,13 +5176,11 @@ async function getMarketerDashboard(entryPoint: string, landingPage: string, mon
     ORDER BY month DESC
   `, [landingPage, ANALYTICS_EXCLUDED_USERS, entryPoint]);
 
-  // Individual registrations with timestamps
+  // Individual registrations (all-time, to match total_registered stat)
   const registrations = await pgQueryAll<any>(`
     SELECT id, first_name, created_at
     FROM users
     WHERE entry_point = $1 AND id != ALL($2)
-      AND created_at::date >= ${startDate}::date
-      AND created_at::date <= ${endDate}::date
     ORDER BY created_at DESC
   `, [entryPoint, ANALYTICS_EXCLUDED_USERS]);
 
