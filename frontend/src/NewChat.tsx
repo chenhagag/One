@@ -1764,7 +1764,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           </div>
         )}
 
-        {screen === "settings" && <SettingsView user={user} onLogout={onLogout} onShowMatchCardInfo={() => setScreen("match_card_consent")} isWW={isWW} />}
+        {screen === "settings" && <SettingsView user={user} onLogout={onLogout} onShowMatchCardInfo={() => setScreen("match_card_consent")} isWW={isWW} hasNativeApp={recommendations.has_native_app} />}
 
         {screen === "potential_matches" && (
           <div className="nc-screen-fade" key="potential_matches" style={{ flex: 1, overflowY: "auto", direction: "rtl" }}>
@@ -3196,7 +3196,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
 // ── Settings View component ────────────────────────────────────
 
-function SettingsView({ user, onLogout, onShowMatchCardInfo, isWW }: { user: User; onLogout?: () => void; onShowMatchCardInfo?: () => void; isWW?: boolean }) {
+function SettingsView({ user, onLogout, onShowMatchCardInfo, isWW, hasNativeApp }: { user: User; onLogout?: () => void; onShowMatchCardInfo?: () => void; isWW?: boolean; hasNativeApp?: boolean }) {
   const [photoAI, setPhotoAI] = useState(false);
   const [matchCardConsent, setMatchCardConsent] = useState<string | null>(null);
   const [matchCardRestrictions, setMatchCardRestrictions] = useState<string>("");
@@ -3394,7 +3394,7 @@ function SettingsView({ user, onLogout, onShowMatchCardInfo, isWW }: { user: Use
         {/* Notifications */}
         <div style={sectionStyle}>
           <h3 style={titleStyle}>התראות ועדכונים</h3>
-          {(isNativeApp() || recommendations.has_native_app) && (
+          {(isNativeApp() || hasNativeApp) && (
           <label style={{ ...labelStyle, marginBottom: 14 }}>
             <input type="checkbox" checked={pushNotifications} disabled={saving || loading}
               onChange={async (e) => {
