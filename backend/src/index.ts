@@ -5140,13 +5140,15 @@ async function getMarketerDashboard(entryPoint: string, landingPage: string, mon
   }
 
   // Optional: exclude users registered before campaign start date
+  // Two variants: one for queries with alias "u", one without
   const campaignFilter = campaignStart ? `AND created_at >= '${campaignStart}'` : "";
+  const campaignFilterU = campaignStart ? `AND u.created_at >= '${campaignStart}'` : "";
 
   const stats = await pgQueryOne<any>(`
     SELECT
       (SELECT COUNT(*) FROM users WHERE entry_point = $1 AND id != ALL($3) ${campaignFilter}) AS total_registered,
       (SELECT COUNT(DISTINCT cm.user_id) FROM conversation_messages cm
-       JOIN users u ON u.id = cm.user_id WHERE u.entry_point = $1 AND u.id != ALL($3) ${campaignFilter}) AS started_chat,
+       JOIN users u ON u.id = cm.user_id WHERE u.entry_point = $1 AND u.id != ALL($3) ${campaignFilterU}) AS started_chat,
       (SELECT COUNT(*) FROM users WHERE entry_point = $1 AND in_matching_pool = TRUE AND id != ALL($3) ${campaignFilter}) AS in_pool,
       (SELECT COUNT(*) FROM page_views WHERE page = $2 AND (user_id IS NULL OR user_id != ALL($3))) AS landing_visits_total
   `, [entryPoint, landingPage, ANALYTICS_EXCLUDED_USERS]);
