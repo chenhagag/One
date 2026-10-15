@@ -907,6 +907,7 @@ app.get("/users/:id", requireUserAuth, async (req, res) => {
 
 // PATCH /users/:id — Update user profile fields
 app.patch("/users/:id", requireUserAuth, async (req, res) => {
+  try {
   const userId = parseInt(req.params.id, 10);
   const {
     first_name, age, gender, looking_for_gender, city, height, self_style,
@@ -1062,6 +1063,11 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
   }
 
   return res.json(updated);
+  } catch (err: any) {
+    console.error(`[PATCH /users/${req.params.id}] Error:`, err.message);
+    logError({ source: "backend", route: `/users/${req.params.id}`, method: "PATCH", status_code: 500, message: err.message, stack: err.stack, user_id: parseInt(req.params.id, 10) });
+    if (!res.headersSent) res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // POST /users/:id/dismiss-admin-message — user dismisses admin message
@@ -5122,7 +5128,7 @@ app.get("/admin/android-tester-status", async (_req, res) => {
 // ── Marketer Dashboards (meme/Sasha, barazany/Adi) ──────────────────
 // Shared helper for marketer dashboard stats
 // month: optional YYYY-MM string. If omitted, shows last 30 days.
-async function getMarketerDashboard(entryPoint: string, landingPage: string, month?: string) {
+async function getMarketerDashboard(entryPoint: string, landingPage: string, month?: string, campaignStart?: string) {
   // Date range for daily breakdown
   let startDate: string, endDate: string;
   if (month && /^\d{4}-\d{2}$/.test(month)) {
@@ -5133,12 +5139,15 @@ async function getMarketerDashboard(entryPoint: string, landingPage: string, mon
     endDate = `CURRENT_DATE`;
   }
 
+  // Optional: exclude users registered before campaign start date
+  const campaignFilter = campaignStart ? `AND created_at >= '${campaignStart}'` : "";
+
   const stats = await pgQueryOne<any>(`
     SELECT
-      (SELECT COUNT(*) FROM users WHERE entry_point = $1 AND id != ALL($3)) AS total_registered,
+      (SELECT COUNT(*) FROM users WHERE entry_point = $1 AND id != ALL($3) ${campaignFilter}) AS total_registered,
       (SELECT COUNT(DISTINCT cm.user_id) FROM conversation_messages cm
-       JOIN users u ON u.id = cm.user_id WHERE u.entry_point = $1 AND u.id != ALL($3)) AS started_chat,
-      (SELECT COUNT(*) FROM users WHERE entry_point = $1 AND in_matching_pool = TRUE AND id != ALL($3)) AS in_pool,
+       JOIN users u ON u.id = cm.user_id WHERE u.entry_point = $1 AND u.id != ALL($3) ${campaignFilter}) AS started_chat,
+      (SELECT COUNT(*) FROM users WHERE entry_point = $1 AND in_matching_pool = TRUE AND id != ALL($3) ${campaignFilter}) AS in_pool,
       (SELECT COUNT(*) FROM page_views WHERE page = $2 AND (user_id IS NULL OR user_id != ALL($3))) AS landing_visits_total
   `, [entryPoint, landingPage, ANALYTICS_EXCLUDED_USERS]);
 
@@ -5162,7 +5171,7 @@ async function getMarketerDashboard(entryPoint: string, landingPage: string, mon
     ) v ON v.day = d.day
     LEFT JOIN (
       SELECT created_at::date AS day, COUNT(*) AS registrations
-      FROM users WHERE entry_point = $1 AND id != ALL($3)
+      FROM users WHERE entry_point = $1 AND id != ALL($3) ${campaignFilter}
       GROUP BY created_at::date
     ) r ON r.day = d.day
     ORDER BY d.day
@@ -5174,15 +5183,15 @@ async function getMarketerDashboard(entryPoint: string, landingPage: string, mon
     FROM page_views WHERE page = $1 AND (user_id IS NULL OR user_id != ALL($2))
     UNION
     SELECT DISTINCT TO_CHAR(created_at, 'YYYY-MM') AS month
-    FROM users WHERE entry_point = $3 AND id != ALL($2)
+    FROM users WHERE entry_point = $3 AND id != ALL($2) ${campaignFilter}
     ORDER BY month DESC
   `, [landingPage, ANALYTICS_EXCLUDED_USERS, entryPoint]);
 
-  // Individual registrations (all-time, to match total_registered stat)
+  // Individual registrations (filtered by campaign start if set)
   const registrations = await pgQueryAll<any>(`
     SELECT id, first_name, created_at
     FROM users
-    WHERE entry_point = $1 AND id != ALL($2)
+    WHERE entry_point = $1 AND id != ALL($2) ${campaignFilter}
     ORDER BY created_at DESC
   `, [entryPoint, ANALYTICS_EXCLUDED_USERS]);
 
@@ -5207,7 +5216,9 @@ app.get("/api/meme-dashboard", requireAuth, async (req: any, res) => {
 });
 
 // GET /api/adi-dashboard — Adi Barazani's marketer dashboard
+// Adi started promoting on 2026-10-14; filter out pre-campaign users
 const ADI_DASHBOARD_EMAILS = ["chen.hagag@gmail.com", "adibar90@gmail.com"];
+const ADI_CAMPAIGN_START = "2026-10-14";
 app.get("/api/adi-dashboard", requireAuth, async (req: any, res) => {
   const email = req.auth?.email;
   if (!email || !ADI_DASHBOARD_EMAILS.includes(email)) {
@@ -5215,7 +5226,7 @@ app.get("/api/adi-dashboard", requireAuth, async (req: any, res) => {
   }
   try {
     const month = req.query.month as string | undefined;
-    const data = await getMarketerDashboard("barazany", "landing_barazany", month);
+    const data = await getMarketerDashboard("barazany", "landing_barazany", month, ADI_CAMPAIGN_START);
     return res.json(data);
   } catch (err: any) {
     console.error("[adi-dashboard] Error:", err.message);
@@ -5396,12 +5407,17 @@ app.get("/admin/system-health", requireAdmin, async (_req, res) => {
       ORDER BY COUNT(*) DESC
     `, [ANALYTICS_EXCLUDED_USERS]);
 
-    // 6. Recent errors
+    // 6. Recent errors (exclude generic "Script error." — cross-origin noise from Safari)
     const recentErrors = await pgQueryAll<any>(`
       SELECT source, route, message, user_id, status_code, created_at
       FROM error_logs
       WHERE created_at > ${hours24}
+        AND message != 'Script error.'
       ORDER BY created_at DESC LIMIT 20
+    `);
+    const scriptErrorCount = await pgQueryOne<any>(`
+      SELECT COUNT(*) AS cnt FROM error_logs
+      WHERE created_at > ${hours24} AND message = 'Script error.'
     `);
 
     // 7. Active users right now (last hour)
@@ -5432,6 +5448,7 @@ app.get("/admin/system-health", requireAdmin, async (_req, res) => {
       stuck_users: stuckUsers,
       repeated_profile_setup: repeatedProfileSetup,
       recent_errors: recentErrors,
+      script_error_count: parseInt(scriptErrorCount?.cnt || "0"),
       active_now: activeNow,
       channels,
     });
@@ -6666,9 +6683,15 @@ app.post("/new-chat/message", aiLimiter, requireAuth, async (req, res) => {
     }
   }
 
-  const chatUser = await pgQueryOne<{ gender: string | null; first_name: string; looking_for_gender: string | null; test_user_type: string | null }>(
-    "SELECT gender, first_name, looking_for_gender, test_user_type FROM users WHERE id = $1", [user_id]
+  const chatUser = await pgQueryOne<{ gender: string | null; first_name: string; looking_for_gender: string | null; test_user_type: string | null; consent_accepted: boolean | null }>(
+    "SELECT gender, first_name, looking_for_gender, test_user_type, consent_accepted FROM users WHERE id = $1", [user_id]
   );
+
+  // Block chat if user hasn't accepted consent (allow couple/UX testers who pre-date consent, and admins)
+  const isAdminUser = !!req.auth?.email && ADMIN_EMAILS.includes(req.auth.email);
+  if (chatUser && chatUser.consent_accepted === false && !chatUser.test_user_type && !isAdminUser) {
+    return res.status(403).json({ error: "Consent required" });
+  }
 
   const { systemPrompt, intent, closingStage } = await buildChatPrompt(
     user_id, message,
@@ -7217,7 +7240,7 @@ app.get("*", (_req, res) => {
   });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 
   // Warm up pg: create schema, seed trait definitions if empty.
@@ -7235,4 +7258,19 @@ app.listen(PORT, () => {
       console.error("[pg] init failed:", err.message);
     }
   })();
+});
+
+// ── Graceful shutdown ────────────────────────────────────────────
+// When Railway sends SIGTERM during deploy, wait for in-flight requests
+// to finish before exiting (up to 10s), preventing 502s.
+process.on("SIGTERM", () => {
+  console.log("[shutdown] SIGTERM received — closing server gracefully");
+  server.close(() => {
+    console.log("[shutdown] All connections closed — exiting");
+    process.exit(0);
+  });
+  setTimeout(() => {
+    console.log("[shutdown] Forced exit after 10s timeout");
+    process.exit(1);
+  }, 10_000);
 });

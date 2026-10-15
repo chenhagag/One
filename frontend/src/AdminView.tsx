@@ -5845,9 +5845,14 @@ function SystemHealthTab() {
       )}
 
       {/* Recent errors */}
-      {data.recent_errors?.length > 0 && (
+      {(data.recent_errors?.length > 0 || data.script_error_count > 0) && (
         <div style={cardStyle}>
           <p style={titleS}>שגיאות אחרונות (24 שעות)</p>
+          {data.script_error_count > 0 && (
+            <p style={{ fontSize: 11, color: "#999", margin: "-6px 0 8px" }}>
+              {data.script_error_count} שגיאות "Script error." מ-Safari הוסתרו (cross-origin noise)
+            </p>
+          )}
           {data.recent_errors.map((e: any, i: number) => (
             <div key={i} style={{ ...metricRow, flexDirection: "column", gap: 2 }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
