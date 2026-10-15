@@ -224,7 +224,9 @@ general, turn 1 → Prompt B (follow-up, then advance to next topic)
 - `in_matching_pool BOOLEAN DEFAULT FALSE` — manual admin control
 - `matchStage1.ts` filters by `in_matching_pool = TRUE` (in addition to `is_matchable`)
 - Admin: "כניסה למאגר" / "הוצאה מהמאגר" toggle per user
-- Future: will auto-set when `is_matchable` becomes true
+- **`is_matchable`** — automatic, computed after analysis based on trait coverage. Used by matching algorithm for filtering.
+- **`admin_processing_done`** — manual, set by admin when user processing is complete. Used by AdminPipeline to show "מוכנים למאגר" stage (split into with/without photo).
+- These are independent: `is_matchable` is algorithmic readiness, `admin_processing_done` is admin workflow status.
 
 ### Match Card System
 - **Consent**: `match_card_consent` ('approved'/'declined'/null) + `match_card_restrictions` (free text) on users table
