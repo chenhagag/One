@@ -6687,10 +6687,9 @@ app.post("/new-chat/message", aiLimiter, requireAuth, async (req, res) => {
     "SELECT gender, first_name, looking_for_gender, test_user_type, consent_accepted FROM users WHERE id = $1", [user_id]
   );
 
-  // Block chat if user hasn't accepted consent (allow couple/UX testers who pre-date consent, and admins)
-  const isAdminUser = !!req.auth?.email && ADMIN_EMAILS.includes(req.auth.email);
-  if (chatUser && chatUser.consent_accepted === false && !chatUser.test_user_type && !isAdminUser) {
-    return res.status(403).json({ error: "Consent required" });
+  // Log if user chatting without consent (frontend should prevent this, but don't block — better to let them chat than show unrecoverable error)
+  if (chatUser && chatUser.consent_accepted === false && !chatUser.test_user_type) {
+    console.warn(`[new-chat] user ${user_id} chatting without consent_accepted`);
   }
 
   const { systemPrompt, intent, closingStage } = await buildChatPrompt(
