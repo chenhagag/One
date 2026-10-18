@@ -14,7 +14,7 @@ export const COGNITIVE_TRAIT_WEIGHTS: [string, number][] = [
   ["analytical_reasoning", 3],
   ["abstract_thinking", 1], ["cognitive_flexibility", 1], ["conceptual_precision", 1],
   ["verbal_articulation", 1], ["verbal_reasoning", 1], ["depth_of_thought", 1],
-  ["intellectualism", 1], ["career_prestige", 1], ["eq", 1],
+  ["intellectualism", 1], ["career_prestige", 1], ["eq", 1], ["self_awareness", 1],
 ];
 
 /**
