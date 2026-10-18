@@ -610,7 +610,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
       match_hub: "מרכז התאמות",
       cancel_match: "ביטול התאמה",
       past_matches: "התאמות קודמות",
-      past_match_detail: "פרטי התאמה קודמת",
+      past_match_detail: selectedPastMatch?._isPartnerProfile ? "פרופיל שותפה" : "פרטי התאמה קודמת",
     };
     trackPage(pageNames[screen] || screen, user?.id);
   }, [screen]);
