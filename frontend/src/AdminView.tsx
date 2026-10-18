@@ -3125,17 +3125,26 @@ ${footer}`)
             <button
               style={{ padding: "3px 10px", fontSize: 11, cursor: "pointer", background: "#e8f5e9", border: "1px solid #a5d6a7", borderRadius: 4 }}
               onClick={() => {
+                const user = data?.user;
                 const userName = user?.first_name || `user_${userId}`;
-                const channelFileNames: Record<string, string> = { interviewer: "Lab", psychologist: "Depth", new_chat: "General Chat", new_chat_cognitive: "Thinking", new_chat_taste: "Taste", qa_about_me: "QA-AboutMe", qa_system: "QA-System", qa_general: "QA-General", qa_insights: "QA-Insights" };
-                for (const g of channelGroups) {
-                  const text = g.msgs.map((m: any) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`).join("\n\n");
-                  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-                  const a = document.createElement("a");
-                  a.href = URL.createObjectURL(blob);
-                  a.download = `${userName}-${channelFileNames[g.key] || g.key}.txt`;
-                  a.click();
-                  URL.revokeObjectURL(a.href);
-                }
+                const headerParts = [`שם: ${userName}`];
+                if (user?.age) headerParts.push(`גיל: ${user.age}`);
+                if (user?.city) headerParts.push(`עיר: ${user.city}`);
+                if (user?.desired_age_min || user?.desired_age_max) headerParts.push(`טווח גילאים: ${user.desired_age_min || "?"}-${user.desired_age_max || "?"}`);
+                if (user?.desired_location_range) headerParts.push(`טווח מיקום: ${user.desired_location_range}`);
+                const header = headerParts.join(" | ") + "\n" + "=".repeat(60) + "\n\n";
+                const lines = (transcript.messages || []).map((m: any) => {
+                  const time = m.timestamp ? new Date(m.timestamp).toLocaleString("he-IL") : "";
+                  const channel = m.chat_type || "";
+                  const role = m.role === "user" ? userName : "One";
+                  return `[${time}] [${channel}] ${role}: ${m.content}`;
+                });
+                const blob = new Blob([header + lines.join("\n\n")], { type: "text/plain;charset=utf-8" });
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = `${userName}-transcript.txt`;
+                a.click();
+                URL.revokeObjectURL(a.href);
               }}
             >
               Download All
@@ -5469,19 +5478,25 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                 style={{ padding: "8px 16px", fontSize: 13, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, background: "#0ea5e9", color: "#fff" }}
                 onClick={async () => {
                   for (const u of [
-                    { id: matchDetail.user_id, name: matchDetail.user1_name },
-                    { id: matchDetail.candidate_user_id, name: matchDetail.user2_name },
+                    { id: matchDetail.user_id, name: matchDetail.user1_name, age: matchDetail.user1_age, city: matchDetail.user1_city, desiredAgeMin: matchDetail.user1_desired_age_min, desiredAgeMax: matchDetail.user1_desired_age_max, desiredLocation: matchDetail.user1_desired_location_range },
+                    { id: matchDetail.candidate_user_id, name: matchDetail.user2_name, age: matchDetail.user2_age, city: matchDetail.user2_city, desiredAgeMin: matchDetail.user2_desired_age_min, desiredAgeMax: matchDetail.user2_desired_age_max, desiredLocation: matchDetail.user2_desired_location_range },
                   ]) {
                     try {
                       const r = await apiFetch(`/admin/users/${u.id}/full-transcript`);
                       const data = await r.json();
+                      const headerParts = [`שם: ${u.name}`];
+                      if (u.age) headerParts.push(`גיל: ${u.age}`);
+                      if (u.city) headerParts.push(`עיר: ${u.city}`);
+                      if (u.desiredAgeMin || u.desiredAgeMax) headerParts.push(`טווח גילאים: ${u.desiredAgeMin || "?"}-${u.desiredAgeMax || "?"}`);
+                      if (u.desiredLocation) headerParts.push(`טווח מיקום: ${u.desiredLocation}`);
+                      const header = headerParts.join(" | ") + "\n" + "=".repeat(60) + "\n\n";
                       const lines = (data.messages || []).map((m: any) => {
                         const time = m.timestamp ? new Date(m.timestamp).toLocaleString("he-IL") : "";
                         const channel = m.chat_type || "";
                         const role = m.role === "user" ? u.name : "One";
                         return `[${time}] [${channel}] ${role}: ${m.content}`;
                       });
-                      const blob = new Blob([lines.join("\n\n")], { type: "text/plain;charset=utf-8" });
+                      const blob = new Blob([header + lines.join("\n\n")], { type: "text/plain;charset=utf-8" });
                       const a = document.createElement("a");
                       a.href = URL.createObjectURL(blob);
                       a.download = `${u.name}-transcript.txt`;
