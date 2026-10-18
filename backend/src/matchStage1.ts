@@ -68,8 +68,23 @@ const LOOK_TRAIT_CONFIDENCE_THRESHOLD = 0.8; // confidence 0–1
 // unless weight_for_match is on a different scale. We keep 80 as stated in the spec.
 const EFFECTIVE_WEIGHT_THRESHOLD = 80;
 
-// Flexibility tolerances (years / cm)
-const AGE_TOL: Record<string, number> = { not_flexible: 1, slightly_flexible: 3, very_flexible: 5 };
+// Flexibility tolerances (cm for height; age tolerance is computed by getAgeTolerance)
+// Age tolerance base: not_flexible=1, slightly_flexible=2, very_flexible=3
+// Scaled by age decade: 20s ×1, 30s ×1.5, 40s ×2, 50+ ×2.5
+const AGE_TOL_BASE: Record<string, number> = { not_flexible: 1, slightly_flexible: 2, very_flexible: 3 };
+function getAgeTolerance(flexibility: string | null, age: number | null): number {
+  const base = AGE_TOL_BASE[flexibility ?? ""] ?? 2;
+  const decade = Math.max(0, Math.floor(((age ?? 30) - 20) / 10));
+  const multiplier = 1 + decade * 0.5; // 20s: 1, 30s: 1.5, 40s: 2, 50s: 2.5
+  return Math.round(base * multiplier);
+}
+// Result examples:
+// 20s slightly_flexible: 2×1.0 = 2
+// 30s slightly_flexible: 2×1.5 = 3
+// 40s slightly_flexible: 2×2.0 = 4
+// 20s not_flexible:      1×1.0 = 1
+// 30s not_flexible:      1×1.5 = 2 (rounded)
+// 40s very_flexible:     3×2.0 = 6
 const HEIGHT_TOL: Record<string, number> = { not_flexible: 2, slightly_flexible: 5, very_flexible: 10 };
 
 // Approval rate tolerance (on 0–100 scale, same as initial_attraction_signal)
@@ -502,8 +517,8 @@ function passesAgeFilter(from: User, to: User, expanded: boolean = false): boole
     min = defaults.min;
     max = defaults.max;
   } else {
-    // Apply tolerance based on user's flexibility setting
-    const tol = AGE_TOL[from.age_flexibility] ?? 3;
+    // Apply tolerance based on user's flexibility setting + age decade
+    const tol = getAgeTolerance(from.age_flexibility, from.age);
     min = (from.desired_age_min ?? 0) - tol;
     max = (from.desired_age_max ?? 999) + tol;
   }
