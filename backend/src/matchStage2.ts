@@ -39,6 +39,10 @@ const EXCLUDED_CALC_TYPES = new Set(["internal_use", "special"]);
 // Above it, no blending. Only affects very low confidence ("no info") traits.
 const CONFIDENCE_BLEND_THRESHOLD = 0.3;
 
+// Skip threshold: traits where both users have essentially no data (sharedConf below this)
+// are excluded from scoring entirely — they add noise, not signal.
+const CONFIDENCE_SKIP_THRESHOLD = 0.15;
+
 // ── Types ────────────────────────────────────────────────────────
 
 interface TraitRow {
@@ -190,6 +194,9 @@ function calculateInternalScore(
     const diff = Math.abs(t1.score - t2.score);
     const rawMatch = 100 * Math.exp(-(diff * diff) / (2 * 12 * 12));
     const sharedConf = Math.sqrt(t1.confidence * t2.confidence);
+
+    // Skip traits where both users have essentially no data — pure noise
+    if (sharedConf < CONFIDENCE_SKIP_THRESHOLD) continue;
 
     // At very low confidence, blend Gaussian toward neutral (50) to avoid
     // penalizing when there's essentially no data
@@ -370,6 +377,9 @@ function calculateCategoryScore(
     const diff = Math.abs(t1.score - t2.score);
     const rawMatch = 100 * Math.exp(-(diff * diff) / (2 * 12 * 12));
     const sharedConf = Math.sqrt(t1.confidence * t2.confidence);
+
+    // Skip traits where both users have essentially no data
+    if (sharedConf < CONFIDENCE_SKIP_THRESHOLD) continue;
 
     // At very low confidence, blend Gaussian toward neutral (50)
     const confFactor = Math.min(1, sharedConf / CONFIDENCE_BLEND_THRESHOLD);
