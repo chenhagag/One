@@ -449,6 +449,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const loadGenRef = useRef(0); // Generation counter to prevent stale loadRecommendations responses
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const pendingAdminDismissRef = useRef(false); // Track: user opened admin message chat but hasn't responded yet
 
   // Current channel's messages
   const messages = channelMessages[channel] || [];
@@ -724,6 +725,13 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
     setMessagesForChannel(effectiveChannel, () => updatedMessages);
     scrollChatToBottom(50);
     setSending(true);
+
+    // Dismiss admin message once user actually sends a response in qa_general
+    if (pendingAdminDismissRef.current && effectiveChannel === "qa_general") {
+      pendingAdminDismissRef.current = false;
+      apiFetch(`/users/${user.id}/dismiss-admin-message`, { method: "POST", body: JSON.stringify({ responded: true }) })
+        .then(() => setRecommendations(prev => ({ ...prev, admin_message: null, admin_message_type: null })));
+    }
 
     const MAX_RETRIES = 2;
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -2508,14 +2516,17 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       <button
                         onClick={() => {
                           const adminMsg = recommendations.admin_message!;
-                          // Append admin message to qa_general (don't reset existing history)
-                          setChannelMessages(prev => ({
-                            ...prev, qa_general: [...(prev["qa_general"] || []), { role: "assistant" as const, content: adminMsg }],
-                          }));
+                          // Append admin message to qa_general only if not already there
+                          setChannelMessages(prev => {
+                            const existing = prev["qa_general"] || [];
+                            const alreadyHas = existing.some(m => m.role === "assistant" && m.content === adminMsg);
+                            if (alreadyHas) return prev;
+                            return { ...prev, qa_general: [...existing, { role: "assistant" as const, content: adminMsg }] };
+                          });
                           setChannel("qa_general");
                           setScreen("chat");
-                          apiFetch(`/users/${user.id}/dismiss-admin-message`, { method: "POST", body: JSON.stringify({ responded: true }) })
-                            .then(() => setRecommendations(prev => ({ ...prev, admin_message: null, admin_message_type: null })));
+                          // Don't dismiss yet — wait for user to actually send a message
+                          pendingAdminDismissRef.current = true;
                         }}
                         style={{ display: "block", margin: "12px auto 0", padding: "8px 24px", fontSize: 13, color: "#fff", background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600 }}
                       >
