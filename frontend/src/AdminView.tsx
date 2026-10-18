@@ -3130,7 +3130,7 @@ ${footer}`)
                 const headerParts = [`שם: ${userName}`];
                 if (user?.age) headerParts.push(`גיל: ${user.age}`);
                 if (user?.city) headerParts.push(`עיר: ${user.city}`);
-                if (user?.desired_age_min || user?.desired_age_max) headerParts.push(`טווח גילאים: ${user.desired_age_min || "?"}-${user.desired_age_max || "?"}`);
+                if (user?.desired_age_min || user?.desired_age_max) headerParts.push(`טווח גילאים: ${user.desired_age_min || "?"}-${user.desired_age_max || "?"}${user?.age_flexibility ? ` (${user.age_flexibility})` : ""}`);
                 if (user?.desired_location_range) headerParts.push(`טווח מיקום: ${user.desired_location_range}`);
                 const header = headerParts.join(" | ") + "\n" + "=".repeat(60) + "\n\n";
                 const lines = (transcript.messages || []).map((m: any) => {
@@ -5478,8 +5478,8 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                 style={{ padding: "8px 16px", fontSize: 13, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, background: "#0ea5e9", color: "#fff" }}
                 onClick={async () => {
                   for (const u of [
-                    { id: matchDetail.user_id, name: matchDetail.user1_name, age: matchDetail.user1_age, city: matchDetail.user1_city, desiredAgeMin: matchDetail.user1_desired_age_min, desiredAgeMax: matchDetail.user1_desired_age_max, desiredLocation: matchDetail.user1_desired_location_range },
-                    { id: matchDetail.candidate_user_id, name: matchDetail.user2_name, age: matchDetail.user2_age, city: matchDetail.user2_city, desiredAgeMin: matchDetail.user2_desired_age_min, desiredAgeMax: matchDetail.user2_desired_age_max, desiredLocation: matchDetail.user2_desired_location_range },
+                    { id: matchDetail.user_id, name: matchDetail.user1_name, age: matchDetail.user1_age, city: matchDetail.user1_city, desiredAgeMin: matchDetail.user1_desired_age_min, desiredAgeMax: matchDetail.user1_desired_age_max, desiredLocation: matchDetail.user1_desired_location_range, ageFlex: matchDetail.user1_age_flexibility },
+                    { id: matchDetail.candidate_user_id, name: matchDetail.user2_name, age: matchDetail.user2_age, city: matchDetail.user2_city, desiredAgeMin: matchDetail.user2_desired_age_min, desiredAgeMax: matchDetail.user2_desired_age_max, desiredLocation: matchDetail.user2_desired_location_range, ageFlex: matchDetail.user2_age_flexibility },
                   ]) {
                     try {
                       const r = await apiFetch(`/admin/users/${u.id}/full-transcript`);
@@ -5487,7 +5487,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                       const headerParts = [`שם: ${u.name}`];
                       if (u.age) headerParts.push(`גיל: ${u.age}`);
                       if (u.city) headerParts.push(`עיר: ${u.city}`);
-                      if (u.desiredAgeMin || u.desiredAgeMax) headerParts.push(`טווח גילאים: ${u.desiredAgeMin || "?"}-${u.desiredAgeMax || "?"}`);
+                      if (u.desiredAgeMin || u.desiredAgeMax) headerParts.push(`טווח גילאים: ${u.desiredAgeMin || "?"}-${u.desiredAgeMax || "?"}${u.ageFlex ? ` (${u.ageFlex})` : ""}`);
                       if (u.desiredLocation) headerParts.push(`טווח מיקום: ${u.desiredLocation}`);
                       const header = headerParts.join(" | ") + "\n" + "=".repeat(60) + "\n\n";
                       const lines = (data.messages || []).map((m: any) => {
