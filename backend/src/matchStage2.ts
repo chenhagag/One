@@ -198,10 +198,10 @@ function calculateInternalScore(
     // Skip traits where both users have essentially no data — pure noise
     if (sharedConf < CONFIDENCE_SKIP_THRESHOLD) continue;
 
-    // At very low confidence, blend Gaussian toward neutral (50) to avoid
-    // penalizing when there's essentially no data
-    const confFactor = Math.min(1, sharedConf / CONFIDENCE_BLEND_THRESHOLD);
-    const match = rawMatch * confFactor + 50 * (1 - confFactor);
+    // Shrink-to-neutral: uncertain matches are pulled toward 50 (neutral).
+    // At conf=1.0: match stays as-is. At conf=0.5: match halfway to 50.
+    // This prevents two guesses of 60 (conf 0.4) from scoring as "perfect match".
+    const match = 50 + sharedConf * (rawMatch - 50);
 
     // Fall back to the trait definition's default weight when the AI
     // didn't produce a per-user weight_for_match (common — it's optional).
@@ -210,8 +210,18 @@ function calculateInternalScore(
     const w2 = t2.weight_for_match ?? defWeight;
     const avgWeight = (w1 + w2) / 2;
 
-    // Original: confidence as weight multiplier (reduces impact of uncertain traits)
-    const weightedWeight = avgWeight * sharedConf;
+    // Salience boost: traits that are prominent for either user (far from 50,
+    // high confidence) matter more for matching. A geekiness=70/0.7 is identity-
+    // defining; a metropolitan=50/0.3 is background noise.
+    // salience = max deviation from 50, scaled by confidence (0 to ~50)
+    const dev1 = Math.abs(t1.score - 50) * t1.confidence;
+    const dev2 = Math.abs(t2.score - 50) * t2.confidence;
+    const maxDev = Math.max(dev1, dev2);
+    // Boost: 1.0 at salience=0, up to 2.5 at salience=35+
+    const salienceBoost = 1 + Math.min(1.5, maxDev / 23);
+
+    // Confidence + salience as weight multipliers
+    const weightedWeight = avgWeight * sharedConf * salienceBoost;
     sumWeightedScore += weightedWeight * match;
     sumWeightedWeight += weightedWeight;
   }
@@ -381,9 +391,8 @@ function calculateCategoryScore(
     // Skip traits where both users have essentially no data
     if (sharedConf < CONFIDENCE_SKIP_THRESHOLD) continue;
 
-    // At very low confidence, blend Gaussian toward neutral (50)
-    const confFactor = Math.min(1, sharedConf / CONFIDENCE_BLEND_THRESHOLD);
-    const match = rawMatch * confFactor + 50 * (1 - confFactor);
+    // Shrink-to-neutral: uncertain matches pulled toward 50
+    const match = 50 + sharedConf * (rawMatch - 50);
 
     const defWeight = def?.weight ?? 5;
     const w1 = t1.weight_for_match ?? defWeight;
@@ -394,8 +403,13 @@ function calculateCategoryScore(
     const multiplier = traitWeightMultipliers?.get(traitId);
     if (multiplier != null) avgWeight *= multiplier;
 
-    // Original: confidence as weight multiplier
-    const weightedWeight = avgWeight * sharedConf;
+    // Salience boost: identity-defining traits weigh more than background noise
+    const dev1 = Math.abs(t1.score - 50) * t1.confidence;
+    const dev2 = Math.abs(t2.score - 50) * t2.confidence;
+    const maxDev = Math.max(dev1, dev2);
+    const salienceBoost = 1 + Math.min(1.5, maxDev / 23);
+
+    const weightedWeight = avgWeight * sharedConf * salienceBoost;
     sumWeightedScore += weightedWeight * match;
     sumWeightedWeight += weightedWeight;
     sumConf += sharedConf;
