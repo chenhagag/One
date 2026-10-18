@@ -385,6 +385,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
     qa_refine: [],
     qa_match_feedback: [],
   });
+  const [channelLastActive, setChannelLastActive] = useState<Record<string, number>>({});
   // Woman-seeking-woman flag — used for feminine UI throughout
   const isWW = user.gender === "woman" && !!user.looking_for_gender && user.looking_for_gender !== "man";
 
@@ -457,6 +458,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   // Helper to update a specific channel's messages
   function setMessagesForChannel(ch: string, updater: (prev: Message[]) => Message[]) {
     setChannelMessages(prev => ({ ...prev, [ch]: updater(prev[ch] || []) }));
+    setChannelLastActive(prev => ({ ...prev, [ch]: Date.now() }));
   }
 
   // Any channel has messages (for sidebar visibility)
@@ -653,6 +655,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           qa_search: [],
           qa_refine: [],
         };
+        const lastTs: Record<string, number> = {};
         for (const m of data.messages) {
           const ct = m.chat_type as string;
           if (!ct || ct === "fine_tune") continue;
@@ -668,7 +671,10 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             key = "new_chat_cognitive";
           }
           // Safety: never put non-matching messages into a channel
-          if (key) perChannel[key].push({ role: m.role, content: m.content });
+          if (key) {
+            perChannel[key].push({ role: m.role, content: m.content });
+            if (m.timestamp) lastTs[key] = new Date(m.timestamp).getTime();
+          }
         }
         setChannelMessages(prev => {
           // Don't overwrite channels that already have messages (e.g. greeting just added)
@@ -678,6 +684,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           }
           return merged;
         });
+        setChannelLastActive(prev => ({ ...prev, ...lastTs }));
       })
       .catch(() => {});
   }, [user.id]);
@@ -876,7 +883,9 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
 
           {/* Chat list — all channels with messages */}
           {(() => {
-            const activeChannels = CHANNEL_DISPLAY.filter(c => (channelMessages[c.key]?.length || 0) > 0);
+            const activeChannels = CHANNEL_DISPLAY
+              .filter(c => (channelMessages[c.key]?.length || 0) > 0)
+              .sort((a, b) => (channelLastActive[b.key] || 0) - (channelLastActive[a.key] || 0));
             if (activeChannels.length === 0) return null;
             return (
               <>
