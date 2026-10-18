@@ -1,6 +1,39 @@
 # Mobile (Capacitor) Agent — Work Log
 
-## Latest: 2026-10-13 — Launch Day Health Dashboard + Settings + Fixes
+## Latest: 2026-10-15 — System Health Fixes + Adi Dashboard + Settings Crash
+
+### Adi dashboard — filter pre-campaign users — DONE
+- Adi started promoting on 2026-10-14, but `/barazany` URL existed before
+- Users from June-July appeared in her dashboard incorrectly
+- Added `campaignStart` param to `getMarketerDashboard()` — Adi's dashboard only counts users from 14.10+
+- Fixed SQL ambiguous `created_at` in JOIN query (`campaignFilter` vs `campaignFilterU`)
+- Files: `backend/src/index.ts` (`getMarketerDashboard`, `/api/adi-dashboard`)
+
+### System health — filter Script errors — DONE
+- 16 "Script error." from Safari (cross-origin noise) cluttered health dashboard
+- Filtered from error list, added separate count line: "X שגיאות Script error. הוסתרו"
+- Files: `backend/src/index.ts` (`/admin/system-health`), `frontend/src/AdminView.tsx`
+
+### Consent bypass — user 320 logging — DONE
+- User 320 (מאיה) sent 61 messages without accepting consent
+- Root cause: clicked "בזוגיות?" link in AuthScreen → entryPoint changed to "couples" → skipped ConsentScreen
+- Added warning log in `/new-chat/message` (not blocking — to avoid dead-end UX)
+- Files: `backend/src/index.ts`
+
+### Settings screen React crash — DONE
+- `SettingsView` (standalone function) referenced `recommendations.has_native_app` from NewChat's scope
+- Crash exposed after Vite rebuild changed minification/scope handling
+- Fix: pass `hasNativeApp` as explicit prop
+- Files: `frontend/src/NewChat.tsx`
+
+### Observations from barazany wave
+- 32+ new users in 48h, all from barazany (Adi), WW
+- 0 native app installs from this wave (all browser)
+- 4 stuck users (didn't complete profile) — not acted on
+
+---
+
+## 2026-10-13 — Launch Day Health Dashboard + Settings + Fixes
 
 ### Settings push toggle for all native app users — DONE
 - Toggle visible for anyone with `has_native_app` (from `devices_seen`), not just current WebView

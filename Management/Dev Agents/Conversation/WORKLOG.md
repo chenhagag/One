@@ -1,6 +1,24 @@
 # Conversation Dev Agent — Work Log
 
-## Latest: 2026-10-03 — Agent Created
+## Latest: 2026-10-18 — באגים מסריקת שיחות (Chat Review 15/10)
+
+### 🔴 בעיה 1: סגירת שיחה שבורה — דילוג על closing stages
+**חומרה: מערכתית — 4 מתוך 4 שיחות שהגיעו לסגירה**
+משתמשות: מיכל (337), לורן (338), ענבר (339), אודיה (343).
+כולן דילגו על שלבי closing (Prompt E Insight + Prompt E Final) וקפצו ישר מ"דייקתי?" ל"אנחנו מתחילים לנתח את הפרופיל שלך".
+**צריך לבדוק**: האם closing_stage מתעדכן ב-DB? האם המעבר ל-Prompt E מופעל? ייתכן רגרסיה ב-chatManager או ב-promptTemplates.
+
+### 🔴 בעיה 2: פרופילים מומצאים במבחן טעם
+**חומרה: מערכתית — 2 מתוך 4 שיחות taste**
+- אודיה (343) — הצ'אט המציא פרופילים (יעל כמורה, דנה, מיכל) במקום בנק הפרופילים
+- מיכל (337) — פרופיל ראשון מומצא, אח"כ עבר לבנק האמיתי
+**צריך לבדוק**: האם קובץ הפרופילים (taste-profiles-female-ff.txt) מוזרק כראוי? ייתכן בעיית אורך prompt או שהפרופילים נחתכים.
+
+דו"ח מלא: `reports/chat-review-2026-10.md`
+
+---
+
+## 2026-10-03 — Agent Created
 - Conversation agent created, split from Backend + Frontend agents
 - Covers: chatManager, microTopics, promptTemplates, summarizer, autoAnalysis, prompt files, agent context, RAG injection, NewChat.tsx, chat channels, recommendations, closing flow
 - All conversation-specific documentation consolidated here

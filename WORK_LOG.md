@@ -22,7 +22,48 @@
 
 ---
 
-## Latest Session: 2026-10-11 (Email System Overhaul + Notification Banner + Android Agent)
+## Latest Session: 2026-10-18 (502 Fix + Match Cards + Card Style Guide)
+
+### ✅ חקירת שגיאת 502 — דניאל אזולאי (#318)
+- PATCH /users/318 החזיר 502 ב-14.10
+- סיבה: route חסר try/catch (Express 4 לא תופס async errors) + אין graceful shutdown
+- תיקון (בקוד, לא נדחף):
+  - try/catch ל-`PATCH /users/:id` — שגיאת DB תחזיר 500 + תתועד ב-error_logs
+  - SIGTERM handler — graceful shutdown עד 10 שניות לבקשות פעילות
+
+### ✅ כרטיסי התאמה — כתיבה ועדכון
+- **מורן שוסטק (#335) ↔ מיכל (#337)** — match #3486, כתיבה + תיקון סגנון ע"י Chen
+- **בר זקן (#302) ↔ ניצן רוטשטיין (#319)** — match #3474, כתיבה + תיקון סגנון ע"י Chen
+- שני הכרטיסים עודכנו ב-DB עם הגרסאות המתוקנות
+
+### ✅ עדכון כללי סגנון לכרטיסי התאמה
+- עודכן `Match Card Writer/CONTEXT.md`:
+  - טון חיובי תמיד — לא מילים שליליות (לא "תוקפנית", "קשוחה")
+  - introSummary פשוט ותיאורי — לא לערום תכונות אופי
+  - connectionPoints לעומק — נקודות משמעותיות, לא שטחיות
+  - לא לחשוף יותר מדי — לעורר סקרנות
+- דוגמאות לכרטיסים מתוקנים ניתן לשלוף מה-DB (matches #3474, #3486)
+
+---
+
+## 2026-10-15 (Admin Pipeline + Survey Cleanup)
+
+### ✅ Admin Pipeline — הפרדת "מוכנים למאגר"
+- סקשן "מוכנים למאגר" ב-AdminPipeline פוצל לשניים:
+  - **מוכנים למאגר** (ירוק) — `admin_processing_done` + יש תמונה
+  - **מוכנים למאגר ללא תמונה** (כתום) — `admin_processing_done` + בלי תמונה
+- כל הפעולות (כניסה למאגר, מייל, שאלה) זמינות בשני הסקשנים
+- שינוי ב-`AdminPipeline.tsx` בלבד
+
+### ✅ סקר — הסרת באנר לעדי (user 308)
+- `survey2_banner_dismissed = TRUE` עודכן ב-DB ישירות
+
+### ✅ תיעוד
+- CLAUDE.md: הבהרת ההבדל בין `is_matchable` (אוטומטי, אלגוריתמי) ל-`admin_processing_done` (ידני, workflow אדמין)
+
+---
+
+## 2026-10-11 (Email System Overhaul + Notification Banner + Android Agent)
 
 ### ✅ מערכת מיילים — שדרוג מקיף
 - **פוטר מאוחד** — `buildEmailFooter()` exported מ-notifications.ts, מקור אמת יחיד
