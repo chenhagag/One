@@ -591,6 +591,7 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
   const [filterGender, setFilterGender] = useState<"all" | "man" | "woman">("all");
   const [filterOrientation, setFilterOrientation] = useState<"all" | "straight" | "ww" | "mm">("all");
   const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("all");
+  const [wwOnly, setWwOnly] = useState(true);
 
   useEffect(() => {
     apiFetch("/admin/users")
@@ -612,7 +613,9 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
   }
 
   // Apply filters
-  const filtered = users.filter((u: any) => {
+  const isUserWW = (u: any) => u.gender === "woman" && u.looking_for_gender && u.looking_for_gender !== "man";
+  const baseUsers = wwOnly ? users.filter(isUserWW) : users;
+  const filtered = baseUsers.filter((u: any) => {
     if (filterPool === "in" && !u.in_matching_pool) return false;
     if (filterPool === "out" && u.in_matching_pool) return false;
     if (filterGender === "man" && u.gender !== "man") return false;
@@ -748,8 +751,24 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
 
   return (
     <div style={s.scrollWrap}>
+      {/* WW / All toggle */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <button
+          onClick={() => setWwOnly(true)}
+          style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, border: "none", borderRadius: 6, cursor: "pointer", background: wwOnly ? "#7c3aed" : "#f3f4f6", color: wwOnly ? "#fff" : "#6b7280" }}
+        >
+          WW בלבד ({users.filter(isUserWW).length})
+        </button>
+        <button
+          onClick={() => setWwOnly(false)}
+          style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, border: "none", borderRadius: 6, cursor: "pointer", background: !wwOnly ? "#7c3aed" : "#f3f4f6", color: !wwOnly ? "#fff" : "#6b7280" }}
+        >
+          הצג הכל ({users.length})
+        </button>
+      </div>
+
       <p style={s.sub}>
-        {filtered.length}/{users.length} users — click a row to view full profile
+        {filtered.length}/{baseUsers.length} users — click a row to view full profile
         <span style={{ marginLeft: 16, fontWeight: 600 }}>
           Flagged: {flaggedToxic.length + flaggedTroll.length + flaggedIdentity.length} | Frozen: {filtered.filter((u: any) => u.user_status === "frozen").length}
         </span>
@@ -4187,6 +4206,10 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
   const [filterSpecial, setFilterSpecial] = useState(false);
   const [matchDetail, setMatchDetail] = useState<any>(null);
   const [matchDetailLoading, setMatchDetailLoading] = useState(false);
+  const [wwOnly, setWwOnly] = useState(true);
+
+  const isWW = (cm: any) => cm.user1_gender === "woman" && cm.user1_looking_for !== "man";
+  const displayData = wwOnly ? data.filter(isWW) : data;
 
   const filterBtnStyle = (active: boolean): React.CSSProperties => ({
     padding: "4px 12px", fontSize: 12, fontWeight: active ? 700 : 400, borderRadius: 6,
@@ -4324,6 +4347,22 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
 
   return (
     <div>
+      {/* WW / All toggle */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <button
+          onClick={() => setWwOnly(true)}
+          style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, border: "none", borderRadius: 6, cursor: "pointer", background: wwOnly ? "#7c3aed" : "#f3f4f6", color: wwOnly ? "#fff" : "#6b7280" }}
+        >
+          WW בלבד ({data.filter(isWW).length})
+        </button>
+        <button
+          onClick={() => setWwOnly(false)}
+          style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, border: "none", borderRadius: 6, cursor: "pointer", background: !wwOnly ? "#7c3aed" : "#f3f4f6", color: !wwOnly ? "#fff" : "#6b7280" }}
+        >
+          הצג הכל ({data.length})
+        </button>
+      </div>
+
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
         <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: "8px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6, fontWeight: 600 }}>
           <option value="profile_score">מיון: Profile Score</option>
@@ -4435,7 +4474,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
       {/* View tabs */}
       <div style={{ display: "flex", gap: 8, marginBottom: 16, borderBottom: "2px solid #e5e7eb", paddingBottom: 8 }}>
         {(() => {
-          const actionableCount = data.filter((cm: any) => {
+          const actionableCount = displayData.filter((cm: any) => {
             if (cm.user1_gender !== "woman" || cm.user1_looking_for === "man") return false;
             if (cm.match_status !== "potential_match") return false;
             if (cm.user1_locked || cm.user2_locked) return false;
@@ -4454,7 +4493,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                 onClick={() => setCmView("all")}
                 style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, border: "none", borderRadius: "6px 6px 0 0", cursor: "pointer", background: cmView === "all" ? "#6366f1" : "#f3f4f6", color: cmView === "all" ? "#fff" : "#6b7280" }}
               >
-                כל ההתאמות ({data.length})
+                כל ההתאמות ({displayData.length})
               </button>
             </>
           );
@@ -4464,16 +4503,16 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
       {/* Pool filter — only in "all" view */}
       {cmView === "all" && <div style={{ display: "flex", gap: 6, marginBottom: 12, alignItems: "center" }}>
         <span style={{ fontSize: 12, color: "#6b7280" }}>מאגר:</span>
-        <button style={filterBtnStyle(filterCmPool === "all")} onClick={() => setFilterCmPool("all")}>הכל ({data.length})</button>
-        <button style={filterBtnStyle(filterCmPool === "straight")} onClick={() => setFilterCmPool("straight")}>סטרייט ({data.filter((cm: any) => (cm.user1_gender === "man" && cm.user1_looking_for === "woman") || (cm.user1_gender === "woman" && cm.user1_looking_for === "man")).length})</button>
-        <button style={filterBtnStyle(filterCmPool === "ww")} onClick={() => setFilterCmPool("ww")}>נשים→נשים ({data.filter((cm: any) => cm.user1_gender === "woman" && cm.user1_looking_for !== "man").length})</button>
-        <button style={filterBtnStyle(filterCmPool === "mm")} onClick={() => setFilterCmPool("mm")}>גברים→גברים ({data.filter((cm: any) => cm.user1_gender === "man" && cm.user1_looking_for === "man").length})</button>
+        <button style={filterBtnStyle(filterCmPool === "all")} onClick={() => setFilterCmPool("all")}>הכל ({displayData.length})</button>
+        <button style={filterBtnStyle(filterCmPool === "straight")} onClick={() => setFilterCmPool("straight")}>סטרייט ({displayData.filter((cm: any) => (cm.user1_gender === "man" && cm.user1_looking_for === "woman") || (cm.user1_gender === "woman" && cm.user1_looking_for === "man")).length})</button>
+        <button style={filterBtnStyle(filterCmPool === "ww")} onClick={() => setFilterCmPool("ww")}>נשים→נשים ({displayData.filter((cm: any) => cm.user1_gender === "woman" && cm.user1_looking_for !== "man").length})</button>
+        <button style={filterBtnStyle(filterCmPool === "mm")} onClick={() => setFilterCmPool("mm")}>גברים→גברים ({displayData.filter((cm: any) => cm.user1_gender === "man" && cm.user1_looking_for === "man").length})</button>
         <span style={{ margin: "0 8px", borderLeft: "1px solid #d1d5db", height: 20 }} />
         <button
           style={{ ...filterBtnStyle(filterSpecial), ...(filterSpecial ? { border: "1.5px solid #dc2626", background: "#fef2f2", color: "#dc2626" } : {}) }}
           onClick={() => setFilterSpecial(!filterSpecial)}
         >
-          ⚠ מיוחדות ({data.filter((cm: any) => cm.user1_is_special || cm.user2_is_special).length})
+          ⚠ מיוחדות ({displayData.filter((cm: any) => cm.user1_is_special || cm.user2_is_special).length})
         </button>
       </div>}
 
@@ -4482,11 +4521,11 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
       <div style={{ display: "flex", gap: 6, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, color: "#6b7280" }}>סטטוס:</span>
         {["all", "potential_match", "expanded_potential_match", "blind_match_candidate", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "pending_second_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "cancelled_by_user", "cancelled_by_system", "rejected_by_users", "no_match"].map(st => {
-          const count = st === "all" ? data.length
-            : st === "no_match" ? data.filter((cm: any) => !cm.match_status).length
-            : st === "cancelled_by_user" ? data.filter((cm: any) => cm.match_status === "cancelled" && cm.cancelled_by).length
-            : st === "cancelled_by_system" ? data.filter((cm: any) => cm.match_status === "cancelled" && !cm.cancelled_by).length
-            : data.filter((cm: any) => cm.match_status === st).length;
+          const count = st === "all" ? displayData.length
+            : st === "no_match" ? displayData.filter((cm: any) => !cm.match_status).length
+            : st === "cancelled_by_user" ? displayData.filter((cm: any) => cm.match_status === "cancelled" && cm.cancelled_by).length
+            : st === "cancelled_by_system" ? displayData.filter((cm: any) => cm.match_status === "cancelled" && !cm.cancelled_by).length
+            : displayData.filter((cm: any) => cm.match_status === st).length;
           const label = st === "all" ? "הכל" : st === "no_match" ? "ללא התאמה" : st === "expanded_potential_match" ? "מורחבת" : st === "blind_match_candidate" ? "התאמה עיוורת" : st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st === "pending_second_rating" ? "ממתין לאישור שני" : st === "cancelled_by_user" ? "ביטול משתמש" : st === "cancelled_by_system" ? "ביטול מערכת" : st;
           return (
             <button key={st} style={filterBtnStyle(filterCmStatus === st)} onClick={() => setFilterCmStatus(st)}>
@@ -4494,11 +4533,11 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
             </button>
           );
         })}
-        {data.some((cm: any) => cm.match_status === "expanded_potential_match") && (
+        {displayData.some((cm: any) => cm.match_status === "expanded_potential_match") && (
           <button
             style={{ padding: "4px 12px", fontSize: 11, fontWeight: 600, borderRadius: 6, border: "1px solid #6366f1", cursor: "pointer", background: "#e0e7ff", color: "#3730a3" }}
             onClick={async () => {
-              const expandedCount = data.filter((cm: any) => cm.match_status === "expanded_potential_match").length;
+              const expandedCount = displayData.filter((cm: any) => cm.match_status === "expanded_potential_match").length;
               if (!confirm(`למחוק ${expandedCount} התאמות מורחבות?`)) return;
               try {
                 const r = await apiFetch("/admin/matches/expanded", { method: "DELETE" });
@@ -4531,11 +4570,11 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
 
       {loading ? (
         <p style={s.loading}>Loading...</p>
-      ) : data.length === 0 ? (
+      ) : displayData.length === 0 ? (
         <p style={s.none}>No candidate matches yet. Run the algorithm to generate them.</p>
       ) : (
         <div style={s.scrollWrap}>
-          <p style={s.sub}>{data.length} candidate pairs (sorted by {sortBy})</p>
+          <p style={s.sub}>{displayData.length} candidate pairs (sorted by {sortBy})</p>
           <table style={s.table}>
             <thead>
               <tr>
@@ -4568,7 +4607,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
               </tr>
             </thead>
             <tbody>
-              {[...data].filter((cm: any) => {
+              {[...displayData].filter((cm: any) => {
                 // "Actionable" view: WW, potential_match, no in_match, no special, at least one not locked
                 if (cmView === "actionable") {
                   if (cm.user1_gender !== "woman" || cm.user1_looking_for === "man") return false;
