@@ -522,6 +522,11 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
   // Device info from frontend
   const { device, pwa_installed, dark_mode, native_app, entry_point } = req.body || {};
 
+  // Campaign start dates — user created before a campaign started cannot be attributed to it
+  const CAMPAIGN_START_DATES: Record<string, string> = {
+    barazany: "2026-10-14",
+  };
+
   // Resolve entry_point via IP-based attribution when frontend value is missing/default.
   // Covers: (1) native app users who visited landing page in browser before downloading,
   // (2) web users in Instagram/Facebook in-app browsers where localStorage is lost during OAuth redirect.
@@ -600,8 +605,13 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
 
     if (user) {
       await updateDeviceInfo(user.id);
-      // Backfill entry_point if user doesn't have one yet (or upgrade from default via IP attribution)
-      if (resolvedEntryPoint && (!user.entry_point || (user.entry_point === "forwomen" && resolvedEntryPoint !== "forwomen"))) {
+      // Backfill entry_point only for recent users (created within 48h) — prevents old users
+      // from getting false attribution when logging in from a subnet that recently visited a landing page.
+      // Also block attribution if user was created before the campaign started.
+      const isRecentUser = user.created_at && (Date.now() - new Date(user.created_at).getTime()) < 48 * 60 * 60 * 1000;
+      const campaignStart = resolvedEntryPoint ? CAMPAIGN_START_DATES[resolvedEntryPoint] : null;
+      const createdBeforeCampaign = campaignStart && user.created_at && new Date(user.created_at) < new Date(campaignStart);
+      if (resolvedEntryPoint && isRecentUser && !createdBeforeCampaign && (!user.entry_point || (user.entry_point === "forwomen" && resolvedEntryPoint !== "forwomen"))) {
         await pgQueryAll(`UPDATE users SET entry_point = $1, updated_at = NOW() WHERE id = $2`, [resolvedEntryPoint, user.id]);
       }
       return res.json({ ...user, last_device: device || user.last_device, pwa_installed: pwa_installed ?? user.pwa_installed, profile_complete: user.profile_complete ?? true });
@@ -618,8 +628,11 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
         [supabaseUid, provider, user.id]
       );
       await updateDeviceInfo(user.id);
-      // Backfill entry_point if user doesn't have one yet
-      if (resolvedEntryPoint && (!user.entry_point || (user.entry_point === "forwomen" && resolvedEntryPoint !== "forwomen"))) {
+      // Backfill entry_point only for recent users (created within 48h) + campaign date check
+      const isRecentLegacy = user.created_at && (Date.now() - new Date(user.created_at).getTime()) < 48 * 60 * 60 * 1000;
+      const campaignStartLegacy = resolvedEntryPoint ? CAMPAIGN_START_DATES[resolvedEntryPoint] : null;
+      const createdBeforeCampaignLegacy = campaignStartLegacy && user.created_at && new Date(user.created_at) < new Date(campaignStartLegacy);
+      if (resolvedEntryPoint && isRecentLegacy && !createdBeforeCampaignLegacy && (!user.entry_point || (user.entry_point === "forwomen" && resolvedEntryPoint !== "forwomen"))) {
         await pgQueryAll(`UPDATE users SET entry_point = $1, updated_at = NOW() WHERE id = $2`, [resolvedEntryPoint, user.id]);
       }
       return res.json({ ...user, supabase_uid: supabaseUid, auth_provider: provider, last_device: device || user.last_device, pwa_installed: pwa_installed ?? user.pwa_installed, profile_complete: user.profile_complete ?? true });
