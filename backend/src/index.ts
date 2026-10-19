@@ -3822,7 +3822,7 @@ app.post("/matches/:id/rate", requireAuth, async (req, res) => {
   // waiting_second_rating — whoever hasn't rated yet can rate
   const newStatus = rating === "miss" ? "rejected_by_users" : "approved_by_both";
   await pgQueryAll(
-    `UPDATE matches SET status = $1, ${ratingCol} = $2, sent_for_rating_at = NULL, sent_for_rating_to = NULL, updated_at = NOW() WHERE id = $3`,
+    `UPDATE matches SET status = $1, ${ratingCol} = $2, sent_for_rating_at = NULL, sent_for_rating_to = NULL, rating_admin_seen = FALSE, updated_at = NOW() WHERE id = $3`,
     [newStatus, rating, match.id]
   );
   return res.json({ match_id: match.id, new_status: newStatus, rated_by: user_id });
