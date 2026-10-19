@@ -218,6 +218,7 @@ function buildCoupleMessage(isFemale: boolean): string {
 export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId: number) => void }) {
   const [users, setUsers] = useState<PipelineUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [wwOnly, setWwOnly] = useState(true);
   const [collapsed, setCollapsed] = useState<Record<Stage, boolean>>({
     new: true, couples: true, couples_done: true, in_process: true, completed_all: true, completed_partial: true, ready_pool: true, ready_pool_no_photo: true, auto_pool: false, pool: true,
   });
@@ -289,9 +290,13 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
     loadData();
   }
 
+  // WW filter
+  const isUserWW = (u: PipelineUser) => u.gender === "woman" && u.looking_for_gender != null && u.looking_for_gender !== "man";
+  const displayUsers = wwOnly ? users.filter(isUserWW) : users;
+
   // Group users by stage
   const grouped: Record<Stage, PipelineUser[]> = { new: [], couples: [], couples_done: [], in_process: [], completed_all: [], completed_partial: [], ready_pool: [], ready_pool_no_photo: [], auto_pool: [], pool: [] };
-  for (const u of users) {
+  for (const u of displayUsers) {
     const stage = getStage(u);
     grouped[stage].push(u);
   }
@@ -300,6 +305,22 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
 
   return (
     <div style={{ padding: "0 0 20px" }}>
+      {/* WW / All toggle */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <button
+          onClick={() => setWwOnly(true)}
+          style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, border: "none", borderRadius: 6, cursor: "pointer", background: wwOnly ? "#7c3aed" : "#f3f4f6", color: wwOnly ? "#fff" : "#6b7280" }}
+        >
+          WW בלבד ({users.filter(isUserWW).length})
+        </button>
+        <button
+          onClick={() => setWwOnly(false)}
+          style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, border: "none", borderRadius: 6, cursor: "pointer", background: !wwOnly ? "#7c3aed" : "#f3f4f6", color: !wwOnly ? "#fff" : "#6b7280" }}
+        >
+          הצג הכל ({users.length})
+        </button>
+      </div>
+
       {/* Summary bar */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
         {STAGE_CONFIG.map(s => (
@@ -413,7 +434,7 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
 
       {/* Photos without look traits */}
       {(() => {
-        const needsLookTraits = users.filter(u => u.photo_count >= 1 && u.look_trait_count === 0 && !u.test_user_type && !u.admin_checklist?.look_traits_done);
+        const needsLookTraits = displayUsers.filter(u => u.photo_count >= 1 && u.look_trait_count === 0 && !u.test_user_type && !u.admin_checklist?.look_traits_done);
         if (!needsLookTraits.length) return null;
         return (
           <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 12, padding: 16, marginBottom: 20 }}>
