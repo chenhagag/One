@@ -468,7 +468,8 @@ export async function notifyMatchCardSent(userId: number, partnerName: string): 
        <p>אחרי ניתוח מעמיק של הפרופיל ${g("שלך", "שלך")} ושל כל המשתמשים במאגר, מצאנו ${lookingFor} שנראה שיש ביניכם חיבור מעניין ושווה בדיקה.</p>
        <p>כרטיס ההתאמה האישי ${g("שלך", "שלך")} מוכן ומחכה ${g("לך", "לך")} במערכת — ${g("מוזמן", "מוזמנת")} להיכנס ולראות למה חשבנו שכדאי שתכירו.</p>
        <p style="font-size:13px;color:#888">ב-One מעדיפים איכות על מהירות — וזו ההתאמה הכי מדויקת שמצאנו ${g("עבורך", "עבורך")}.</p>`,
-      "לצפייה בהתאמה"
+      "לצפייה בהתאמה",
+      userId
     ),
   });
 }
@@ -492,7 +493,8 @@ export async function notifyNewMessage(recipientId: number, senderName: string):
       `<p>היי ${user.first_name},</p>
        <p>${senderName} ${g("שלח לך", "שלחה לך")} הודעה חדשה ב-One.</p>
        <p>${g("כנס", "כנסי")} למערכת כדי לקרוא ולהשיב.</p>`,
-      g("כנס", "כנסי") + " לקרוא"
+      g("כנס", "כנסי") + " לקרוא",
+      recipientId
     ),
   });
 }
@@ -513,7 +515,8 @@ export async function notifySentForRating(userId: number): Promise<void> {
       `<p>היי ${user.first_name},</p>
        <p>מצאנו ${g("לך", "לך")} התאמה פוטנציאלית ב-One!</p>
        <p>${g("כנס", "כנסי")} למערכת כדי לראות את הפרטים ${g("ולהגיב", "ולהגיב")}.</p>`,
-      g("כנס", "כנסי") + " לראות"
+      g("כנס", "כנסי") + " לראות",
+      userId
     ),
   });
 }
@@ -544,7 +547,8 @@ export async function notifyAdminMessage(userId: number, messageType: string, me
       `<p>היי ${user.first_name},</p>
        ${matchIntro}
        <p>${messageText}</p>`,
-      isQuestion ? g("כנס", "כנסי") + " לענות" : g("דבר", "דברי") + " איתי על זה"
+      isQuestion ? g("כנס", "כנסי") + " לענות" : g("דבר", "דברי") + " איתי על זה",
+      userId
     ),
   });
 }
@@ -572,7 +576,8 @@ export async function notifySystemQuestion(userId: number, questionText: string,
       `<p>היי ${user.first_name},</p>
        ${matchIntro}
        <p>${questionText}</p>`,
-      g("כנס", "כנסי") + " לענות"
+      g("כנס", "כנסי") + " לענות",
+      userId
     ),
   });
 }
