@@ -780,15 +780,17 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
         <button style={filterBtnStyle(filterPool === "all")} onClick={() => setFilterPool("all")}>הכל</button>
         <button style={filterBtnStyle(filterPool === "in")} onClick={() => setFilterPool("in")}>במאגר</button>
         <button style={filterBtnStyle(filterPool === "out")} onClick={() => setFilterPool("out")}>לא במאגר</button>
-        <span style={{ fontSize: 12, color: "#6b7280", marginRight: 12, marginLeft: 4 }}>מגדר:</span>
-        <button style={filterBtnStyle(filterGender === "all")} onClick={() => setFilterGender("all")}>הכל</button>
-        <button style={filterBtnStyle(filterGender === "woman")} onClick={() => setFilterGender("woman")}>נשים</button>
-        <button style={filterBtnStyle(filterGender === "man")} onClick={() => setFilterGender("man")}>גברים</button>
-        <span style={{ fontSize: 12, color: "#6b7280", marginRight: 12, marginLeft: 4 }}>מאגר התאמות:</span>
-        <button style={filterBtnStyle(filterOrientation === "all")} onClick={() => setFilterOrientation("all")}>הכל</button>
-        <button style={filterBtnStyle(filterOrientation === "straight")} onClick={() => setFilterOrientation("straight")}>סטרייט</button>
-        <button style={filterBtnStyle(filterOrientation === "ww")} onClick={() => setFilterOrientation("ww")}>נשים→נשים</button>
-        <button style={filterBtnStyle(filterOrientation === "mm")} onClick={() => setFilterOrientation("mm")}>גברים→גברים</button>
+        {!wwOnly && <>
+          <span style={{ fontSize: 12, color: "#6b7280", marginRight: 12, marginLeft: 4 }}>מגדר:</span>
+          <button style={filterBtnStyle(filterGender === "all")} onClick={() => setFilterGender("all")}>הכל</button>
+          <button style={filterBtnStyle(filterGender === "woman")} onClick={() => setFilterGender("woman")}>נשים</button>
+          <button style={filterBtnStyle(filterGender === "man")} onClick={() => setFilterGender("man")}>גברים</button>
+          <span style={{ fontSize: 12, color: "#6b7280", marginRight: 12, marginLeft: 4 }}>מאגר התאמות:</span>
+          <button style={filterBtnStyle(filterOrientation === "all")} onClick={() => setFilterOrientation("all")}>הכל</button>
+          <button style={filterBtnStyle(filterOrientation === "straight")} onClick={() => setFilterOrientation("straight")}>סטרייט</button>
+          <button style={filterBtnStyle(filterOrientation === "ww")} onClick={() => setFilterOrientation("ww")}>נשים→נשים</button>
+          <button style={filterBtnStyle(filterOrientation === "mm")} onClick={() => setFilterOrientation("mm")}>גברים→גברים</button>
+        </>}
         <span style={{ fontSize: 12, color: "#6b7280", marginRight: 12, marginLeft: 4 }}>פעילות:</span>
         <button style={filterBtnStyle(filterActive === "all")} onClick={() => setFilterActive("all")}>הכל</button>
         <button style={filterBtnStyle(filterActive === "active")} onClick={() => setFilterActive("active")}>פעילים</button>
@@ -4502,12 +4504,14 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
 
       {/* Pool filter — only in "all" view */}
       {cmView === "all" && <div style={{ display: "flex", gap: 6, marginBottom: 12, alignItems: "center" }}>
-        <span style={{ fontSize: 12, color: "#6b7280" }}>מאגר:</span>
-        <button style={filterBtnStyle(filterCmPool === "all")} onClick={() => setFilterCmPool("all")}>הכל ({displayData.length})</button>
-        <button style={filterBtnStyle(filterCmPool === "straight")} onClick={() => setFilterCmPool("straight")}>סטרייט ({displayData.filter((cm: any) => (cm.user1_gender === "man" && cm.user1_looking_for === "woman") || (cm.user1_gender === "woman" && cm.user1_looking_for === "man")).length})</button>
-        <button style={filterBtnStyle(filterCmPool === "ww")} onClick={() => setFilterCmPool("ww")}>נשים→נשים ({displayData.filter((cm: any) => cm.user1_gender === "woman" && cm.user1_looking_for !== "man").length})</button>
-        <button style={filterBtnStyle(filterCmPool === "mm")} onClick={() => setFilterCmPool("mm")}>גברים→גברים ({displayData.filter((cm: any) => cm.user1_gender === "man" && cm.user1_looking_for === "man").length})</button>
-        <span style={{ margin: "0 8px", borderLeft: "1px solid #d1d5db", height: 20 }} />
+        {!wwOnly && <>
+          <span style={{ fontSize: 12, color: "#6b7280" }}>מאגר:</span>
+          <button style={filterBtnStyle(filterCmPool === "all")} onClick={() => setFilterCmPool("all")}>הכל ({displayData.length})</button>
+          <button style={filterBtnStyle(filterCmPool === "straight")} onClick={() => setFilterCmPool("straight")}>סטרייט ({displayData.filter((cm: any) => (cm.user1_gender === "man" && cm.user1_looking_for === "woman") || (cm.user1_gender === "woman" && cm.user1_looking_for === "man")).length})</button>
+          <button style={filterBtnStyle(filterCmPool === "ww")} onClick={() => setFilterCmPool("ww")}>נשים→נשים ({displayData.filter((cm: any) => cm.user1_gender === "woman" && cm.user1_looking_for !== "man").length})</button>
+          <button style={filterBtnStyle(filterCmPool === "mm")} onClick={() => setFilterCmPool("mm")}>גברים→גברים ({displayData.filter((cm: any) => cm.user1_gender === "man" && cm.user1_looking_for === "man").length})</button>
+          <span style={{ margin: "0 8px", borderLeft: "1px solid #d1d5db", height: 20 }} />
+        </>}
         <button
           style={{ ...filterBtnStyle(filterSpecial), ...(filterSpecial ? { border: "1.5px solid #dc2626", background: "#fef2f2", color: "#dc2626" } : {}) }}
           onClick={() => setFilterSpecial(!filterSpecial)}
