@@ -4455,13 +4455,14 @@ app.get("/matches/pending-rating", requireAuth, async (req, res) => {
 
   if (!userId) return res.status(400).json({ error: "user_id required" });
 
-  // Find a match that's been sent for rating TO this user
+  // Find a match that's been sent for rating TO this user (and they haven't rated yet)
   const matches = await pgQueryAll(`
     SELECT m.*
     FROM matches m
     WHERE m.sent_for_rating_to = $1
       AND m.sent_for_rating_at IS NOT NULL
       AND m.status IN ('waiting_first_rating', 'waiting_second_rating')
+      AND (CASE WHEN m.user1_id = $1 THEN m.user1_rating ELSE m.user2_rating END) IS NULL
     ORDER BY m.sent_for_rating_at ASC
     LIMIT 1
   `, [userId]);
