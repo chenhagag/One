@@ -216,6 +216,7 @@ function buildCoupleMessage(isFemale: boolean): string {
 // ── Main Component ───────────────────────────────────────────────
 
 export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId: number) => void }) {
+  const [pipelineTab, setPipelineTab] = useState<"pipeline" | "attention">("pipeline");
   const [users, setUsers] = useState<PipelineUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [wwOnly, setWwOnly] = useState(true);
@@ -305,6 +306,25 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
 
   return (
     <div style={{ padding: "0 0 20px" }}>
+      {/* Pipeline / Attention tab switcher */}
+      <div style={{ display: "flex", gap: 0, marginBottom: 12 }}>
+        <button
+          onClick={() => setPipelineTab("pipeline")}
+          style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, border: "none", borderRadius: "6px 6px 0 0", cursor: "pointer", background: pipelineTab === "pipeline" ? "#6366f1" : "#f3f4f6", color: pipelineTab === "pipeline" ? "#fff" : "#6b7280" }}
+        >
+          ניהול משתמשים
+        </button>
+        <button
+          onClick={() => setPipelineTab("attention")}
+          style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, border: "none", borderRadius: "6px 6px 0 0", cursor: "pointer", background: pipelineTab === "attention" ? "#6366f1" : "#f3f4f6", color: pipelineTab === "attention" ? "#fff" : "#6b7280" }}
+        >
+          דורשות תשומת לב
+        </button>
+      </div>
+
+      {pipelineTab === "attention" && <AttentionTab onSelectUser={onSelectUser} />}
+
+      {pipelineTab === "pipeline" && <>
       {/* WW / All toggle */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <button
@@ -473,6 +493,135 @@ export default function AdminPipeline({ onSelectUser }: { onSelectUser?: (userId
           onSelectUser={onSelectUser}
         />
       ))}
+      </>}
+    </div>
+  );
+}
+
+// ── Attention Tab ────────────────────────────────────────────────
+
+interface AttentionUser {
+  id: number;
+  first_name: string;
+  age: number | null;
+  city: string | null;
+  created_at: string;
+  email_updates: boolean;
+  photo_count: number;
+  last_visit: string | null;
+  ever_rated: boolean;
+  ever_got_card: boolean;
+  ever_received_rating_request: boolean;
+  ever_in_match: boolean;
+  system_questions_count: number;
+  system_questions_answered: number;
+  has_admin_message: boolean;
+  admin_message_snippet: string | null;
+  last_interaction: string | null;
+  active_match_count: number;
+}
+
+function AttentionTab({ onSelectUser }: { onSelectUser?: (userId: number) => void }) {
+  const [data, setData] = useState<{ never_experienced: AttentionUser[]; stale: AttentionUser[] } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    apiFetch("/admin/users/needs-attention")
+      .then(r => r.json())
+      .then(d => setData(d))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <p style={{ padding: 20, color: "#888" }}>טוען...</p>;
+  if (!data) return <p style={{ padding: 20, color: "#dc2626" }}>שגיאה בטעינה</p>;
+
+  const now = new Date();
+  const daysAgo = (d: string | null) => d ? Math.floor((now.getTime() - new Date(d).getTime()) / (1000 * 60 * 60 * 24)) : null;
+
+  const neverOver14 = data.never_experienced.filter(u => daysAgo(u.created_at)! > 14);
+  const never7to14 = data.never_experienced.filter(u => { const d = daysAgo(u.created_at)!; return d >= 7 && d <= 14; });
+
+  const renderUserCard = (u: AttentionUser) => {
+    const daysSinceCreated = daysAgo(u.created_at);
+    const daysSinceVisit = daysAgo(u.last_visit);
+    return (
+      <div key={u.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 12px", borderBottom: "1px solid #f3f4f6", flexWrap: "wrap", fontSize: 13 }}>
+        <span
+          style={{ fontWeight: 700, color: "#1e1b4b", cursor: "pointer", textDecoration: "underline", minWidth: 80 }}
+          onClick={() => onSelectUser?.(u.id)}
+        >
+          {u.first_name}
+        </span>
+        <span style={{ color: "#6b7280" }}>{u.age ?? "?"}, {u.city ?? "?"}</span>
+        <span style={{ color: "#94a3b8", fontSize: 11 }}>{daysSinceCreated} ימים במערכת</span>
+        <span style={{ color: daysSinceVisit != null && daysSinceVisit > 7 ? "#dc2626" : "#6b7280", fontSize: 11 }}>
+          ביקור אחרון: {daysSinceVisit != null ? `לפני ${daysSinceVisit} ימים` : "אף פעם"}
+        </span>
+        <span style={{ fontSize: 11, color: "#6b7280" }}>{u.photo_count} תמונות</span>
+        <span style={{ fontSize: 11, color: u.active_match_count > 0 ? "#16a34a" : "#dc2626" }}>
+          {u.active_match_count} התאמות פעילות
+        </span>
+        {u.system_questions_count > 0 && (
+          <span style={{ fontSize: 11, color: "#7c3aed" }}>
+            שאלות: {u.system_questions_answered}/{u.system_questions_count}
+          </span>
+        )}
+        {u.has_admin_message && (
+          <span style={{ fontSize: 10, color: "#059669", background: "#ecfdf5", padding: "1px 6px", borderRadius: 4 }}>
+            הודעה: {u.admin_message_snippet}
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      {/* Never experienced — over 14 days */}
+      {neverOver14.length > 0 && (
+        <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "#dc2626", marginBottom: 8 }}>
+            מעל שבועיים ללא התאמה ({neverOver14.length})
+          </div>
+          <div style={{ fontSize: 12, color: "#991b1b", marginBottom: 10 }}>
+            במאגר מעל 14 יום, מעולם לא קיבלו שאלת דירוג / כרטיס / התאמה
+          </div>
+          {neverOver14.map(renderUserCard)}
+        </div>
+      )}
+
+      {/* Never experienced — 7-14 days */}
+      {never7to14.length > 0 && (
+        <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "#d97706", marginBottom: 8 }}>
+            מעל שבוע ללא התאמה ({never7to14.length})
+          </div>
+          <div style={{ fontSize: 12, color: "#92400e", marginBottom: 10 }}>
+            במאגר 7-14 ימים, מעולם לא קיבלו שאלת דירוג / כרטיס / התאמה
+          </div>
+          {never7to14.map(renderUserCard)}
+        </div>
+      )}
+
+      {/* Stale — experienced but no recent contact */}
+      {data.stale.length > 0 && (
+        <div style={{ background: "#f5f3ff", border: "1px solid #c4b5fd", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "#7c3aed", marginBottom: 8 }}>
+            ללא תקשורת מעל שבועיים ({data.stale.length})
+          </div>
+          <div style={{ fontSize: 12, color: "#5b21b6", marginBottom: 10 }}>
+            עברו תהליך התאמה בעבר, אבל לא נשלחה אליהן שאלה / מייל / התראה ב-14 ימים האחרונים
+          </div>
+          {data.stale.map(renderUserCard)}
+        </div>
+      )}
+
+      {neverOver14.length === 0 && never7to14.length === 0 && data.stale.length === 0 && (
+        <div style={{ padding: 40, textAlign: "center", color: "#16a34a", fontSize: 15, fontWeight: 600 }}>
+          אין משתמשות שדורשות תשומת לב כרגע
+        </div>
+      )}
     </div>
   );
 }

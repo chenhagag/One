@@ -3625,6 +3625,7 @@ app.get("/admin/users/:id/matches", async (req, res) => {
       u.id as other_id, u.first_name as other_name,
       u1.pickiness_score as user1_pickiness,
       u2.pickiness_score as user2_pickiness,
+      cm.id as candidate_match_id, cm.profile_score, cm.final_score, cm.internal_score, cm.external_score,
       -- Lock status for this user and the other user
       EXISTS(SELECT 1 FROM matches mx WHERE mx.id != m.id AND (mx.user1_id = $1 OR mx.user2_id = $1)
         AND (mx.status = 'in_match' OR (mx.status IN ('waiting_first_rating', 'waiting_second_rating') AND mx.sent_for_rating_to = $1))
@@ -3641,6 +3642,9 @@ app.get("/admin/users/:id/matches", async (req, res) => {
     JOIN users u ON u.id = CASE WHEN m.user1_id = $1 THEN m.user2_id ELSE m.user1_id END
     JOIN users u1 ON u1.id = m.user1_id
     JOIN users u2 ON u2.id = m.user2_id
+    LEFT JOIN candidate_matches cm ON
+      (cm.user_id = m.user1_id AND cm.candidate_user_id = m.user2_id)
+      OR (cm.user_id = m.user2_id AND cm.candidate_user_id = m.user1_id)
     WHERE m.user1_id = $1 OR m.user2_id = $1
     ORDER BY m.final_match_priority DESC NULLS LAST
   `, [uid]);
@@ -5020,6 +5024,111 @@ app.get("/admin/user-management", async (_req, res) => {
     return res.json(result);
   } catch (err: any) {
     console.error("[user-management]", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
+// NEEDS ATTENTION — WW users in pool who never got a match or went stale
+// ════════════════════════════════════════════════════════════════
+app.get("/admin/users/needs-attention", async (_req, res) => {
+  try {
+    const rows = await pgQueryAll<any>(`
+      SELECT
+        u.id, u.first_name, u.age, u.city, u.created_at, u.email_updates,
+        u.admin_message,
+        (SELECT COUNT(*)::int FROM user_photos WHERE user_id = u.id) AS photo_count,
+        (SELECT MAX(viewed_at) FROM page_views WHERE user_id = u.id) AS last_visit,
+        -- ever_rated
+        EXISTS(
+          SELECT 1 FROM matches mx
+          WHERE ((mx.user1_id = u.id AND mx.user1_rating IS NOT NULL)
+              OR (mx.user2_id = u.id AND mx.user2_rating IS NOT NULL))
+        ) AS ever_rated,
+        -- ever_got_card
+        EXISTS(
+          SELECT 1 FROM matches mx
+          WHERE (mx.user1_id = u.id OR mx.user2_id = u.id)
+            AND mx.match_card_sent_at IS NOT NULL
+        ) AS ever_got_card,
+        -- ever_received_rating_request
+        EXISTS(
+          SELECT 1 FROM matches mx
+          WHERE mx.sent_for_rating_to = u.id
+             OR (mx.user1_id = u.id AND mx.sent_for_rating_at IS NOT NULL AND mx.sent_for_rating_to IS NULL)
+        ) AS ever_received_rating_request,
+        -- ever_in_match
+        EXISTS(
+          SELECT 1 FROM matches mx
+          WHERE (mx.user1_id = u.id OR mx.user2_id = u.id) AND mx.status = 'in_match'
+        ) AS ever_in_match,
+        -- system questions
+        (SELECT COUNT(*)::int FROM system_questions WHERE user_id = u.id) AS system_questions_count,
+        (SELECT COUNT(*)::int FROM system_questions WHERE user_id = u.id AND answer IS NOT NULL) AS system_questions_answered,
+        -- active match count (not cancelled/rejected)
+        (SELECT COUNT(*)::int FROM matches mx
+         WHERE (mx.user1_id = u.id OR mx.user2_id = u.id)
+           AND mx.status NOT IN ('cancelled', 'rejected_by_users', 'rejected_acquaintance')
+        ) AS active_match_count,
+        -- last_interaction: most recent of system_question, email_log, notification_log
+        GREATEST(
+          (SELECT MAX(created_at) FROM system_questions WHERE user_id = u.id),
+          (SELECT MAX(sent_at) FROM email_log WHERE user_id = u.id),
+          (SELECT MAX(sent_at) FROM notification_log WHERE user_id = u.id)
+        ) AS last_interaction
+      FROM users u
+      WHERE u.gender = 'woman'
+        AND u.looking_for_gender IS NOT NULL
+        AND u.looking_for_gender != 'man'
+        AND u.in_matching_pool = TRUE
+        AND u.created_at < NOW() - INTERVAL '7 days'
+      ORDER BY u.created_at ASC
+    `);
+
+    const never_experienced: any[] = [];
+    const stale: any[] = [];
+    const now = new Date();
+    const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+    for (const r of rows) {
+      const hasAdminMsg = !!r.admin_message;
+      const base = {
+        id: r.id,
+        first_name: r.first_name,
+        age: r.age,
+        city: r.city,
+        created_at: r.created_at,
+        email_updates: r.email_updates,
+        photo_count: r.photo_count,
+        last_visit: r.last_visit,
+        ever_rated: r.ever_rated,
+        ever_got_card: r.ever_got_card,
+        ever_received_rating_request: r.ever_received_rating_request,
+        ever_in_match: r.ever_in_match,
+        system_questions_count: r.system_questions_count,
+        system_questions_answered: r.system_questions_answered,
+        has_admin_message: hasAdminMsg,
+        admin_message_snippet: hasAdminMsg ? (r.admin_message as string).slice(0, 80) : null,
+        last_interaction: r.last_interaction,
+        active_match_count: r.active_match_count,
+      };
+
+      const neverExp = !r.ever_rated && !r.ever_got_card && !r.ever_received_rating_request && !r.ever_in_match;
+
+      if (neverExp && r.photo_count >= 1) {
+        never_experienced.push(base);
+      } else if (!neverExp) {
+        // Stale: experienced a match but no system interaction in 14+ days
+        const lastInt = r.last_interaction ? new Date(r.last_interaction) : null;
+        if (!lastInt || lastInt < fourteenDaysAgo) {
+          stale.push(base);
+        }
+      }
+    }
+
+    return res.json({ never_experienced, stale });
+  } catch (err: any) {
+    console.error("[needs-attention]", err.message);
     return res.status(500).json({ error: err.message });
   }
 });

@@ -3434,7 +3434,7 @@ ${footer}`)
             <tr>
               <th style={s.th}>Other User</th>
               <th style={s.th}>Status</th>
-              <th style={s.th}>Score</th>
+              <th style={s.th}>Profile / Final</th>
               <th style={s.th}>Ratings</th>
               <th style={s.th}>Actions</th>
             </tr>
@@ -3495,7 +3495,25 @@ ${footer}`)
                     <span style={msStyle}>{m.status}</span>
                     {alreadySent && <span style={{ fontSize: 10, color: "#7c3aed", marginRight: 4 }}> 📩 נשלח</span>}
                   </td>
-                  <td style={s.td}>{m.match_score != null ? <strong>{m.match_score}</strong> : "-"}</td>
+                  <td style={s.td}>
+                    {(() => {
+                      const ps = m.profile_score != null ? Math.round(m.profile_score) : null;
+                      const fs = m.final_score != null ? Math.round(m.final_score) : null;
+                      const scoreColor = (v: number | null) => v == null ? "#888" : v >= 70 ? "#16a34a" : v >= 50 ? "#d97706" : "#dc2626";
+                      return (
+                        <span style={{ fontSize: 12 }}>
+                          <strong style={{ color: scoreColor(ps) }}>{ps ?? "-"}</strong>
+                          {" / "}
+                          <strong style={{ color: scoreColor(fs) }}>{fs ?? "-"}</strong>
+                          {(m.internal_score != null || m.external_score != null) && (
+                            <span style={{ fontSize: 10, color: "#94a3b8", display: "block" }}>
+                              int:{m.internal_score != null ? Math.round(m.internal_score) : "-"} ext:{m.external_score != null ? Math.round(m.external_score) : "-"}
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })()}
+                  </td>
                   <td style={s.td}>
                     <span style={{ fontSize: 11 }}>
                       הוא/היא: {ratingLabel(thisUserRating)} | צד שני: {ratingLabel(otherUserRating)}
