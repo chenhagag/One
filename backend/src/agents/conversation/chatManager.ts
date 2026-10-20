@@ -320,6 +320,31 @@ function saveTasteProfileIndex(userId: number, index: number): void {
   }).catch(() => {});
 }
 
+/** Load taste question phase from DB (stored in topic_injection_counts) */
+async function getTasteQuestionPhase(userId: number): Promise<number> {
+  const row = await pgQueryOne<{ topic_injection_counts: any }>(
+    "SELECT topic_injection_counts FROM user_chat_summaries WHERE user_id = $1",
+    [userId]
+  );
+  return row?.topic_injection_counts?.taste_question_phase ?? 0;
+}
+
+/** Save taste question phase to DB (awaited for reliability — prevents skipped questions) */
+async function saveTasteQuestionPhase(userId: number, phase: number): Promise<void> {
+  const row = await pgQueryOne<{ topic_injection_counts: any }>(
+    "SELECT topic_injection_counts FROM user_chat_summaries WHERE user_id = $1",
+    [userId]
+  );
+  const existing = row?.topic_injection_counts || {};
+  const merged = { ...existing, taste_question_phase: phase };
+  await pgQueryOne(
+    `INSERT INTO user_chat_summaries (user_id, summary_json, message_count_at, topic_injection_counts, updated_at)
+     VALUES ($1, '{}'::jsonb, 0, $2::jsonb, NOW())
+     ON CONFLICT (user_id) DO UPDATE SET topic_injection_counts = $2::jsonb, updated_at = NOW()`,
+    [userId, JSON.stringify(merged)]
+  );
+}
+
 /** Total content fields in summary (excluding notable_quotes) */
 const TOTAL_SUMMARY_FIELDS = 8;
 
@@ -834,26 +859,26 @@ export async function buildChatPrompt(
       reentryInstruction = `\n\n## חזרה לבדיקת טעם\nהמשתמש/ת חזרה לבדיקת הטעם. ההודעה האחרונה שלך הייתה:\n"${lastAssistantMessage}"\n\nאם הצגת פרופיל שהמשתמש/ת לא הספיקה להגיב עליו — הזכר לה בנעימות: "אגב, לפני כן הצגתי לך פרופיל — רוצה לחזור אליו?" וחזור על הפרופיל.`;
     }
 
-    // First message (tasteUserMsgCount === 0): intro + first profile
-    // Subsequent messages: next profile based on progress
-    // Profile index = tasteUserMsgCount (first real response is msg 1 → show profile index 1, etc.)
-    // But msg 0 is the trigger "נתח את הטעם שלי" → show intro + profile 0
-    const isBoth = lookingForGender !== "woman" && lookingForGender !== "man";
-
-    // Check if user already shared taste preferences in general chat
-    // NOTE: hasPriorTasteInfo disabled — all users get full question flow (general + deal-breakers)
-    // To re-enable shortcut: uncomment and use `const profileStartMsg = hasPriorTasteInfo ? 1 : 5;`
-    // const hasPriorTasteInfo = userSummary && (
-    //   (userSummary.taste_and_style && userSummary.taste_and_style.trim().length > 0) ||
-    //   (userSummary.relationships && userSummary.relationships.trim().length > 0)
-    // );
-
-    // Taste test phases: msg0=explain+general questions, msg1=answer, msg2=deal-breaker1, msg3=deal-breaker2, msg4=explain profiles+"ready?", msg5+=profiles
-    // If gender was unknown (first msg was gender question), shift everything by 1
-    const genderQuestionOffset = lookingForGender ? 0 : 1;
-    const profileStartMsg = 5 + genderQuestionOffset;
-
+    const isWW = gender === "woman" && !!lookingForGender && lookingForGender !== "man";
     const isCoupleTest = testUserType === "Couple Tester";
+
+    // Load user age — skip "פרק א׳" question for age ≤ 25
+    const ageRow = await pgQueryOne<{ age: number | null }>("SELECT age FROM users WHERE id = $1", [userId]);
+    const userAge = ageRow?.age ?? null;
+    const skipLifeStage = userAge !== null && userAge <= 25;
+
+    // --- Question phase tracking (stored in DB, independent of message count) ---
+    // Each question phase = one specific question. Advances by 1 per user message.
+    // WW: 7-8 phases (0=intro+taste, 1=expression, 2=turnoff, 3=lifestyle, 4=experience, 5=closet, [6=lifestage], N=transition)
+    // Non-WW: 4-5 phases (0=intro+taste, 1=followup, 2=lifestyle, [3=lifestage], N=transition)
+    // Life stage question skipped for age ≤ 25. If gender unknown: +1 phase at the start.
+    const questionPhase = await getTasteQuestionPhase(userId);
+    const genderQuestionNeeded = !lookingForGender;
+    const genderOffset = genderQuestionNeeded ? 1 : 0;
+    const wwPhaseCount = skipLifeStage ? 7 : 8;
+    const defaultPhaseCount = skipLifeStage ? 4 : 5;
+    const totalQuestionPhases = (isWW ? wwPhaseCount : defaultPhaseCount) + genderOffset;
+    const inQuestionPhase = questionPhase < totalQuestionPhases;
     const allProfilesText = buildTasteProfileList(profileBank);
     // Still need currentProfile for closing detection
     // Count profiles shown by matching names from the actual profile bank
@@ -877,77 +902,144 @@ export async function buildChatPrompt(
       }
     }
     const profilesShown = shownNames.size;
-    const totalProfiles = profileBank.length; // all profiles in the file
-    const TASTE_MIN_PROFILES = 6; // after this many, taste is "done" for recommendations
+    const totalProfiles = profileBank.length;
+    const TASTE_FIRST_BATCH = 4;   // first checkpoint — summary + "want more?"
+    const TASTE_SECOND_BATCH = 8;  // second checkpoint — summary + "want more?"
     const allProfilesDone = profilesShown >= totalProfiles;
-    const reachedMinimum = profilesShown >= TASTE_MIN_PROFILES;
 
     let phaseInstruction = "";
-    if (tasteUserMsgCount === 0) {
-      if (!lookingForGender) {
-        // Need to ask gender preference first
-        phaseInstruction = `\n\n## שלב: פתיחה\nזו ההודעה הראשונה. לפני שמתחילים, שאל את המשתמש/ת בצורה עדינה: "לפני שנתחיל — אני רוצה להציג לך פרופילים של אנשים בסגנונות שונים. מה מעניין אותך — פרופילים של גברים, נשים, או שניהם?"\nחכה לתשובה לפני שמציג פרופיל.`;
+
+    if (inQuestionPhase) {
+      // ═══ QUESTION PHASE — tracked by DB phase counter, not message count ═══
+      // Each phase maps to one specific question. Phase advances once per turn.
+
+      if (questionPhase === 0 && genderQuestionNeeded) {
+        // Gender preference unknown — ask first
+        phaseInstruction = `\n\n## שלב: פתיחה\nזו ההודעה הראשונה. לפני שמתחילים, שאל/י בצורה עדינה: "לפני שנתחיל — אני רוצה להציג לך פרופילים של אנשים בסגנונות שונים. מה מעניין אותך — פרופילים של גברים, נשים, או שניהם?"\nחכה/חכי לתשובה.\n\n**אסור בהחלט להציג פרופילים בשלב הזה!**`;
       } else {
-        // Start with general taste questions (all users get full flow)
-        const genderWord = lookingForGender === "woman" ? "נשים" : lookingForGender === "man" ? "גברים" : "אנשים";
-        phaseInstruction = `\n\n## שלב: פתיחה + שאלות כלליות על טעם\nזו ההודעה הראשונה. הסבר בקצרה שאנחנו הולכים לעשות בדיקת טעם כדי להבין מה מושך את המשתמש ומה פחות.\n\nלפני שמציגים פרופילים, שאל 2-3 שאלות כלליות על הטעם שלו. למשל:\n- "איך היית מגדיר/ה את הטעם שלך ב${genderWord}? מה מושך אותך?"\n- "מה הכי רחוק מהטעם שלך? מה הכי מוריד לך?"\n- "יש משהו ספציפי שחשוב לך מבחינה חיצונית?"\n\nנסח את השאלות בצורה טבעית ונעימה. שאל שאלה אחת-שתיים עכשיו, והמשך לפי התשובה. אל תציג פרופילים בשלב הזה.`;
+        const contentPhase = questionPhase - genderOffset;
+
+        if (isWW) {
+          // ── WW question flow (8 phases) ──
+          switch (contentPhase) {
+            case 0:
+              phaseInstruction = `\n\n## שלב: פתיחה + שאלה על טעם\nזו ההודעה הראשונה בבדיקת הטעם. הסבירי בקצרה שאנחנו הולכות לעשות בדיקת טעם כדי להבין מה מושך אותה ומה פחות.\n\nשאלי אותה:\n"ספרי לי קצת על הטעם שלך בנשים — מה מושך אותך? מה גורם לך להגיד ׳וואו׳?"\n\n**חובה: שאלי רק את השאלה הזו. אסור בהחלט להציג פרופילים בשלב הזה!**`;
+              break;
+            case 1:
+              phaseInstruction = `\n\n## שלב: שאלה על סגנון ונוכחות\nתגיבי בחום ובקצרה לתשובת המשתמשת. ואז שאלי:\n"יש סגנון או נוכחות אצל נשים שבדרך כלל מושכים אותך — למשל נשיות, גבריות או שילוב ביניהן? או שזה פחות מה שקובע אצלך?"\n\n**חובה: שאלי רק את השאלה הזו. אסור בהחלט להציג פרופילים!**`;
+              break;
+            case 2:
+              phaseInstruction = `\n\n## שלב: מה לא הטעם שלך\nתגיבי בחום ובקצרה לתשובת המשתמשת. ואז שאלי:\n"ומה הכי רחוק מהטעם שלך? מה מוריד לך?"\n\n**חובה: שאלי רק את השאלה הזו. אסור בהחלט להציג פרופילים!**`;
+              break;
+            case 3:
+              phaseInstruction = `\n\n## שלב: דיל-ברייקר — אורח חיים\nתגיבי בחום ובקצרה לתשובת המשתמשת. ואז שאלי:\n"יש דברים ברמת אורח החיים שפשוט לא יעבדו מבחינתך? למשל — עישון, גידול חיות מחמד, או הרגלי תזונה מסוימים כמו טבעונות או צמחונות?"\n\n**חובה: שאלי רק את השאלה הזו. אסור בהחלט להציג פרופילים!**`;
+              break;
+            case 4:
+              phaseInstruction = `\n\n## שלב: שאלה על ניסיון עם נשים\nתגיבי בחום ובקצרה לתשובת המשתמשת. ואז שאלי:\n"איך תרגישי לגבי התאמה עם מישהי שנמצאת בתחילת הדרך שלה עם נשים, או שעוד אין לה הרבה ניסיון בקשרים עם נשים?"\n\n**חובה: שאלי רק את השאלה הזו. אסור בהחלט להציג פרופילים!**`;
+              break;
+            case 5:
+              phaseInstruction = `\n\n## שלב: שאלה על ארון\nתגיבי בחום ובקצרה לתשובת המשתמשת. ואז שאלי:\n"איך תרגישי לגבי התאמה עם מישהי שלא לגמרי מחוץ לארון — למשל, שהמשפחה שלה או חלק מהסביבה עדיין לא יודעים שהיא יוצאת עם נשים?"\n\n**חובה: שאלי רק את השאלה הזו. אסור בהחלט להציג פרופילים!**`;
+              break;
+            case 6:
+              if (skipLifeStage) {
+                // Age ≤ 25 — skip life stage, go straight to transition
+                phaseInstruction = `\n\n## שלב: מעבר לפרופילים\nתגיבי בחום ובקצרה לתשובת המשתמשת. ואז הסבירי:\n"עכשיו אני הולכת להציג לך כמה פרופילים פיקטיביים קצרים של נשים בסגנונות שונים — הם לא אנשים אמיתיים, אלא דוגמאות שנועדו לבחון לאיזה סגנון את מתחברת. באופן מכוון יש כאן מגוון סגנונות, לא בהכרח שגרתיים.\n\nאין כאן תשובה נכונה — מעניין אותי מה התחושה הראשונית שלך. אחרי כל פרופיל אשאל אותך עד כמה היא הטעם שלך מ-1 עד 10. מוכנה?"\n\nחכי לאישור.\n\n**אסור בהחלט להציג פרופילים בשלב הזה!**`;
+              } else {
+                phaseInstruction = `\n\n## שלב: דיל-ברייקר — פרק א׳\nתגיבי בחום ובקצרה לתשובת המשתמשת. ואז שאלי:\n"איך מרגישה לך התאמה עם מישהי שכבר עברה פרק א׳ בחיים? למשל, גרושה, או עם ילדים?"\n\n**חובה: שאלי רק את השאלה הזו. אסור בהחלט להציג פרופילים!**`;
+              }
+              break;
+            case 7:
+              // Transition to profiles (only reached when life stage was shown, i.e. age > 25)
+              phaseInstruction = `\n\n## שלב: מעבר לפרופילים\nתגיבי בחום ובקצרה לתשובת המשתמשת. ואז הסבירי:\n"עכשיו אני הולכת להציג לך כמה פרופילים פיקטיביים קצרים של נשים בסגנונות שונים — הם לא אנשים אמיתיים, אלא דוגמאות שנועדו לבחון לאיזה סגנון את מתחברת. באופן מכוון יש כאן מגוון סגנונות, לא בהכרח שגרתיים.\n\nאין כאן תשובה נכונה — מעניין אותי מה התחושה הראשונית שלך. אחרי כל פרופיל אשאל אותך עד כמה היא הטעם שלך מ-1 עד 10. מוכנה?"\n\nחכי לאישור.\n\n**אסור בהחלט להציג פרופילים בשלב הזה!**`;
+              break;
+            default:
+              phaseInstruction = `\n\n## שלב: שאלה כללית על טעם\nתגיבי בחום ובקצרה לתשובת המשתמשת, ושאלי שאלה נוספת על הטעם שלה.\n\n**אסור בהחלט להציג פרופילים!**`;
+          }
+        } else {
+          // ── Non-WW question flow (5 phases) ──
+          switch (contentPhase) {
+            case 0: {
+              const genderWord = lookingForGender === "woman" ? "נשים" : lookingForGender === "man" ? "גברים" : "אנשים";
+              phaseInstruction = `\n\n## שלב: פתיחה + שאלות כלליות על טעם\nזו ההודעה הראשונה. הסבר בקצרה שאנחנו הולכים לעשות בדיקת טעם כדי להבין מה מושך את המשתמש ומה פחות.\n\nשאל שאלה על הטעם שלו:\n- "איך היית מגדיר/ה את הטעם שלך ב${genderWord}? מה מושך אותך?"\n\nשאל שאלה אחת-שתיים עכשיו, והמשך לפי התשובה.\n\n**אסור בהחלט להציג פרופילים בשלב הזה!**`;
+              break;
+            }
+            case 1:
+              phaseInstruction = `\n\n## שלב: שאלות כלליות על טעם\nתגיב לתשובת המשתמש, ואז שאל עוד שאלה על הטעם שלו. למשל:\n- "מה הכי רחוק מהטעם שלך? מה מוריד לך?"\n- "יש משהו ספציפי שחשוב לך מבחינה חיצונית?"\nשאל שאלה אחת בכל תור.\n\n**אסור בהחלט להציג פרופילים!**`;
+              break;
+            case 2:
+              phaseInstruction = `\n\n## שלב: שאלת דיל-ברייקר\nתגיב בקצרה לתשובת המשתמש. ואז שאל:\n"יש דברים ברמת אורח החיים שפשוט לא יעבדו מבחינתך? למשל – עישון, גידול חיות מחמד, או הרגלי תזונה מסוימים (כמו טבעונות/צמחונות)?"\n\n**חובה: שאל רק את השאלה הזו. אסור בהחלט להציג פרופילים!**`;
+              break;
+            case 3:
+              if (skipLifeStage) {
+                // Age ≤ 25 — skip life stage, go straight to transition
+                phaseInstruction = `\n\n## שלב: מעבר לפרופילים\nתגיב בקצרה לתשובת המשתמש. ואז הסבר:\n"עכשיו אני הולך להציג לך כמה פרופילים קצרים פיקטיביים של אנשים בסגנונות שונים — הם לא אנשים אמיתיים, אלא דוגמאות שנועדו לבחון לאיזה סגנון את/ה מתחבר/ת. באופן מכוון יש כאן מגוון סגנונות, לא בהכרח שגרתיים.\n\nאין כאן תשובה נכונה — מעניין אותי מה התחושה הראשונית שלך. אחרי כל פרופיל אשאל אותך עד כמה הוא/היא הטעם שלך מ-1 עד 10. מוכן/ה?"\n\nחכה לאישור.\n\n**אסור בהחלט להציג פרופילים בשלב הזה!**`;
+              } else {
+                phaseInstruction = `\n\n## שלב: שאלת דיל-ברייקר\nתגיב בקצרה לתשובת המשתמש. ואז שאל:\n"איך מרגישה לך התאמה עם מישהו/י שכבר עבר/ה פרק א׳ בחיים? למשל, גרוש/ה, או עם ילדים?"\n\n**חובה: שאל רק את השאלה הזו. אסור בהחלט להציג פרופילים!**`;
+              }
+              break;
+            case 4:
+              // Transition to profiles (only reached when life stage was shown, i.e. age > 25)
+              phaseInstruction = `\n\n## שלב: מעבר לפרופילים\nתגיב בקצרה לתשובת המשתמש. ואז הסבר:\n"עכשיו אני הולך להציג לך כמה פרופילים קצרים פיקטיביים של אנשים בסגנונות שונים — הם לא אנשים אמיתיים, אלא דוגמאות שנועדו לבחון לאיזה סגנון את/ה מתחבר/ת. באופן מכוון יש כאן מגוון סגנונות, לא בהכרח שגרתיים.\n\nאין כאן תשובה נכונה — מעניין אותי מה התחושה הראשונית שלך. אחרי כל פרופיל אשאל אותך עד כמה הוא/היא הטעם שלך מ-1 עד 10. מוכן/ה?"\n\nחכה לאישור.\n\n**אסור בהחלט להציג פרופילים בשלב הזה!**`;
+              break;
+            default:
+              phaseInstruction = `\n\n## שלב: שאלות כלליות על טעם\nתגיב לתשובת המשתמש, ואז שאל עוד שאלה על הטעם שלו. שאל שאלה אחת בכל תור.\n\n**אסור בהחלט להציג פרופילים!**`;
+          }
+        }
       }
-    } else if (tasteUserMsgCount < profileStartMsg) {
-      // Still in general/deal-breaker questions phase (only when no prior info)
-      if (tasteUserMsgCount === profileStartMsg - 1) {
-        // Last question answered — now explain profiles and ask "ready?"
-        phaseInstruction = `\n\n## שלב: מעבר לפרופילים\nתגיב בקצרה לתשובת המשתמש. ואז הסבר:\n"עכשיו אני הולך להציג לך כמה פרופילים קצרים של אנשים בסגנונות שונים. אין כאן תשובה נכונה — מעניין אותי מה התחושה הראשונית שלך.\n\nאחרי כל פרופיל אשאל אותך עד כמה הוא/היא הטעם שלך מ-1 עד 10. מוכן/ה?"\n\nחכה לאישור לפני שמציג פרופיל.`;
-      } else if (tasteUserMsgCount === 2 + genderQuestionOffset) {
-        // Deal-breaker question 1: lifestyle
-        phaseInstruction = `\n\n## שלב: שאלת דיל-ברייקר\nתגיב בקצרה לתשובת המשתמש. ואז שאל:\n"יש דברים ברמת אורח החיים שפשוט לא יעבדו מבחינתך? למשל – עישון, גידול חיות מחמד, או הרגלי תזונה מסוימים (כמו טבעונות/צמחונות)?"\n**חובה:** שאל רק את השאלה הזו. אל תציג פרופילים בשום מקרה בשלב הזה.`;
-      } else if (tasteUserMsgCount === 3 + genderQuestionOffset) {
-        // Deal-breaker question 2: life stage
-        phaseInstruction = `\n\n## שלב: שאלת דיל-ברייקר\nתגיב בקצרה לתשובת המשתמש. ואז שאל:\n"איך מרגישה לך התאמה עם מישהו/י שכבר עבר/ה פרק א׳ בחיים? למשל, גרוש/ה, או עם ילדים?"\n**חובה:** שאל רק את השאלה הזו, בהתאמה למגדר שהמשתמש/ת מחפש/ת. אל תציג פרופילים בשום מקרה בשלב הזה.`;
-      } else {
-        // Continue general taste questions
-        phaseInstruction = `\n\n## שלב: שאלות כלליות על טעם\nתגיב לתשובת המשתמש, ואז שאל עוד שאלה על הטעם שלו. למשל:\n- "מה הכי רחוק מהטעם שלך? מה מוריד לך?"\n- "יש משהו ספציפי שחשוב לך מבחינה חיצונית?"\nשאל שאלה אחת בכל תור. אל תציג פרופילים עדיין.`;
-      }
-    } else if (tasteUserMsgCount === profileStartMsg) {
-      // User confirmed ready — show first profile
-      phaseInstruction = `\n\n## שלב: פרופיל ראשון\nהמשתמש/ת אישרה שהיא מוכנה. הצג את פרופיל 1 מהרשימה למטה. העתק אותו בדיוק כמו שהוא ושאל: עד כמה היא הטעם שלך מ-1 עד 10?`;
-    } else if (allProfilesDone) {
-      // All profiles shown — summarize + close
-      phaseInstruction = `\n\n## שלב: סיכום וסגירה — חובה לסגור עכשיו\nהצגת את כל הפרופילים. סכם בקצרה (2-3 משפטים) את הדפוס שעולה מהתגובות של המשתמש/ת — מה מושך אותה, מה פחות, איזה סגנון מדבר אליה.\nשאל את המשתמש/ת: "קלטתי נכון? יש משהו שהיית רוצה לדייק?"\nאם המשתמש/ת כבר אישרה או תיקנה — סיים עם: "תודה על הפתיחות, זה מאוד עוזר לי לדייק את ההתאמה."\n\n**חשוב מאוד:** אל תמציא פרופילים חדשים! אם המשתמש/ת מבקשת עוד — הסבר שמאגר הדוגמאות נגמר וזה בהחלט מספיק כדי לנתח את הטעם שלה. אם היא רוצה להוסיף משהו על הטעם שלה — היא מוזמנת לכתוב כאן והמערכת תתייחס.\nאל תציג עוד פרופילים. אל תמשיך את השיחה אחרי הסגירה.`;
-    } else if (reachedMinimum && profilesShown === TASTE_MIN_PROFILES) {
-      // Reached minimum — mid-summary + ask if they want more
-      phaseInstruction = `\n\n## שלב: סיכום ביניים\nהצגת ${TASTE_MIN_PROFILES} פרופילים. סכם בקצרה (2-3 משפטים) את הדפוס שעולה מהתגובות — מה מושך אותה, מה פחות.\nשאל את המשתמש/ת: "קלטתי נכון? רוצה להמשיך לעוד כמה פרופילים או שמספיק?"`;
-    } else if (reachedMinimum && !allProfilesDone) {
-      // User chose to continue after mid-summary — check if they said enough
-      const lastUserMsg = message.trim();
-      const wantsToStop = /מספיק|לא|סיימתי|די|נסגור|לא צריך/i.test(lastUserMsg);
-      if (wantsToStop) {
-        phaseInstruction = `\n\n## שלב: סיכום וסגירה — חובה לסגור עכשיו\nהמשתמש/ת ביקשה לסיים. סכם בקצרה את הדפוס שעלה ושאל: "קלטתי נכון? יש משהו שהיית רוצה לדייק?"\nאם המשתמש/ת כבר אישרה — סיים עם: "תודה על הפתיחות, זה מאוד עוזר לי לדייק את ההתאמה."`;
-      } else {
-        // Continue with more profiles
-        phaseInstruction = `\n\n## שלב: הצגת פרופיל\nהמשתמש/ת רוצה להמשיך. הצג את הפרופיל הבא מהרשימה (לפי הסדר — הפרופיל שעוד לא הוצג). העתק אותו בדיוק. אחרי הפרופיל שאל: עד כמה היא הטעם שלך מ-1 עד 10?\n\n**אל תחליט בעצמך שהפרופילים נגמרו. כשהם ייגמרו, תקבל הוראה מפורשת לסכם ולסגור.**`;
-      }
+
+      // Advance question phase (awaited — prevents skipping questions on rapid messages)
+      await saveTasteQuestionPhase(userId, questionPhase + 1);
+
     } else {
-      // Show next profile from the list
-      phaseInstruction = `\n\n## שלב: תגובה לפרופיל\n**חובה — אל תדלג על זה:** אם המשתמש/ת נתנה תגובה קצרה (מילה עד שני משפטים, כמו "חמודה", "בסדר", "לא משהו", ציון בלבד, "אהבתי") — חובה לדובב אותה קצת לפני שממשיכים. שאל מה אהבה ומה לא אהבה. למשל:\n- "מה ספציפית דיבר אלייך / לא דיבר אלייך?"\n- "היה משהו שבלט לך לטובה או לרעה?"\n- "מה אהבת? מה פחות?"\n\nזה חשוב כי בלי הפירוט לא נוכל לדייק את ההתאמה.\n\nרק אם התשובה כבר מפורטת (3+ משפטים עם הסבר ספציפי) — אפשר לעבור ישר לפרופיל הבא.\n\nכלל חשוב: אל תציג פרופיל חדש באותה הודעה עם שאלת הרחבה. או שאלה, או פרופיל — לא שניהם.\n\n**אל תחליט בעצמך שהפרופילים נגמרו. כשהם ייגמרו, תקבל הוראה מפורשת לסכם ולסגור.**`;
+      // ═══ PROFILE PHASE — question phase complete, now showing profiles ═══
+
+      if (profilesShown === 0) {
+        // User confirmed ready — show first profile
+        phaseInstruction = isWW
+          ? `\n\n## שלב: פרופיל ראשון\nהמשתמשת אישרה שהיא מוכנה. הציגי את פרופיל 1 מהרשימה למטה. העתיקי אותו בדיוק כמו שהוא ושאלי: עד כמה היא הטעם שלך מ-1 עד 10?`
+          : `\n\n## שלב: פרופיל ראשון\nהמשתמש/ת אישר/ה שמוכן/ה. הצג את פרופיל 1 מהרשימה למטה. העתק אותו בדיוק כמו שהוא ושאל: עד כמה היא/הוא הטעם שלך מ-1 עד 10?`;
+      } else if (allProfilesDone) {
+        // All profiles shown — summarize + close
+        phaseInstruction = isWW
+          ? `\n\n## שלב: סיכום וסגירה — חובה לסגור עכשיו\nהצגת את כל הפרופילים. סכמי בקצרה (2-3 משפטים) את הדפוס שעולה מהתגובות של המשתמשת — מה מושך אותה, מה פחות, איזה סגנון מדבר אליה.\nשאלי: "קלטתי נכון? יש משהו שהיית רוצה לדייק?"\nאם המשתמשת כבר אישרה או תיקנה — סיימי עם: "תודה על הפתיחות, זה מאוד עוזר לי לדייק את ההתאמה."\n\n**חשוב מאוד:** אל תמציאי פרופילים חדשים! אם המשתמשת מבקשת עוד — הסבירי שמאגר הדוגמאות נגמר וזה בהחלט מספיק.\nאל תציגי עוד פרופילים. אל תמשיכי את השיחה אחרי הסגירה.`
+          : `\n\n## שלב: סיכום וסגירה — חובה לסגור עכשיו\nהצגת את כל הפרופילים. סכם בקצרה (2-3 משפטים) את הדפוס שעולה מהתגובות של המשתמש/ת — מה מושך אותה, מה פחות, איזה סגנון מדבר אליה.\nשאל: "קלטתי נכון? יש משהו שהיית רוצה לדייק?"\nאם המשתמש/ת כבר אישרה או תיקנה — סיים עם: "תודה על הפתיחות, זה מאוד עוזר לי לדייק את ההתאמה."\n\n**חשוב מאוד:** אל תמציא פרופילים חדשים! אם המשתמש/ת מבקשת עוד — הסבר שמאגר הדוגמאות נגמר וזה בהחלט מספיק.\nאל תציג עוד פרופילים. אל תמשיך את השיחה אחרי הסגירה.`;
+      } else if (profilesShown === TASTE_FIRST_BATCH || profilesShown === TASTE_SECOND_BATCH) {
+        // Checkpoint — mid-summary + ask if they want more
+        phaseInstruction = isWW
+          ? `\n\n## שלב: סיכום ביניים\nהצגת ${profilesShown} פרופילים. סכמי בקצרה (2-3 משפטים) את הדפוס שעולה מהתגובות — מה מושך אותה, מה פחות.\nשאלי: "קלטתי נכון? רוצה להמשיך לעוד כמה פרופילים או שמספיק?"`
+          : `\n\n## שלב: סיכום ביניים\nהצגת ${profilesShown} פרופילים. סכם בקצרה (2-3 משפטים) את הדפוס שעולה מהתגובות — מה מושך אותה, מה פחות.\nשאל: "קלטתי נכון? רוצה להמשיך לעוד כמה פרופילים או שמספיק?"`;
+      } else {
+        // Normal profile phase — respond to reaction + show next, or close if user says enough
+        const wantsToStopNow = profilesShown >= TASTE_FIRST_BATCH && /מספיק|לא|סיימתי|די|נסגור|לא צריך/i.test(message.trim());
+        if (wantsToStopNow) {
+          phaseInstruction = isWW
+            ? `\n\n## שלב: סיכום וסגירה — חובה לסגור עכשיו\nהמשתמשת ביקשה לסיים. סכמי בקצרה את הדפוס שעלה ושאלי: "קלטתי נכון? יש משהו שהיית רוצה לדייק?"\nאם המשתמשת כבר אישרה — סיימי עם: "תודה על הפתיחות, זה מאוד עוזר לי לדייק את ההתאמה."`
+            : `\n\n## שלב: סיכום וסגירה — חובה לסגור עכשיו\nהמשתמש/ת ביקשה לסיים. סכם בקצרה את הדפוס שעלה ושאל: "קלטתי נכון? יש משהו שהיית רוצה לדייק?"\nאם המשתמש/ת כבר אישרה — סיים עם: "תודה על הפתיחות, זה מאוד עוזר לי לדייק את ההתאמה."`;
+        } else {
+          phaseInstruction = isWW
+            ? `\n\n## שלב: תגובה לפרופיל\n**חובה — אל תדלגי על זה:** אם המשתמשת נתנה תגובה קצרה (מילה עד שני משפטים, כמו "חמודה", "בסדר", "לא משהו", ציון בלבד, "אהבתי") — חובה לדובב אותה קצת לפני שממשיכים. שאלי מה אהבה ומה לא אהבה. למשל:\n- "מה ספציפית דיבר אלייך / לא דיבר אלייך?"\n- "היה משהו שבלט לך לטובה או לרעה?"\n- "מה אהבת? מה פחות?"\n\nזה חשוב כי בלי הפירוט לא נוכל לדייק את ההתאמה.\n\nרק אם התשובה כבר מפורטת (3+ משפטים עם הסבר ספציפי) — אפשר לעבור ישר לפרופיל הבא.\n\nכלל חשוב: אל תציגי פרופיל חדש באותה הודעה עם שאלת הרחבה. או שאלה, או פרופיל — לא שניהם.\n\n**אל תחליטי בעצמך שהפרופילים נגמרו. כשהם ייגמרו, תקבלי הוראה מפורשת לסכם ולסגור.**`
+            : `\n\n## שלב: תגובה לפרופיל\n**חובה — אל תדלג על זה:** אם המשתמש/ת נתנה תגובה קצרה (מילה עד שני משפטים, כמו "חמודה", "בסדר", "לא משהו", ציון בלבד, "אהבתי") — חובה לדובב אותה קצת לפני שממשיכים. שאל מה אהבה ומה לא אהבה. למשל:\n- "מה ספציפית דיבר אלייך / לא דיבר אלייך?"\n- "היה משהו שבלט לך לטובה או לרעה?"\n- "מה אהבת? מה פחות?"\n\nזה חשוב כי בלי הפירוט לא נוכל לדייק את ההתאמה.\n\nרק אם התשובה כבר מפורטת (3+ משפטים עם הסבר ספציפי) — אפשר לעבור ישר לפרופיל הבא.\n\nכלל חשוב: אל תציג פרופיל חדש באותה הודעה עם שאלת הרחבה. או שאלה, או פרופיל — לא שניהם.\n\n**אל תחליט בעצמך שהפרופילים נגמרו. כשהם ייגמרו, תקבל הוראה מפורשת לסכם ולסגור.**`;
+        }
+      }
     }
 
-    // Inject all selected profiles — AI picks the next one in order
+    // Inject profile bank only in profile phase when profiles remain
     let profileBlock = "";
-    if (tasteUserMsgCount >= profileStartMsg && !allProfilesDone) {
+    if (!inQuestionPhase && !allProfilesDone) {
       const shownList = shownNames.size > 0 ? `\n\n**פרופילים שכבר הוצגו (אסור להציג שוב!):** ${[...shownNames].join(", ")}` : "";
       profileBlock = `\n\n## רשימת הפרופילים — חובה לקחת מכאן בלבד!\nהצג פרופיל אחד בכל תור, לפי הסדר. אל תמציא פרופילים. אל תשנה את התוכן. העתק מהרשימה בדיוק.${shownList}\n\n${allProfilesText}`;
     }
 
-    // End of taste test — simple closing, frontend handles navigation
+    // End of taste test — navigation instruction
     let navigationInstruction = "";
-    if (allProfilesDone && tasteUserMsgCount > 1) {
+    if (allProfilesDone && !inQuestionPhase) {
       navigationInstruction = `\n\nאחרי הסיכום והחידוד, כתוב: "תודה על הפתיחות, זה מאוד עוזר לי לדייק את ההתאמה."`;
     }
 
     const systemPrompt = TASTE_TEST_PROMPT + genderInstruction + coupleInstruction + phaseInstruction + profileBlock + reentryInstruction + navigationInstruction + agentContextBlock + ragContextBlock;
-    // Taste is "closed" only when all profiles done, OR user said "enough" after mid-summary
-    const wantsToStop = reachedMinimum && /מספיק|לא|סיימתי|די|נסגור|לא צריך|תודה|סיימנו|זהו|יאללה|בסדר/i.test(message.trim());
-    const closingStage = ((allProfilesDone || wantsToStop) && tasteUserMsgCount > 1) ? 3 : 0;
+    // Closing detection — only in profile phase after first batch, never during questions
+    const wantsToStop = !inQuestionPhase && profilesShown >= TASTE_FIRST_BATCH && /מספיק|לא|סיימתי|די|נסגור|לא צריך|תודה|סיימנו|זהו|יאללה|בסדר/i.test(message.trim());
+    const closingStage = ((allProfilesDone || wantsToStop) && !inQuestionPhase) ? 3 : 0;
     return { systemPrompt, intent: "general", phase: detectPhase(messageCount), closingStage };
   }
 
