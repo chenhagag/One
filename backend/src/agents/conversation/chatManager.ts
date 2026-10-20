@@ -872,7 +872,15 @@ export async function buildChatPrompt(
     // WW: 7-8 phases (0=intro+taste, 1=expression, 2=turnoff, 3=lifestyle, 4=experience, 5=closet, [6=lifestage], N=transition)
     // Non-WW: 4-5 phases (0=intro+taste, 1=followup, 2=lifestyle, [3=lifestage], N=transition)
     // Life stage question skipped for age ≤ 25. If gender unknown: +1 phase at the start.
-    const questionPhase = await getTasteQuestionPhase(userId);
+    let questionPhase = await getTasteQuestionPhase(userId);
+    // Reset stale question phase:
+    // 1. No messages yet but phase is set (DB leftover from previous test/deploy)
+    // 2. Phase got ahead of actual messages (inconsistent state)
+    if ((tasteUserMsgCount === 0 && questionPhase > 0) ||
+        (questionPhase > tasteUserMsgCount + 2)) {
+      questionPhase = 0;
+      await saveTasteQuestionPhase(userId, 0);
+    }
     const genderQuestionNeeded = !lookingForGender;
     const genderOffset = genderQuestionNeeded ? 1 : 0;
     const wwPhaseCount = skipLifeStage ? 7 : 8;
@@ -1038,7 +1046,12 @@ export async function buildChatPrompt(
       navigationInstruction = `\n\nאחרי הסיכום והחידוד, כתוב: "תודה על הפתיחות, זה מאוד עוזר לי לדייק את ההתאמה."`;
     }
 
-    const systemPrompt = TASTE_TEST_PROMPT + genderInstruction + coupleInstruction + phaseInstruction + profileBlock + reentryInstruction + navigationInstruction + agentContextBlock + ragContextBlock;
+    // During question phase: use minimal prompt (no profile instructions that confuse the AI)
+    // During profile phase: use full TASTE_TEST_PROMPT with profile presentation rules
+    const tasteBasePrompt = inQuestionPhase
+      ? `את מומחית התאמה במערכת One — מערכת התאמה זוגית שמבוססת על ניתוח אישיותי מעמיק וחיבור אמיתי.\n\nאת נמצאת בשלב השאלות הראשוניות של בדיקת הטעם. בשלב הזה את שואלת שאלות בלבד — **אסור בהחלט להציג פרופילים, לא אמיתיים ולא בדויים.** רק לשאול את השאלה שמופיעה בהוראות למטה.\n\nדברי בעברית שוטפת וטבעית. שמרי על טון חם וקליל, לא כמו מבחן.\n\nOne נמצאת כרגע בשלב הרצה ראשוני. האתר: joinone.io\nדף פייסבוק: One - היכרויות חכמות | דף אינסטגרם: joinone.io\n\n**איסורים:** לעולם אל תפני לאפליקציות אחרות. לעולם אל תגידי שלא ניתן למצוא כאן מישהי. אל תגידי שאת רק בוט/AI.`
+      : TASTE_TEST_PROMPT;
+    const systemPrompt = tasteBasePrompt + genderInstruction + coupleInstruction + phaseInstruction + profileBlock + reentryInstruction + navigationInstruction + agentContextBlock + ragContextBlock;
     // Closing detection — reuse the same wantsToStopNow from profile phase (strict regex only)
     const closingStage = ((allProfilesDone || wantsToStopNow) && !inQuestionPhase) ? 3 : 0;
     return { systemPrompt, intent: "general", phase: detectPhase(messageCount), closingStage };
