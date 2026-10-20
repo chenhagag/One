@@ -2984,7 +2984,9 @@ app.get("/admin/matches", async (_req, res) => {
     SELECT m.*,
       u1.first_name as user1_name,
       u2.first_name as user2_name,
-      cm.id as candidate_match_id
+      cm.id as candidate_match_id,
+      (SELECT COUNT(*)::int FROM direct_messages dm WHERE dm.match_id = m.id) as dm_count,
+      (SELECT MAX(dm.created_at) FROM direct_messages dm WHERE dm.match_id = m.id) as dm_last_at
     FROM matches m
     JOIN users u1 ON u1.id = m.user1_id
     JOIN users u2 ON u2.id = m.user2_id

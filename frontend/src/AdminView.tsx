@@ -4019,7 +4019,6 @@ function MatchesTab() {
   const [showPast, setShowPast] = useState(false);
   const [viewingCard, setViewingCard] = useState<any>(null);
   const [viewingDetail, setViewingDetail] = useState<any>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
 
   function load() {
     setLoading(true);
@@ -4048,13 +4047,11 @@ function MatchesTab() {
   };
 
   async function loadDetail(candidateMatchId: number) {
-    setDetailLoading(true);
     try {
       const res = await apiFetch(`/admin/candidate-matches/${candidateMatchId}/detail`);
       const data = await res.json();
       setViewingDetail(data);
     } catch { }
-    setDetailLoading(false);
   }
 
   function renderMatchRow(m: any) {
@@ -4068,6 +4065,10 @@ function MatchesTab() {
         <td style={s.td}><strong>{m.match_score ?? "-"}</strong></td>
         <td style={s.td}><span style={statusColor(m.status)}>{m.status}</span></td>
         <td style={s.td}>{m.created_at?.slice(0, 10)}</td>
+        <td style={s.td}>
+          <span style={{ fontWeight: 600, color: m.dm_count > 0 ? "#16a34a" : "#dc2626" }}>{m.dm_count || 0}</span>
+          {m.dm_last_at && <span style={{ fontSize: 10, color: "#6b7280", display: "block" }}>{new Date(m.dm_last_at).toLocaleDateString("he-IL")}</span>}
+        </td>
         <td style={s.td}>
           {hasCard && <button style={{ ...s.badge, background: "#e0d4f5", color: "#5b21b6", cursor: "pointer", border: "none", marginLeft: 4 }} onClick={() => setViewingCard(m)}>כרטיס</button>}
           {hasCandidateMatch && <button style={{ ...s.badge, background: "#dbeafe", color: "#1e40af", cursor: "pointer", border: "none", marginLeft: 4 }} onClick={() => loadDetail(m.candidate_match_id)}>השוואה</button>}
@@ -4094,6 +4095,7 @@ function MatchesTab() {
               <th style={s.th}>Score</th>
               <th style={s.th}>Status</th>
               <th style={s.th}>Created</th>
+              <th style={s.th}>הודעות</th>
               <th style={s.th}>Actions</th>
             </tr>
           </thead>
@@ -4156,67 +4158,8 @@ function MatchesTab() {
         </div>
       )}
 
-      {/* Candidate match detail modal */}
-      {(viewingDetail || detailLoading) && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20 }} onClick={() => { setViewingDetail(null); }}>
-          <div style={{ background: "#fff", borderRadius: 16, padding: "24px 28px", maxWidth: 900, width: "100%", maxHeight: "85vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
-            {detailLoading ? <p>Loading...</p> : viewingDetail ? (
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{viewingDetail.user1_name} vs {viewingDetail.user2_name} — השוואת נתונים</h3>
-                  <button onClick={() => setViewingDetail(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer" }}>✕</button>
-                </div>
-                {/* Scores summary */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 20 }}>
-                  {[
-                    ["Final", viewingDetail.final_score],
-                    ["Internal", viewingDetail.internal_score],
-                    ["Profile", viewingDetail.profile_score],
-                    ["Cognitive", viewingDetail.score_cognitive],
-                    ["Emotional", viewingDetail.score_emotional_social],
-                    ["Communication", viewingDetail.score_communication],
-                    ["Big Five", viewingDetail.score_big_five],
-                    ["Schwartz", viewingDetail.score_schwartz],
-                    ["MBTI", viewingDetail.score_mbti],
-                    ["Style", viewingDetail.score_style],
-                    ["Enneagram", viewingDetail.score_enneagram],
-                    ["Vibe", viewingDetail.score_vibe],
-                  ].map(([label, val]) => (
-                    <div key={label as string} style={{ background: "#f9fafb", borderRadius: 8, padding: "8px 10px", textAlign: "center" }}>
-                      <div style={{ fontSize: 11, color: "#888" }}>{label}</div>
-                      <div style={{ fontSize: 16, fontWeight: 700, color: val != null && (val as number) >= 70 ? "#28a745" : val != null && (val as number) >= 50 ? "#856404" : "#dc3545" }}>
-                        {val != null ? (val as number).toFixed(1) : "-"}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {/* Trait comparison */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-                  {[
-                    { name: viewingDetail.user1_name, traits: viewingDetail.user1_traits },
-                    { name: viewingDetail.user2_name, traits: viewingDetail.user2_traits },
-                  ].map((side) => (
-                    <div key={side.name}>
-                      <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>{side.name}</h4>
-                      {side.traits && Object.entries(side.traits).map(([group, traits]: [string, any]) => (
-                        <div key={group} style={{ marginBottom: 12 }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: "#6366f1", marginBottom: 4 }}>{group}</div>
-                          {(traits as any[]).map((t: any) => (
-                            <div key={t.trait_key} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, padding: "2px 0" }}>
-                              <span>{t.trait_name || t.trait_key}</span>
-                              <span style={{ fontWeight: 600, color: t.score >= 65 ? "#28a745" : t.score <= 35 ? "#dc3545" : "#333" }}>{t.score?.toFixed(0)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      )}
+      {/* Candidate match detail modal — uses shared MatchDetailModal */}
+      {viewingDetail && <MatchDetailModal matchDetail={viewingDetail} setMatchDetail={setViewingDetail} onReload={load} />}
     </div>
   );
 }
