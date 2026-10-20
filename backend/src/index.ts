@@ -5724,15 +5724,19 @@ app.get("/admin/outreach-log", async (_req, res) => {
     `);
     // Notifications that didn't reach WhatsApp-preferring users
     const whatsappPending = await pgQueryAll(`
-      SELECT nl.id, nl.user_id, u.first_name, u.whatsapp_phone, nl.event_type, nl.title, nl.body,
-             nl.channel, nl.success, nl.error, nl.sent_at,
-             COALESCE(nl.whatsapp_handled, FALSE) as whatsapp_handled
-      FROM notification_log nl
-      JOIN users u ON u.id = nl.user_id
-      WHERE u.whatsapp_updates = TRUE
-        AND u.whatsapp_phone IS NOT NULL
-        AND (nl.channel = 'none' OR nl.success = FALSE)
-      ORDER BY nl.sent_at DESC
+      SELECT * FROM (
+        SELECT DISTINCT ON (nl.user_id, nl.event_type)
+               nl.id, nl.user_id, u.first_name, u.whatsapp_phone, nl.event_type, nl.title, nl.body,
+               nl.channel, nl.success, nl.error, nl.sent_at,
+               COALESCE(nl.whatsapp_handled, FALSE) as whatsapp_handled
+        FROM notification_log nl
+        JOIN users u ON u.id = nl.user_id
+        WHERE u.whatsapp_updates = TRUE
+          AND u.whatsapp_phone IS NOT NULL
+          AND (nl.channel = 'none' OR nl.success = FALSE)
+        ORDER BY nl.user_id, nl.event_type, nl.sent_at DESC
+      ) deduped
+      ORDER BY sent_at DESC
     `);
     return res.json({ ratings, questions, cancellations, adminMessages, nudges, whatsappPending });
   } catch (err: any) {
