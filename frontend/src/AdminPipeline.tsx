@@ -519,6 +519,10 @@ interface AttentionUser {
   admin_message_snippet: string | null;
   last_interaction: string | null;
   active_match_count: number;
+  times_rated: number;
+  times_sent_for_rating: number;
+  cards_received: number;
+  was_in_active_match: boolean;
 }
 
 function AttentionTab({ onSelectUser }: { onSelectUser?: (userId: number) => void }) {
@@ -560,7 +564,7 @@ function AttentionTab({ onSelectUser }: { onSelectUser?: (userId: number) => voi
         </span>
         <span style={{ fontSize: 11, color: "#6b7280" }}>{u.photo_count} תמונות</span>
         <span style={{ fontSize: 11, color: u.active_match_count > 0 ? "#16a34a" : "#dc2626" }}>
-          {u.active_match_count} התאמות פעילות
+          {u.active_match_count} התאמות אפשריות
         </span>
         {u.system_questions_count > 0 && (
           <span style={{ fontSize: 11, color: "#7c3aed" }}>
@@ -585,7 +589,7 @@ function AttentionTab({ onSelectUser }: { onSelectUser?: (userId: number) => voi
             מעל שבועיים ללא התאמה ({neverOver14.length})
           </div>
           <div style={{ fontSize: 12, color: "#991b1b", marginBottom: 10 }}>
-            במאגר מעל 14 יום, מעולם לא קיבלו שאלת דירוג / כרטיס / התאמה
+            במאגר מעל 14 יום, לא קיבלו שום כיוון — לא דירוג, לא שאלה, לא הודעה
           </div>
           {neverOver14.map(renderUserCard)}
         </div>
@@ -598,7 +602,7 @@ function AttentionTab({ onSelectUser }: { onSelectUser?: (userId: number) => voi
             מעל שבוע ללא התאמה ({never7to14.length})
           </div>
           <div style={{ fontSize: 12, color: "#92400e", marginBottom: 10 }}>
-            במאגר 7-14 ימים, מעולם לא קיבלו שאלת דירוג / כרטיס / התאמה
+            במאגר 7-14 ימים, לא קיבלו שום כיוון — לא דירוג, לא שאלה, לא הודעה
           </div>
           {never7to14.map(renderUserCard)}
         </div>
@@ -613,7 +617,42 @@ function AttentionTab({ onSelectUser }: { onSelectUser?: (userId: number) => voi
           <div style={{ fontSize: 12, color: "#5b21b6", marginBottom: 10 }}>
             עברו תהליך התאמה בעבר, אבל לא נשלחה אליהן שאלה / מייל / התראה ב-14 ימים האחרונים
           </div>
-          {data.stale.map(renderUserCard)}
+          {data.stale.map(u => {
+            const daysSinceCreated = daysAgo(u.created_at);
+            const daysSinceVisit = daysAgo(u.last_visit);
+            const daysSinceInteraction = daysAgo(u.last_interaction);
+            const history: string[] = [];
+            if (u.times_sent_for_rating > 0) history.push(`${u.times_sent_for_rating} דירוגים נשלחו`);
+            if (u.times_rated > 0) history.push(`דירגה ${u.times_rated} פעמים`);
+            if (u.cards_received > 0) history.push(`${u.cards_received} כרטיסים`);
+            if (u.was_in_active_match) history.push("היתה בהתאמה פעילה");
+            return (
+              <div key={u.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 12px", borderBottom: "1px solid #ede9fe", flexWrap: "wrap", fontSize: 13 }}>
+                <span style={{ fontWeight: 700, color: "#1e1b4b", cursor: "pointer", textDecoration: "underline", minWidth: 80 }} onClick={() => onSelectUser?.(u.id)}>
+                  {u.first_name}
+                </span>
+                <span style={{ color: "#6b7280" }}>{u.age ?? "?"}, {u.city ?? "?"}</span>
+                <span style={{ color: "#94a3b8", fontSize: 11 }}>{daysSinceCreated} ימים במערכת</span>
+                <span style={{ color: daysSinceVisit != null && daysSinceVisit > 7 ? "#dc2626" : "#6b7280", fontSize: 11 }}>
+                  ביקור: {daysSinceVisit != null ? `לפני ${daysSinceVisit} ימים` : "אף פעם"}
+                </span>
+                <span style={{ fontSize: 11, color: "#dc2626" }}>
+                  תקשורת אחרונה: {daysSinceInteraction != null ? `לפני ${daysSinceInteraction} ימים` : "אף פעם"}
+                </span>
+                <span style={{ fontSize: 11, color: "#6b7280" }}>{u.active_match_count} התאמות אפשריות</span>
+                {history.length > 0 && (
+                  <span style={{ fontSize: 10, color: "#7c3aed", background: "#f5f3ff", padding: "1px 6px", borderRadius: 4 }}>
+                    {history.join(" · ")}
+                  </span>
+                )}
+                {u.system_questions_count > 0 && (
+                  <span style={{ fontSize: 11, color: "#7c3aed" }}>
+                    שאלות: {u.system_questions_answered}/{u.system_questions_count}
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 

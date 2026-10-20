@@ -4006,7 +4006,9 @@ app.get("/admin/candidate-matches/:id/detail", async (req, res) => {
       m.status as match_status, m.id as match_id, m.user1_rating, m.user2_rating,
       m.match_card_data, m.match_card_sent_at,
       (SELECT COUNT(*) FROM user_photos WHERE user_id = u1.id)::int as user1_photo_count,
-      (SELECT COUNT(*) FROM user_photos WHERE user_id = u2.id)::int as user2_photo_count
+      (SELECT COUNT(*) FROM user_photos WHERE user_id = u2.id)::int as user2_photo_count,
+      (SELECT MAX(mx.sent_for_rating_at) FROM matches mx WHERE mx.sent_for_rating_to = u1.id OR (mx.user1_id = u1.id AND mx.sent_for_rating_at IS NOT NULL AND mx.sent_for_rating_to IS NULL)) as user1_last_sent_for_rating,
+      (SELECT MAX(mx.sent_for_rating_at) FROM matches mx WHERE mx.sent_for_rating_to = u2.id OR (mx.user1_id = u2.id AND mx.sent_for_rating_at IS NOT NULL AND mx.sent_for_rating_to IS NULL)) as user2_last_sent_for_rating
     FROM candidate_matches cm
     JOIN users u1 ON u1.id = cm.user_id
     JOIN users u2 ON u2.id = cm.candidate_user_id
@@ -5039,7 +5041,7 @@ app.get("/admin/users/needs-attention", async (_req, res) => {
         u.admin_message,
         (SELECT COUNT(*)::int FROM user_photos WHERE user_id = u.id) AS photo_count,
         (SELECT MAX(viewed_at) FROM page_views WHERE user_id = u.id) AS last_visit,
-        -- ever_rated
+        -- ever_rated (this user rated someone)
         EXISTS(
           SELECT 1 FROM matches mx
           WHERE ((mx.user1_id = u.id AND mx.user1_rating IS NOT NULL)
@@ -5070,6 +5072,26 @@ app.get("/admin/users/needs-attention", async (_req, res) => {
          WHERE (mx.user1_id = u.id OR mx.user2_id = u.id)
            AND mx.status NOT IN ('cancelled', 'rejected_by_users', 'rejected_acquaintance')
         ) AS active_match_count,
+        -- how many times this user rated someone
+        (SELECT COUNT(*)::int FROM matches mx
+         WHERE (mx.user1_id = u.id AND mx.user1_rating IS NOT NULL)
+            OR (mx.user2_id = u.id AND mx.user2_rating IS NOT NULL)
+        ) AS times_rated,
+        -- how many times sent for rating to this user
+        (SELECT COUNT(*)::int FROM matches mx
+         WHERE mx.sent_for_rating_to = u.id
+            OR (mx.user1_id = u.id AND mx.sent_for_rating_at IS NOT NULL AND mx.sent_for_rating_to IS NULL)
+        ) AS times_sent_for_rating,
+        -- how many cards received
+        (SELECT COUNT(*)::int FROM matches mx
+         WHERE (mx.user1_id = u.id OR mx.user2_id = u.id) AND mx.match_card_sent_at IS NOT NULL
+        ) AS cards_received,
+        -- was ever in_match (active chat)
+        EXISTS(
+          SELECT 1 FROM matches mx
+          WHERE (mx.user1_id = u.id OR mx.user2_id = u.id)
+            AND (mx.status = 'in_match' OR mx.match_card_sent_at IS NOT NULL)
+        ) AS was_in_active_match,
         -- last_interaction: most recent of system_question, email_log, notification_log
         GREATEST(
           (SELECT MAX(created_at) FROM system_questions WHERE user_id = u.id),
@@ -5111,11 +5133,18 @@ app.get("/admin/users/needs-attention", async (_req, res) => {
         admin_message_snippet: hasAdminMsg ? (r.admin_message as string).slice(0, 80) : null,
         last_interaction: r.last_interaction,
         active_match_count: r.active_match_count,
+        // Detailed history for stale
+        times_rated: r.times_rated,
+        times_sent_for_rating: r.times_sent_for_rating,
+        cards_received: r.cards_received,
+        was_in_active_match: r.was_in_active_match,
       };
 
+      // "Never experienced" = never got rating request, card, in_match AND no system questions AND no admin message
       const neverExp = !r.ever_rated && !r.ever_got_card && !r.ever_received_rating_request && !r.ever_in_match;
+      const noContact = r.system_questions_count === 0 && !hasAdminMsg;
 
-      if (neverExp && r.photo_count >= 1) {
+      if (neverExp && noContact && r.photo_count >= 1) {
         never_experienced.push(base);
       } else if (!neverExp) {
         // Stale: experienced a match but no system interaction in 14+ days

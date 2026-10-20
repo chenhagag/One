@@ -3606,75 +3606,7 @@ ${footer}`)
         <p style={s.none}>No matches.</p>
       )}
 
-      {/* ── Match Detail Modal (UserDetail) ── */}
-      {matchDetail && (() => {
-        const scoreColor = (v: number | null) => v == null ? "#ccc" : v >= 70 ? "#28a745" : v >= 50 ? "#856404" : "#dc3545";
-        return (
-          <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={() => setMatchDetail(null)}>
-            <div style={{ background: "#fff", borderRadius: 12, padding: 24, maxWidth: 900, width: "100%", maxHeight: "90vh", overflowY: "auto", direction: "rtl" }} onClick={e => e.stopPropagation()}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <h3 style={{ margin: 0 }}>פרטי התאמה — {matchDetail.user1_name} ↔ {matchDetail.user2_name}</h3>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {matchDetail.match_status && <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 4, background: "#f3f4f6", fontWeight: 600 }}>{matchDetail.match_status}</span>}
-                  <button onClick={() => setMatchDetail(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer" }}>✕</button>
-                </div>
-              </div>
-
-              {/* User cards */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
-                {[
-                  { name: matchDetail.user1_name, age: matchDetail.user1_age, city: matchDetail.user1_city, photos: matchDetail.user1_photos, rating: matchDetail.user1_rating, notes: matchDetail.user1_admin_notes, height: matchDetail.user1_height, smoker: matchDetail.user1_smoker, hasChildren: matchDetail.user1_has_children, religion: matchDetail.user1_religion, dealBreakers: matchDetail.user1_deal_breakers },
-                  { name: matchDetail.user2_name, age: matchDetail.user2_age, city: matchDetail.user2_city, photos: matchDetail.user2_photos, rating: matchDetail.user2_rating, notes: matchDetail.user2_admin_notes, height: matchDetail.user2_height, smoker: matchDetail.user2_smoker, hasChildren: matchDetail.user2_has_children, religion: matchDetail.user2_religion, dealBreakers: matchDetail.user2_deal_breakers },
-                ].map((u, i) => (
-                  <div key={i} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16 }}>
-                    {u.photos && u.photos.length > 0 && (
-                      <img src={u.photos[0]} style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 8, marginBottom: 8 }} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                    )}
-                    <h4 style={{ margin: "0 0 4px" }}>{u.name}</h4>
-                    <p style={{ margin: "0 0 4px", fontSize: 13, color: "#6b7280" }}>{u.age}, {u.city}</p>
-                    <p style={{ margin: "0 0 4px", fontSize: 11, color: "#9ca3af" }}>
-                      {[u.height && `${u.height} ס"מ`, u.smoker != null && (u.smoker ? "מעשן/ת" : "לא מעשן/ת"), u.hasChildren != null && (u.hasChildren ? "יש ילדים" : "אין ילדים"), u.religion].filter(Boolean).join(" · ")}
-                    </p>
-                    {u.rating && <p style={{ margin: "0 0 4px", fontSize: 12, fontWeight: 600, color: u.rating === "bullseye" ? "#28a745" : u.rating === "possible" ? "#d97706" : "#dc3545" }}>דירוג: {u.rating === "bullseye" ? "✅ בול" : u.rating === "possible" ? "🟡 אפשרי" : u.rating === "miss" ? "❌ לא" : u.rating === "known_person" ? "👤 מכיר/ה" : u.rating}</p>}
-                    {u.dealBreakers && <div style={{ margin: "0 0 8px", fontSize: 12, background: "#fef2f2", border: "1px solid #fecaca", padding: "6px 8px", borderRadius: 4 }}><strong style={{ color: "#dc2626" }}>⚠ מידע מהותי:</strong> {u.dealBreakers.split("|").map((item: string, idx: number) => <span key={idx} style={{ display: "inline-block", background: "#fee2e2", borderRadius: 3, padding: "1px 6px", margin: "2px 3px", fontSize: 11 }}>{item.trim()}</span>)}</div>}
-                    {u.notes && <p style={{ margin: "0 0 4px", fontSize: 12, background: "#fffbeb", padding: "6px 8px", borderRadius: 4, whiteSpace: "pre-wrap" }}>{u.notes}</p>}
-                  </div>
-                ))}
-              </div>
-
-              {/* Match scores */}
-              <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16 }}>
-                <h4 style={{ margin: "0 0 12px" }}>ציוני התאמה</h4>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, fontSize: 12 }}>
-                  {[
-                    { label: "פנימי", val: matchDetail.internal_score },
-                    { label: "פרופיל פנימי", val: matchDetail.internal_profile_score },
-                    { label: "סופי", val: matchDetail.final_score },
-                    { label: "פרופיל", val: matchDetail.profile_score },
-                    { label: "קוגניטיבי", val: matchDetail.score_cognitive },
-                    { label: "רגשי-חברתי", val: matchDetail.score_emotional_social },
-                    { label: "רגשנות", val: matchDetail.score_emotionality },
-                    { label: "תקשורת", val: matchDetail.score_communication },
-                    { label: "ביג פייב", val: matchDetail.score_big_five },
-                    { label: "שוורץ", val: matchDetail.score_schwartz },
-                    { label: "סגנון", val: matchDetail.score_style },
-                    { label: "עמדות", val: matchDetail.score_attitudes },
-                    { label: "MBTI", val: matchDetail.score_mbti },
-                    { label: "אניאגרם", val: matchDetail.score_enneagram },
-                    { label: "כללי", val: matchDetail.score_general },
-                    { label: "עממיות", val: matchDetail.score_popularity },
-                  ].map(sc => (
-                    <div key={sc.label} style={{ textAlign: "center", padding: 6, background: "#f9fafb", borderRadius: 4 }}>
-                      <div style={{ color: "#6b7280", marginBottom: 2 }}>{sc.label}</div>
-                      <div style={{ fontWeight: 700, fontSize: 14, color: scoreColor(sc.val) }}>{sc.val != null ? sc.val : "-"}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      {matchDetail && <MatchDetailModal matchDetail={matchDetail} setMatchDetail={setMatchDetail} onReload={loadMatches} />}
     </div>
   );
 }
@@ -4290,6 +4222,709 @@ function MatchesTab() {
 }
 
 // ── Candidate Matches Tab ───────────────────────────────────────
+
+function MatchDetailModal({ matchDetail, setMatchDetail, onReload, onCardPreview }: {
+  matchDetail: any;
+  setMatchDetail: (v: any) => void;
+  onReload?: () => void;
+  onCardPreview?: (data: { matchId: number; user1Name: string; user2Name: string; data: any }) => void;
+}) {
+  const genderLabel = (g: string) => g === "male" ? "גבר" : g === "female" ? "אישה" : g || "-";
+  const traitGroupHebrew: Record<string, string> = {
+    "Cognitive": "קוגניטיבי", "Communication Tone": "תקשורת", "Emotional Profile": "רגשי",
+    "Personal Style": "סגנון", "Attitudes": "עמדות", "Big Five": "ביג פייב",
+    "Schwartz Values": "ערכים", "MBTI": "MBTI", "Enneagram": "אניאגרם",
+    "General Info": "כללי", "MBTI Test": "MBTI מבחן",
+  };
+  const traitNameHebrew: Record<string, string> = {
+    extraversion: "מוחצנות", conscientiousness: "מצפוניות", agreeableness: "נעימות",
+    neuroticism: "עוצמת תגובה רגשית", openness_to_experience: "פתיחות לחוויות",
+    universalism: "אוניברסליזם", benevolence: "נדיבות", self_direction: "עצמאות",
+    achievement: "הישגיות", power: "כוח", security: "ביטחון", conformity: "קונפורמיות",
+    tradition: "מסורת", hedonism: "הנאתנות", stimulation: "גירוי",
+    right_wing: "ימניות", left_wing: "שמאלניות", social_activism: "אקטיביזם",
+    religiosity: "דתיות", secularity: "חילוניות", value_rigidity: "שמרנות ערכית",
+  };
+  const wAvg = (items: any[]) => {
+    const valid = items.filter((t: any) => t.score != null && t.confidence != null);
+    if (valid.length === 0) return null;
+    const sumW = valid.reduce((s: number, t: any) => s + t.score * t.confidence, 0);
+    const sumC = valid.reduce((s: number, t: any) => s + t.confidence, 0);
+    return sumC > 0 ? Math.round(sumW / sumC) : null;
+  };
+
+  const renderUserTraits = (traits: Record<string, any[]>, cogScore: number | null) => {
+    const find = (name: string) => {
+      for (const items of Object.values(traits)) {
+        const t = items.find((i: any) => i.name === name);
+        if (t) return t;
+      }
+      return null;
+    };
+    const wAvgNames = (names: string[]) => wAvg(names.map(find).filter(Boolean));
+
+    const profiles = [
+      { name: "קוגניטיבי", score: cogScore != null ? Math.round(cogScore) : wAvgNames(["analytical_reasoning", "abstract_thinking", "cognitive_flexibility", "conceptual_precision", "verbal_articulation", "verbal_reasoning", "depth_of_thought", "intellectualism"]), color: "#6366F1" },
+      { name: "רגשי-חברתי", score: wAvgNames(["social_intuitive_intelligence", "eq", "self_awareness", "positivity", "warmth"]), color: "#8b5cf6" },
+      { name: "רגשנות", score: wAvgNames(["neuroticism", "emotional_intensity", "emotional_expressiveness"]), color: "#ec4899" },
+      { name: "תקשורת", score: wAvgNames(["energetic_intensity", "assertiveness_forcefulness", "charismatic_presence"]), color: "#14b8a6" },
+    ];
+
+    const profileRows = profiles.filter(p => p.score != null).map(p => (
+      <div key={p.name} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", borderBottom: "1px solid #f3f4f6", fontSize: 12 }}>
+        <span style={{ fontWeight: 600, color: p.color }}>{p.name}</span>
+        <span style={{ fontWeight: 700, color: p.color }}>{p.score}</span>
+      </div>
+    ));
+
+    const bigFiveTraits = [
+      { name: "extraversion", he: "מוחצנות" }, { name: "conscientiousness", he: "מצפוניות" },
+      { name: "agreeableness", he: "נעימות" }, { name: "neuroticism", he: "עוצמת תגובה רגשית" },
+      { name: "openness_to_experience", he: "פתיחות לחוויות" },
+    ];
+    const bigFiveItems = bigFiveTraits.map(t => {
+      const d = find(t.name);
+      if (!d || d.score == null) return null;
+      const color = d.score >= 65 ? "#3b82f6" : d.score <= 45 ? "#f59e0b" : "#888";
+      return { label: t.he, score: d.score, color };
+    }).filter(Boolean);
+
+    const bigFiveRow = bigFiveItems.length > 0 ? (
+      <div key="bigfive" style={{ marginTop: 6 }}>
+        <strong style={{ fontSize: 11, color: "#374151" }}>ביג פייב:</strong>
+        {bigFiveItems.map((t: any) => (
+          <div key={t.label} style={{ display: "flex", justifyContent: "space-between", padding: "1px 8px", fontSize: 11 }}>
+            <span style={{ color: t.color }}>{t.label}</span>
+            <span style={{ fontWeight: 700, color: t.color }}>{t.score}</span>
+          </div>
+        ))}
+      </div>
+    ) : null;
+
+    const schwartzNames = ["universalism", "benevolence", "self_direction", "achievement", "power", "security", "conformity", "tradition", "hedonism", "stimulation"];
+    const schwartzItems = schwartzNames.map(n => {
+      const d = find(n);
+      return d && d.score != null ? { name: n, score: d.score } : null;
+    }).filter(Boolean) as { name: string; score: number }[];
+    const schwartzSorted = [...schwartzItems].sort((a, b) => b.score - a.score);
+    const schwartzHigh = schwartzSorted.slice(0, 3);
+    const schwartzLow = [...schwartzItems].sort((a, b) => a.score - b.score).slice(0, 2);
+    const schwartzRow = schwartzItems.length > 0 ? (
+      <div key="schwartz" style={{ marginTop: 6 }}>
+        <strong style={{ fontSize: 11, color: "#374151" }}>ערכים:</strong>
+        {schwartzHigh.map(t => (
+          <div key={t.name} style={{ display: "flex", justifyContent: "space-between", padding: "1px 8px", fontSize: 11 }}>
+            <span style={{ color: "#8b5cf6" }}>{traitNameHebrew[t.name] || t.name}</span>
+            <span style={{ fontWeight: 700, color: "#8b5cf6" }}>{t.score}</span>
+          </div>
+        ))}
+        {schwartzLow.filter(l => !schwartzHigh.includes(l)).map(t => (
+          <div key={t.name + "_low"} style={{ display: "flex", justifyContent: "space-between", padding: "1px 8px", fontSize: 11 }}>
+            <span style={{ color: "#f59e0b" }}>{traitNameHebrew[t.name] || t.name}</span>
+            <span style={{ fontWeight: 700, color: "#f59e0b" }}>{t.score}</span>
+          </div>
+        ))}
+      </div>
+    ) : null;
+
+    const styleItems = (traits["Personal Style"] || []).filter((t: any) => t.score != null && (t.score >= 65 || t.score <= 35));
+    const styleRow = styleItems.length > 0 ? (
+      <div key="style" style={{ marginTop: 6 }}>
+        <strong style={{ fontSize: 11, color: "#374151" }}>סגנון בולט:</strong>
+        {styleItems.sort((a: any, b: any) => b.score - a.score).map((t: any) => {
+          const color = t.score >= 65 ? "#f97316" : "#6b7280";
+          return (
+            <div key={t.name} style={{ display: "flex", justifyContent: "space-between", padding: "1px 8px", fontSize: 11 }}>
+              <span style={{ color }}>{traitNameHebrew[t.name] || t.name}</span>
+              <span style={{ fontWeight: 700, color }}>{t.score}</span>
+            </div>
+          );
+        })}
+      </div>
+    ) : null;
+
+    const attItems = (traits["Attitudes"] || []).filter((t: any) => t.score != null && t.confidence > 0.2 && (t.score >= 60 || t.score <= 40));
+    const attRow = attItems.length > 0 ? (
+      <div key="attitudes" style={{ marginTop: 6 }}>
+        <strong style={{ fontSize: 11, color: "#374151" }}>עמדות:</strong>
+        {attItems.sort((a: any, b: any) => b.score - a.score).map((t: any) => (
+          <div key={t.name} style={{ display: "flex", justifyContent: "space-between", padding: "1px 8px", fontSize: 11 }}>
+            <span style={{ color: "#ef4444" }}>{traitNameHebrew[t.name] || t.name}</span>
+            <span style={{ fontWeight: 700, color: "#ef4444" }}>{t.score}</span>
+          </div>
+        ))}
+      </div>
+    ) : null;
+
+    const mbtiRow = (() => {
+      const ext = find("extraversion"); const sen = find("sensing"); const int_ = find("intuition");
+      const thi = find("thinking"); const fee = find("feeling"); const jud = find("judging"); const per = find("perceiving");
+      if (!sen && !int_ && !thi && !fee && !jud && !per) return null;
+      const a1 = !ext ? "X" : ext.score > 50 ? "E" : ext.score < 50 ? "I" : "X";
+      const a2 = (!sen && !int_) ? "X" : !sen ? "N" : !int_ ? "S" : sen.score > int_.score ? "S" : "N";
+      const adjT = thi ? thi.score + 10 : 0;
+      const a3 = (!thi && !fee) ? "X" : !thi ? "F" : !fee ? "T" : adjT > fee.score ? "T" : "F";
+      const a4 = (!jud && !per) ? "X" : !jud ? "P" : !per ? "J" : jud.score > per.score ? "J" : "P";
+      const type = a1 + a2 + a3 + a4;
+      return (
+        <div key="mbti" style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", fontSize: 12 }}>
+          <span style={{ fontWeight: 600 }}>MBTI</span>
+          <span style={{ fontWeight: 700, color: "#6366f1" }}>{type}</span>
+        </div>
+      );
+    })();
+
+    const enneagramRow = (() => {
+      const types: { type: number; score: number }[] = [];
+      for (let t = 1; t <= 9; t++) { const d = find(`enneagram_type_${t}`); if (d) types.push({ type: t, score: d.score }); }
+      if (types.length === 0) return null;
+      types.sort((a, b) => b.score - a.score);
+      const p = types[0];
+      const names: Record<number, string> = { 1: "רפורמיסט", 2: "עוזר", 3: "הישגיסט", 4: "אינדיבידואליסט", 5: "חוקר", 6: "נאמן", 7: "הרפתקן", 8: "בוס", 9: "משכין שלום" };
+      const adj1 = p.type === 1 ? 9 : p.type - 1; const adj2 = p.type === 9 ? 1 : p.type + 1;
+      const s1 = find(`enneagram_type_${adj1}`)?.score ?? 0; const s2 = find(`enneagram_type_${adj2}`)?.score ?? 0;
+      const wing = s1 >= s2 ? adj1 : adj2;
+      return (
+        <div key="enneagram" style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", fontSize: 12 }}>
+          <span style={{ fontWeight: 600 }}>אניאגרם</span>
+          <span style={{ fontWeight: 700, color: "#10b981" }}>{p.type}w{wing} — {names[p.type]}</span>
+        </div>
+      );
+    })();
+
+    return [...profileRows, mbtiRow, enneagramRow, bigFiveRow, schwartzRow, styleRow, attRow].filter(Boolean);
+  };
+
+  return (
+    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={() => setMatchDetail(null)}>
+      <div style={{ background: "#fff", borderRadius: 12, padding: 24, maxWidth: 900, width: "100%", maxHeight: "90vh", overflowY: "auto", direction: "rtl" }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <h3 style={{ margin: 0 }}>פרטי התאמה</h3>
+          {/* Match status */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {matchDetail.match_id && onReload ? (
+              <select
+                value={matchDetail.match_status || ""}
+                style={{ border: "1px solid #ccc", borderRadius: 4, padding: "4px 8px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}
+                onChange={async (e) => {
+                  const newStatus = e.target.value;
+                  if (!confirm(`לשנות סטטוס ל-${newStatus}?`)) { e.target.value = matchDetail.match_status || ""; return; }
+                  try {
+                    await apiFetch(`/admin/matches/${matchDetail.match_id}/status`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ status: newStatus }),
+                    });
+                    setMatchDetail((prev: any) => prev ? { ...prev, match_status: newStatus } : prev);
+                    onReload();
+                  } catch (err: any) { alert("שגיאה: " + err.message); }
+                }}
+              >
+                {["scored", "potential_match", "expanded_potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "pending_second_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
+                  <option key={st} value={st}>{st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st === "pending_second_rating" ? "ממתין לאישור שני" : st}</option>
+                ))}
+              </select>
+            ) : (
+              <span style={{ fontSize: 12, color: "#6b7280" }}>סטטוס: {matchDetail.match_status || matchDetail.status || "pending"}</span>
+            )}
+            <button onClick={() => setMatchDetail(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer" }}>✕</button>
+          </div>
+        </div>
+
+        {/* Two user cards side by side */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
+          {[
+            { name: matchDetail.user1_name, age: matchDetail.user1_age, city: matchDetail.user1_city, gender: matchDetail.user1_gender, lookingFor: matchDetail.user1_looking_for, notes: matchDetail.user1_admin_notes, photos: matchDetail.user1_photos, traits: matchDetail.user1_traits, cogScore: matchDetail.user1_cognitive_score, height: matchDetail.user1_height, smoker: matchDetail.user1_smoker, hasChildren: matchDetail.user1_has_children, maritalStatus: matchDetail.user1_marital_status, religion: matchDetail.user1_religion, desiredAgeMin: matchDetail.user1_desired_age_min, desiredAgeMax: matchDetail.user1_desired_age_max, desiredHeightMin: matchDetail.user1_desired_height_min, desiredHeightMax: matchDetail.user1_desired_height_max, desiredLocation: matchDetail.user1_desired_location_range, rating: matchDetail.user1_rating, dealBreakers: matchDetail.user1_deal_breakers, femPersonal: matchDetail.user1_fem_personal, femDesired: matchDetail.user1_fem_desired },
+            { name: matchDetail.user2_name, age: matchDetail.user2_age, city: matchDetail.user2_city, gender: matchDetail.user2_gender, lookingFor: matchDetail.user2_looking_for, notes: matchDetail.user2_admin_notes, photos: matchDetail.user2_photos, traits: matchDetail.user2_traits, cogScore: matchDetail.user2_cognitive_score, height: matchDetail.user2_height, smoker: matchDetail.user2_smoker, hasChildren: matchDetail.user2_has_children, maritalStatus: matchDetail.user2_marital_status, religion: matchDetail.user2_religion, desiredAgeMin: matchDetail.user2_desired_age_min, desiredAgeMax: matchDetail.user2_desired_age_max, desiredHeightMin: matchDetail.user2_desired_height_min, desiredHeightMax: matchDetail.user2_desired_height_max, desiredLocation: matchDetail.user2_desired_location_range, rating: matchDetail.user2_rating, dealBreakers: matchDetail.user2_deal_breakers, femPersonal: matchDetail.user2_fem_personal, femDesired: matchDetail.user2_fem_desired },
+          ].map((u, i) => (
+            <div key={i} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16 }}>
+              {u.photos && u.photos.length > 0 && (
+                <img src={u.photos[0]} style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 8, marginBottom: 8 }} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              )}
+              <h4 style={{ margin: "0 0 4px" }}>{u.name}</h4>
+              <p style={{ margin: "0 0 4px", fontSize: 13, color: "#6b7280" }}>{u.age}, {u.city}, {genderLabel(u.gender)}</p>
+              <p style={{ margin: "0 0 4px", fontSize: 12, color: "#9ca3af" }}>מחפש/ת: {genderLabel(u.lookingFor)}{u.desiredAgeMin && u.desiredAgeMax ? `, גילאי ${u.desiredAgeMin}-${u.desiredAgeMax}` : ""}{u.desiredHeightMin && u.desiredHeightMax ? `, גובה ${u.desiredHeightMin}-${u.desiredHeightMax}` : ""}{u.desiredLocation ? `, ${u.desiredLocation}` : ""}</p>
+              <p style={{ margin: "0 0 4px", fontSize: 11, color: "#9ca3af" }}>
+                {[
+                  u.height && `גובה: ${u.height} ס"מ`,
+                  u.smoker != null && (u.smoker ? "מעשן/ת" : "לא מעשן/ת"),
+                  u.hasChildren != null && (u.hasChildren ? "יש ילדים" : "אין ילדים"),
+                  u.maritalStatus,
+                  u.religion,
+                ].filter(Boolean).join(" · ")}
+              </p>
+              {u.rating && (
+                <p style={{ margin: "0 0 4px", fontSize: 12, fontWeight: 600, color: u.rating === "bullseye" ? "#28a745" : u.rating === "possible" ? "#d97706" : u.rating === "miss" ? "#dc3545" : "#6b7280" }}>
+                  דירוג: {u.rating === "bullseye" ? "✅ בול" : u.rating === "possible" ? "🟡 אפשרי" : u.rating === "miss" ? "❌ לא" : u.rating === "known_person" ? "👤 מכיר/ה" : u.rating}
+                </p>
+              )}
+              <p style={{ margin: "0 0 4px", fontSize: 11 }}>
+                {u.femPersonal != null && <span style={{ color: "#6b7280" }}>נשיות: <strong>{u.femPersonal}</strong></span>}
+                {u.femPersonal != null && <span style={{ color: "#ccc" }}> | </span>}
+                <span style={{ color: u.femDesired != null ? (u.femDesired > 65 ? "#ec4899" : u.femDesired < 35 ? "#6366f1" : "#888") : "#ccc", fontWeight: 600 }}>
+                  מעדיפה: {u.femDesired != null ? (u.femDesired > 65 ? "נשית" : u.femDesired < 35 ? "גברית" : "ללא העדפה") : "אין מידע"}{u.femDesired != null ? ` (${u.femDesired})` : ""}
+                </span>
+              </p>
+              {u.notes && <p style={{ margin: "0 0 8px", fontSize: 12, background: "#fffbeb", padding: "6px 8px", borderRadius: 4, whiteSpace: "pre-wrap" }}>{u.notes}</p>}
+
+              {u.dealBreakers && (
+                <div style={{ margin: "0 0 8px", fontSize: 12, background: "#fef2f2", border: "1px solid #fecaca", padding: "6px 8px", borderRadius: 4 }}>
+                  <strong style={{ color: "#dc2626" }}>⚠ מידע מהותי:</strong>{" "}
+                  {u.dealBreakers.split("|").map((item: string, idx: number) => (
+                    <span key={idx} style={{ display: "inline-block", background: "#fee2e2", borderRadius: 3, padding: "1px 6px", margin: "2px 3px", fontSize: 11 }}>{item.trim()}</span>
+                  ))}
+                </div>
+              )}
+
+              {/* Profile traits */}
+              <div style={{ fontSize: 12 }}>
+                <strong style={{ fontSize: 12 }}>פרופיל:</strong>
+                {u.traits && renderUserTraits(u.traits, u.cogScore)}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Match scores */}
+        <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16, marginBottom: 16 }}>
+          <h4 style={{ margin: "0 0 12px" }}>ציוני התאמה</h4>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, fontSize: 12 }}>
+            {[
+              { label: "פנימי", val: matchDetail.internal_score },
+              { label: "פרופיל פנימי", val: matchDetail.internal_profile_score },
+              { label: "סופי", val: matchDetail.final_score },
+              { label: "פרופיל", val: matchDetail.profile_score },
+              { label: "קוגניטיבי", val: matchDetail.score_cognitive },
+              { label: "רגשי-חברתי", val: matchDetail.score_emotional_social },
+              { label: "רגשנות", val: matchDetail.score_emotionality },
+              { label: "תקשורת", val: matchDetail.score_communication },
+              { label: "ביג פייב", val: matchDetail.score_big_five },
+              { label: "שוורץ", val: matchDetail.score_schwartz },
+              { label: "סגנון", val: matchDetail.score_style },
+              { label: "עמדות", val: matchDetail.score_attitudes },
+              { label: "MBTI", val: matchDetail.score_mbti },
+              { label: "אניאגרם", val: matchDetail.score_enneagram },
+              { label: "כללי", val: matchDetail.score_general },
+              { label: "עממיות", val: matchDetail.score_popularity },
+            ].map(sc => (
+              <div key={sc.label} style={{ textAlign: "center", padding: 6, background: "#f9fafb", borderRadius: 4 }}>
+                <div style={{ color: "#6b7280", marginBottom: 2 }}>{sc.label}</div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: sc.val != null ? (sc.val >= 70 ? "#28a745" : sc.val >= 50 ? "#856404" : "#dc3545") : "#ccc" }}>{sc.val != null ? sc.val : "-"}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Actions — only when onReload is provided */}
+        {onReload && matchDetail.match_id && (
+          <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16, marginBottom: 16, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            {/* Send rating buttons */}
+            {["potential_match", "expanded_potential_match", "waiting_for_photo", "waiting_for_response"].includes(matchDetail.match_status) && (() => {
+              const u1Locked = matchDetail.user1_locked;
+              const u2Locked = matchDetail.user2_locked;
+              const u1Reason = matchDetail.user1_lock_reason === "in_match" ? "בהתאמה" : "ממתינה לדירוג";
+              const u2Reason = matchDetail.user2_lock_reason === "in_match" ? "בהתאמה" : "ממתינה לדירוג";
+              return (
+                <>
+                  {!u1Locked && !u2Locked ? (
+                    <>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <button style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#7c3aed", color: "#fff" }}
+                          onClick={async () => {
+                            try {
+                              const r = await apiFetch(`/admin/matches/${matchDetail.match_id}/send-for-rating`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user_id: matchDetail.user_id }) });
+                              const json = await r.json();
+                              if (!r.ok) { alert(json.error); return; }
+                              setMatchDetail((prev: any) => prev ? { ...prev, match_status: "waiting_first_rating" } : prev);
+                              onReload();
+                            } catch { alert("שגיאת תקשורת"); }
+                          }}>שלח דירוג ל{matchDetail.user1_name}</button>
+                        {matchDetail.user1_last_sent_for_rating && <span style={{ fontSize: 10, color: "#94a3b8" }}>אחרון: {new Date(matchDetail.user1_last_sent_for_rating).toLocaleDateString("he-IL")}</span>}
+                        {!matchDetail.user1_last_sent_for_rating && <span style={{ fontSize: 10, color: "#dc2626" }}>לא נשלח מעולם</span>}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <button style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#7c3aed", color: "#fff" }}
+                          onClick={async () => {
+                            try {
+                              const r = await apiFetch(`/admin/matches/${matchDetail.match_id}/send-for-rating`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user_id: matchDetail.candidate_user_id }) });
+                              const json = await r.json();
+                              if (!r.ok) { alert(json.error); return; }
+                              setMatchDetail((prev: any) => prev ? { ...prev, match_status: "waiting_first_rating" } : prev);
+                              onReload();
+                            } catch { alert("שגיאת תקשורת"); }
+                          }}>שלח דירוג ל{matchDetail.user2_name}</button>
+                        {matchDetail.user2_last_sent_for_rating && <span style={{ fontSize: 10, color: "#94a3b8" }}>אחרון: {new Date(matchDetail.user2_last_sent_for_rating).toLocaleDateString("he-IL")}</span>}
+                        {!matchDetail.user2_last_sent_for_rating && <span style={{ fontSize: 10, color: "#dc2626" }}>לא נשלח מעולם</span>}
+                      </div>
+                    </>
+                  ) : (
+                    <span style={{ fontSize: 11, color: "#9ca3af" }}>
+                      {u1Locked && <span style={{ padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 700, marginLeft: 4, background: "#fef3c7", color: "#92400e" }}>{matchDetail.user1_name}: {u1Reason}</span>}
+                      {u2Locked && <span style={{ padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 700, marginLeft: 4, background: "#fef3c7", color: "#92400e" }}>{matchDetail.user2_name}: {u2Reason}</span>}
+                    </span>
+                  )}
+                </>
+              );
+            })()}
+            {matchDetail.match_status === "pending_second_rating" && (() => {
+              const raterIsUser1 = !matchDetail.user1_rating;
+              const raterLocked = raterIsUser1 ? matchDetail.user1_locked : matchDetail.user2_locked;
+              const otherInMatch = raterIsUser1 ? matchDetail.user2_lock_reason === "in_match" : matchDetail.user1_lock_reason === "in_match";
+              const raterName = raterIsUser1 ? matchDetail.user1_name : matchDetail.user2_name;
+              const canSend = !raterLocked && !otherInMatch;
+              return canSend ? (
+                <button style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#2563eb", color: "#fff" }}
+                  onClick={async () => {
+                    try {
+                      const r = await apiFetch(`/admin/matches/${matchDetail.match_id}/send-second-rating`, { method: "POST" });
+                      const json = await r.json();
+                      if (!r.ok) { alert(json.error); return; }
+                      setMatchDetail((prev: any) => prev ? { ...prev, match_status: "waiting_second_rating" } : prev);
+                      onReload();
+                    } catch { alert("שגיאת תקשורת"); }
+                  }}>שלח דירוג שני ל{raterName}</button>
+              ) : (
+                <span style={{ fontSize: 11, color: "#9ca3af" }}>{raterLocked ? `${raterName} ממתינה לדירוג` : "הצד שדירג בהתאמה"}</span>
+              );
+            })()}
+            {matchDetail.match_status === "approved_by_both" && (
+              <button
+                style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#6f42c1", color: "#fff" }}
+                onClick={async () => {
+                  if (!confirm(`להעביר את ${matchDetail.user1_name} ו-${matchDetail.user2_name} לסטטוס ממתין לכרטיס?`)) return;
+                  await apiFetch(`/admin/matches/${matchDetail.match_id}/prepare`, { method: "POST" });
+                  setMatchDetail((prev: any) => prev ? { ...prev, match_status: "pre_match" } : prev);
+                  onReload();
+                }}
+              >שלח התאמה</button>
+            )}
+            {matchDetail.match_status === "pre_match" && !matchDetail.match_card_data && (
+              <span style={{ fontSize: 12, color: "#f59e0b", fontWeight: 600 }}>ממתין לכרטיס</span>
+            )}
+            {onCardPreview && matchDetail.match_status === "pre_match" && matchDetail.match_card_data && !matchDetail.match_card_sent_at && (
+              <button
+                style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#0d6efd", color: "#fff" }}
+                onClick={() => {
+                  onCardPreview({ matchId: matchDetail.match_id, user1Name: matchDetail.user1_name, user2Name: matchDetail.user2_name, data: matchDetail.match_card_data });
+                  setMatchDetail(null);
+                }}
+              >בדיקת כרטיס התאמה</button>
+            )}
+            {matchDetail.match_status === "in_match" && matchDetail.match_card_sent_at && (
+              <span style={{ fontSize: 12, color: "#28a745", fontWeight: 600 }}>✓ כרטיס נשלח</span>
+            )}
+            {matchDetail.match_status === "in_match" && (() => {
+              const nudges: any[] = matchDetail.pending_nudges || [];
+              const u1Nudge = nudges.find((n: any) => n.user_id === matchDetail.user_id);
+              const u2Nudge = nudges.find((n: any) => n.user_id === matchDetail.candidate_user_id);
+              const hasAssistance = nudges.some((n: any) => n.nudge_type === "assistance");
+
+              const deleteAndResend = async (nudgeId: number, then: () => Promise<void>) => {
+                try {
+                  await apiFetch(`/admin/nudges/${nudgeId}`, { method: "DELETE" });
+                  await then();
+                } catch (err: any) { alert("שגיאה: " + (err.message || "unknown")); }
+              };
+
+              const sendNudge = async (userId: number, userName: string) => {
+                if (!confirm(`לשלוח בירור ל-${userName}?`)) return;
+                try {
+                  await apiFetch(`/admin/matches/${matchDetail.match_id}/nudge`, {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ user_id: userId }),
+                  });
+                  setMatchDetail((prev: any) => prev ? { ...prev, pending_nudges: [...(prev.pending_nudges || []), { user_id: userId, nudge_type: "check_in", status: "pending" }] } : prev);
+                } catch (err: any) { alert("שגיאה: " + (err.message || "unknown")); }
+              };
+
+              const sendAssistance = async () => {
+                if (!confirm(`לשלוח סיוע לשתי המשתמשות בהתאמה #${matchDetail.match_id}?`)) return;
+                try {
+                  await apiFetch(`/admin/matches/${matchDetail.match_id}/send-assistance`, {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                  });
+                  setMatchDetail((prev: any) => prev ? { ...prev, pending_nudges: [
+                    ...(prev.pending_nudges || []),
+                    { user_id: prev.user_id, nudge_type: "assistance", status: "pending" },
+                    { user_id: prev.candidate_user_id, nudge_type: "assistance", status: "pending" },
+                  ] } : prev);
+                } catch (err: any) { alert("שגיאה: " + (err.message || "unknown")); }
+              };
+
+              return (
+                <>
+                  {/* User 1 nudge */}
+                  {u1Nudge ? (
+                    <span style={{ fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ color: u1Nudge.nudge_type === "assistance" ? "#7c3aed" : "#d97706" }}>
+                        📩 {u1Nudge.nudge_type === "assistance" ? "סיוע" : "בירור"} נשלח ל{matchDetail.user1_name}
+                      </span>
+                      <button
+                        style={{ padding: "2px 6px", fontSize: 10, border: "1px solid #d1d5db", borderRadius: 3, cursor: "pointer", background: "#fff", color: "#555" }}
+                        onClick={() => deleteAndResend(u1Nudge.id, () => sendNudge(matchDetail.user_id, matchDetail.user1_name))}
+                      >↻ שלח שוב</button>
+                    </span>
+                  ) : (
+                    <button
+                      style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#f59e0b", color: "#fff" }}
+                      onClick={() => sendNudge(matchDetail.user_id, matchDetail.user1_name)}
+                    >שלח בירור ל-{matchDetail.user1_name}</button>
+                  )}
+
+                  {/* User 2 nudge */}
+                  {u2Nudge ? (
+                    <span style={{ fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ color: u2Nudge.nudge_type === "assistance" ? "#7c3aed" : "#d97706" }}>
+                        📩 {u2Nudge.nudge_type === "assistance" ? "סיוע" : "בירור"} נשלח ל{matchDetail.user2_name}
+                      </span>
+                      <button
+                        style={{ padding: "2px 6px", fontSize: 10, border: "1px solid #d1d5db", borderRadius: 3, cursor: "pointer", background: "#fff", color: "#555" }}
+                        onClick={() => deleteAndResend(u2Nudge.id, () => sendNudge(matchDetail.candidate_user_id, matchDetail.user2_name))}
+                      >↻ שלח שוב</button>
+                    </span>
+                  ) : (
+                    <button
+                      style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#f59e0b", color: "#fff" }}
+                      onClick={() => sendNudge(matchDetail.candidate_user_id, matchDetail.user2_name)}
+                    >שלח בירור ל-{matchDetail.user2_name}</button>
+                  )}
+
+                  {/* Assistance button */}
+                  {hasAssistance ? (
+                    <span style={{ fontSize: 11, color: "#7c3aed" }}>📩 סיוע נשלח לשתיהן</span>
+                  ) : (
+                    <button
+                      style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#8b5cf6", color: "#fff" }}
+                      onClick={sendAssistance}
+                    >שלח סיוע לשתיהן</button>
+                  )}
+                </>
+              );
+            })()}
+            {(matchDetail.match_status === "waiting_first_rating" || matchDetail.match_status === "waiting_second_rating") && matchDetail.user1_photo_count === 0 && matchDetail.user2_photo_count === 0 && (
+              <button
+                style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#d97706", color: "#fff" }}
+                onClick={async () => {
+                  if (!confirm(`לשלוח את ${matchDetail.user1_name} ו-${matchDetail.user2_name} ללא אישור תמונות?`)) return;
+                  await apiFetch(`/admin/matches/${matchDetail.match_id}/prepare`, { method: "POST" });
+                  setMatchDetail((prev: any) => prev ? { ...prev, match_status: "pre_match" } : prev);
+                  onReload();
+                }}
+              >שלח ללא תמונות</button>
+            )}
+          </div>
+        )}
+
+        {/* Photo request buttons */}
+        {onReload && (matchDetail.user1_photo_count < 1 || matchDetail.user2_photo_count < 1) && (
+          <div style={{ border: "1px solid #fde68a", borderRadius: 8, padding: 16, marginBottom: 16, background: "#fffbeb" }}>
+            <h4 style={{ margin: "0 0 8px", color: "#92400e" }}>📷 בקשת תמונה</h4>
+            {[
+              { userId: matchDetail.user_id, name: matchDetail.user1_name, gender: matchDetail.user1_gender, lookingFor: matchDetail.user1_looking_for, photoCount: matchDetail.user1_photo_count, otherPhotoCount: matchDetail.user2_photo_count, photoRequestSentAt: matchDetail.user1_photo_request_sent_at, email: matchDetail.user1_email },
+              { userId: matchDetail.candidate_user_id, name: matchDetail.user2_name, gender: matchDetail.user2_gender, lookingFor: matchDetail.user2_looking_for, photoCount: matchDetail.user2_photo_count, otherPhotoCount: matchDetail.user1_photo_count, photoRequestSentAt: matchDetail.user2_photo_request_sent_at, email: matchDetail.user2_email },
+            ].filter(u => u.photoCount < 1).map(u => {
+              const isFemale = u.gender === "woman";
+              const g = (m: string, f: string) => isFemale ? f : m;
+              const otherHasPhoto = u.otherPhotoCount > 0;
+              const lookingForFemale = u.lookingFor === "woman";
+              const otherGenderLabel = lookingForFemale ? "המשתמשת" : u.lookingFor === "man" ? "המשתמש" : "המשתמש/ת";
+              const toYouAndThem = lookingForFemale ? "לך ולה" : u.lookingFor === "man" ? "לך ולו" : "לשניכם";
+              const msg = otherHasPhoto
+                ? `הודעה ממערכת One: מצאנו ${g("עבורך", "עבורך")} כיוון להתאמה 😊\n\n${otherGenderLabel} שמצאנו כבר ${lookingForFemale ? "העלתה" : "העלה"} תמונה, ונשמח לאפשר ${toYouAndThem} לבדוק גם התאמה ראשונית מבחינת משיכה. כדי לשמור על הוגנות והדדיות, נוכל לשתף את התמונה ${lookingForFemale ? "שלה" : "שלו"} רק לאחר שתעל${g("ה", "י")} גם תמונה ${g("משלך", "משלך")}.\n\nבהצלחה מצוות One!`
+                : `הודעה ממערכת One: מצאנו ${g("עבורך", "עבורך")} כיוון להתאמה 😊\n\nכדי לבדוק התאמה ראשונית מבחינת משיכה, חשוב שגם ${g("אתה וגם הצד השני תעלו", "את וגם הצד השני תעלו")} תמונות. כדי לשמור על הוגנות והדדיות — נשמח ${g("שתעלה", "שתעלי")} תמונה ${g("משלך", "משלך")}.\n\nבהצלחה מצוות One!`;
+              const emailSubject = `יש ${g("לך", "לך")} כיוון להתאמה ב-One 😊`;
+              const emailHtml = `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#333;max-width:500px;margin:0 auto;text-align:right"><h2 style="color:#1B1464">היי ${u.name},</h2><p>מצאנו ${g("עבורך", "עבורך")} כיוון להתאמה 😊</p><p>נשמח לאפשר ${toYouAndThem} לבדוק גם התאמה ראשונית מבחינת משיכה. כדי לשמור על הוגנות והדדיות, ${g("נוכל", "נוכל")} להתקדם רק לאחר שתעל${g("ה", "י")} גם תמונה ${g("משלך", "משלך")}.</p><p style="margin:28px 0"><a href="https://joinone.io" style="display:inline-block;background-color:#7b5fa3;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold">להעלאת תמונה</a></p><p>בהצלחה,<br>צוות One</p></div>`;
+
+              if (u.photoRequestSentAt) {
+                const sentDate = new Date(u.photoRequestSentAt).toLocaleDateString("he-IL");
+                return (
+                  <div key={u.userId} style={{ marginBottom: 8, padding: "6px 14px", fontSize: 12, color: "#92400e", background: "#fef3c7", borderRadius: 4 }}>
+                    נשלחה בקשת תמונה ל{u.name} ב-{sentDate}
+                  </div>
+                );
+              }
+
+              return (
+                <div key={u.userId} style={{ marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#92400e", marginLeft: 8 }}>{u.name}:</span>
+                  <button
+                    style={{ padding: "4px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#f59e0b", color: "#fff", marginLeft: 4 }}
+                    onClick={async () => {
+                      if (!confirm(`לשלוח הודעה במערכת ל${u.name}?\n\n${msg}`)) return;
+                      await apiFetch(`/admin/users/${u.userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin_message: msg, photo_request_sent_at: new Date().toISOString() }) });
+                      setMatchDetail((prev: any) => prev ? { ...prev, [`user${prev.user_id === u.userId ? "1" : "2"}_photo_request_sent_at`]: new Date().toISOString() } : prev);
+                      alert("ההודעה נשלחה!");
+                    }}
+                  >הודעה במערכת</button>
+                  {u.email && (
+                    <button
+                      style={{ padding: "4px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#7b5fa3", color: "#fff", marginLeft: 4 }}
+                      onClick={async () => {
+                        if (!confirm(`לשלוח מייל בקשת תמונה ל${u.name} (${u.email})?`)) return;
+                        const r = await apiFetch(`/admin/users/${u.userId}/send-email`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subject: emailSubject, html: emailHtml }) });
+                        if (!r.ok) { alert("שגיאה בשליחת מייל"); return; }
+                        await apiFetch(`/admin/users/${u.userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ photo_request_sent_at: new Date().toISOString() }) });
+                        setMatchDetail((prev: any) => prev ? { ...prev, [`user${prev.user_id === u.userId ? "1" : "2"}_photo_request_sent_at`]: new Date().toISOString() } : prev);
+                        alert("המייל נשלח!");
+                      }}
+                    >שלח מייל</button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Questions/messages from match */}
+        {onReload && matchDetail.match_id && (
+          <div style={{ border: "1px solid #dbeafe", borderRadius: 8, padding: 16, marginBottom: 16, background: "#f0f7ff" }}>
+            <h4 style={{ margin: "0 0 12px", color: "#1e40af" }}>❓ שאלות/הודעות מתוך ההתאמה</h4>
+
+            {/* Existing match-linked questions */}
+            {(matchDetail.match_questions || []).length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                {(matchDetail.match_questions || []).map((q: any) => (
+                  <div key={q.id} style={{ padding: "8px 12px", marginBottom: 6, borderRadius: 6, background: q.answer ? "#dcfce7" : "#fff", border: `1px solid ${q.answer ? "#86efac" : "#e5e7eb"}`, fontSize: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <span style={{ fontWeight: 600, color: "#1e40af" }}>שאלה סגורה ← {q.user_name}</span>
+                      <span style={{ color: "#9ca3af", fontSize: 11 }}>{new Date(q.created_at).toLocaleDateString("he-IL")}</span>
+                    </div>
+                    <p style={{ margin: "0 0 4px", color: "#374151" }}>{q.question_text}</p>
+                    {q.answer ? (
+                      <span style={{ fontWeight: 600, color: "#16a34a" }}>תשובה: {q.answer}</span>
+                    ) : (
+                      <span style={{ color: "#f59e0b", fontWeight: 600 }}>ממתין לתשובה</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Existing match-linked admin messages (open questions) */}
+            {(matchDetail.match_messages || []).length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                {(matchDetail.match_messages || []).map((m: any) => (
+                  <div key={m.id} style={{ padding: "8px 12px", marginBottom: 6, borderRadius: 6, background: m.admin_message_responded_at ? "#dcfce7" : "#fff", border: `1px solid ${m.admin_message_responded_at ? "#86efac" : "#e5e7eb"}`, fontSize: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <span style={{ fontWeight: 600, color: "#6366f1" }}>שאלה פתוחה ← {m.first_name}</span>
+                      <span style={{ color: "#9ca3af", fontSize: 11 }}>{m.admin_message_sent_at ? new Date(m.admin_message_sent_at).toLocaleDateString("he-IL") : ""}</span>
+                    </div>
+                    <p style={{ margin: "0 0 4px", color: "#374151" }}>{m.admin_message}</p>
+                    {m.admin_message_responded_at ? (
+                      <span style={{ fontWeight: 600, color: "#16a34a" }}>הגיב/ה בשיחה ({new Date(m.admin_message_responded_at).toLocaleDateString("he-IL")})</span>
+                    ) : m.admin_message_dismissed ? (
+                      <span style={{ color: "#6b7280" }}>סימנ/ה כנקרא</span>
+                    ) : (
+                      <span style={{ color: "#f59e0b", fontWeight: 600 }}>ממתין לתשובה</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Send buttons */}
+            {[
+              { userId: matchDetail.user_id, name: matchDetail.user1_name, gender: matchDetail.user1_gender },
+              { userId: matchDetail.candidate_user_id, name: matchDetail.user2_name, gender: matchDetail.user2_gender },
+            ].map(u => (
+              <div key={u.userId} style={{ marginBottom: 10, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "#1e40af", minWidth: 60 }}>{u.name}:</span>
+                <button
+                  style={{ padding: "4px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#3b82f6", color: "#fff" }}
+                  onClick={async () => {
+                    const text = prompt(`שאלה סגורה ל${u.name}:`);
+                    if (!text) return;
+                    const optionsStr = prompt("אופציות (מופרדות בפסיק, ריק = ברירת מחדל):", "כן אין בעיה, אפשרי, לא");
+                    const options = optionsStr?.trim() ? optionsStr.split(",").map(s => s.trim()).filter(Boolean) : null;
+                    await apiFetch(`/admin/users/${u.userId}/system-question`, {
+                      method: "POST", headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ question_text: text, match_id: matchDetail.match_id, options }),
+                    });
+                    setMatchDetail((prev: any) => prev ? { ...prev, match_status: "waiting_for_response" } : prev);
+                    onReload();
+                    alert("השאלה נשלחה + notification!");
+                  }}
+                >שאלה סגורה</button>
+                <button
+                  style={{ padding: "4px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#6366f1", color: "#fff" }}
+                  onClick={async () => {
+                    const text = prompt(`הודעה/שאלה פתוחה ל${u.name}:`);
+                    if (!text) return;
+                    await apiFetch(`/admin/users/${u.userId}`, {
+                      method: "PATCH", headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        admin_message: text,
+                        admin_message_type: "conversation",
+                        admin_message_match_id: matchDetail.match_id,
+                      }),
+                    });
+                    setMatchDetail((prev: any) => prev ? { ...prev, match_status: "waiting_for_response" } : prev);
+                    onReload();
+                    alert("ההודעה נשלחה + notification!");
+                  }}
+                >שאלה פתוחה</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Editable notes */}
+        <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16, marginBottom: 16 }}>
+          <h4 style={{ margin: "0 0 8px" }}>הערות על ההתאמה</h4>
+          <EditableNote
+            value={matchDetail.admin_notes || ""}
+            onSave={async (val: string) => {
+              await apiFetch(`/admin/candidate-matches/${matchDetail.id}/notes`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ admin_notes: val }),
+              });
+              setMatchDetail((prev: any) => prev ? { ...prev, admin_notes: val } : prev);
+            }}
+          />
+        </div>
+
+        {/* Download transcripts */}
+        <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16 }}>
+          <button
+            style={{ padding: "8px 16px", fontSize: 13, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, background: "#0ea5e9", color: "#fff" }}
+            onClick={async () => {
+              for (const u of [
+                { id: matchDetail.user_id, name: matchDetail.user1_name, age: matchDetail.user1_age, city: matchDetail.user1_city, desiredAgeMin: matchDetail.user1_desired_age_min, desiredAgeMax: matchDetail.user1_desired_age_max, desiredLocation: matchDetail.user1_desired_location_range, ageFlex: matchDetail.user1_age_flexibility },
+                { id: matchDetail.candidate_user_id, name: matchDetail.user2_name, age: matchDetail.user2_age, city: matchDetail.user2_city, desiredAgeMin: matchDetail.user2_desired_age_min, desiredAgeMax: matchDetail.user2_desired_age_max, desiredLocation: matchDetail.user2_desired_location_range, ageFlex: matchDetail.user2_age_flexibility },
+              ]) {
+                try {
+                  const r = await apiFetch(`/admin/users/${u.id}/full-transcript`);
+                  const data = await r.json();
+                  const headerParts = [`שם: ${u.name}`];
+                  if (u.age) headerParts.push(`גיל: ${u.age}`);
+                  if (u.city) headerParts.push(`עיר: ${u.city}`);
+                  if (u.desiredAgeMin || u.desiredAgeMax) headerParts.push(`טווח גילאים: ${u.desiredAgeMin || "?"}-${u.desiredAgeMax || "?"}${u.ageFlex ? ` (${u.ageFlex})` : ""}`);
+                  if (u.desiredLocation) headerParts.push(`טווח מיקום: ${u.desiredLocation}`);
+                  const header = headerParts.join(" | ") + "\n" + "=".repeat(60) + "\n\n";
+                  const lines = (data.messages || []).map((m: any) => {
+                    const time = m.timestamp ? new Date(m.timestamp).toLocaleString("he-IL") : "";
+                    const channel = m.chat_type || "";
+                    const role = m.role === "user" ? u.name : "One";
+                    return `[${time}] [${channel}] ${role}: ${m.content}`;
+                  });
+                  const blob = new Blob([header + lines.join("\n\n")], { type: "text/plain;charset=utf-8" });
+                  const a = document.createElement("a");
+                  a.href = URL.createObjectURL(blob);
+                  a.download = `${u.name}-transcript.txt`;
+                  a.click();
+                  URL.revokeObjectURL(a.href);
+                } catch (err) {
+                  alert(`שגיאה בהורדת שיחות ${u.name}`);
+                }
+              }
+            }}
+          >📥 הורד שיחות של שתיהן</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { onViewDashboard?: (user: { id: number; first_name: string; email: string }) => void; onStartChat?: (user: { id: number; first_name: string; email: string }) => void; onViewNewChat?: (user: { id: number; first_name: string; email: string }) => void }) {
   const [data, setData] = useState<any[]>([]);
@@ -4960,703 +5595,12 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
       )}
 
       {/* ── Match Detail Modal ── */}
-      {matchDetail && (() => {
-        const genderLabel = (g: string) => g === "male" ? "גבר" : g === "female" ? "אישה" : g || "-";
-        const traitGroupHebrew: Record<string, string> = {
-          "Cognitive": "קוגניטיבי", "Communication Tone": "תקשורת", "Emotional Profile": "רגשי",
-          "Personal Style": "סגנון", "Attitudes": "עמדות", "Big Five": "ביג פייב",
-          "Schwartz Values": "ערכים", "MBTI": "MBTI", "Enneagram": "אניאגרם",
-          "General Info": "כללי", "MBTI Test": "MBTI מבחן",
-        };
-        const traitNameHebrew: Record<string, string> = {
-          extraversion: "מוחצנות", conscientiousness: "מצפוניות", agreeableness: "נעימות",
-          neuroticism: "עוצמת תגובה רגשית", openness_to_experience: "פתיחות לחוויות",
-          universalism: "אוניברסליזם", benevolence: "נדיבות", self_direction: "עצמאות",
-          achievement: "הישגיות", power: "כוח", security: "ביטחון", conformity: "קונפורמיות",
-          tradition: "מסורת", hedonism: "הנאתנות", stimulation: "גירוי",
-          right_wing: "ימניות", left_wing: "שמאלניות", social_activism: "אקטיביזם",
-          religiosity: "דתיות", secularity: "חילוניות", value_rigidity: "שמרנות ערכית",
-        };
-        // Weighted average matching UserDetail logic
-        const wAvg = (items: any[]) => {
-          const valid = items.filter((t: any) => t.score != null && t.confidence != null);
-          if (valid.length === 0) return null;
-          const sumW = valid.reduce((s: number, t: any) => s + t.score * t.confidence, 0);
-          const sumC = valid.reduce((s: number, t: any) => s + t.confidence, 0);
-          return sumC > 0 ? Math.round(sumW / sumC) : null;
-        };
-
-        const renderUserTraits = (traits: Record<string, any[]>, cogScore: number | null) => {
-          const find = (name: string) => {
-            for (const items of Object.values(traits)) {
-              const t = items.find((i: any) => i.name === name);
-              if (t) return t;
-            }
-            return null;
-          };
-          const wAvgNames = (names: string[]) => wAvg(names.map(find).filter(Boolean));
-
-          // Computed profiles
-          const profiles = [
-            { name: "קוגניטיבי", score: cogScore != null ? Math.round(cogScore) : wAvgNames(["analytical_reasoning", "abstract_thinking", "cognitive_flexibility", "conceptual_precision", "verbal_articulation", "verbal_reasoning", "depth_of_thought", "intellectualism"]), color: "#6366F1" },
-            { name: "רגשי-חברתי", score: wAvgNames(["social_intuitive_intelligence", "eq", "self_awareness", "positivity", "warmth"]), color: "#8b5cf6" },
-            { name: "רגשנות", score: wAvgNames(["neuroticism", "emotional_intensity", "emotional_expressiveness"]), color: "#ec4899" },
-            { name: "תקשורת", score: wAvgNames(["energetic_intensity", "assertiveness_forcefulness", "charismatic_presence"]), color: "#14b8a6" },
-          ];
-
-          const profileRows = profiles.filter(p => p.score != null).map(p => (
-            <div key={p.name} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", borderBottom: "1px solid #f3f4f6", fontSize: 12 }}>
-              <span style={{ fontWeight: 600, color: p.color }}>{p.name}</span>
-              <span style={{ fontWeight: 700, color: p.color }}>{p.score}</span>
-            </div>
-          ));
-
-          // Big Five — show all 5, color coded
-          const bigFiveTraits = [
-            { name: "extraversion", he: "מוחצנות" }, { name: "conscientiousness", he: "מצפוניות" },
-            { name: "agreeableness", he: "נעימות" }, { name: "neuroticism", he: "עוצמת תגובה רגשית" },
-            { name: "openness_to_experience", he: "פתיחות לחוויות" },
-          ];
-          const bigFiveItems = bigFiveTraits.map(t => {
-            const d = find(t.name);
-            if (!d || d.score == null) return null;
-            const color = d.score >= 65 ? "#3b82f6" : d.score <= 45 ? "#f59e0b" : "#888";
-            return { label: t.he, score: d.score, color };
-          }).filter(Boolean);
-
-          const bigFiveRow = bigFiveItems.length > 0 ? (
-            <div key="bigfive" style={{ marginTop: 6 }}>
-              <strong style={{ fontSize: 11, color: "#374151" }}>ביג פייב:</strong>
-              {bigFiveItems.map((t: any) => (
-                <div key={t.label} style={{ display: "flex", justifyContent: "space-between", padding: "1px 8px", fontSize: 11 }}>
-                  <span style={{ color: t.color }}>{t.label}</span>
-                  <span style={{ fontWeight: 700, color: t.color }}>{t.score}</span>
-                </div>
-              ))}
-            </div>
-          ) : null;
-
-          // Schwartz — show top 3 high + top 2 low, color coded
-          const schwartzNames = ["universalism", "benevolence", "self_direction", "achievement", "power", "security", "conformity", "tradition", "hedonism", "stimulation"];
-          const schwartzItems = schwartzNames.map(n => {
-            const d = find(n);
-            return d && d.score != null ? { name: n, score: d.score } : null;
-          }).filter(Boolean) as { name: string; score: number }[];
-          const schwartzSorted = [...schwartzItems].sort((a, b) => b.score - a.score);
-          const schwartzHigh = schwartzSorted.slice(0, 3);
-          const schwartzLow = [...schwartzItems].sort((a, b) => a.score - b.score).slice(0, 2);
-          const schwartzRow = schwartzItems.length > 0 ? (
-            <div key="schwartz" style={{ marginTop: 6 }}>
-              <strong style={{ fontSize: 11, color: "#374151" }}>ערכים:</strong>
-              {schwartzHigh.map(t => (
-                <div key={t.name} style={{ display: "flex", justifyContent: "space-between", padding: "1px 8px", fontSize: 11 }}>
-                  <span style={{ color: "#8b5cf6" }}>{traitNameHebrew[t.name] || t.name}</span>
-                  <span style={{ fontWeight: 700, color: "#8b5cf6" }}>{t.score}</span>
-                </div>
-              ))}
-              {schwartzLow.filter(l => !schwartzHigh.includes(l)).map(t => (
-                <div key={t.name + "_low"} style={{ display: "flex", justifyContent: "space-between", padding: "1px 8px", fontSize: 11 }}>
-                  <span style={{ color: "#f59e0b" }}>{traitNameHebrew[t.name] || t.name}</span>
-                  <span style={{ fontWeight: 700, color: "#f59e0b" }}>{t.score}</span>
-                </div>
-              ))}
-            </div>
-          ) : null;
-
-          // Style highlights — traits with score >= 65 or <= 35
-          const styleItems = (traits["Personal Style"] || []).filter((t: any) => t.score != null && (t.score >= 65 || t.score <= 35));
-          const styleRow = styleItems.length > 0 ? (
-            <div key="style" style={{ marginTop: 6 }}>
-              <strong style={{ fontSize: 11, color: "#374151" }}>סגנון בולט:</strong>
-              {styleItems.sort((a: any, b: any) => b.score - a.score).map((t: any) => {
-                const color = t.score >= 65 ? "#f97316" : "#6b7280";
-                return (
-                  <div key={t.name} style={{ display: "flex", justifyContent: "space-between", padding: "1px 8px", fontSize: 11 }}>
-                    <span style={{ color }}>{traitNameHebrew[t.name] || t.name}</span>
-                    <span style={{ fontWeight: 700, color }}>{t.score}</span>
-                  </div>
-                );
-              })}
-            </div>
-          ) : null;
-
-          // Attitudes highlights
-          const attItems = (traits["Attitudes"] || []).filter((t: any) => t.score != null && t.confidence > 0.2 && (t.score >= 60 || t.score <= 40));
-          const attRow = attItems.length > 0 ? (
-            <div key="attitudes" style={{ marginTop: 6 }}>
-              <strong style={{ fontSize: 11, color: "#374151" }}>עמדות:</strong>
-              {attItems.sort((a: any, b: any) => b.score - a.score).map((t: any) => (
-                <div key={t.name} style={{ display: "flex", justifyContent: "space-between", padding: "1px 8px", fontSize: 11 }}>
-                  <span style={{ color: "#ef4444" }}>{traitNameHebrew[t.name] || t.name}</span>
-                  <span style={{ fontWeight: 700, color: "#ef4444" }}>{t.score}</span>
-                </div>
-              ))}
-            </div>
-          ) : null;
-
-          // MBTI type
-          const mbtiRow = (() => {
-            const ext = find("extraversion"); const sen = find("sensing"); const int_ = find("intuition");
-            const thi = find("thinking"); const fee = find("feeling"); const jud = find("judging"); const per = find("perceiving");
-            if (!sen && !int_ && !thi && !fee && !jud && !per) return null;
-            const a1 = !ext ? "X" : ext.score > 50 ? "E" : ext.score < 50 ? "I" : "X";
-            const a2 = (!sen && !int_) ? "X" : !sen ? "N" : !int_ ? "S" : sen.score > int_.score ? "S" : "N";
-            const adjT = thi ? thi.score + 10 : 0;
-            const a3 = (!thi && !fee) ? "X" : !thi ? "F" : !fee ? "T" : adjT > fee.score ? "T" : "F";
-            const a4 = (!jud && !per) ? "X" : !jud ? "P" : !per ? "J" : jud.score > per.score ? "J" : "P";
-            const type = a1 + a2 + a3 + a4;
-            return (
-              <div key="mbti" style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", fontSize: 12 }}>
-                <span style={{ fontWeight: 600 }}>MBTI</span>
-                <span style={{ fontWeight: 700, color: "#6366f1" }}>{type}</span>
-              </div>
-            );
-          })();
-
-          // Enneagram type
-          const enneagramRow = (() => {
-            const types: { type: number; score: number }[] = [];
-            for (let t = 1; t <= 9; t++) { const d = find(`enneagram_type_${t}`); if (d) types.push({ type: t, score: d.score }); }
-            if (types.length === 0) return null;
-            types.sort((a, b) => b.score - a.score);
-            const p = types[0];
-            const names: Record<number, string> = { 1: "רפורמיסט", 2: "עוזר", 3: "הישגיסט", 4: "אינדיבידואליסט", 5: "חוקר", 6: "נאמן", 7: "הרפתקן", 8: "בוס", 9: "משכין שלום" };
-            const adj1 = p.type === 1 ? 9 : p.type - 1; const adj2 = p.type === 9 ? 1 : p.type + 1;
-            const s1 = find(`enneagram_type_${adj1}`)?.score ?? 0; const s2 = find(`enneagram_type_${adj2}`)?.score ?? 0;
-            const wing = s1 >= s2 ? adj1 : adj2;
-            return (
-              <div key="enneagram" style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", fontSize: 12 }}>
-                <span style={{ fontWeight: 600 }}>אניאגרם</span>
-                <span style={{ fontWeight: 700, color: "#10b981" }}>{p.type}w{wing} — {names[p.type]}</span>
-              </div>
-            );
-          })();
-
-          return [...profileRows, mbtiRow, enneagramRow, bigFiveRow, schwartzRow, styleRow, attRow].filter(Boolean);
-        };
-
-        return (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={() => setMatchDetail(null)}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 24, maxWidth: 900, width: "100%", maxHeight: "90vh", overflowY: "auto", direction: "rtl" }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <h3 style={{ margin: 0 }}>פרטי התאמה</h3>
-              {/* Match status */}
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                {matchDetail.match_id ? (
-                  <select
-                    value={matchDetail.match_status || ""}
-                    style={{ border: "1px solid #ccc", borderRadius: 4, padding: "4px 8px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}
-                    onChange={async (e) => {
-                      const newStatus = e.target.value;
-                      if (!confirm(`לשנות סטטוס ל-${newStatus}?`)) { e.target.value = matchDetail.match_status || ""; return; }
-                      try {
-                        await apiFetch(`/admin/matches/${matchDetail.match_id}/status`, {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ status: newStatus }),
-                        });
-                        setMatchDetail((prev: any) => prev ? { ...prev, match_status: newStatus } : prev);
-                        load();
-                      } catch (err: any) { alert("שגיאה: " + err.message); }
-                    }}
-                  >
-                    {["scored", "potential_match", "expanded_potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "pending_second_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
-                      <option key={st} value={st}>{st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st === "pending_second_rating" ? "ממתין לאישור שני" : st}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <span style={{ fontSize: 12, color: "#6b7280" }}>סטטוס: {matchDetail.status || "pending"}</span>
-                )}
-                <button onClick={() => setMatchDetail(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer" }}>✕</button>
-              </div>
-            </div>
-
-            {/* Two user cards side by side */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
-              {[
-                { name: matchDetail.user1_name, age: matchDetail.user1_age, city: matchDetail.user1_city, gender: matchDetail.user1_gender, lookingFor: matchDetail.user1_looking_for, notes: matchDetail.user1_admin_notes, photos: matchDetail.user1_photos, traits: matchDetail.user1_traits, cogScore: matchDetail.user1_cognitive_score, height: matchDetail.user1_height, smoker: matchDetail.user1_smoker, hasChildren: matchDetail.user1_has_children, maritalStatus: matchDetail.user1_marital_status, religion: matchDetail.user1_religion, desiredAgeMin: matchDetail.user1_desired_age_min, desiredAgeMax: matchDetail.user1_desired_age_max, desiredHeightMin: matchDetail.user1_desired_height_min, desiredHeightMax: matchDetail.user1_desired_height_max, desiredLocation: matchDetail.user1_desired_location_range, rating: matchDetail.user1_rating, dealBreakers: matchDetail.user1_deal_breakers, femPersonal: matchDetail.user1_fem_personal, femDesired: matchDetail.user1_fem_desired },
-                { name: matchDetail.user2_name, age: matchDetail.user2_age, city: matchDetail.user2_city, gender: matchDetail.user2_gender, lookingFor: matchDetail.user2_looking_for, notes: matchDetail.user2_admin_notes, photos: matchDetail.user2_photos, traits: matchDetail.user2_traits, cogScore: matchDetail.user2_cognitive_score, height: matchDetail.user2_height, smoker: matchDetail.user2_smoker, hasChildren: matchDetail.user2_has_children, maritalStatus: matchDetail.user2_marital_status, religion: matchDetail.user2_religion, desiredAgeMin: matchDetail.user2_desired_age_min, desiredAgeMax: matchDetail.user2_desired_age_max, desiredHeightMin: matchDetail.user2_desired_height_min, desiredHeightMax: matchDetail.user2_desired_height_max, desiredLocation: matchDetail.user2_desired_location_range, rating: matchDetail.user2_rating, dealBreakers: matchDetail.user2_deal_breakers, femPersonal: matchDetail.user2_fem_personal, femDesired: matchDetail.user2_fem_desired },
-              ].map((u, i) => (
-                <div key={i} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16 }}>
-                  {u.photos && u.photos.length > 0 && (
-                    <img src={u.photos[0]} style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 8, marginBottom: 8 }} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                  )}
-                  <h4 style={{ margin: "0 0 4px" }}>{u.name}</h4>
-                  <p style={{ margin: "0 0 4px", fontSize: 13, color: "#6b7280" }}>{u.age}, {u.city}, {genderLabel(u.gender)}</p>
-                  <p style={{ margin: "0 0 4px", fontSize: 12, color: "#9ca3af" }}>מחפש/ת: {genderLabel(u.lookingFor)}{u.desiredAgeMin && u.desiredAgeMax ? `, גילאי ${u.desiredAgeMin}-${u.desiredAgeMax}` : ""}{u.desiredHeightMin && u.desiredHeightMax ? `, גובה ${u.desiredHeightMin}-${u.desiredHeightMax}` : ""}{u.desiredLocation ? `, ${u.desiredLocation}` : ""}</p>
-                  <p style={{ margin: "0 0 4px", fontSize: 11, color: "#9ca3af" }}>
-                    {[
-                      u.height && `גובה: ${u.height} ס"מ`,
-                      u.smoker != null && (u.smoker ? "מעשן/ת" : "לא מעשן/ת"),
-                      u.hasChildren != null && (u.hasChildren ? "יש ילדים" : "אין ילדים"),
-                      u.maritalStatus,
-                      u.religion,
-                    ].filter(Boolean).join(" · ")}
-                  </p>
-                  {u.rating && (
-                    <p style={{ margin: "0 0 4px", fontSize: 12, fontWeight: 600, color: u.rating === "bullseye" ? "#28a745" : u.rating === "possible" ? "#d97706" : u.rating === "miss" ? "#dc3545" : "#6b7280" }}>
-                      דירוג: {u.rating === "bullseye" ? "✅ בול" : u.rating === "possible" ? "🟡 אפשרי" : u.rating === "miss" ? "❌ לא" : u.rating === "known_person" ? "👤 מכיר/ה" : u.rating}
-                    </p>
-                  )}
-                  <p style={{ margin: "0 0 4px", fontSize: 11 }}>
-                    {u.femPersonal != null && <span style={{ color: "#6b7280" }}>נשיות: <strong>{u.femPersonal}</strong></span>}
-                    {u.femPersonal != null && <span style={{ color: "#ccc" }}> | </span>}
-                    <span style={{ color: u.femDesired != null ? (u.femDesired > 65 ? "#ec4899" : u.femDesired < 35 ? "#6366f1" : "#888") : "#ccc", fontWeight: 600 }}>
-                      מעדיפה: {u.femDesired != null ? (u.femDesired > 65 ? "נשית" : u.femDesired < 35 ? "גברית" : "ללא העדפה") : "אין מידע"}{u.femDesired != null ? ` (${u.femDesired})` : ""}
-                    </span>
-                  </p>
-                  {u.notes && <p style={{ margin: "0 0 8px", fontSize: 12, background: "#fffbeb", padding: "6px 8px", borderRadius: 4, whiteSpace: "pre-wrap" }}>{u.notes}</p>}
-
-                  {u.dealBreakers && (
-                    <div style={{ margin: "0 0 8px", fontSize: 12, background: "#fef2f2", border: "1px solid #fecaca", padding: "6px 8px", borderRadius: 4 }}>
-                      <strong style={{ color: "#dc2626" }}>⚠ מידע מהותי:</strong>{" "}
-                      {u.dealBreakers.split("|").map((item: string, idx: number) => (
-                        <span key={idx} style={{ display: "inline-block", background: "#fee2e2", borderRadius: 3, padding: "1px 6px", margin: "2px 3px", fontSize: 11 }}>{item.trim()}</span>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Profile traits */}
-                  <div style={{ fontSize: 12 }}>
-                    <strong style={{ fontSize: 12 }}>פרופיל:</strong>
-                    {u.traits && renderUserTraits(u.traits, u.cogScore)}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Match scores */}
-            <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16, marginBottom: 16 }}>
-              <h4 style={{ margin: "0 0 12px" }}>ציוני התאמה</h4>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, fontSize: 12 }}>
-                {[
-                  { label: "פנימי", val: matchDetail.internal_score },
-                  { label: "פרופיל פנימי", val: matchDetail.internal_profile_score },
-                  { label: "סופי", val: matchDetail.final_score },
-                  { label: "פרופיל", val: matchDetail.profile_score },
-                  { label: "קוגניטיבי", val: matchDetail.score_cognitive },
-                  { label: "רגשי-חברתי", val: matchDetail.score_emotional_social },
-                  { label: "רגשנות", val: matchDetail.score_emotionality },
-                  { label: "תקשורת", val: matchDetail.score_communication },
-                  { label: "ביג פייב", val: matchDetail.score_big_five },
-                  { label: "שוורץ", val: matchDetail.score_schwartz },
-                  { label: "סגנון", val: matchDetail.score_style },
-                  { label: "עמדות", val: matchDetail.score_attitudes },
-                  { label: "MBTI", val: matchDetail.score_mbti },
-                  { label: "אניאגרם", val: matchDetail.score_enneagram },
-                  { label: "כללי", val: matchDetail.score_general },
-                  { label: "עממיות", val: matchDetail.score_popularity },
-                ].map(sc => (
-                  <div key={sc.label} style={{ textAlign: "center", padding: 6, background: "#f9fafb", borderRadius: 4 }}>
-                    <div style={{ color: "#6b7280", marginBottom: 2 }}>{sc.label}</div>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: sc.val != null ? (sc.val >= 70 ? "#28a745" : sc.val >= 50 ? "#856404" : "#dc3545") : "#ccc" }}>{sc.val != null ? sc.val : "-"}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Actions */}
-            {matchDetail.match_id && (
-              <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16, marginBottom: 16, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                {/* Send rating buttons */}
-                {["potential_match", "expanded_potential_match", "waiting_for_photo", "waiting_for_response"].includes(matchDetail.match_status) && (() => {
-                  const u1Locked = matchDetail.user1_locked;
-                  const u2Locked = matchDetail.user2_locked;
-                  const u1Reason = matchDetail.user1_lock_reason === "in_match" ? "בהתאמה" : "ממתינה לדירוג";
-                  const u2Reason = matchDetail.user2_lock_reason === "in_match" ? "בהתאמה" : "ממתינה לדירוג";
-                  return (
-                    <>
-                      {!u1Locked && !u2Locked ? (
-                        <>
-                          <button style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#7c3aed", color: "#fff" }}
-                            onClick={async () => {
-                              try {
-                                const r = await apiFetch(`/admin/matches/${matchDetail.match_id}/send-for-rating`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user_id: matchDetail.user_id }) });
-                                const json = await r.json();
-                                if (!r.ok) { alert(json.error); return; }
-                                setMatchDetail((prev: any) => prev ? { ...prev, match_status: "waiting_first_rating" } : prev);
-                                load();
-                              } catch { alert("שגיאת תקשורת"); }
-                            }}>שלח דירוג ל{matchDetail.user1_name}</button>
-                          <button style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#7c3aed", color: "#fff" }}
-                            onClick={async () => {
-                              try {
-                                const r = await apiFetch(`/admin/matches/${matchDetail.match_id}/send-for-rating`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user_id: matchDetail.candidate_user_id }) });
-                                const json = await r.json();
-                                if (!r.ok) { alert(json.error); return; }
-                                setMatchDetail((prev: any) => prev ? { ...prev, match_status: "waiting_first_rating" } : prev);
-                                load();
-                              } catch { alert("שגיאת תקשורת"); }
-                            }}>שלח דירוג ל{matchDetail.user2_name}</button>
-                        </>
-                      ) : (
-                        <span style={{ fontSize: 11, color: "#9ca3af" }}>
-                          {u1Locked && <span style={{ padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 700, marginLeft: 4, background: "#fef3c7", color: "#92400e" }}>{matchDetail.user1_name}: {u1Reason}</span>}
-                          {u2Locked && <span style={{ padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 700, marginLeft: 4, background: "#fef3c7", color: "#92400e" }}>{matchDetail.user2_name}: {u2Reason}</span>}
-                        </span>
-                      )}
-                    </>
-                  );
-                })()}
-                {matchDetail.match_status === "pending_second_rating" && (() => {
-                  const raterIsUser1 = !matchDetail.user1_rating;
-                  const raterLocked = raterIsUser1 ? matchDetail.user1_locked : matchDetail.user2_locked;
-                  const otherInMatch = raterIsUser1 ? matchDetail.user2_lock_reason === "in_match" : matchDetail.user1_lock_reason === "in_match";
-                  const raterName = raterIsUser1 ? matchDetail.user1_name : matchDetail.user2_name;
-                  const canSend = !raterLocked && !otherInMatch;
-                  return canSend ? (
-                    <button style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#2563eb", color: "#fff" }}
-                      onClick={async () => {
-                        try {
-                          const r = await apiFetch(`/admin/matches/${matchDetail.match_id}/send-second-rating`, { method: "POST" });
-                          const json = await r.json();
-                          if (!r.ok) { alert(json.error); return; }
-                          setMatchDetail((prev: any) => prev ? { ...prev, match_status: "waiting_second_rating" } : prev);
-                          load();
-                        } catch { alert("שגיאת תקשורת"); }
-                      }}>שלח דירוג שני ל{raterName}</button>
-                  ) : (
-                    <span style={{ fontSize: 11, color: "#9ca3af" }}>{raterLocked ? `${raterName} ממתינה לדירוג` : "הצד שדירג בהתאמה"}</span>
-                  );
-                })()}
-                {matchDetail.match_status === "approved_by_both" && (
-                  <button
-                    style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#6f42c1", color: "#fff" }}
-                    onClick={async () => {
-                      if (!confirm(`להעביר את ${matchDetail.user1_name} ו-${matchDetail.user2_name} לסטטוס ממתין לכרטיס?`)) return;
-                      await apiFetch(`/admin/matches/${matchDetail.match_id}/prepare`, { method: "POST" });
-                      setMatchDetail((prev: any) => prev ? { ...prev, match_status: "pre_match" } : prev);
-                      load();
-                    }}
-                  >שלח התאמה</button>
-                )}
-                {matchDetail.match_status === "pre_match" && !matchDetail.match_card_data && (
-                  <span style={{ fontSize: 12, color: "#f59e0b", fontWeight: 600 }}>ממתין לכרטיס</span>
-                )}
-                {matchDetail.match_status === "pre_match" && matchDetail.match_card_data && !matchDetail.match_card_sent_at && (
-                  <button
-                    style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#0d6efd", color: "#fff" }}
-                    onClick={() => {
-                      setCardPreview({ matchId: matchDetail.match_id, user1Name: matchDetail.user1_name, user2Name: matchDetail.user2_name, data: matchDetail.match_card_data, user1Consent: null, user1Restrictions: null, user2Consent: null, user2Restrictions: null });
-                      setEditData(null); setCardEditing(false); setMatchDetail(null);
-                    }}
-                  >בדיקת כרטיס התאמה</button>
-                )}
-                {matchDetail.match_status === "in_match" && matchDetail.match_card_sent_at && (
-                  <span style={{ fontSize: 12, color: "#28a745", fontWeight: 600 }}>✓ כרטיס נשלח</span>
-                )}
-                {matchDetail.match_status === "in_match" && (() => {
-                  const nudges: any[] = matchDetail.pending_nudges || [];
-                  const u1Nudge = nudges.find((n: any) => n.user_id === matchDetail.user_id);
-                  const u2Nudge = nudges.find((n: any) => n.user_id === matchDetail.candidate_user_id);
-                  const hasAssistance = nudges.some((n: any) => n.nudge_type === "assistance");
-
-                  const deleteAndResend = async (nudgeId: number, then: () => Promise<void>) => {
-                    try {
-                      await apiFetch(`/admin/nudges/${nudgeId}`, { method: "DELETE" });
-                      await then();
-                    } catch (err: any) { alert("שגיאה: " + (err.message || "unknown")); }
-                  };
-
-                  const sendNudge = async (userId: number, userName: string) => {
-                    if (!confirm(`לשלוח בירור ל-${userName}?`)) return;
-                    try {
-                      await apiFetch(`/admin/matches/${matchDetail.match_id}/nudge`, {
-                        method: "POST", headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ user_id: userId }),
-                      });
-                      setMatchDetail((prev: any) => prev ? { ...prev, pending_nudges: [...(prev.pending_nudges || []), { user_id: userId, nudge_type: "check_in", status: "pending" }] } : prev);
-                    } catch (err: any) { alert("שגיאה: " + (err.message || "unknown")); }
-                  };
-
-                  const sendAssistance = async () => {
-                    if (!confirm(`לשלוח סיוע לשתי המשתמשות בהתאמה #${matchDetail.match_id}?`)) return;
-                    try {
-                      await apiFetch(`/admin/matches/${matchDetail.match_id}/send-assistance`, {
-                        method: "POST", headers: { "Content-Type": "application/json" },
-                      });
-                      setMatchDetail((prev: any) => prev ? { ...prev, pending_nudges: [
-                        ...(prev.pending_nudges || []),
-                        { user_id: prev.user_id, nudge_type: "assistance", status: "pending" },
-                        { user_id: prev.candidate_user_id, nudge_type: "assistance", status: "pending" },
-                      ] } : prev);
-                    } catch (err: any) { alert("שגיאה: " + (err.message || "unknown")); }
-                  };
-
-                  return (
-                    <>
-                      {/* User 1 nudge */}
-                      {u1Nudge ? (
-                        <span style={{ fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                          <span style={{ color: u1Nudge.nudge_type === "assistance" ? "#7c3aed" : "#d97706" }}>
-                            📩 {u1Nudge.nudge_type === "assistance" ? "סיוע" : "בירור"} נשלח ל{matchDetail.user1_name}
-                          </span>
-                          <button
-                            style={{ padding: "2px 6px", fontSize: 10, border: "1px solid #d1d5db", borderRadius: 3, cursor: "pointer", background: "#fff", color: "#555" }}
-                            onClick={() => deleteAndResend(u1Nudge.id, () => sendNudge(matchDetail.user_id, matchDetail.user1_name))}
-                          >↻ שלח שוב</button>
-                        </span>
-                      ) : (
-                        <button
-                          style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#f59e0b", color: "#fff" }}
-                          onClick={() => sendNudge(matchDetail.user_id, matchDetail.user1_name)}
-                        >שלח בירור ל-{matchDetail.user1_name}</button>
-                      )}
-
-                      {/* User 2 nudge */}
-                      {u2Nudge ? (
-                        <span style={{ fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                          <span style={{ color: u2Nudge.nudge_type === "assistance" ? "#7c3aed" : "#d97706" }}>
-                            📩 {u2Nudge.nudge_type === "assistance" ? "סיוע" : "בירור"} נשלח ל{matchDetail.user2_name}
-                          </span>
-                          <button
-                            style={{ padding: "2px 6px", fontSize: 10, border: "1px solid #d1d5db", borderRadius: 3, cursor: "pointer", background: "#fff", color: "#555" }}
-                            onClick={() => deleteAndResend(u2Nudge.id, () => sendNudge(matchDetail.candidate_user_id, matchDetail.user2_name))}
-                          >↻ שלח שוב</button>
-                        </span>
-                      ) : (
-                        <button
-                          style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#f59e0b", color: "#fff" }}
-                          onClick={() => sendNudge(matchDetail.candidate_user_id, matchDetail.user2_name)}
-                        >שלח בירור ל-{matchDetail.user2_name}</button>
-                      )}
-
-                      {/* Assistance button */}
-                      {hasAssistance ? (
-                        <span style={{ fontSize: 11, color: "#7c3aed" }}>📩 סיוע נשלח לשתיהן</span>
-                      ) : (
-                        <button
-                          style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#8b5cf6", color: "#fff" }}
-                          onClick={sendAssistance}
-                        >שלח סיוע לשתיהן</button>
-                      )}
-                    </>
-                  );
-                })()}
-                {(matchDetail.match_status === "waiting_first_rating" || matchDetail.match_status === "waiting_second_rating") && matchDetail.user1_photo_count === 0 && matchDetail.user2_photo_count === 0 && (
-                  <button
-                    style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#d97706", color: "#fff" }}
-                    onClick={async () => {
-                      if (!confirm(`לשלוח את ${matchDetail.user1_name} ו-${matchDetail.user2_name} ללא אישור תמונות?`)) return;
-                      await apiFetch(`/admin/matches/${matchDetail.match_id}/prepare`, { method: "POST" });
-                      setMatchDetail((prev: any) => prev ? { ...prev, match_status: "pre_match" } : prev);
-                      load();
-                    }}
-                  >שלח ללא תמונות</button>
-                )}
-              </div>
-            )}
-
-            {/* Photo request buttons */}
-            {(matchDetail.user1_photo_count < 1 || matchDetail.user2_photo_count < 1) && (
-              <div style={{ border: "1px solid #fde68a", borderRadius: 8, padding: 16, marginBottom: 16, background: "#fffbeb" }}>
-                <h4 style={{ margin: "0 0 8px", color: "#92400e" }}>📷 בקשת תמונה</h4>
-                {[
-                  { userId: matchDetail.user_id, name: matchDetail.user1_name, gender: matchDetail.user1_gender, lookingFor: matchDetail.user1_looking_for, photoCount: matchDetail.user1_photo_count, otherPhotoCount: matchDetail.user2_photo_count, photoRequestSentAt: matchDetail.user1_photo_request_sent_at, email: matchDetail.user1_email },
-                  { userId: matchDetail.candidate_user_id, name: matchDetail.user2_name, gender: matchDetail.user2_gender, lookingFor: matchDetail.user2_looking_for, photoCount: matchDetail.user2_photo_count, otherPhotoCount: matchDetail.user1_photo_count, photoRequestSentAt: matchDetail.user2_photo_request_sent_at, email: matchDetail.user2_email },
-                ].filter(u => u.photoCount < 1).map(u => {
-                  const isFemale = u.gender === "woman";
-                  const g = (m: string, f: string) => isFemale ? f : m;
-                  const otherHasPhoto = u.otherPhotoCount > 0;
-                  const lookingForFemale = u.lookingFor === "woman";
-                  const otherGenderLabel = lookingForFemale ? "המשתמשת" : u.lookingFor === "man" ? "המשתמש" : "המשתמש/ת";
-                  const toYouAndThem = lookingForFemale ? "לך ולה" : u.lookingFor === "man" ? "לך ולו" : "לשניכם";
-                  const msg = otherHasPhoto
-                    ? `הודעה ממערכת One: מצאנו ${g("עבורך", "עבורך")} כיוון להתאמה 😊\n\n${otherGenderLabel} שמצאנו כבר ${lookingForFemale ? "העלתה" : "העלה"} תמונה, ונשמח לאפשר ${toYouAndThem} לבדוק גם התאמה ראשונית מבחינת משיכה. כדי לשמור על הוגנות והדדיות, נוכל לשתף את התמונה ${lookingForFemale ? "שלה" : "שלו"} רק לאחר שתעל${g("ה", "י")} גם תמונה ${g("משלך", "משלך")}.\n\nבהצלחה מצוות One!`
-                    : `הודעה ממערכת One: מצאנו ${g("עבורך", "עבורך")} כיוון להתאמה 😊\n\nכדי לבדוק התאמה ראשונית מבחינת משיכה, חשוב שגם ${g("אתה וגם הצד השני תעלו", "את וגם הצד השני תעלו")} תמונות. כדי לשמור על הוגנות והדדיות — נשמח ${g("שתעלה", "שתעלי")} תמונה ${g("משלך", "משלך")}.\n\nבהצלחה מצוות One!`;
-                  const emailSubject = `יש ${g("לך", "לך")} כיוון להתאמה ב-One 😊`;
-                  const emailHtml = `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#333;max-width:500px;margin:0 auto;text-align:right"><h2 style="color:#1B1464">היי ${u.name},</h2><p>מצאנו ${g("עבורך", "עבורך")} כיוון להתאמה 😊</p><p>נשמח לאפשר ${toYouAndThem} לבדוק גם התאמה ראשונית מבחינת משיכה. כדי לשמור על הוגנות והדדיות, ${g("נוכל", "נוכל")} להתקדם רק לאחר שתעל${g("ה", "י")} גם תמונה ${g("משלך", "משלך")}.</p><p style="margin:28px 0"><a href="https://joinone.io" style="display:inline-block;background-color:#7b5fa3;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold">להעלאת תמונה</a></p><p>בהצלחה,<br>צוות One</p></div>`;
-
-                  if (u.photoRequestSentAt) {
-                    const sentDate = new Date(u.photoRequestSentAt).toLocaleDateString("he-IL");
-                    return (
-                      <div key={u.userId} style={{ marginBottom: 8, padding: "6px 14px", fontSize: 12, color: "#92400e", background: "#fef3c7", borderRadius: 4 }}>
-                        נשלחה בקשת תמונה ל{u.name} ב-{sentDate}
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div key={u.userId} style={{ marginBottom: 8 }}>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: "#92400e", marginLeft: 8 }}>{u.name}:</span>
-                      <button
-                        style={{ padding: "4px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#f59e0b", color: "#fff", marginLeft: 4 }}
-                        onClick={async () => {
-                          if (!confirm(`לשלוח הודעה במערכת ל${u.name}?\n\n${msg}`)) return;
-                          await apiFetch(`/admin/users/${u.userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin_message: msg, photo_request_sent_at: new Date().toISOString() }) });
-                          setMatchDetail((prev: any) => prev ? { ...prev, [`user${prev.user_id === u.userId ? "1" : "2"}_photo_request_sent_at`]: new Date().toISOString() } : prev);
-                          alert("ההודעה נשלחה!");
-                        }}
-                      >הודעה במערכת</button>
-                      {u.email && (
-                        <button
-                          style={{ padding: "4px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#7b5fa3", color: "#fff", marginLeft: 4 }}
-                          onClick={async () => {
-                            if (!confirm(`לשלוח מייל בקשת תמונה ל${u.name} (${u.email})?`)) return;
-                            const r = await apiFetch(`/admin/users/${u.userId}/send-email`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subject: emailSubject, html: emailHtml }) });
-                            if (!r.ok) { alert("שגיאה בשליחת מייל"); return; }
-                            await apiFetch(`/admin/users/${u.userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ photo_request_sent_at: new Date().toISOString() }) });
-                            setMatchDetail((prev: any) => prev ? { ...prev, [`user${prev.user_id === u.userId ? "1" : "2"}_photo_request_sent_at`]: new Date().toISOString() } : prev);
-                            alert("המייל נשלח!");
-                          }}
-                        >שלח מייל</button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Questions/messages from match */}
-            {matchDetail.match_id && (
-              <div style={{ border: "1px solid #dbeafe", borderRadius: 8, padding: 16, marginBottom: 16, background: "#f0f7ff" }}>
-                <h4 style={{ margin: "0 0 12px", color: "#1e40af" }}>❓ שאלות/הודעות מתוך ההתאמה</h4>
-
-                {/* Existing match-linked questions */}
-                {(matchDetail.match_questions || []).length > 0 && (
-                  <div style={{ marginBottom: 12 }}>
-                    {(matchDetail.match_questions || []).map((q: any) => (
-                      <div key={q.id} style={{ padding: "8px 12px", marginBottom: 6, borderRadius: 6, background: q.answer ? "#dcfce7" : "#fff", border: `1px solid ${q.answer ? "#86efac" : "#e5e7eb"}`, fontSize: 12 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                          <span style={{ fontWeight: 600, color: "#1e40af" }}>שאלה סגורה ← {q.user_name}</span>
-                          <span style={{ color: "#9ca3af", fontSize: 11 }}>{new Date(q.created_at).toLocaleDateString("he-IL")}</span>
-                        </div>
-                        <p style={{ margin: "0 0 4px", color: "#374151" }}>{q.question_text}</p>
-                        {q.answer ? (
-                          <span style={{ fontWeight: 600, color: "#16a34a" }}>תשובה: {q.answer}</span>
-                        ) : (
-                          <span style={{ color: "#f59e0b", fontWeight: 600 }}>ממתין לתשובה</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Existing match-linked admin messages (open questions) */}
-                {(matchDetail.match_messages || []).length > 0 && (
-                  <div style={{ marginBottom: 12 }}>
-                    {(matchDetail.match_messages || []).map((m: any) => (
-                      <div key={m.id} style={{ padding: "8px 12px", marginBottom: 6, borderRadius: 6, background: m.admin_message_responded_at ? "#dcfce7" : "#fff", border: `1px solid ${m.admin_message_responded_at ? "#86efac" : "#e5e7eb"}`, fontSize: 12 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                          <span style={{ fontWeight: 600, color: "#6366f1" }}>שאלה פתוחה ← {m.first_name}</span>
-                          <span style={{ color: "#9ca3af", fontSize: 11 }}>{m.admin_message_sent_at ? new Date(m.admin_message_sent_at).toLocaleDateString("he-IL") : ""}</span>
-                        </div>
-                        <p style={{ margin: "0 0 4px", color: "#374151" }}>{m.admin_message}</p>
-                        {m.admin_message_responded_at ? (
-                          <span style={{ fontWeight: 600, color: "#16a34a" }}>הגיב/ה בשיחה ({new Date(m.admin_message_responded_at).toLocaleDateString("he-IL")})</span>
-                        ) : m.admin_message_dismissed ? (
-                          <span style={{ color: "#6b7280" }}>סימנ/ה כנקרא</span>
-                        ) : (
-                          <span style={{ color: "#f59e0b", fontWeight: 600 }}>ממתין לתשובה</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Send buttons */}
-                {[
-                  { userId: matchDetail.user_id, name: matchDetail.user1_name, gender: matchDetail.user1_gender },
-                  { userId: matchDetail.candidate_user_id, name: matchDetail.user2_name, gender: matchDetail.user2_gender },
-                ].map(u => (
-                  <div key={u.userId} style={{ marginBottom: 10, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: "#1e40af", minWidth: 60 }}>{u.name}:</span>
-                    <button
-                      style={{ padding: "4px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#3b82f6", color: "#fff" }}
-                      onClick={async () => {
-                        const text = prompt(`שאלה סגורה ל${u.name}:`);
-                        if (!text) return;
-                        const optionsStr = prompt("אופציות (מופרדות בפסיק, ריק = ברירת מחדל):", "כן אין בעיה, אפשרי, לא");
-                        const options = optionsStr?.trim() ? optionsStr.split(",").map(s => s.trim()).filter(Boolean) : null;
-                        await apiFetch(`/admin/users/${u.userId}/system-question`, {
-                          method: "POST", headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ question_text: text, match_id: matchDetail.match_id, options }),
-                        });
-                        setMatchDetail((prev: any) => prev ? { ...prev, match_status: "waiting_for_response" } : prev);
-                        load();
-                        alert("השאלה נשלחה + notification!");
-                      }}
-                    >שאלה סגורה</button>
-                    <button
-                      style={{ padding: "4px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: "#6366f1", color: "#fff" }}
-                      onClick={async () => {
-                        const text = prompt(`הודעה/שאלה פתוחה ל${u.name}:`);
-                        if (!text) return;
-                        await apiFetch(`/admin/users/${u.userId}`, {
-                          method: "PATCH", headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            admin_message: text,
-                            admin_message_type: "conversation",
-                            admin_message_match_id: matchDetail.match_id,
-                          }),
-                        });
-                        setMatchDetail((prev: any) => prev ? { ...prev, match_status: "waiting_for_response" } : prev);
-                        load();
-                        alert("ההודעה נשלחה + notification!");
-                      }}
-                    >שאלה פתוחה</button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Editable notes */}
-            <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16, marginBottom: 16 }}>
-              <h4 style={{ margin: "0 0 8px" }}>הערות על ההתאמה</h4>
-              <EditableNote
-                value={matchDetail.admin_notes || ""}
-                onSave={async (val: string) => {
-                  await apiFetch(`/admin/candidate-matches/${matchDetail.id}/notes`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ admin_notes: val }),
-                  });
-                  setMatchDetail((prev: any) => prev ? { ...prev, admin_notes: val } : prev);
-                }}
-              />
-            </div>
-
-            {/* Download transcripts */}
-            <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16 }}>
-              <button
-                style={{ padding: "8px 16px", fontSize: 13, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, background: "#0ea5e9", color: "#fff" }}
-                onClick={async () => {
-                  for (const u of [
-                    { id: matchDetail.user_id, name: matchDetail.user1_name, age: matchDetail.user1_age, city: matchDetail.user1_city, desiredAgeMin: matchDetail.user1_desired_age_min, desiredAgeMax: matchDetail.user1_desired_age_max, desiredLocation: matchDetail.user1_desired_location_range, ageFlex: matchDetail.user1_age_flexibility },
-                    { id: matchDetail.candidate_user_id, name: matchDetail.user2_name, age: matchDetail.user2_age, city: matchDetail.user2_city, desiredAgeMin: matchDetail.user2_desired_age_min, desiredAgeMax: matchDetail.user2_desired_age_max, desiredLocation: matchDetail.user2_desired_location_range, ageFlex: matchDetail.user2_age_flexibility },
-                  ]) {
-                    try {
-                      const r = await apiFetch(`/admin/users/${u.id}/full-transcript`);
-                      const data = await r.json();
-                      const headerParts = [`שם: ${u.name}`];
-                      if (u.age) headerParts.push(`גיל: ${u.age}`);
-                      if (u.city) headerParts.push(`עיר: ${u.city}`);
-                      if (u.desiredAgeMin || u.desiredAgeMax) headerParts.push(`טווח גילאים: ${u.desiredAgeMin || "?"}-${u.desiredAgeMax || "?"}${u.ageFlex ? ` (${u.ageFlex})` : ""}`);
-                      if (u.desiredLocation) headerParts.push(`טווח מיקום: ${u.desiredLocation}`);
-                      const header = headerParts.join(" | ") + "\n" + "=".repeat(60) + "\n\n";
-                      const lines = (data.messages || []).map((m: any) => {
-                        const time = m.timestamp ? new Date(m.timestamp).toLocaleString("he-IL") : "";
-                        const channel = m.chat_type || "";
-                        const role = m.role === "user" ? u.name : "One";
-                        return `[${time}] [${channel}] ${role}: ${m.content}`;
-                      });
-                      const blob = new Blob([header + lines.join("\n\n")], { type: "text/plain;charset=utf-8" });
-                      const a = document.createElement("a");
-                      a.href = URL.createObjectURL(blob);
-                      a.download = `${u.name}-transcript.txt`;
-                      a.click();
-                      URL.revokeObjectURL(a.href);
-                    } catch (err) {
-                      alert(`שגיאה בהורדת שיחות ${u.name}`);
-                    }
-                  }
-                }}
-              >📥 הורד שיחות של שתיהן</button>
-            </div>
-          </div>
-        </div>
-        );
-      })()}
+      {matchDetail && <MatchDetailModal
+        matchDetail={matchDetail}
+        setMatchDetail={setMatchDetail}
+        onReload={load}
+        onCardPreview={(data) => { setCardPreview({...data, user1Consent: null, user1Restrictions: null, user2Consent: null, user2Restrictions: null}); setEditData(null); setCardEditing(false); }}
+      />}
 
       {/* ── Card Preview/Edit Modal ── */}
       {cardPreview && (() => {
