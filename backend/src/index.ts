@@ -2984,7 +2984,7 @@ app.get("/admin/matches", async (_req, res) => {
     SELECT m.*,
       u1.first_name as user1_name,
       u2.first_name as user2_name,
-      cm.id as candidate_match_id,
+      cm.id as candidate_match_id, cm.profile_score, cm.final_score, cm.admin_notes as cm_admin_notes,
       (SELECT COUNT(*)::int FROM direct_messages dm WHERE dm.match_id = m.id) as dm_count,
       (SELECT MAX(dm.created_at) FROM direct_messages dm WHERE dm.match_id = m.id) as dm_last_at
     FROM matches m

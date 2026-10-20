@@ -4019,6 +4019,7 @@ function MatchesTab() {
   const [showPast, setShowPast] = useState(false);
   const [viewingCard, setViewingCard] = useState<any>(null);
   const [viewingDetail, setViewingDetail] = useState<any>(null);
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
 
   function load() {
     setLoading(true);
@@ -4060,14 +4061,36 @@ function MatchesTab() {
     return (
       <tr key={m.id}>
         <td style={s.td}>{m.id}</td>
-        <td style={s.td}>{m.user1_name} (#{m.user1_id})</td>
-        <td style={s.td}>{m.user2_name} (#{m.user2_id})</td>
-        <td style={s.td}><strong>{m.match_score ?? "-"}</strong></td>
+        <td style={s.td}><button style={s.expandBtn} onClick={() => setSelectedUserId(m.user1_id)}>{m.user1_name}</button> <span style={{ fontSize: 10, color: "#94a3b8" }}>#{m.user1_id}</span></td>
+        <td style={s.td}><button style={s.expandBtn} onClick={() => setSelectedUserId(m.user2_id)}>{m.user2_name}</button> <span style={{ fontSize: 10, color: "#94a3b8" }}>#{m.user2_id}</span></td>
+        <td style={s.td}>
+          {(() => {
+            const ps = m.profile_score != null ? Math.round(m.profile_score) : null;
+            const fs = m.final_score != null ? Math.round(m.final_score) : null;
+            const scoreColor = (v: number | null) => v == null ? "#888" : v >= 70 ? "#16a34a" : v >= 50 ? "#d97706" : "#dc3545";
+            return <span style={{ fontSize: 12 }}><strong style={{ color: scoreColor(ps) }}>{ps ?? "-"}</strong>{" / "}<strong style={{ color: scoreColor(fs) }}>{fs ?? "-"}</strong></span>;
+          })()}
+        </td>
         <td style={s.td}><span style={statusColor(m.status)}>{m.status}</span></td>
-        <td style={s.td}>{m.created_at?.slice(0, 10)}</td>
+        <td style={s.td}>{m.match_card_sent_at ? new Date(m.match_card_sent_at).toLocaleDateString("he-IL") : m.created_at?.slice(0, 10)}</td>
         <td style={s.td}>
           <span style={{ fontWeight: 600, color: m.dm_count > 0 ? "#16a34a" : "#dc2626" }}>{m.dm_count || 0}</span>
           {m.dm_last_at && <span style={{ fontSize: 10, color: "#6b7280", display: "block" }}>{new Date(m.dm_last_at).toLocaleDateString("he-IL")}</span>}
+        </td>
+        <td style={{ ...s.td, minWidth: 140 }}>
+          {m.candidate_match_id ? (
+            <EditableNote
+              value={m.cm_admin_notes || ""}
+              onSave={async (val: string) => {
+                await apiFetch(`/admin/candidate-matches/${m.candidate_match_id}/notes`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ admin_notes: val }),
+                });
+                m.cm_admin_notes = val;
+              }}
+            />
+          ) : <span style={{ color: "#ccc", fontSize: 11 }}>—</span>}
         </td>
         <td style={s.td}>
           {hasCard && <button style={{ ...s.badge, background: "#e0d4f5", color: "#5b21b6", cursor: "pointer", border: "none", marginLeft: 4 }} onClick={() => setViewingCard(m)}>כרטיס</button>}
@@ -4078,6 +4101,10 @@ function MatchesTab() {
   }
 
   if (loading) return <p style={s.loading}>Loading...</p>;
+
+  if (selectedUserId !== null) {
+    return <UserDetail userId={selectedUserId} onBack={() => setSelectedUserId(null)} />;
+  }
 
   return (
     <div style={s.scrollWrap}>
@@ -4092,10 +4119,11 @@ function MatchesTab() {
               <th style={s.th}>ID</th>
               <th style={s.th}>User 1</th>
               <th style={s.th}>User 2</th>
-              <th style={s.th}>Score</th>
+              <th style={s.th}>Profile / Final</th>
               <th style={s.th}>Status</th>
-              <th style={s.th}>Created</th>
+              <th style={s.th}>נשלח</th>
               <th style={s.th}>הודעות</th>
+              <th style={s.th}>הערות</th>
               <th style={s.th}>Actions</th>
             </tr>
           </thead>
@@ -4116,9 +4144,11 @@ function MatchesTab() {
                   <th style={s.th}>ID</th>
                   <th style={s.th}>User 1</th>
                   <th style={s.th}>User 2</th>
-                  <th style={s.th}>Score</th>
+                  <th style={s.th}>Profile / Final</th>
                   <th style={s.th}>Status</th>
-                  <th style={s.th}>Created</th>
+                  <th style={s.th}>נשלח</th>
+                  <th style={s.th}>הודעות</th>
+                  <th style={s.th}>הערות</th>
                   <th style={s.th}>Actions</th>
                 </tr>
               </thead>
