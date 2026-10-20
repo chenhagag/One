@@ -872,6 +872,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   const [editingQuestionText, setEditingQuestionText] = useState("");
   const [notifLog, setNotifLog] = useState<any[]>([]);
   const [notifLogOpen, setNotifLogOpen] = useState(false);
+  const [matchDetail, setMatchDetail] = useState<any>(null);
 
   // Sync admin_message + agent_context from loaded data
   useEffect(() => { if (data?.user?.admin_message != null) setAdminMsg(data.user.admin_message); }, [data?.user?.admin_message]);
@@ -3522,6 +3523,18 @@ ${footer}`)
                   </td>
                   <td style={s.td}>
                     <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
+                      {m.candidate_match_id && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              const r = await apiFetch(`/admin/candidate-matches/${m.candidate_match_id}/detail`);
+                              const json = await r.json();
+                              setMatchDetail(json);
+                            } catch {}
+                          }}
+                          style={{ padding: "3px 8px", fontSize: 10, background: "#6366f1", color: "#fff", border: "none", borderRadius: 3, cursor: "pointer", fontWeight: 600 }}
+                        >צפה</button>
+                      )}
                       {canSendForRating && (
                         <button
                           disabled={sendingForRating === m.id}
@@ -3592,6 +3605,76 @@ ${footer}`)
       ) : (
         <p style={s.none}>No matches.</p>
       )}
+
+      {/* ── Match Detail Modal (UserDetail) ── */}
+      {matchDetail && (() => {
+        const scoreColor = (v: number | null) => v == null ? "#ccc" : v >= 70 ? "#28a745" : v >= 50 ? "#856404" : "#dc3545";
+        return (
+          <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={() => setMatchDetail(null)}>
+            <div style={{ background: "#fff", borderRadius: 12, padding: 24, maxWidth: 900, width: "100%", maxHeight: "90vh", overflowY: "auto", direction: "rtl" }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <h3 style={{ margin: 0 }}>פרטי התאמה — {matchDetail.user1_name} ↔ {matchDetail.user2_name}</h3>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {matchDetail.match_status && <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 4, background: "#f3f4f6", fontWeight: 600 }}>{matchDetail.match_status}</span>}
+                  <button onClick={() => setMatchDetail(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer" }}>✕</button>
+                </div>
+              </div>
+
+              {/* User cards */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
+                {[
+                  { name: matchDetail.user1_name, age: matchDetail.user1_age, city: matchDetail.user1_city, photos: matchDetail.user1_photos, rating: matchDetail.user1_rating, notes: matchDetail.user1_admin_notes, height: matchDetail.user1_height, smoker: matchDetail.user1_smoker, hasChildren: matchDetail.user1_has_children, religion: matchDetail.user1_religion, dealBreakers: matchDetail.user1_deal_breakers },
+                  { name: matchDetail.user2_name, age: matchDetail.user2_age, city: matchDetail.user2_city, photos: matchDetail.user2_photos, rating: matchDetail.user2_rating, notes: matchDetail.user2_admin_notes, height: matchDetail.user2_height, smoker: matchDetail.user2_smoker, hasChildren: matchDetail.user2_has_children, religion: matchDetail.user2_religion, dealBreakers: matchDetail.user2_deal_breakers },
+                ].map((u, i) => (
+                  <div key={i} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16 }}>
+                    {u.photos && u.photos.length > 0 && (
+                      <img src={u.photos[0]} style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 8, marginBottom: 8 }} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                    )}
+                    <h4 style={{ margin: "0 0 4px" }}>{u.name}</h4>
+                    <p style={{ margin: "0 0 4px", fontSize: 13, color: "#6b7280" }}>{u.age}, {u.city}</p>
+                    <p style={{ margin: "0 0 4px", fontSize: 11, color: "#9ca3af" }}>
+                      {[u.height && `${u.height} ס"מ`, u.smoker != null && (u.smoker ? "מעשן/ת" : "לא מעשן/ת"), u.hasChildren != null && (u.hasChildren ? "יש ילדים" : "אין ילדים"), u.religion].filter(Boolean).join(" · ")}
+                    </p>
+                    {u.rating && <p style={{ margin: "0 0 4px", fontSize: 12, fontWeight: 600, color: u.rating === "bullseye" ? "#28a745" : u.rating === "possible" ? "#d97706" : "#dc3545" }}>דירוג: {u.rating === "bullseye" ? "✅ בול" : u.rating === "possible" ? "🟡 אפשרי" : u.rating === "miss" ? "❌ לא" : u.rating === "known_person" ? "👤 מכיר/ה" : u.rating}</p>}
+                    {u.dealBreakers && <div style={{ margin: "0 0 8px", fontSize: 12, background: "#fef2f2", border: "1px solid #fecaca", padding: "6px 8px", borderRadius: 4 }}><strong style={{ color: "#dc2626" }}>⚠ מידע מהותי:</strong> {u.dealBreakers.split("|").map((item: string, idx: number) => <span key={idx} style={{ display: "inline-block", background: "#fee2e2", borderRadius: 3, padding: "1px 6px", margin: "2px 3px", fontSize: 11 }}>{item.trim()}</span>)}</div>}
+                    {u.notes && <p style={{ margin: "0 0 4px", fontSize: 12, background: "#fffbeb", padding: "6px 8px", borderRadius: 4, whiteSpace: "pre-wrap" }}>{u.notes}</p>}
+                  </div>
+                ))}
+              </div>
+
+              {/* Match scores */}
+              <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16 }}>
+                <h4 style={{ margin: "0 0 12px" }}>ציוני התאמה</h4>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, fontSize: 12 }}>
+                  {[
+                    { label: "פנימי", val: matchDetail.internal_score },
+                    { label: "פרופיל פנימי", val: matchDetail.internal_profile_score },
+                    { label: "סופי", val: matchDetail.final_score },
+                    { label: "פרופיל", val: matchDetail.profile_score },
+                    { label: "קוגניטיבי", val: matchDetail.score_cognitive },
+                    { label: "רגשי-חברתי", val: matchDetail.score_emotional_social },
+                    { label: "רגשנות", val: matchDetail.score_emotionality },
+                    { label: "תקשורת", val: matchDetail.score_communication },
+                    { label: "ביג פייב", val: matchDetail.score_big_five },
+                    { label: "שוורץ", val: matchDetail.score_schwartz },
+                    { label: "סגנון", val: matchDetail.score_style },
+                    { label: "עמדות", val: matchDetail.score_attitudes },
+                    { label: "MBTI", val: matchDetail.score_mbti },
+                    { label: "אניאגרם", val: matchDetail.score_enneagram },
+                    { label: "כללי", val: matchDetail.score_general },
+                    { label: "עממיות", val: matchDetail.score_popularity },
+                  ].map(sc => (
+                    <div key={sc.label} style={{ textAlign: "center", padding: 6, background: "#f9fafb", borderRadius: 4 }}>
+                      <div style={{ color: "#6b7280", marginBottom: 2 }}>{sc.label}</div>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: scoreColor(sc.val) }}>{sc.val != null ? sc.val : "-"}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
