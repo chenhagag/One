@@ -4007,8 +4007,14 @@ app.get("/admin/candidate-matches/:id/detail", async (req, res) => {
       m.match_card_data, m.match_card_sent_at,
       (SELECT COUNT(*) FROM user_photos WHERE user_id = u1.id)::int as user1_photo_count,
       (SELECT COUNT(*) FROM user_photos WHERE user_id = u2.id)::int as user2_photo_count,
-      (SELECT MAX(mx.sent_for_rating_at) FROM matches mx WHERE mx.sent_for_rating_to = u1.id OR (mx.user1_id = u1.id AND mx.sent_for_rating_at IS NOT NULL AND mx.sent_for_rating_to IS NULL)) as user1_last_sent_for_rating,
-      (SELECT MAX(mx.sent_for_rating_at) FROM matches mx WHERE mx.sent_for_rating_to = u2.id OR (mx.user1_id = u2.id AND mx.sent_for_rating_at IS NOT NULL AND mx.sent_for_rating_to IS NULL)) as user2_last_sent_for_rating
+      GREATEST(
+        (SELECT MAX(mx.sent_for_rating_at) FROM matches mx WHERE mx.sent_for_rating_to = u1.id),
+        (SELECT MAX(mx.updated_at) FROM matches mx WHERE (mx.user1_id = u1.id AND mx.user1_rating IS NOT NULL) OR (mx.user2_id = u1.id AND mx.user2_rating IS NOT NULL))
+      ) as user1_last_sent_for_rating,
+      GREATEST(
+        (SELECT MAX(mx.sent_for_rating_at) FROM matches mx WHERE mx.sent_for_rating_to = u2.id),
+        (SELECT MAX(mx.updated_at) FROM matches mx WHERE (mx.user1_id = u2.id AND mx.user1_rating IS NOT NULL) OR (mx.user2_id = u2.id AND mx.user2_rating IS NOT NULL))
+      ) as user2_last_sent_for_rating
     FROM candidate_matches cm
     JOIN users u1 ON u1.id = cm.user_id
     JOIN users u2 ON u2.id = cm.candidate_user_id
@@ -5093,11 +5099,27 @@ app.get("/admin/users/needs-attention", async (_req, res) => {
           WHERE (mx.user1_id = u.id OR mx.user2_id = u.id)
             AND (mx.status = 'in_match' OR mx.match_card_sent_at IS NOT NULL)
         ) AS was_in_active_match,
-        -- last_interaction: most recent of system_question, email_log, notification_log
+        -- has pending rating (waiting for this user to rate)
+        EXISTS(
+          SELECT 1 FROM matches mx
+          WHERE mx.sent_for_rating_to = u.id
+            AND mx.status IN ('waiting_first_rating', 'waiting_second_rating')
+            AND (CASE WHEN mx.user1_id = u.id THEN mx.user1_rating ELSE mx.user2_rating END) IS NULL
+        ) AS has_pending_rating,
+        -- has unanswered system question
+        EXISTS(
+          SELECT 1 FROM system_questions sq
+          WHERE sq.user_id = u.id AND sq.answer IS NULL
+        ) AS has_pending_question,
+        -- last_interaction: most recent of system contact OR user response
+        -- includes: question sent, email sent, notification sent, user answered question, user rated a match
         GREATEST(
           (SELECT MAX(created_at) FROM system_questions WHERE user_id = u.id),
           (SELECT MAX(sent_at) FROM email_log WHERE user_id = u.id),
-          (SELECT MAX(sent_at) FROM notification_log WHERE user_id = u.id)
+          (SELECT MAX(sent_at) FROM notification_log WHERE user_id = u.id),
+          (SELECT MAX(answered_at) FROM system_questions WHERE user_id = u.id AND answer IS NOT NULL),
+          (SELECT MAX(mx.updated_at) FROM matches mx
+           WHERE ((mx.user1_id = u.id AND mx.user1_rating IS NOT NULL) OR (mx.user2_id = u.id AND mx.user2_rating IS NOT NULL)))
         ) AS last_interaction
       FROM users u
       WHERE u.gender = 'woman'
@@ -5141,6 +5163,9 @@ app.get("/admin/users/needs-attention", async (_req, res) => {
         was_in_active_match: r.was_in_active_match,
       };
 
+      // Skip users who have something pending (ball is in their court)
+      if (r.has_pending_rating || r.has_pending_question) continue;
+
       // "Never experienced" = never got rating request, card, in_match AND no system questions AND no admin message
       const neverExp = !r.ever_rated && !r.ever_got_card && !r.ever_received_rating_request && !r.ever_in_match;
       const noContact = r.system_questions_count === 0 && !hasAdminMsg;
@@ -5149,6 +5174,8 @@ app.get("/admin/users/needs-attention", async (_req, res) => {
         never_experienced.push(base);
       } else if (!neverExp) {
         // Stale: experienced a match but no system interaction in 14+ days
+        // last_interaction includes user responses (answered_at, rated_at) so if they
+        // responded recently, the clock resets from their response time
         const lastInt = r.last_interaction ? new Date(r.last_interaction) : null;
         if (!lastInt || lastInt < fourteenDaysAgo) {
           stale.push(base);
