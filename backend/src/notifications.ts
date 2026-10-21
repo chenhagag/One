@@ -607,12 +607,18 @@ async function sendWhatsAppAdminAlert(
   phone: string,
   payload: NotifyPayload
 ): Promise<void> {
+  // Log to DB so we can debug whether this function is even called
+  await pgQueryAll(
+    `INSERT INTO error_logs (source, message, user_id, route) VALUES ($1, $2, $3, $4)`,
+    ["wa-admin-alert", `Attempting alert: ${payload.event_type}, resend=${!!resend}`, userId, "sendWhatsAppAdminAlert"]
+  ).catch(() => {});
+
   if (!resend) return;
 
   const waLink = `https://wa.me/${phone.replace(/^0/, "972").replace(/[^0-9]/g, "")}`;
 
   try {
-    await resend.emails.send({
+    const { error } = await resend.emails.send({
       from: "One <noreply@joinone.io>",
       to: WHATSAPP_ADMIN_EMAIL,
       subject: `📱 WA: ${firstName || "?"} (#${userId}) — ${payload.event_type}`,
@@ -627,8 +633,23 @@ async function sendWhatsAppAdminAlert(
         </div>
       </div>`,
     });
+    if (error) {
+      await pgQueryAll(
+        `INSERT INTO error_logs (source, message, user_id, route) VALUES ($1, $2, $3, $4)`,
+        ["wa-admin-alert", `Resend error: ${JSON.stringify(error)}`, userId, "sendWhatsAppAdminAlert"]
+      ).catch(() => {});
+    } else {
+      await pgQueryAll(
+        `INSERT INTO error_logs (source, message, user_id, route) VALUES ($1, $2, $3, $4)`,
+        ["wa-admin-alert", `SUCCESS: sent to ${WHATSAPP_ADMIN_EMAIL}`, userId, "sendWhatsAppAdminAlert"]
+      ).catch(() => {});
+    }
     console.log(`[notifications] WhatsApp admin alert sent for user ${userId}`);
   } catch (err: any) {
+    await pgQueryAll(
+      `INSERT INTO error_logs (source, message, user_id, route) VALUES ($1, $2, $3, $4)`,
+      ["wa-admin-alert", `Exception: ${err.message}`, userId, "sendWhatsAppAdminAlert"]
+    ).catch(() => {});
     console.error(`[notifications] WhatsApp admin alert failed for user ${userId}:`, err.message);
   }
 }
