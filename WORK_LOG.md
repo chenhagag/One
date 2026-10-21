@@ -22,12 +22,20 @@
 
 ---
 
-## Latest Session: 2026-10-20 (Admin Overhaul + Taste Test WW Rewrite)
+## Latest Session: 2026-10-21 (Taste Test Polish)
+
+### ✅ Taste Test: פישוט פרופילים + שאלות המשך
+- 5 פרופילים ברצף (ללא גלים/checkpoints), בלי "נמשיך?" — ישר לפרופיל הבא
+- שאלות הבהרה: `isClarificationQuestion` → phase לא מתקדם, AI עונה בלבד
+- closingStage regex מחמיר — לא תופס "לא"/"בסדר" בתגובות רגילות
+
+---
+
+## 2026-10-20 (Admin Overhaul + Taste Test WW Rewrite)
 
 ### ✅ Taste Test: שכתוב מלא ל-WW
 - שלב שאלות נפרד מפרופילים — מנוהל ע"י DB counter, לא ספירת הודעות
 - 7-8 שאלות WW חדשות: טעם, נשיות/גבריות, דיל-ברייקרים, ניסיון, ארון
-- 3 גלי פרופילים (4+4+5) עם סיכומי ביניים
 - prompt נפרד לשלב שאלות (מונע פרופילים מומצאים)
 - כל הפרומפטים בנקבה, בלי דירוג 1-10
 - קבצים: chatManager.ts, taste-test-chat.txt, taste-profiles-female-ff.txt
