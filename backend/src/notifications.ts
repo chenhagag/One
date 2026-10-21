@@ -161,7 +161,9 @@ export async function notifyUser(
   if (user.whatsapp_updates && user.whatsapp_phone) {
     const REAL_EVENT_TYPES = ["new_message", "match_card_sent", "sent_for_rating", "admin_question", "admin_message", "system_question"];
     if (REAL_EVENT_TYPES.includes(payload.event_type)) {
-      sendWhatsAppAdminAlert(userId, user.first_name, user.whatsapp_phone, payload).catch(() => {});
+      sendWhatsAppAdminAlert(userId, user.first_name, user.whatsapp_phone, payload).catch(err => {
+        console.error(`[notifications] WhatsApp admin alert catch for user ${userId}:`, err?.message || err);
+      });
     }
   }
 
