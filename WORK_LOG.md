@@ -12,7 +12,7 @@
 | 2 | **חוויית המתנה חיה** | ✅ V1 הושלם | כרטיס סטטוס חי, באבלים חכמים, AI חכם יותר |
 | 3 | **אוטומציה של pipeline** | ❌ טרם התחיל | סקיילינג — מייל pool אוטומטי, matching אוטומטי, אישור אנליזה |
 | 4 | **בדיקת אפליקציית Android** | ❌ טרם התחיל | לוודא שהכל עובד לפני פרסום |
-| 5 | **דיוק ציוני התאמה** | 🔄 בתהליך | פרומפט סגנון (17 תכונות נותרו) + calibration — לסמוך על תוצאות בלי בדיקה ידנית |
+| 5 | **דיוק ציוני התאמה** | ✅ V1 הושלם | Option C scoring + style prompt overhaul + cognitive improvements. נשאר: מוניטור תוצאות |
 | 6 | **באגי מחיקת חשבון** | ✅ הושלם | מודאל 3 אפשרויות + מסך פרידה + שמירת דיווחים |
 
 ### עקרונות לספרינט
@@ -22,7 +22,153 @@
 
 ---
 
-## Latest Session: 2026-10-18 (502 Fix + Match Cards + Card Style Guide)
+## Latest Session: 2026-10-20 (Admin Overhaul + Taste Test WW Rewrite)
+
+### ✅ Taste Test: שכתוב מלא ל-WW
+- שלב שאלות נפרד מפרופילים — מנוהל ע"י DB counter, לא ספירת הודעות
+- 7-8 שאלות WW חדשות: טעם, נשיות/גבריות, דיל-ברייקרים, ניסיון, ארון
+- 3 גלי פרופילים (4+4+5) עם סיכומי ביניים
+- prompt נפרד לשלב שאלות (מונע פרופילים מומצאים)
+- כל הפרומפטים בנקבה, בלי דירוג 1-10
+- קבצים: chatManager.ts, taste-test-chat.txt, taste-profiles-female-ff.txt
+
+---
+
+## 2026-10-20 (Admin Overhaul + Attention System)
+
+### ✅ Admin: WW-only default view
+- טאב Users, Candidate Matches, ו-AdminPipeline כולם מציגים WW בלבד כברירת מחדל
+- Toggle "הצג הכל" לחזרה לתצוגה ישנה
+- פילטרי מגדר/אוריינטציה מוסתרים ב-WW mode (מיותרים)
+
+### ✅ Admin: טאב "דורשות טיפול" (needs-attention)
+- API endpoint חדש `/admin/users/needs-attention`
+- 3 רשימות: מעל שבועיים ללא כיוון (אדום), מעל שבוע (צהוב), stale מעל שבועיים (סגול)
+- מסנן החוצה מי שיש לה דירוג/שאלה ממתינה (הכדור אצלה)
+- "לא קיבלה כלום" = לא דירוג, לא שאלה, לא admin message — באמת אפס
+- last_interaction כולל גם תגובות משתמשת (answered_at, rated match) — השעון מתאפס
+- stale users מציג היסטוריה: כמה דירוגים, כרטיסים, התאמות פעילות
+
+### ✅ Admin: מודל התאמה משותף (MatchDetailModal)
+- חילוץ מודל מלא מ-CandidateMatchesTab לקומפוננטה נפרדת
+- משמש ב-3 מקומות: Candidate Matches, UserDetail, Matched tab
+- כולל: תמונות, ציונים, deal breakers, actions (שלח דירוג, nudge, כרטיס)
+- "תאריך דירוג אחרון" ליד כפתורי "שלח דירוג" (או "לא נשלח מעולם")
+
+### ✅ Admin: שדרוג מסך Matched
+- ציונים אמיתיים (profile/final מ-candidate_matches) במקום match_score ישן
+- תאריך שליחת כרטיס (match_card_sent_at) במקום created_at
+- עמודת הודעות: כמה DMs + תאריך אחרון
+- עמודת הערות עם עריכה inline
+- שמות משתמשות לחיצים → מסך אדמין
+
+### ✅ Fix: ציוני התאמה ב-UserDetail
+- הציג match_score ישן → עכשיו profile_score/final_score + internal/external
+- כפתור "צפה" חדש ליד כל התאמה → פותח MatchDetailModal מלא
+
+### ✅ Fix: pending-rating לא מוצג למי שכבר דירגה
+- כשאדמין מחזיר match מ-rejected ל-potential — המשתמשת שכבר דירגה לא תראה שוב
+- בדיקה: `(CASE WHEN user1_id THEN user1_rating ELSE user2_rating END) IS NULL`
+
+### ✅ Fix: WhatsApp nudges כפולים
+- nudges שנכשלו (channel=none) הופיעו שוב ושוב ברשימת WhatsApp
+- תיקון: DISTINCT ON (user_id, event_type) — מציג רק אחרון
+- ניקוי 262 רשומות כפולות ב-DB
+
+### 📋 נשאר: nudge retry
+- welcome nudge ממשיך לנסות כל יום למי שאין FCM+email (channel=none)
+- לא תוקן — נכון שימשיך לנסות (אם מחר תתקין app, תקבל)
+
+---
+
+## 2026-10-19 (Bug Fixes + Match Investigation)
+
+### ✅ Fix: rating_admin_seen לא מתאפס בדירוג שני
+- כשמשתמשת שנייה דירגה, `rating_admin_seen` נשאר TRUE → לא הופיע ב-pending
+- תיקון: reset ל-FALSE ב-UPDATE של דירוג שני
+
+### ✅ Fix: attribution שגוי — משתמשות ותיקות קיבלו tag של עדי
+- IP-based backfill דרס entry_point של משתמשות ותיקות כשהתחברו מאותו subnet
+- 12 משתמשות (יוני-ספטמבר) תוקנו ב-DB
+- הגנות חדשות: 48h window + CAMPAIGN_START_DATES (barazany → 2026-10-14)
+
+### ✅ חקירת 5 התאמות תקועות (in_match)
+- **מורן ↔ מיכל** (#3486): שתיהן ראו כרטיס + צ'אט, מורן נכנסה 3 פעמים — אף אחת לא פותחת
+- **בר ↔ ניצן** (#3474): ניצן כתבה "היי" וחוזרת 7 פעמים ליום, בר לא חזרה מ-17/10 למרות מיילים
+- **הדר ↔ מיטב** (#3330): חודש בלי תקשורת, הדר לא נכנסת, מיטב מציצה. אין nudge
+- **יערה ↔ רותם** (#3430): יערה נטשה (25 יום), 4 הודעות של רותם לא נקראו. רותם ביקשה WhatsApp בnudge
+- **שני ↔ דני** (#3361): דני קוראת הודעות, חוזרת לצ'אט, אבל לא עונה (בין ישראל לארה"ב)
+- ממצא: אין באג טכני — `read_at` מוכיח שמי שפתחה צ'אט ראתה הודעות. הבעיה התנהגותית.
+- ממצא: מורן (email OFF, WhatsApp ON) לא מקבלת התראות — ערוץ WhatsApp לא ממומש
+
+### ✅ Fix: unsubscribe link חסר במיילים טריגריים
+- `buildRichEmail()` לא קיבל `userId` → לינק "לעדכון העדפות מיילים" בפוטר לא עבד
+- תוקן ב-5 פונקציות: match_card_sent, new_message, sent_for_rating, admin_message, system_question
+
+### ✅ בדיקת בריאות Android + Push
+- 33 FCM tokens רשומים (מתוך 107 אנדרואיד) — רק native app מקבלות push
+- 65 משתמשות iPhone — 0 push (אין native iOS app)
+- פושים עובדים: FCM delivery + invalid token cleanup תקינים
+- Push tap לא מנווט למסך רלוונטי (nice to have, לא דחוף)
+
+### ✅ הכנה ל-iOS
+- קובץ `apple-app-site-association` נוצר (Universal Links, צריך להחליף TEAM_ID)
+- מדריך build מפורט נוצר: `Management/Dev Agents/Android/IOS-BUILD-GUIDE.md`
+- CONTEXT.md של סוכן Android עודכן עם סטטוס iOS
+- **צעד הבא**: לפתוח Apple Developer Account ($99/שנה, אישור עד 48 שעות)
+- כשיהיה Mac: ~3-4 שעות עבודה → upload ל-App Store → שבוע-שבועיים review
+
+### ✅ עדכון worklogs של סוכנים (מסשן 10/18 שלא תועד)
+- Analysis WORKLOG: cognitive improvements + style prompt overhaul
+- Matching WORKLOG: Option C scoring + age tolerance + weight rebalance
+- Matching CONTEXT: נוסחת scoring מעודכנת, age tolerance חדש, style section
+
+### 📋 TODO: החלטה — איך לקדם התאמות תקועות
+- מורן/מיכל: שתיהן מהססות — אולי הודעת עידוד / ice breaker?
+- בר/ניצן: בר לא חוזרת — מייל תזכורת? nudge?
+- הדר/מיטב + יערה/רותם: כנראה צריך לשחרר ולהתקדם
+- שני/דני: דני קוראת ולא עונה — יכול להיות שצריך nudge ממוקד
+- שאלה כללית: האם חסר תהליך אוטומטי של nudge אחרי X ימים בלי תקשורת?
+
+---
+
+## 2026-10-18 (Scoring Overhaul + Style Prompts + UX Fixes)
+
+### ✅ שדרוג מערכת הציונים — Option C (matchStage2.ts)
+- **Shrink-to-neutral**: ציון מתכווץ ל-50 כש-confidence < 0.4 (מונע perfect match מזויף בין שני ניחושים)
+- **Confidence-as-weight**: sharedConf משמש כמשקל — traits עם confidence נמוך תופסים פחות מקום
+- **Skip threshold**: traits עם sharedConf < 0.15 מדולגים לחלוטין (מסנן oriental, soviet_style וכו')
+- **Salience boost**: תכונות מזהות מקבלות משקל נוסף
+- החליף את הנוסחה הישנה (`confFactor = min(1, sharedConf/0.3)`)
+
+### ✅ שיפור פרומפט Style (personal-style-system.txt)
+- הבחנות חדשות: יוגה≠היפיות, תיאטרון≠תרבות גבוהה, אילוצי חיים≠אישיות
+- כלל חדש: אין אזכור = ציון 20-35 (לא ברירת מחדל 50)
+- זיהוי 2-3 תכונות מזהות עם confidence גבוה יותר
+- גיקיות: 3+ סימנים → 75+
+- שינוי משקלות ב-DB: background w=5→2, lifestyle w=1→2
+- נבדק על עדי, נוי, טלי — ראה `style-comparison.md`
+
+### ✅ שיפור דיוק Cognitive (cognitive-system.txt + cognitiveScore.ts)
+- קריירה אקדמית = רצפה 60 לתכונות אנליטיות
+- ביקורת עצמית מודעת = סיגנל חיובי (self_awareness גבוה)
+- `self_awareness` (×1) נוסף לחישוב cognitive score
+- `career_prestige` למרצה אקדמי → 40-55 (היה נופל ל-15-30)
+
+### ✅ Age-Dependent Tolerance (matchStage1.ts)
+- סבילות גיל משתנה לפי עשור: 20s ×1, 30s ×1.5, 40s ×2, 50s ×2.5
+- דוגמה: שנות ה-30 slightly_flexible = ±3 (במקום ±2)
+- 12 ערים חדשות נוספו ל-DB עם region mappings
+
+### ✅ Admin — הורדת שיחות מאוחדת
+- הורדת transcript כוללת header עם שם, גיל, עיר, העדפות גיל/מיקום
+- הורדה מאוחדת (קובץ אחד) במקום per-channel
+- הוספת `age_flexibility` ל-header
+
+### ✅ תיקוני UX
+- **הודעת אדמין**: לא נעלמת עד שהמשתמשת באמת עונה (+ מניעת כפילויות)
+- **סיידבר**: ערוצי צ'אט ממוינים לפי פעילות אחרונה (recent first)
+- **אנליטיקס**: הבחנה בין "פרופיל שותפה" ל"התאמה קודמת" (past_match_detail)
 
 ### ✅ חקירת שגיאת 502 — דניאל אזולאי (#318)
 - PATCH /users/318 החזיר 502 ב-14.10
@@ -37,12 +183,8 @@
 - שני הכרטיסים עודכנו ב-DB עם הגרסאות המתוקנות
 
 ### ✅ עדכון כללי סגנון לכרטיסי התאמה
-- עודכן `Match Card Writer/CONTEXT.md`:
-  - טון חיובי תמיד — לא מילים שליליות (לא "תוקפנית", "קשוחה")
-  - introSummary פשוט ותיאורי — לא לערום תכונות אופי
-  - connectionPoints לעומק — נקודות משמעותיות, לא שטחיות
-  - לא לחשוף יותר מדי — לעורר סקרנות
-- דוגמאות לכרטיסים מתוקנים ניתן לשלוף מה-DB (matches #3474, #3486)
+- עודכן `Match Card Writer/CONTEXT.md`
+- דוגמאות לכרטיסים מתוקנים ב-DB (matches #3474, #3486)
 
 ---
 
