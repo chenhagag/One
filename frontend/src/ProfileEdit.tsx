@@ -57,6 +57,13 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
       .then((u: any) => {
         if (u.first_name) setFirstName(u.first_name);
         if (u.age != null) setAge(String(u.age));
+        // Compute birth_year from age for legacy users who don't have it
+        if (u.birth_year) {
+          setBirthYear(String(u.birth_year));
+        } else if (u.age != null) {
+          setBirthYear(String(new Date().getFullYear() - u.age));
+        }
+        if (u.birth_month) setBirthMonth(String(u.birth_month));
         if (u.gender) setGender(u.gender);
         if (u.city) setCity(u.city);
         if (u.height != null) setHeight(String(u.height));
@@ -106,9 +113,47 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
   useEffect(() => { loadPhotos(); }, [user.id]);
   useEffect(() => { if (photos.length > 0) setPhotoConsentGiven(true); }, [photos]);
 
+  async function compressImage(file: File): Promise<File> {
+    // Skip non-compressible or already small files
+    if (!file.type.startsWith("image/") || file.type === "image/gif" || file.size < 500_000) return file;
+    // HEIC handled server-side
+    if (file.name.toLowerCase().endsWith(".heic") || file.name.toLowerCase().endsWith(".heif")) return file;
+    return new Promise<File>((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX_DIM = 2048;
+        let { width, height } = img;
+        if (width > MAX_DIM || height > MAX_DIM) {
+          const scale = MAX_DIM / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (blob && blob.size < file.size) {
+              resolve(new File([blob], file.name.replace(/\.\w+$/, ".jpg"), { type: "image/jpeg" }));
+            } else {
+              resolve(file); // compression didn't help — send original
+            }
+          },
+          "image/jpeg",
+          0.85
+        );
+        URL.revokeObjectURL(img.src);
+      };
+      img.onerror = () => resolve(file); // fallback to original
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
   async function uploadFile(file: File) {
+    const compressed = await compressImage(file);
     const form = new FormData();
-    form.append("photo", file);
+    form.append("photo", compressed);
     setUploading(true);
     try {
       await apiFetch(`/users/${user.id}/photos`, { method: "POST", body: form });

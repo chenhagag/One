@@ -712,7 +712,7 @@ app.post("/auth/send-otp", authLimiter, otpSendLimiter, async (req, res) => {
 
 // POST /auth/verify-otp — Verify code and return user
 app.post("/auth/verify-otp", authLimiter, async (req, res) => {
-  const { email, code } = req.body;
+  const { email, code, device, pwa_installed } = req.body;
   if (!email?.trim() || !code?.trim()) {
     return res.status(400).json({ error: "email and code are required" });
   }
@@ -766,11 +766,19 @@ app.post("/auth/verify-otp", authLimiter, async (req, res) => {
     if (!user) {
       isNew = true;
       user = await pgQueryOne<any>(
-        `INSERT INTO users (first_name, email, auth_provider, profile_complete)
-         VALUES ($1, $2, 'otp', false)
+        `INSERT INTO users (first_name, email, auth_provider, profile_complete, last_device, pwa_installed)
+         VALUES ($1, $2, 'otp', false, $3, $4)
          RETURNING ${OTP_SAFE_FIELDS}`,
-        ["", normalizedEmail]
+        ["", normalizedEmail, device || null, !!pwa_installed]
       );
+    } else if (device) {
+      // Update device info for existing OTP users
+      await pgQueryAll(
+        `UPDATE users SET last_device = $1, pwa_installed = $2, updated_at = NOW() WHERE id = $3`,
+        [device, !!pwa_installed, user.id]
+      );
+      user.last_device = device;
+      user.pwa_installed = !!pwa_installed;
     }
 
     // [DIAG] Log OTP flow for debugging legacy user issues
@@ -993,6 +1001,7 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
       if (birth_month && now.getMonth() + 1 < birth_month) computed--;
       push("age", computed);
     }
+    // If birth_year cleared but user has existing age, don't wipe it
   } else if (age !== undefined) {
     push("age", age);
   }

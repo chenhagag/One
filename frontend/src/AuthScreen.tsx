@@ -148,10 +148,15 @@ export default function AuthScreen({ onOtpSuccess, notice, entryPoint, onEntryPo
     setVerifying(true);
     setError("");
     try {
+      const ua = navigator.userAgent;
+      const isStandalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
+      let device = "desktop";
+      if (/iphone|ipad|ipod/i.test(ua)) device = "iphone";
+      else if (/android/i.test(ua)) device = "android";
       const res = await fetch(`${getApiBaseUrl()}/api/auth/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), code }),
+        body: JSON.stringify({ email: email.trim(), code, device, pwa_installed: isStandalone }),
       });
       const data = await res.json();
       if (!res.ok) {

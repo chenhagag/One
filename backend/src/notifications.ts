@@ -120,8 +120,10 @@ export async function notifyUser(
     push_notifications: boolean;
     email_updates: boolean;
     first_name: string | null;
+    whatsapp_updates: boolean;
+    whatsapp_phone: string | null;
   }>(
-    "SELECT email, push_notifications, email_updates, first_name FROM users WHERE id = $1",
+    "SELECT email, push_notifications, email_updates, first_name, whatsapp_updates, whatsapp_phone FROM users WHERE id = $1",
     [userId]
   );
 
@@ -152,7 +154,18 @@ export async function notifyUser(
   }
 
   // 4. No channel available
-  return logAndReturn(userId, payload, "none", false, "no_channel_available");
+  const noChannelResult = await logAndReturn(userId, payload, "none", false, "no_channel_available");
+
+  // 5. WhatsApp admin alert — for WhatsApp-only users with real (non-nudge) notifications,
+  //    send admin email so Chen can forward manually
+  if (user.whatsapp_updates && user.whatsapp_phone) {
+    const REAL_EVENT_TYPES = ["new_message", "match_card_sent", "sent_for_rating", "admin_question", "admin_message", "system_question"];
+    if (REAL_EVENT_TYPES.includes(payload.event_type)) {
+      sendWhatsAppAdminAlert(userId, user.first_name, user.whatsapp_phone, payload).catch(() => {});
+    }
+  }
+
+  return noChannelResult;
 }
 
 // ── Admin-specific: send push only (no silent fallback to email) ─
@@ -580,6 +593,42 @@ export async function notifySystemQuestion(userId: number, questionText: string,
       userId
     ),
   });
+}
+
+// ── WhatsApp admin alert (temporary) ────────────────────────────
+// Sends admin email when a WhatsApp-only user should receive a real notification
+const WHATSAPP_ADMIN_EMAIL = "chen.hagag@gmail.com";
+
+async function sendWhatsAppAdminAlert(
+  userId: number,
+  firstName: string | null,
+  phone: string,
+  payload: NotifyPayload
+): Promise<void> {
+  if (!resend) return;
+
+  const waLink = `https://wa.me/${phone.replace(/^0/, "972").replace(/[^0-9]/g, "")}`;
+
+  try {
+    await resend.emails.send({
+      from: "One <noreply@joinone.io>",
+      to: WHATSAPP_ADMIN_EMAIL,
+      subject: `📱 WA: ${firstName || "?"} (#${userId}) — ${payload.event_type}`,
+      html: `<div dir="rtl" style="font-family:sans-serif;max-width:500px;margin:0 auto;padding:24px;line-height:1.8">
+        <h3 style="margin:0 0 12px">התראת וואטסאפ — ${firstName || "?"} (#${userId})</h3>
+        <p><strong>סוג:</strong> ${payload.event_type}</p>
+        <p><strong>כותרת:</strong> ${payload.title}</p>
+        <p><strong>תוכן:</strong> ${payload.body}</p>
+        <p><strong>טלפון:</strong> <a href="${waLink}">${phone}</a></p>
+        <div style="margin-top:16px">
+          <a href="${waLink}" style="display:inline-block;background:#25D366;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:bold">פתח וואטסאפ</a>
+        </div>
+      </div>`,
+    });
+    console.log(`[notifications] WhatsApp admin alert sent for user ${userId}`);
+  } catch (err: any) {
+    console.error(`[notifications] WhatsApp admin alert failed for user ${userId}:`, err.message);
+  }
 }
 
 // ── Rich email builder (with CTA button) ─────────────────────────
