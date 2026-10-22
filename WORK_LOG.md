@@ -22,7 +22,44 @@
 
 ---
 
-## Latest Session: 2026-10-21 (Taste Test Polish)
+## Latest Session: 2026-10-21 (Bug Fixes + WhatsApp Alerts + Deploy Investigation)
+
+### ✅ באג העלאת תמונות — "Request aborted" (נועה #367)
+- דחיסת תמונות client-side ב-ProfileEdit (canvas 2048px, JPEG 85%)
+- תמונה של 6MB → ~300KB, מונע timeout בחיבור סלולרי
+- Fallback: אם דחיסה נכשלת או לא עזרה, שולח מקורי
+
+### ✅ באג מחיקת גיל — birth_year (סיוון #273)
+- ProfileEdit שלח birth_year:null למשתמשות ישנות → Backend מחק age
+- תיקון frontend: מחשב birth_year מ-age למשתמשות legacy
+- תיקון backend: לא מוחק age כש-birth_year=null נשלח
+- Backfill: תיקון Noa #357 (age בלי birth_year)
+- סיוון ובר #178 — age אבד לחלוטין, צריך לשחזר ידנית
+
+### ✅ Device חסר למשתמשות OTP
+- AuthScreen verify-otp לא שלח device info → כל OTP users עם last_device=null
+- תיקון: frontend שולח device+pwa_installed, backend שומר
+
+### ✅ התראות WhatsApp admin
+- כשמשתמשת WhatsApp-only מקבלת notification אמיתי (לא nudge) → מייל ל-chen.hagag@gmail.com
+- 6 סוגי events: new_message, match_card_sent, sent_for_rating, admin_question, admin_message, system_question
+- כולל שם, טלפון, לינק ישיר לוואטסאפ
+- הוספת DB debug logging לאבחון (עדיין לא אומת בפרודקשן)
+
+### ✅ Disable survey2
+- הסרת באנר survey2 ו-survey2_partial מדף הבית
+- חסך 4 queries מיותרות ל-DB בכל טעינת דף בית
+- תוצאות נשמרות ב-survey2_responses
+
+### ⚠️ Railway deploy תקלה
+- כל השינויים מ-20/10 ואילך (taste test overhaul + bugs) לא deployed לפרודקשן
+- Railway לא ביצע deploy למרות push ל-main (תקלת פריצות)
+- Staging deployed ותקין — בדיקות taste test ב-staging ואלידיות
+- צריך deploy מסודר + עדכוני אבטחה בסשן הבא
+
+---
+
+## 2026-10-21 (Taste Test Polish)
 
 ### ✅ Taste Test: פישוט פרופילים + שאלות המשך
 - 5 פרופילים ברצף (ללא גלים/checkpoints), בלי "נמשיך?" — ישר לפרופיל הבא
