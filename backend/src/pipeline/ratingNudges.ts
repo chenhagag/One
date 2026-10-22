@@ -85,8 +85,7 @@ function buildRatingReminderEmail(name: string, gender: string | null, userId: n
   <h2 style="font-size: 20px; margin: 0 0 16px;">תזכורת מ-One</h2>
   <div style="font-size: 15px;">
     <p>היי ${name},</p>
-    <p>מצאנו ${g("לך", "לך")} התאמה פוטנציאלית ב-One!</p>
-    <p>${g("כנס", "כנסי")} למערכת כדי לראות את הפרטים ${g("ולהגיב", "ולהגיב")}.</p>
+    <p>יש לנו כיוון להתאמה שמחכה לדעתך — ${g("כנס", "כנסי")} לראות ולהגיד מה את חושבת.</p>
   </div>
   <div style="text-align: center; margin: 28px 0;">
     <a href="https://joinone.io" style="display:inline-block;background-color:#7b5fa3;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:15px">${g("כנס", "כנסי")} לראות</a>
@@ -105,7 +104,7 @@ async function sendRatingReminder(
 
   const payload: NotifyPayload = {
     title: "תזכורת מ-One",
-    body: `מצאנו לך התאמה פוטנציאלית — ${g("כנס", "כנסי")} לראות ולהגיב`,
+    body: `יש לנו כיוון להתאמה שמחכה לדעתך — ${g("כנס", "כנסי")} לראות`,
     event_type: `rating_reminder_${step}`,
     emailHtml: buildRatingReminderEmail(p.first_name || "", p.gender, p.user_id),
   };

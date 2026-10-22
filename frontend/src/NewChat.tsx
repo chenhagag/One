@@ -1902,33 +1902,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 </>
               )}
 
-              {/* Maintenance banner — credential rotation Oct 2026 */}
-              {screen === "home" && (
-                <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
-                  <div dir="rtl" style={{
-                    background: "linear-gradient(135deg, #f0edf5 0%, #e8e4f0 100%)",
-                    borderRadius: 14,
-                    padding: "18px 20px",
-                    boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-                    border: "1px solid #d4cfe0",
-                    textAlign: "right",
-                  }}>
-                    <p style={{ fontSize: 15, color: "#2a2a3e", lineHeight: 1.8, margin: 0, fontWeight: 500 }}>
-                      היי לכולן 💜
-                      <br />
-                      אנחנו עושות שדרוגים במערכת ומעלות גרסה חדשה.
-                      <br />
-                      בזמן השדרוג ייתכנו עיכובים קלים, בעיקר בהתחברות. אם נתקלתן בקושי — המתינו כמה דקות או נסו להתחבר מחדש.
-                    </p>
-                    <p style={{ fontSize: 13, color: "#666", margin: "12px 0 0", lineHeight: 1.7 }}>
-                      נשמח אם תעדכנו אותנו אם נתקלתן בבעיה:{" "}
-                      <a href="mailto:one-support@googlegroups.com" style={{ color: "#8b7ba8", fontWeight: 600 }}>במייל</a>
-                      {" "}או{" "}
-                      <a href="https://wa.me/972549037400" target="_blank" rel="noopener noreferrer" style={{ color: "#8b7ba8", fontWeight: 600 }}>בווטסאפ</a>
-                    </p>
-                  </div>
-                </div>
-              )}
+              {/* Maintenance banner — ready to activate when needed (set showMaintenanceBanner = true) */}
+              {/* Includes dismiss button — user clicks "ראיתי, תודה" and it disappears for the session */}
 
               {/* Pending match rating card */}
 

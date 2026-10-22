@@ -522,14 +522,13 @@ export async function notifySentForRating(userId: number): Promise<void> {
   const g = (m: string, f: string) => gn(user.gender, m, f);
 
   await notifyUser(userId, {
-    title: "✨ מצאנו לך התאמה פוטנציאלית",
-    body: g("כנס", "כנסי") + " לראות ולהגיב",
+    title: "✨ יש לנו כיוון ראשוני להתאמה עבורך",
+    body: g("כנס", "כנסי") + " לראות ולהגיד מה דעתך",
     event_type: "sent_for_rating",
     emailHtml: buildRichEmail(
-      "✨ מצאנו לך התאמה פוטנציאלית",
+      "✨ יש לנו כיוון ראשוני להתאמה עבורך",
       `<p>היי ${user.first_name},</p>
-       <p>מצאנו ${g("לך", "לך")} התאמה פוטנציאלית ב-One!</p>
-       <p>${g("כנס", "כנסי")} למערכת כדי לראות את הפרטים ${g("ולהגיב", "ולהגיב")}.</p>`,
+       <p>נמצא כיוון שנראה לנו מעניין — ${g("כנס", "כנסי")} לראות ולהגיד מה דעתך.</p>`,
       g("כנס", "כנסי") + " לראות",
       userId
     ),
