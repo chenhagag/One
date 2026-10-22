@@ -1,6 +1,38 @@
 # Insights Writer Agent — Work Log
 
-## Latest: 2026-10-15 — Insights Batch for New WW Users
+## Latest: 2026-10-21 — Insights Batch for WW Users
+
+### Written & saved:
+| ID | שם | ערוצים | pre_completion |
+|---|---|---|---|
+| 373 | שירי | general+cognitive+taste | false |
+| 340 | ליזה | general+cognitive+taste | false |
+| 369 | עינבל | general+cognitive+taste | false |
+| 374 | קרן | general+cognitive+taste | false |
+| 339 | ענבר | general+taste | true |
+| 356 | סיון גואטה | general | true |
+| 331 | חדוי | general+cognitive חלקי | true |
+| 279 | אנלה נאיה | general | true |
+| 378 | עינת | general+cognitive+taste | false |
+| 365 | שירן | general | true |
+| 364 | לילך | general | true |
+| 379 | שיר | general+cognitive+taste | false |
+| 380 | שני | general+cognitive+taste | false |
+
+### Written by Chen manually:
+- 375 Liana, 328 מאיה, 367 נועה
+
+### Skipped:
+- 327 רחלי אליהו — mismatch, כתבה "אני מחפשת בן זוג" בסוף השיחה
+
+### Process improvements:
+- **Removed approval step**: insights saved directly to DB, Chen reviews in system later
+- **Fixed test_user_type filter**: removed `AND test_user_type IS NULL` from CONTEXT.md queries — was hiding real users (e.g. נועה 367)
+- **Added fallback query**: CONTEXT.md now catches users by message count (>=15) even if closing_stage not updated (e.g. קרן 374 had closing_stage=0 despite 55 messages)
+
+---
+
+## 2026-10-15 — Insights Batch for New WW Users
 
 ### Written & saved:
 | ID | שם | סוג | pre_completion |

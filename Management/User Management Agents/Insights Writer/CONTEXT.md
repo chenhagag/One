@@ -14,13 +14,21 @@
 SELECT u.id, u.first_name, u.email, u.gender, u.looking_for_gender
 FROM users u
 WHERE u.personal_insights_full IS NULL
-  AND u.test_user_type IS NULL
-  AND EXISTS (
-    SELECT 1 FROM user_chat_summaries ucs
-    WHERE ucs.user_id = u.id
-    AND (ucs.topic_injection_counts->>'closing_stage')::int >= 1
+  AND (
+    -- Primary: closing_stage in chat summary
+    EXISTS (
+      SELECT 1 FROM user_chat_summaries ucs
+      WHERE ucs.user_id = u.id
+      AND (ucs.topic_injection_counts->>'closing_stage')::int >= 1
+    )
+    OR
+    -- Fallback: enough messages even if closing_stage not updated
+    (SELECT COUNT(*) FROM conversation_messages cm
+     WHERE cm.user_id = u.id AND cm.role = 'user') >= 15
   )
 ```
+**חשוב**: לא לסנן לפי `test_user_type` — כל המשתמשות אמיתיות.
+**חשוב**: ה-fallback לפי כמות הודעות תופס משתמשות שה-closing_stage לא עודכן למרות שיש מספיק חומר.
 
 ### עדכון תובנות (אחרי reanalysis)
 ```sql
@@ -29,7 +37,6 @@ FROM users u
 WHERE u.personal_insights_full IS NOT NULL
   AND u.last_analysis_at IS NOT NULL
   AND (u.insights_updated_at IS NULL OR u.last_analysis_at > u.insights_updated_at)
-  AND u.test_user_type IS NULL
 ```
 
 ---
