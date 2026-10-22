@@ -2534,6 +2534,11 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                             if (alreadyHas) return prev;
                             return { ...prev, qa_general: [...existing, { role: "assistant" as const, content: adminMsg }] };
                           });
+                          // Persist admin message to conversation_messages so it appears in transcript
+                          apiFetch(`/new-chat/save-message`, {
+                            method: "POST",
+                            body: JSON.stringify({ user_id: user.id, role: "assistant", content: adminMsg, guide: "qa_general" }),
+                          }).catch(() => {});
                           setChannel("qa_general");
                           setScreen("chat");
                           // Don't dismiss yet — wait for user to actually send a message

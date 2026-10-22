@@ -6095,23 +6095,11 @@ app.post("/system-question/answer", requireAuth, async (req: any, res) => {
     [answer, question_id]
   );
 
-  // Inject question + answer into conversation_messages so they appear in chat history
+  // If this is a blind_match question and answer is positive → update consent
   const questionData = await pgQueryOne<{ user_id: number; context: string | null; question_text: string }>(
     "SELECT user_id, context, question_text FROM system_questions WHERE id = $1",
     [question_id]
   );
-  if (questionData) {
-    await pgQuery(
-      "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES ($1, 'assistant', $2, 'new_chat')",
-      [questionData.user_id, `שאלה מצוות One: ${questionData.question_text}`]
-    );
-    await pgQuery(
-      "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES ($1, 'user', $2, 'new_chat')",
-      [questionData.user_id, answer]
-    );
-  }
-
-  // If this is a blind_match question and answer is positive → update consent
   if (questionData?.context === "blind_match" && (answer === "כן אין בעיה" || answer === "אפשרי")) {
     await pgQueryOne(
       "UPDATE users SET blind_match_consent = TRUE WHERE id = $1",
@@ -6848,6 +6836,36 @@ app.post("/users/:id/fine-tune-answer", requireUserAuth, async (req, res) => {
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
+});
+
+// POST /new-chat/save-message — Persist a single message to conversation_messages (used for admin conversation messages injected into chat)
+app.post("/new-chat/save-message", requireAuth, async (req: any, res) => {
+  const { user_id, role, content, guide } = req.body;
+  if (!user_id || !role || !content || !guide) return res.status(400).json({ error: "user_id, role, content, guide required" });
+  if (!["assistant", "user"].includes(role)) return res.status(400).json({ error: "invalid role" });
+  if (typeof content !== "string" || content.length > 5000) return res.status(400).json({ error: "invalid content" });
+
+  // Verify JWT user matches request (admin can save for any user)
+  if (req.auth?.sub) {
+    const isAdmin = !!req.auth.email && ADMIN_EMAILS.includes(req.auth.email);
+    if (!isAdmin) {
+      const authUser = await pgQueryOne<{ id: number }>("SELECT id FROM users WHERE supabase_uid = $1", [req.auth.sub]);
+      if (!authUser || authUser.id !== user_id) return res.status(403).json({ error: "Access denied" });
+    }
+  }
+
+  // Prevent duplicates — check if this exact message already exists in the last 5 minutes
+  const existing = await pgQueryOne<{ id: number }>(
+    "SELECT id FROM conversation_messages WHERE user_id = $1 AND role = $2 AND content = $3 AND guide = $4 AND created_at > NOW() - INTERVAL '5 minutes' LIMIT 1",
+    [user_id, role, content, guide]
+  );
+  if (existing) return res.json({ ok: true, duplicate: true });
+
+  await pgQuery(
+    "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES ($1, $2, $3, $4)",
+    [user_id, role, content, guide]
+  );
+  return res.json({ ok: true });
 });
 
 app.post("/new-chat/message", aiLimiter, requireAuth, async (req, res) => {
