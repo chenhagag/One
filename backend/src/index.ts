@@ -6686,21 +6686,8 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
     // Survey status — old survey disabled (removed from home screen)
     const showSurveyBanner = false;
 
-    // Survey2 status — WW users only (gender != 'man' AND looking_for_gender IS DISTINCT FROM 'man')
-    const isWWUser = profileRow?.gender !== 'man' && !!profileRow?.looking_for_gender && profileRow?.looking_for_gender !== 'man';
-    const survey2Row = await pgQueryOne<{ completed: boolean }>(
-      "SELECT completed FROM survey2_responses WHERE user_id = $1", [userId]
-    );
-    const survey2BannerDismissed = await pgQueryOne<{ survey2_banner_dismissed: boolean }>(
-      "SELECT COALESCE(survey2_banner_dismissed, FALSE) as survey2_banner_dismissed FROM users WHERE id = $1", [userId]
-    );
-    // Survey2 only for users registered before 2026-10-08 (not shown to new users)
-    const survey2Cutoff = "2026-10-08";
-    const createdRow = await pgQueryOne<{ created_at: string }>(
-      "SELECT created_at FROM users WHERE id = $1", [userId]
-    );
-    const isOldUser = createdRow ? new Date(createdRow.created_at) < new Date(survey2Cutoff) : false;
-    const showSurvey2Banner = isWWUser && !survey2Row?.completed && !survey2BannerDismissed?.survey2_banner_dismissed && isOldUser;
+    // Survey2 status — disabled (survey period ended, results kept in survey2_responses)
+    const showSurvey2Banner = false;
 
     // Check if user has ever viewed the insights screen
     const insightsViewed = await pgQueryOne<{ id: number }>(
@@ -6741,7 +6728,7 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       show_survey_banner: showSurveyBanner,
       survey_partial: false,
       show_survey2_banner: showSurvey2Banner,
-      survey2_partial: survey2Row && !survey2Row.completed ? true : false,
+      survey2_partial: false,
       self_frozen: !!profileRow?.self_frozen,
       push_notifications: !!profileRow?.push_notifications,
       email_updates: profileRow?.email_updates !== false,
