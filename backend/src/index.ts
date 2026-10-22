@@ -6095,11 +6095,23 @@ app.post("/system-question/answer", requireAuth, async (req: any, res) => {
     [answer, question_id]
   );
 
-  // If this is a blind_match question and answer is positive → update consent
+  // Inject question + answer into conversation_messages so they appear in chat history
   const questionData = await pgQueryOne<{ user_id: number; context: string | null; question_text: string }>(
     "SELECT user_id, context, question_text FROM system_questions WHERE id = $1",
     [question_id]
   );
+  if (questionData) {
+    await pgQuery(
+      "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES ($1, 'assistant', $2, 'new_chat')",
+      [questionData.user_id, `שאלה מצוות One: ${questionData.question_text}`]
+    );
+    await pgQuery(
+      "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES ($1, 'user', $2, 'new_chat')",
+      [questionData.user_id, answer]
+    );
+  }
+
+  // If this is a blind_match question and answer is positive → update consent
   if (questionData?.context === "blind_match" && (answer === "כן אין בעיה" || answer === "אפשרי")) {
     await pgQueryOne(
       "UPDATE users SET blind_match_consent = TRUE WHERE id = $1",
