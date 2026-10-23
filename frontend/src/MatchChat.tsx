@@ -8,6 +8,7 @@ interface MatchChatProps {
   partnerPhoto: string | null;
   myPhoto: string | null;
   onBack: () => void;
+  isStalled?: boolean;
 }
 
 interface Message {
@@ -19,7 +20,7 @@ interface Message {
   created_at: string;
 }
 
-export default function MatchChat({ user, matchId, partnerName, partnerPhoto, myPhoto, onBack }: MatchChatProps) {
+export default function MatchChat({ user, matchId, partnerName, partnerPhoto, myPhoto, onBack, isStalled = false }: MatchChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -42,6 +43,13 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
   const typingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const isNearBottomRef = useRef(true);
+
+  // Helpers for routing match_id to API calls (stalled matches need explicit match_id)
+  const addMatchParam = (url: string) => {
+    if (!isStalled) return url;
+    return url + (url.includes("?") ? "&" : "?") + `match_id=${matchId}`;
+  };
+  const matchIdBody = isStalled ? { match_id: matchId } : {};
 
   const scrollToBottom = useCallback((smooth = true) => {
     setTimeout(() => {
@@ -78,7 +86,7 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
 
   // Initial load
   useEffect(() => {
-    apiFetch(`/users/${user.id}/direct-messages`)
+    apiFetch(addMatchParam(`/users/${user.id}/direct-messages`))
       .then((r) => r.json())
       .then((data) => {
         const msgs = data.messages || [];
@@ -93,7 +101,7 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
         scrollToBottom(false);
         // Mark as read
         if (data.unread_count > 0) {
-          apiFetch(`/users/${user.id}/mark-messages-read`, { method: "POST" });
+          apiFetch(`/users/${user.id}/mark-messages-read`, { method: "POST", body: Object.keys(matchIdBody).length ? JSON.stringify(matchIdBody) : undefined });
         }
       })
       .catch(() => setLoaded(true));
@@ -104,14 +112,15 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
     pollRef.current = setInterval(async () => {
       try {
         const since = lastServerTimestampRef.current;
-        const url = since
+        let url = since
           ? `/users/${user.id}/direct-messages?since=${encodeURIComponent(since)}`
           : `/users/${user.id}/direct-messages`;
+        url = addMatchParam(url);
         const res = await apiFetch(url);
         const data = await res.json();
 
-        // Detect match cancellation (other side cancelled)
-        if (data.match_id === null && messages.length > 0) {
+        // Detect match cancellation (other side cancelled) — skip for stalled (already not in_match)
+        if (!isStalled && data.match_id === null && messages.length > 0) {
           setMatchCancelled(true);
           if (pollRef.current) clearInterval(pollRef.current);
           return;
@@ -119,7 +128,7 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
 
         // Mark as read only if there are unread messages from partner
         if (data.unread_count > 0) {
-          apiFetch(`/users/${user.id}/mark-messages-read`, { method: "POST" });
+          apiFetch(`/users/${user.id}/mark-messages-read`, { method: "POST", body: Object.keys(matchIdBody).length ? JSON.stringify(matchIdBody) : undefined });
         }
 
         if (data.messages && data.messages.length > 0) {
@@ -185,7 +194,7 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
       lastTypingSentRef.current = isTyping;
       apiFetch(`/users/${user.id}/typing-status`, {
         method: "POST",
-        body: JSON.stringify({ is_typing: isTyping }),
+        body: JSON.stringify({ is_typing: isTyping, ...matchIdBody }),
       }).catch(() => {});
     },
     [user.id]
@@ -239,7 +248,7 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
     try {
       const res = await apiFetch(`/users/${user.id}/direct-messages`, {
         method: "POST",
-        body: JSON.stringify({ content: text }),
+        body: JSON.stringify({ content: text, ...matchIdBody }),
       });
       const saved = await res.json();
       if (saved.id) {
@@ -290,7 +299,7 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
     try {
       await apiFetch(`/users/${user.id}/report-match`, {
         method: "POST",
-        body: JSON.stringify({ report_text: reportText, block: false }),
+        body: JSON.stringify({ report_text: reportText, block: false, ...matchIdBody }),
       });
       setReportSent(true);
       setReportText("");
@@ -312,6 +321,7 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
         body: JSON.stringify({
           report_text: blockAction === "report_block" ? reportText : "",
           block: true,
+          ...matchIdBody,
         }),
       });
       setBlocked(user.id);
@@ -427,6 +437,26 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
         </div>
       )}
 
+      {/* Prominent block banner for stalled matches */}
+      {isStalled && !blocked && (
+        <div style={{
+          padding: "10px 16px", background: "#fefce8", borderBottom: "1px solid #fde68a",
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+          fontSize: 13, color: "#713f12", direction: "rtl",
+        }}>
+          <span>
+            לא {user.gender === "woman" ? "מתאים לך" : "מתאים לך"} לקבל הודעות מ{partnerName}? אפשר לחסום את האפשרות לצ׳אט {user.gender === "woman" ? "איתה" : "איתו"}.
+          </span>
+          <button onClick={handleBlockOnly} style={{
+            flexShrink: 0, padding: "6px 14px", fontSize: 12, fontWeight: 600,
+            background: "#fef2f2", color: "#ef4444", border: "1px solid #fca5a5",
+            borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+          }}>
+            חסימה
+          </button>
+        </div>
+      )}
+
       {/* Messages area */}
       <div ref={containerRef} style={styles.messagesArea} onScroll={handleScroll}>
         {/* Welcome message */}
@@ -534,7 +564,7 @@ export default function MatchChat({ user, matchId, partnerName, partnerPhoto, my
             <button
               onClick={async () => {
                 try {
-                  await apiFetch(`/users/${user.id}/unblock-match`, { method: "POST" });
+                  await apiFetch(`/users/${user.id}/unblock-match`, { method: "POST", body: Object.keys(matchIdBody).length ? JSON.stringify(matchIdBody) : undefined });
                   setBlocked(null);
                 } catch {}
               }}

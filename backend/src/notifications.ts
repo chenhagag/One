@@ -514,6 +514,53 @@ export async function notifyNewMessage(recipientId: number, senderName: string):
   });
 }
 
+// ── Trigger: Match stalled by admin ──────────────────────────────
+
+export async function notifyMatchStalled(userId: number): Promise<void> {
+  const user = await getUserInfo(userId);
+  if (!user) return;
+  const g = (m: string, f: string) => gn(user.gender, m, f);
+
+  await notifyUser(userId, {
+    title: "עדכון לגבי ההתאמה שלך",
+    body: `ההתאמה שלך הוקפאה. ${g("חזרת", "חזרת")} למאגר`,
+    event_type: "match_stalled",
+    emailHtml: buildRichEmail(
+      "עדכון לגבי ההתאמה שלך",
+      `<p>היי ${user.first_name},</p>
+       <p>ההתאמה שלך הוקפאה על ידי המערכת כי זוהתה כלא פעילה.</p>
+       <p>${g("חזרת", "חזרת")} כעת למאגר, ואנחנו ממשיכים לחפש ${g("עבורך", "עבורך")} את החיבור הנכון.</p>
+       <p>אם ${g("תרצה", "תרצי")} לחדש את הקשר — אפשר להמשיך לשוחח דרך "התאמות קודמות".</p>`,
+      "כניסה למערכת",
+      userId
+    ),
+  });
+}
+
+// ── Trigger: Message from stalled match ─────────────────────────
+
+export async function notifyStalledMatchMessage(recipientId: number, senderName: string): Promise<void> {
+  if (await wasRecentlySent(recipientId, "stalled_match_message", 5)) return;
+
+  const user = await getUserInfo(recipientId);
+  if (!user) return;
+  const g = (m: string, f: string) => gn(user.gender, m, f);
+
+  await notifyUser(recipientId, {
+    title: `הודעה מהתאמה קודמת — ${senderName}`,
+    body: `${senderName} ${g("שלח", "שלחה")} לך הודעה`,
+    event_type: "stalled_match_message",
+    emailHtml: buildRichEmail(
+      `הודעה מהתאמה קודמת — ${senderName}`,
+      `<p>היי ${user.first_name},</p>
+       <p>${senderName} ${g("שלח לך", "שלחה לך")} הודעה בצ׳אט של התאמה קודמת.</p>
+       <p>אפשר להיכנס למערכת ולראות את ההודעה דרך "התאמות קודמות".</p>`,
+      "לצפייה בהודעה",
+      recipientId
+    ),
+  });
+}
+
 // ── Trigger: Sent for rating ─────────────────────────────────────
 
 export async function notifySentForRating(userId: number): Promise<void> {

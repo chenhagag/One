@@ -351,6 +351,15 @@ function PotentialMatchScreen({ userId, userGender, onBack, isWW = true }: { use
         <p style={{ color: "#dc3545", fontSize: 13, textAlign: "center", margin: "0 0 12px" }}>{ratingError}</p>
       )}
 
+      {/* Clarification about what photo approval means */}
+      <div style={{ padding: "12px 16px", marginBottom: 4 }}>
+        <p style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.7, margin: 0, textAlign: "right" }}>
+          <strong style={{ color: "#6b7280" }}>אישור תמונה הוא שלב בדרך להתאמה</strong>
+          <br />
+          גם כשיש אישור הדדי, ההיכרות תלויה בהמשך בדיקת ההתאמה ובזמינות של {isWW ? "שתיכן" : "שניכם"}. ייתכן שבינתיים {isWW ? "אחת מכן" : "מישהו"} התחילה היכרות אחרת, אינה פעילה במערכת, או שבהמשך הבדיקה יעלה פער בהעדפה מהותית של {isWW ? "אחת מכן" : "אחד מכם"}.
+        </p>
+      </div>
+
       {/* Known person option — subtle link */}
       <div style={{ textAlign: "center", padding: "12px 16px" }}>
         <button
@@ -399,7 +408,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [sending, setSending] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [channel, setChannel] = useState<string>("new_chat");
-  const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "insights" | "couple_insights" | "bug_report" | "settings" | "how_it_works" | "potential_matches" | "match_card_consent" | "match_card" | "match_card_demo" | "match_chat" | "match_hub" | "cancel_match" | "past_matches" | "past_match_detail">("home");
+  const [screen, setScreen] = useState<"home" | "chat" | "profile_edit" | "insights" | "couple_insights" | "bug_report" | "settings" | "how_it_works" | "potential_matches" | "match_card_consent" | "match_card" | "match_card_demo" | "match_chat" | "match_hub" | "cancel_match" | "past_matches" | "past_match_detail" | "stalled_chat">("home");
   const [unreadMatchMessages, setUnreadMatchMessages] = useState(0);
   const [matchChatStarted, setMatchChatStarted] = useState(false);
   const [hasPastMatches, setHasPastMatches] = useState(false);
@@ -413,12 +422,15 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
   const [feedbackSaved, setFeedbackSaved] = useState(false);
   const [pastMatchesLoading, setPastMatchesLoading] = useState(false);
   const [partnerPhotoIndex, setPartnerPhotoIndex] = useState(0);
+  const [stalledUnreadTotal, setStalledUnreadTotal] = useState(0);
+  const [stalledUnreadPerMatch, setStalledUnreadPerMatch] = useState<Record<number, number>>({});
+  const [stalledChatMatchId, setStalledChatMatchId] = useState<number | null>(null);
   const [coupleInsights, setCoupleInsights] = useState<string | null>(null);
   const [analysisCompleted, setAnalysisCompleted] = useState(false);
   const [bugText, setBugText] = useState("");
   const [bugSent, setBugSent] = useState(false);
   const [feedbackCategory, setFeedbackCategory] = useState<string>("bug");
-  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; admin_message_type: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null; has_past_matches: boolean; show_survey_banner: boolean; survey_partial: boolean; show_survey2_banner: boolean; survey2_partial: boolean; self_frozen: boolean; active_nudge: { id: number; match_id: number; partner_name: string; partner_gender: string; nudge_type?: string } | null; pool_profile_count: number; push_notifications: boolean; email_updates: boolean; whatsapp_updates: boolean; has_native_app: boolean }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, admin_message_type: null, pending_rating: false, in_matching_pool: false, match_card_consent: null, has_past_matches: false, show_survey_banner: false, survey_partial: false, show_survey2_banner: false, survey2_partial: false, self_frozen: false, active_nudge: null, pool_profile_count: 0, push_notifications: false, email_updates: true, whatsapp_updates: false, has_native_app: false });
+  const [recommendations, setRecommendations] = useState<{ has_cognitive: boolean; has_taste_info: boolean; chat_count: number; summary_fields: number; cognitive_count: number; photo_count: number; has_profile_details: boolean; analysis_run_count: number; gender: string | null; admin_message: string | null; admin_message_type: string | null; pending_rating: boolean; in_matching_pool: boolean; match_card_consent: string | null; has_past_matches: boolean; has_stalled_match: boolean; stalled_notification_dismissed: boolean; show_survey_banner: boolean; survey_partial: boolean; show_survey2_banner: boolean; survey2_partial: boolean; self_frozen: boolean; active_nudge: { id: number; match_id: number; partner_name: string; partner_gender: string; nudge_type?: string } | null; pool_profile_count: number; push_notifications: boolean; email_updates: boolean; whatsapp_updates: boolean; has_native_app: boolean }>({ has_cognitive: false, has_taste_info: false, chat_count: -1, summary_fields: 0, cognitive_count: 0, photo_count: 0, has_profile_details: false, analysis_run_count: 0, gender: null, admin_message: null, admin_message_type: null, pending_rating: false, in_matching_pool: false, match_card_consent: null, has_past_matches: false, has_stalled_match: false, stalled_notification_dismissed: false, show_survey_banner: false, survey_partial: false, show_survey2_banner: false, survey2_partial: false, self_frozen: false, active_nudge: null, pool_profile_count: 0, push_notifications: false, email_updates: true, whatsapp_updates: false, has_native_app: false });
   const [systemQuestion, setSystemQuestion] = useState<{ id: number; question_text: string; options?: string[] | null } | null>(null);
   const [answeredQuestion, setAnsweredQuestion] = useState<{ question_text: string; answer: string; options?: string[] | null } | null>(null);
   const [closedChannels, setClosedChannels] = useState<Record<string, boolean>>({});
@@ -488,6 +500,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
             in_matching_pool: !!data.in_matching_pool,
             match_card_consent: data.match_card_consent || null,
             has_past_matches: !!data.has_past_matches,
+            has_stalled_match: !!data.has_stalled_match,
+            stalled_notification_dismissed: !!data.stalled_notification_dismissed,
             show_survey_banner: !!data.show_survey_banner,
             survey_partial: !!data.survey_partial,
             show_survey2_banner: !!data.show_survey2_banner,
@@ -573,6 +587,25 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
         .catch(() => setPastMatchesLoading(false));
     }
   }, [screen]);
+
+  // Poll stalled match unread counts
+  useEffect(() => {
+    if (!hasPastMatches) return;
+    const fetchStalledUnread = () => {
+      apiFetch(`/users/${user.id}/stalled-unread-counts`)
+        .then(r => r.json())
+        .then(data => {
+          setStalledUnreadTotal(data.total_unread || 0);
+          const perMatch: Record<number, number> = {};
+          (data.per_match || []).forEach((r: any) => { perMatch[r.match_id] = r.unread; });
+          setStalledUnreadPerMatch(perMatch);
+        })
+        .catch(() => {});
+    };
+    fetchStalledUnread();
+    const iv = setInterval(fetchStalledUnread, 15000);
+    return () => clearInterval(iv);
+  }, [hasPastMatches, user.id]);
   // Mark match card as viewed when user enters card screen
   const prevScreenRef = useRef(screen);
   useEffect(() => {
@@ -611,6 +644,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
       cancel_match: "ביטול התאמה",
       past_matches: "התאמות קודמות",
       past_match_detail: selectedPastMatch?._isPartnerProfile ? "פרופיל שותפה" : "פרטי התאמה קודמת",
+      stalled_chat: "צ׳אט התאמה קודמת",
     };
     trackPage(pageNames[screen] || screen, user?.id);
   }, [screen]);
@@ -1019,14 +1053,17 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
               <span style={{ fontSize: 14, color: "#aaa", marginRight: 4 }}>&#9825;</span>
             </button>
           )}
-          {/* Past matches — shown when user has cancelled matches and no active match */}
-          {hasPastMatches && !activeMatchCard && (
+          {/* Past matches — shown when user has cancelled/stalled matches */}
+          {hasPastMatches && (
             <button
-              style={(screen === "past_matches" || screen === "past_match_detail") ? styles.sidebarItemActive : styles.sidebarItem}
+              style={(screen === "past_matches" || screen === "past_match_detail" || screen === "stalled_chat") ? styles.sidebarItemActive : styles.sidebarItem}
               onClick={() => { setScreen("past_matches"); setMenuOpen(false); }}
             >
               <IconImg src="/icons/accurateMatch.png" />
               <span>התאמות קודמות</span>
+              {stalledUnreadTotal > 0 && (
+                <span style={{ background: "#ef4444", color: "#fff", fontSize: 10, fontWeight: 700, borderRadius: 10, padding: "2px 7px", minWidth: 18, textAlign: "center", marginRight: 4, display: "inline-block" }}>{stalledUnreadTotal}</span>
+              )}
             </button>
           )}
           {/* Couple insights — only for couple testers with insights */}
@@ -1417,6 +1454,25 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
           />
         )}
 
+        {screen === "stalled_chat" && stalledChatMatchId && (() => {
+          const m = pastMatches.find((pm: any) => pm.match_id === stalledChatMatchId);
+          if (!m) return null;
+          return (
+            <MatchChat
+              user={user}
+              matchId={stalledChatMatchId}
+              partnerName={m.partner_name}
+              partnerPhoto={m.partner_photo}
+              myPhoto={null}
+              onBack={() => {
+                setStalledChatMatchId(null);
+                setScreen("past_match_detail");
+              }}
+              isStalled={true}
+            />
+          );
+        })()}
+
         {screen === "match_card_consent" && (
           <MatchCardConsentScreen
             user={{ ...user, gender: user.gender || recommendations.gender || undefined }}
@@ -1591,13 +1647,29 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                           {m.partner_name}{m.partner_age ? `, ${m.partner_age}` : ""}
                         </p>
                         <p style={{ fontSize: 12, color: "#999", margin: 0 }}>
-                          {m.cancelled_by === user.id ? "בוטלה על ידך" : "בוטלה על ידי הצד השני"}
+                          {m.status === "stalled"
+                            ? "הוקפאה על ידי המערכת"
+                            : m.cancelled_by === user.id
+                              ? "בוטלה על ידך"
+                              : m.cancelled_by === null
+                                ? "בוטלה על ידי המערכת"
+                                : "בוטלה על ידי הצד השני"
+                          }
                         </p>
                       </div>
-                      <span style={{
-                        fontSize: 11, fontWeight: 600, color: "#ef4444",
-                        background: "#fef2f2", padding: "4px 10px", borderRadius: 8,
-                      }}>בוטלה</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        {m.status === "stalled" && (stalledUnreadPerMatch[m.match_id] || 0) > 0 && (
+                          <span style={{ background: "#ef4444", color: "#fff", fontSize: 10, fontWeight: 700, borderRadius: 10, padding: "2px 7px", minWidth: 18, textAlign: "center" }}>
+                            {stalledUnreadPerMatch[m.match_id]}
+                          </span>
+                        )}
+                        <span style={{
+                          fontSize: 11, fontWeight: 600,
+                          color: m.status === "stalled" ? "#d97706" : "#ef4444",
+                          background: m.status === "stalled" ? "#fffbeb" : "#fef2f2",
+                          padding: "4px 10px", borderRadius: 8,
+                        }}>{m.status === "stalled" ? "הוקפאה" : "בוטלה"}</span>
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -1702,19 +1774,57 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     <p style={{ fontSize: 17, fontWeight: 700, color: "#1a1a2e", margin: "0 0 2px" }}>
                       {m.partner_name}{m.partner_age ? `, ${m.partner_age}` : ""}
                     </p>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: "#ef4444", background: "#fef2f2", padding: "3px 8px", borderRadius: 6 }}>בוטלה</span>
+                    <span style={{
+                      fontSize: 12, fontWeight: 600,
+                      color: m.status === "stalled" ? "#d97706" : "#ef4444",
+                      background: m.status === "stalled" ? "#fffbeb" : "#fef2f2",
+                      padding: "3px 8px", borderRadius: 6,
+                    }}>{m.status === "stalled" ? "הוקפאה" : "בוטלה"}</span>
                   </div>
                 </div>
 
-                {/* Cancellation explanation */}
-                {!isCancelledByMe && (
-                  <div style={{ background: "#f8f7fc", borderRadius: 12, padding: "16px 18px", marginBottom: 20 }}>
+                {/* Stalled match explanation */}
+                {m.status === "stalled" && (
+                  <div style={{ background: "#fffbeb", borderRadius: 12, padding: "16px 18px", marginBottom: 20, border: "1px solid #fef3c7" }}>
                     <p style={{ fontSize: 14, color: "#555", margin: 0, lineHeight: 1.7 }}>
-                      הצד השני בחר שלא להמשיך עם ההתאמה הזו — וזה חלק טבעי מהתהליך.
+                      ההתאמה הוקפאה על ידי המערכת כי זוהתה כלא פעילה. חזרת כעת למאגר.
                       <br /><br />
-                      חזרת למאגר, ואנחנו ממשיכים לחפש עבורך את החיבור הנכון. כל התאמה עוזרת לנו ללמוד יותר, לדייק את התובנות שלנו ולהשתפר לקראת ההתאמה הבאה. גם הפידבק שלך יעזור לנו להבין אותך טוב יותר ולהמשיך לדייק — עד שנמצא את ה-One שלך.
+                      אם תרצו לחדש את הקשר אתן מוזמנות להמשיך לשוחח.
                     </p>
                   </div>
+                )}
+
+                {/* Cancellation explanation */}
+                {m.status !== "stalled" && !isCancelledByMe && (
+                  <div style={{ background: "#f8f7fc", borderRadius: 12, padding: "16px 18px", marginBottom: 20 }}>
+                    <p style={{ fontSize: 14, color: "#555", margin: 0, lineHeight: 1.7 }}>
+                      {m.cancelled_by === null
+                        ? <>המערכת זיהתה שההתאמה הזאת תקועה או לא מתקדמת ואפשרה לשתיכן לחזור למאגר.
+                          <br /><br />חזרת למאגר, ואנחנו ממשיכים לחפש עבורך את החיבור הנכון.</>
+                        : <>הצד השני בחר שלא להמשיך עם ההתאמה הזו — וזה חלק טבעי מהתהליך.
+                          <br /><br />
+                          חזרת למאגר, ואנחנו ממשיכים לחפש עבורך את החיבור הנכון. כל התאמה עוזרת לנו ללמוד יותר, לדייק את התובנות שלנו ולהשתפר לקראת ההתאמה הבאה.</>
+                      }
+                    </p>
+                  </div>
+                )}
+
+                {/* Chat button for stalled matches */}
+                {m.status === "stalled" && (
+                  <button
+                    onClick={() => {
+                      setStalledChatMatchId(m.match_id);
+                      setScreen("stalled_chat");
+                    }}
+                    style={{
+                      width: "100%", padding: "12px 20px", marginBottom: 20,
+                      background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+                      color: "#fff", border: "none", borderRadius: 12,
+                      fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                    }}
+                  >
+                    שליחת הודעה ל{m.partner_name}
+                  </button>
                 )}
 
                 {/* Feedback section */}
@@ -2558,6 +2668,28 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                         ראיתי, תודה ❤️
                       </button>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* Stalled match notification banner */}
+              {screen === "home" && recommendations.has_stalled_match && !recommendations.stalled_notification_dismissed && (
+                <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
+                  <div style={{ background: "#fffbeb", borderRadius: 14, padding: "16px 20px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #fef3c7" }}>
+                    <p style={{ fontSize: 14, color: "#1a1a2e", lineHeight: 1.7, margin: 0, fontWeight: 500 }}>
+                      ההתאמה שלך הוקפאה כי זוהתה כלא פעילה. חזרת למאגר ואנחנו ממשיכים לחפש.
+                      <br />
+                      אם תרצו — אפשר להמשיך לשוחח דרך "התאמות קודמות".
+                    </p>
+                    <button
+                      onClick={() => {
+                        apiFetch(`/users/${user.id}/dismiss-stalled-notification`, { method: "POST" })
+                          .then(() => setRecommendations(prev => ({ ...prev, stalled_notification_dismissed: true })));
+                      }}
+                      style={{ display: "block", margin: "12px auto 0", padding: "6px 20px", fontSize: 13, color: "#92400e", background: "none", border: "1px solid #fde68a", borderRadius: 8, cursor: "pointer", fontWeight: 500, fontFamily: "inherit" }}
+                    >
+                      ראיתי, תודה
+                    </button>
                   </div>
                 </div>
               )}
