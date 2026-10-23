@@ -565,7 +565,24 @@ export default function AuthScreen({ onOtpSuccess, notice, entryPoint, onEntryPo
         <p className="text-base text-gray-400">Meet, as you are.</p>
       </div>
 
-      {/* Maintenance notice — ready to activate when needed */}
+      {/* Maintenance notice — credential rotation Oct 2026 */}
+      <div dir="rtl" style={{
+        background: "#f0edf5", border: "1px solid #d4cfe0", borderRadius: 12,
+        padding: "12px 16px", marginBottom: 16, maxWidth: 320, textAlign: "center",
+        fontSize: 13, color: "#2a2a3e", lineHeight: 1.7,
+      }}>
+        <p style={{ margin: "0 0 6px", fontWeight: 500 }}>
+          💜 אנחנו עושות שדרוגים במערכת
+        </p>
+        <p style={{ margin: 0, fontSize: 12, color: "#555" }}>
+          אם ההתחברות לא עובדת — המתינו כמה דקות ונסו שוב.
+          <br />
+          נשמח אם תעדכנו אותנו אם נתקלתן בבעיה:{" "}
+          <a href="mailto:one-support@googlegroups.com" style={{ color: "#8b7ba8", fontWeight: 600 }}>מייל</a>
+          {" | "}
+          <a href="https://wa.me/972549037400" target="_blank" rel="noopener noreferrer" style={{ color: "#8b7ba8", fontWeight: 600 }}>ווטסאפ</a>
+        </p>
+      </div>
 
       {notice && (
         <div dir="rtl" style={{
