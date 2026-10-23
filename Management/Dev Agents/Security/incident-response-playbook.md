@@ -116,20 +116,25 @@
 **סודות שהוחלפו:**
 | סוד | בוצע? | שעה | בעיות | פתרון |
 |------|--------|------|--------|--------|
-| DATABASE_URL | ⬜ | | | |
-| SUPABASE_SERVICE_ROLE_KEY | ⬜ | | | |
-| SUPABASE_JWT_SECRET | ⬜ | | | |
-| OPENAI_API_KEY | ⬜ | | | |
-| RESEND_API_KEY | ⬜ | | | |
-| FIREBASE_SERVICE_ACCOUNT | ⬜ | | | |
+| DATABASE_URL | ✅ | 23/10 ~21:00 | Production image push נכשל 5 פעמים | שינוי variable מ-reference לידני גרם ל-restart בלי build |
+| SUPABASE_SERVICE_ROLE_KEY | ⏸️ נדחה | | צריך מעבר למפתחות sb_secret_ חדשים + בדיקת קוד | |
+| SUPABASE_JWT_SECRET | ⏸️ מוניטור | | סיכון נמוך, לוגים נקיים | |
+| OPENAI_API_KEY | ✅ | 22/10 ~13:30 | — | — |
+| RESEND_API_KEY | ✅ | 23/10 ~19:00 | מפתח ישן לא מוכר נמצא (dev?) | נמחק גם הוא |
+| FIREBASE_SERVICE_ACCOUNT | ✅ | 23/10 ~19:30 | — | — |
 
-**פעילות חשודה שנמצאה**: (ימולא במהלך הטיפול)
-**לקחים**: (ימולא בסיום)
+**פעילות חשודה שנמצאה**: לא נמצאה. לוגים ב-OpenAI, Resend, Supabase Auth — נקיים.
+**מייל ממוקד מ-Railway**: "your workspace contains variables matching a pattern the attacker used" — לא אישור לחשיפה, אבל ה-workspace היה ברשימת המטרות.
 
 ---
 
 ## לקחים כלליים (מתעדכן)
-<!-- אחרי כל אירוע, להוסיף כאן לקחים שרלוונטיים לאירועים עתידיים -->
 
 ### מהפריצת Railway (2026-10-22):
-- (ימולא בסיום הטיפול)
+- **Railway image push יכול להיתקע** — הפתרון: שינוי variable ידני triggers restart ללא build חדש
+- **DATABASE_URL reference לא triggers redeploy** — כש-Postgres service מחליף סיסמה, ה-app service לא תמיד עושה redeploy אוטומטי. צריך trigger ידני.
+- **להתחיל מסודות בלי השבתה** (API keys) ולהשאיר DB/auth לסוף — ככה גם מוודאים שדיפלויים עובדים
+- **באנרים למשתמשות לפני שינויי DB** — הכנה מראש עם כפתור dismiss
+- **Supabase מפתחות חדשים (sb_secret_...)** — לא ניתן לעשות regenerate פשוט, צריך מעבר מתוכנן
+- **בדיקת לוגים קודם** — OpenAI usage, Resend logs, Supabase Auth. מורידה לחץ ומאפשרת תעדוף נכון
+- **לא לשנות הכל ביחד** — שלב אחד, בדיקה, שלב הבא

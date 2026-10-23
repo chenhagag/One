@@ -1,87 +1,39 @@
-**תשובה של ג'ימיני לשאלת הסופאבייס **
+לא הייתי מבצעת עדיין את ההוראות כפי שהן: צריך לוודא שהאפשרות Reset password אכן קיימת אצלך, וש־Railway באמת מעדכנת גם את החיבור של שירות האפליקציה. אם DATABASE_URL הועתקה אליו כטקסט קבוע, אסור להניח שתתעדכן אוטומטית.
 
-עושה סדר מלא ומדויק על כל אחד מהרכיבים האלה והסיכונים האמיתיים שלהם, בלי לחץ ובצורה הכי פרקטית שיש:
-
-1. Database URL (הסיכון הכי קריטי)
-מה הסיכון: חד-משמעית כן. מי שמחזיק ב-Database URL (כתובת ההתחברות המלאה כולל שם משתמש וסיסמה) יכול להתחבר למסד הנתונים ישירות מבחוץ, לקרוא את כל הטבלאות, לשלוף את כל המידע של כל המשתמשות, ולמחוק או לשנות נתונים.
-
-האם צריך לשנות? מיד. זה הדבר הראשון שחובה לאפס (בסופאבייס) ולעדכן בשרת.
-
-2. OpenAI API Key (סיכון כלכלי + ניצול משאבים)
-מה הסיכון: ההבנה שלך מדויקת לחלוטין — זה לא פוגע במידע של המשתמשות שלך, אלא בארנק שלך ובמכסות (Quotas) של חשבון ה-OpenAI שלך.
-
-למה זה סביר שמישהו ירצה אותו? צדדים שלישיים (או בוטים סורקים) מחפשים מפתחות פעילים של OpenAI כדי לנצל אותם בחינם להרצת מודלי AI יקרים, כתיבת ספאם, או פיתוח אפליקציות על חשבונך, מה שיכול להוביל לחיובים כספיים גבוהים מאוד בחשבון שלך לפני שתספיקי לשים לב.
-
-מה לעשות: לייצר מפתח חדש ב-OpenAI ולבטל את הישן.
-
-3. Supabase Keys (האם הסיכוי שמישהו ישתמש מזערי?)
-כאן חשוב לעשות הפרדה קריטית בין שני סוגי מפתחות שיש לסופאבייס:
-
-א. Anon Key / Public Key (המפתח הציבורי):
-
-האם מסוכן שנחשף? ממש לא. המפתח הזה תוכנן מראש להיות ציבורי והוא משולב בקוד ה-Web ובאפליקציית ה-Android שלך (הוא מגיע לכל משתמשת בדפדפן או בנייד). הוא מוגבל על ידי חוקי ה-Row Level Security (RLS) של סופאבייס, כך שאי אפשר לעשות דרכו פעולות אסורות.
-
-האם צריך לשנות? ממש לא חובה, ובטח לא כדאי כרגע כי זה עלול לשבור את האפליקציות שמותקנות אצל המשתמשות בנייד.
-
-ב. Service Role Key (המפתח הסודי של השרת):
-
-האם מסוכן? מאוד. זה המפתח שעוקף את כל הגנות ה-RLS ויש לו הרשאות מלאות (Admin) על המסד.
-
-האם הסיכוי שמישהו ישתמש בו מזערי? בהנחה שהתקיפה ב-Railway הייתה אוטומטית ורובוטית (כפי שקורה באירועים מהסוג הזה, שבהם תוקפים שואפים לדלות כמה שיותר משתני סביבה במקביל), תוקפים רגילים אולי לא יתעסקו ספציפית בך, אבל סורקים אוטומטיים בהחלט מחפשים מפתחות ניהול כאלה כדי להשתלט על שרתים.
-
-מה לעשות: את מפתח ה-Service Role כן כדאי לחדש בסופאבייס ולעדכן בשרת (זה לא שובר את אפליקציית ה-Client, כי הוא יושב רק בצד שרת ב-Railway).
-
-השורה התחתונה והסדר הנכון לפעולה:
-הדבר הראשון: לאפס את סיסמת ה-Database URL בסופאבייס ולעדכן ב-Railway. זה סוגר את הפרצה הכי מסוכנת (גישה ישירה למידע).
-
-הדבר השני: להחליף את ה-Service Role Key של סופאבייס ואת ה-OpenAI API Key.
-
-הדבר השלישי: להתעלם מה-Anon Key הציבורי כרגע כדי לא לפגוע באפליקציות של המשתמשות בחיים האמיתיים.
+בקשי מקלוד לבדוק לפני הביצוע:
+- האם DATABASE_URL של האפליקציה היא הפניה למשתנה של Postgres, או ערך שהודבק ידנית?
+- האם Production ו־Staging משתמשות במסדים ובפרטי גישה נפרדים?
+- איך מנתקים חיבורים קיימים עם ההרשאה הישנה? שינוי סיסמה לבדו לא בהכרח מנתק אותם.
+המטרה כאן היא להחליף את הסיסמה שמאפשרת גישה למידע של המשתמשות — ולוודא ש־One ממשיכה לגשת אליו עם הסיסמה החדשה.
 
 
+******************
 
 
-\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*
+We’re following up on Railway’s October 21st security disclosure because you are an administrator of the Railway workspace Chen's Projects, which we believe to be of interest to the threat actor.
 
-**הודעה מקורית**
+We cannot confirm whether credentials in your workspace were accessed, but we’re notifying you because your environment variables match a pattern the attacker used to search for AI and cloud provider API keys.
 
+We believe this to be the case because your workspace contains variables matching a pattern the attacker used to target customers.
 
+This is not a new incident; this is an update related to the existing disclosure we published on October 21st. If you already taken steps to protect yourself, no further action is required. You can read the preliminary report here.
 
-קיבלתי הודעה מRailway שנשלחה לכלל המשתמשים:
+To recap, what we definitively know so far:
 
-Urgent: Railway Security Disclosure - Rotate Credentials
+Threat intelligence suggests the actor was specifically targeting environments with AI API keys or cloud provider API keys.
+Your workspace contains environment variables matching that search pattern.
+We cannot confirm whether or not your secret environment variables were decrypted.
+As such, it would be prudent for you to take the following actions as soon as possible:
 
-In
+Rotate sensitive credentials — such as API keys, database passwords, and access tokens stored in Railway environment variables.
+Update your Railway variables and redeploy dependent services — You should coordinate database credential changes with the applications that use them.
+Review provider activity and audit logs; especially AI keys — Check GitHub and registries such as Docker Hub for unfamiliar access, unexpected usage, or unauthorized changes.
+As of October 22 at 03:32 UTC, we are no longer under direct attack and have strengthened protections around the affected systems. We will additionally contact you directly if we establish specific impact to your workspace.
 
+We’re sorry about the incident and the burden it created for you and your organization. For help with rotation, or to report suspicious activity, contact support@railway.com. Our team is here to help.
 
-
-Earlier this morning, Railway detected anomalous activity involving systems that store customer environment variables. After further investigation, our investigation to date indicates that an unauthorized third party may have accessed encrypted environment variables and, for some of them, obtained the decrypted contents. Environment variables may contain secrets such as API keys or database and registry credentials.
-
-
-
-We believe this is part of a series of attacks recently targeting platform companies with the aim of compromising AI inference providers. We have notified these upstream providers to revoke all keys proactively, as we take these kinds of events extremely seriously.
-
-
-
-What you should do
-
-
-
-Immediately revoke and reissue all environment variables, including any API keys, stored in Railway.
-
-If you have any credentials on an external registry, .
-
-Review logs for those services for unusual activity.
-
-Until builds are restored, you will not be able to roll out new versions. We apologize for this inconvenience. Follow this incident to be notified when builds resume and for further updates.
-
-
-
-We will provide new updates on this announcement, and on status.railway.com as we gather all facts about the scope of impact.
-
-
-
-זו לא הודעה אישית אליי אבל צריך לטפל. 
+Thanks,
+The Railway Team
 
 מה צריך לעשות?
 

@@ -1,6 +1,39 @@
 # Security Agent — Work Log
 
-## Latest: 2026-10-03 — Agent Created
+## Latest: 2026-10-22/23 — Railway Security Incident — Credential Rotation
+
+### אירוע
+Railway הודיעו (22/10) על גישה לא מורשית למשתני סביבה מוצפנים. מייל ממוקד (23/10) אישר שה-workspace שלנו ברשימת המטרות של התוקף (חיפוש AI/cloud API keys). לא אושרה חשיפה בפועל.
+
+### פעולות שבוצעו
+- **בדיקת לוגים**: OpenAI, Resend, Supabase Auth — הכל נקי, אין פעילות חשודה
+- **גיבוי DB** דרך Railway Dashboard לפני שינויים
+- **הוחלפו 4 מתוך 6 סודות**:
+  - ✅ OPENAI_API_KEY — הוחלף + ישן revoked (22/10)
+  - ✅ RESEND_API_KEY — הוחלף + ישן מחוק. נמצא מפתח ישן לא מוכר (dev?) — גם מחוק (23/10)
+  - ✅ FIREBASE_SERVICE_ACCOUNT — הוחלף + ישן מחוק (23/10)
+  - ✅ DATABASE_URL — סיסמה שונתה בשני DB (staging zephyr + production nozomi) (23/10)
+- **נדחו 2 סודות**:
+  - ⏸️ SUPABASE_SERVICE_ROLE_KEY — צריך מעבר למפתחות sb_secret_ חדשים, בדיקת קוד
+  - ⏸️ SUPABASE_JWT_SECRET — סיכון נמוך, מנתק כל המשתמשות, ממשיכים מוניטור
+
+### בעיות שנתקלנו בהן
+- Railway image push נכשל 5 פעמים ברציפות ב-production → המערכת הייתה למטה ~1.5 שעות
+- **פתרון**: שינוי DATABASE_URL מ-reference לערך ידני triggers restart ללא build חדש
+- DATABASE_URL reference לא triggers redeploy אוטומטי כשסיסמת Postgres משתנה
+
+### שינויי קוד (לא אבטחה)
+- ניסוח rating notifications רוכך ("כיוון ראשוני" במקום "מצאנו התאמה")
+- Endpoint `/new-chat/save-message` — הודעות admin conversation נשמרות בהיסטוריית צ'אט
+- באנרים למשתמשות (maintenance) — הופעלו והוסרו
+
+### קבצים שנוצרו
+- `credential-rotation-plan-22-10.md` — תכנית פעולה מפורטת
+- `incident-response-playbook.md` — מדריך לאירועים עתידיים + לקחים
+
+---
+
+## 2026-10-03 — Agent Created
 - Full security context from audit docs + memory
 - IDOR test script already in place
 - 6 open items documented (signed URLs is the main gap)
