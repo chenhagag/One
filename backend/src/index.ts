@@ -6785,6 +6785,19 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       [userId]
     );
     const hasStalledMatch = (stalledMatchRow?.c ?? 0) > 0;
+    let stalledPartnerName: string | null = null;
+    if (hasStalledMatch) {
+      const stalledMatch = await pgQueryOne<any>(
+        `SELECT m.user1_id, m.user2_id, u1.first_name AS u1_name, u2.first_name AS u2_name
+         FROM matches m JOIN users u1 ON u1.id = m.user1_id JOIN users u2 ON u2.id = m.user2_id
+         WHERE (m.user1_id = $1 OR m.user2_id = $1) AND m.status = 'stalled' AND m.match_card_sent_at IS NOT NULL
+         ORDER BY m.stalled_at DESC LIMIT 1`,
+        [userId]
+      );
+      if (stalledMatch) {
+        stalledPartnerName = stalledMatch.user1_id === userId ? stalledMatch.u2_name : stalledMatch.u1_name;
+      }
+    }
 
     // Survey status — old survey disabled (removed from home screen)
     const showSurveyBanner = false;
@@ -6829,6 +6842,7 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       match_card_consent: profileRow?.match_card_consent ?? null,
       has_past_matches: hasPastMatches,
       has_stalled_match: hasStalledMatch,
+      stalled_partner_name: stalledPartnerName,
       stalled_notification_dismissed: !!profileRow?.stalled_notification_dismissed,
       show_survey_banner: showSurveyBanner,
       survey_partial: false,
