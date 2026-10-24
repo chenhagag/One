@@ -1907,19 +1907,20 @@ app.post("/users/:id/match-feedback", requireUserAuth, async (req, res) => {
 
     const isUser1 = match.user1_id === userId;
     const feedbackCol = isUser1 ? "cancellation_feedback_user1" : "cancellation_feedback_user2";
+    const existingFeedback = isUser1 ? match.cancellation_feedback_user1 : match.cancellation_feedback_user2;
 
-    // Update feedback on match record
+    // Append new feedback with timestamp, preserving history
+    const now = new Date().toLocaleString("he-IL", { timeZone: "Asia/Jerusalem", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    const newEntry = `[${now}] ${feedback.trim()}`;
+    const combined = existingFeedback ? `${existingFeedback}\n---\n${newEntry}` : newEntry;
+
+    // Update feedback on match record (append, not overwrite)
     await pgQueryOne(
       `UPDATE matches SET ${feedbackCol} = $1, updated_at = NOW() WHERE id = $2`,
-      [feedback.trim(), match.id]
+      [combined, match.id]
     );
 
-    // Upsert conversation_messages: delete old match_feedback for this user+match, insert new
-    await pgQueryOne(
-      `DELETE FROM conversation_messages WHERE user_id = $1 AND guide = 'match_feedback'
-       AND content LIKE $2`,
-      [userId, `[match:${match.id}]%`]
-    );
+    // Append to conversation_messages (don't delete old ones — keep history for AI analysis)
     await pgQueryOne(
       "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES ($1, $2, $3, $4)",
       [userId, "user", `[match:${match.id}] ${feedback.trim()}`, "match_feedback"]

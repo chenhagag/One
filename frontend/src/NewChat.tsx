@@ -1621,7 +1621,12 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       key={m.match_id}
                       onClick={() => {
                         setSelectedPastMatch(m);
-                        setPastMatchFeedback(m.my_feedback || "");
+                        // Show only latest feedback entry (history separated by ---)
+                        const fb = m.my_feedback || "";
+                        const parts = fb.split("\n---\n");
+                        const latest = parts[parts.length - 1] || "";
+                        // Strip timestamp prefix [dd/mm/yyyy, hh:mm]
+                        setPastMatchFeedback(latest.replace(/^\[\d{2}\/\d{2}\/\d{4},?\s*\d{2}:\d{2}\]\s*/, ""));
                         setFeedbackSaved(false);
                         setScreen("past_match_detail");
                       }}
