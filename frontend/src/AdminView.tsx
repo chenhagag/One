@@ -4393,8 +4393,8 @@ function MatchDetailModal({ matchDetail, setMatchDetail, onReload, onCardPreview
                   } catch (err: any) { alert("שגיאה: " + err.message); }
                 }}
               >
-                {["scored", "potential_match", "expanded_potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "pending_second_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
-                  <option key={st} value={st}>{st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st === "pending_second_rating" ? "ממתין לאישור שני" : st}</option>
+                {["scored", "potential_match", "expanded_potential_match", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "pending_second_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "stalled", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
+                  <option key={st} value={st}>{st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st === "pending_second_rating" ? "ממתין לאישור שני" : st === "stalled" ? "התאמה מוקפאת" : st}</option>
                 ))}
               </select>
             ) : (
@@ -5409,8 +5409,8 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                         } catch (err: any) { alert("שגיאה: " + err.message); }
                       }}
                     >
-                      {["scored", "potential_match", "expanded_potential_match", "blind_match_candidate", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "pending_second_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
-                        <option key={st} value={st}>{st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st === "blind_match_candidate" ? "התאמה עיוורת" : st === "pending_second_rating" ? "ממתין לאישור שני" : st}</option>
+                      {["scored", "potential_match", "expanded_potential_match", "blind_match_candidate", "waiting_for_photo", "waiting_for_response", "waiting_first_rating", "pending_second_rating", "waiting_second_rating", "approved_by_both", "pre_match", "in_match", "stalled", "cancelled", "rejected_by_users", "approved_acquaintance"].map(st => (
+                        <option key={st} value={st}>{st === "waiting_for_photo" ? "ממתין לתמונה" : st === "waiting_for_response" ? "ממתין לתשובה" : st === "blind_match_candidate" ? "התאמה עיוורת" : st === "pending_second_rating" ? "ממתין לאישור שני" : st === "stalled" ? "התאמה מוקפאת" : st}</option>
                       ))}
                     </select>
                     {cm.match_status === "waiting_for_photo" && (
