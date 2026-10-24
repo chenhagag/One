@@ -351,17 +351,8 @@ function PotentialMatchScreen({ userId, userGender, onBack, isWW = true }: { use
         <p style={{ color: "#dc3545", fontSize: 13, textAlign: "center", margin: "0 0 12px" }}>{ratingError}</p>
       )}
 
-      {/* Clarification about what photo approval means */}
-      <div style={{ padding: "12px 16px", marginBottom: 4 }}>
-        <p style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.7, margin: 0, textAlign: "right" }}>
-          <strong style={{ color: "#6b7280" }}>אישור תמונה הוא שלב בדרך להתאמה</strong>
-          <br />
-          גם כשיש אישור הדדי, ההיכרות תלויה בהמשך בדיקת ההתאמה ובזמינות של {isWW ? "שתיכן" : "שניכם"}. ייתכן שבינתיים {isWW ? "אחת מכן" : "מישהו"} התחילה היכרות אחרת, אינה פעילה במערכת, או שבהמשך הבדיקה יעלה פער בהעדפה מהותית של {isWW ? "אחת מכן" : "אחד מכם"}.
-        </p>
-      </div>
-
       {/* Known person option — subtle link */}
-      <div style={{ textAlign: "center", padding: "12px 16px" }}>
+      <div style={{ textAlign: "center", padding: "12px 16px 4px" }}>
         <button
           disabled={submitting}
           onClick={() => submitRating("known_person")}
@@ -375,6 +366,15 @@ function PotentialMatchScreen({ userId, userGender, onBack, isWW = true }: { use
             {isFemale ? "לחצי כאן" : "לחץ כאן"}
           </span>
         </button>
+      </div>
+
+      {/* Clarification about what photo approval means */}
+      <div style={{ padding: "12px 16px" }}>
+        <p style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.7, margin: 0, textAlign: "right" }}>
+          <strong style={{ color: "#6b7280" }}>אישור תמונה הוא שלב בדרך להתאמה</strong>
+          <br />
+          גם כשיש אישור הדדי, ההיכרות תלויה בהמשך בדיקת ההתאמה ובזמינות של {isWW ? "שתיכן" : "שניכם"}. ייתכן שבינתיים {isWW ? "אחת מכן" : "מישהו"} התחילה היכרות אחרת, אינה פעילה במערכת, או שבהמשך הבדיקה יעלה פער בהעדפה מהותית של {isWW ? "אחת מכן" : "אחד מכם"}.
+        </p>
       </div>
     </div>
   );
@@ -1787,7 +1787,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 {m.status === "stalled" && (
                   <div style={{ background: "#fffbeb", borderRadius: 12, padding: "16px 18px", marginBottom: 20, border: "1px solid #fef3c7" }}>
                     <p style={{ fontSize: 14, color: "#555", margin: 0, lineHeight: 1.7 }}>
-                      ההתאמה הוקפאה על ידי המערכת כי זוהתה כלא פעילה. חזרת כעת למאגר.
+                      ההתאמה הוקפאה על ידי המערכת כי זוהתה כלא פעילה. חזרת כעת למאגר והחיפוש שלך נמשך.
                       <br /><br />
                       אם תרצו לחדש את הקשר אתן מוזמנות להמשיך לשוחח.
                     </p>
@@ -1817,13 +1817,12 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                       setScreen("stalled_chat");
                     }}
                     style={{
-                      width: "100%", padding: "12px 20px", marginBottom: 20,
-                      background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
-                      color: "#fff", border: "none", borderRadius: 12,
-                      fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                      padding: "10px 20px", marginBottom: 20,
+                      background: "none", color: "#6366f1", border: "1px solid #d4d0e8", borderRadius: 10,
+                      fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
                     }}
                   >
-                    שליחת הודעה ל{m.partner_name}
+                    חזרה לצ׳אט עם {m.partner_name} →
                   </button>
                 )}
 
