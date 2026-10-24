@@ -96,50 +96,35 @@ Emails in `Management/Docs/android-testers-emails.txt`
 
 ## iOS
 
-### Status: לא התחיל — דורש Mac
+### Status: מוכן ל-build — ממתין ל-Mac + Apple Developer Account
 
-### מה צריך Mac
-- **Xcode** — IDE היחיד שיכול לבנות iOS apps (רץ רק על macOS)
-- **iOS Simulator** — בדיקות בלי מכשיר פיזי
-- **Signing & Certificates** — Apple Developer certificates + provisioning profiles
-- **העלאה ל-App Store / TestFlight** — רק דרך Xcode או Transporter
-
-### מה מוכן בלי Mac
+### מה מוכן
 - קוד ה-frontend זהה (Capacitor משתף)
-- `capacitor.config.ts` — משותף, כבר מוגדר
+- `capacitor.config.ts` — משותף, כבר מוגדר עם `iosScheme: 'https'`
+- Push notifications plugin מותקן (`@capacitor/push-notifications` v8.1.2)
+- קוד push כתוב ועובד (`frontend/src/lib/pushNotifications.ts` + backend endpoints)
+- `apple-app-site-association` מוכן ב-`frontend/public/.well-known/` (צריך להחליף TEAM_ID)
 - PWA עובד על Safari/iOS כ-bookmark
-- Capacitor plugins (push, splash, status-bar) — cross-platform
 
-### צעדים כשיהיה Mac
-1. **Apple Developer Account** ($99/year) — צריך להירשם
-2. `npx cap add ios` — יוצר תיקיית `frontend/ios/`
-3. `npx cap sync ios` — מסנכרן web → iOS
-4. `npx cap open ios` — פותח ב-Xcode
-5. הגדרת Signing:
-   - יצירת Certificate (Development + Distribution) ב-Apple Developer portal
-   - יצירת App ID (`io.joinone.app` — אותו bundle ID כמו Android)
-   - יצירת Provisioning Profiles
-   - הגדרה ב-Xcode → Signing & Capabilities
-6. הגדרת Push Notifications:
-   - APNs Key (Apple Push Notification service) — ב-Apple Developer portal
-   - העלאת ה-key ל-Firebase (FCM → iOS)
-   - הוספת Push Notifications capability ב-Xcode
-7. OAuth:
-   - Google Sign-In — הוספת iOS URL scheme ב-Info.plist
-   - Apple Sign-In — הוספת Sign in with Apple capability ב-Xcode
-8. Build → TestFlight → App Store Review
+### מדריך build מפורט
+**ראי `IOS-BUILD-GUIDE.md`** בתיקייה זו — מדריך שלב-אחר-שלב לקלוד שיעבוד על ה-Mac.
 
-### iOS Requirements (App Store Review)
-- **Age rating**: 17+ (dating app)
-- **Privacy labels**: Data collection disclosure
-- **IDFA**: כנראה לא רלוונטי (אין ads SDK)
-- **Content**: Block/Report + EULA כבר קיימים
-- **App Review** ב-Apple מחמיר יותר מ-Google Play — צפייה ל-1-3 ימים, תיקונים אפשריים
+### דרישות מקדימות (לעשות לפני שיש Mac!)
+1. **Apple Developer Account** ($99/year, אישור עד 48 שעות) — https://developer.apple.com/account
+2. **Xcode מותקן על ה-Mac** (~12GB, להתקין מראש)
 
-### אפשרויות גישה ל-Mac
-- **Mac mini** (~$600) — הזול ביותר, מספיק ל-Xcode
-- **MacStadium / AWS EC2 Mac** — שירות ענן, תשלום לפי שעה
-- **GitHub Actions macOS runners** — ל-CI/CD builds בלבד
+### זמן עבודה על Mac: ~3-4 שעות
+1. `npx cap add ios` + sync — 5 דק
+2. Apple Developer Portal: App ID + APNs Key + Provisioning — 20 דק
+3. Xcode: signing + capabilities + GoogleService-Info.plist — 30 דק
+4. בדיקה על סימולטור — 15 דק
+5. Archive + Upload — 30 דק
+6. App Store Connect metadata — 15 דק
+
+### אחרי ה-build
+- Apple Review: שבוע-שבועיים
+- **עדכונים שוטפים לא דורשים Mac** — הפרונטנד נטען מ-`joinone.io`
+- Mac נדרש רק לשינויי native config, plugins, או version bumps
 
 ---
 
@@ -149,6 +134,7 @@ Emails in `Management/Docs/android-testers-emails.txt`
 | `frontend/capacitor.config.ts` | Server URL, user agent, plugins config |
 | `frontend/public/manifest.json` | PWA manifest (used by Capacitor) |
 | `frontend/public/.well-known/assetlinks.json` | Android deep link verification |
+| `frontend/public/.well-known/apple-app-site-association` | iOS Universal Links (TEAM_ID placeholder) |
 
 ### Android-specific
 | File | Purpose |
@@ -157,12 +143,14 @@ Emails in `Management/Docs/android-testers-emails.txt`
 | `frontend/android/variables.gradle` | SDK versions (target=36, min=24, compile=36) |
 | `frontend/android/release.keystore` | **CRITICAL** — Release signing key |
 
-### iOS-specific (will be created)
+### iOS-specific (will be created on Mac)
 | File | Purpose |
 |------|---------|
 | `frontend/ios/App/App.xcodeproj` | Xcode project (created by `cap add ios`) |
 | `frontend/ios/App/App/Info.plist` | iOS app configuration |
 | `frontend/ios/App/Podfile` | CocoaPods dependencies |
+| `frontend/ios/App/App/GoogleService-Info.plist` | Firebase config for iOS (secret, not in git) |
+| `Management/Dev Agents/Android/IOS-BUILD-GUIDE.md` | Step-by-step build guide for Claude on Mac |
 
 ---
 

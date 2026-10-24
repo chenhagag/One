@@ -1,6 +1,32 @@
 # Analysis Dev Agent — Work Log
 
-## Latest: 2026-10-03 — Agent Created
+## Latest: 2026-10-18 — Cognitive + Style Prompt Improvements
+
+### Cognitive Scoring Accuracy
+- Academic careers (medicine, engineering, law) set floor of 60 for analytical/verbal/depth traits
+- Conscious self-criticism recognized as positive signal (high self_awareness), not weakness
+- Sharp/precise answers added as analytical_reasoning signal
+- `self_awareness` (×1) added to cognitive score calculation in `cognitiveScore.ts`
+
+### Emotional Profile
+- `self_awareness` distinction: conscious critique = high score, superficial apology = low
+
+### Group Prompt (General)
+- `career_prestige` for academic lecturer → 40-55 (was incorrectly falling into 15-30)
+
+### Style Prompt — Major Overhaul (personal-style-system.txt)
+- **Differentiating rules**: absent evidence → score 20-35 (not 50); negative evidence (no mention of parties) counts
+- **Key distinctions added**:
+  - Yoga/meditation = mainstream urban, NOT hippie/rural
+  - Theater (mainstream attendance) ≠ urban scene ≠ high culture
+  - Life constraints (baby, workload) ≠ personality traits
+- **Salience**: identify 2-3 defining traits per user with higher confidence
+- **Combination signals**: geekiness requires 3+ signals → 75+
+- **DB weight rebalance**: w=5→2 for background traits, w=1→2 for lifestyle traits (done directly in prod)
+
+---
+
+## 2026-10-03 — Agent Created
 - Analysis agent created, split from Backend agent
 - Full documentation: 8 prompt groups, validation logic, fuzzy matching, COALESCE DB layer, cognitive score, safe output layer (MBTI/Enneagram/Attachment), coordination points
 - Covers: agent.ts (765 lines), loader.ts (309 lines), cognitiveScore.ts (62 lines), safeOutputLayer.ts (660 lines), 12 prompt files (~1,600 lines), types, tests, README
@@ -58,3 +84,31 @@
 - Warmth scores uniformly high → specific anchor guidance added
 - career_prestige inflated for "happy" workers → explicit job-based anchoring
 - Confidence too high on weak signals → subjective vs factual trait distinction added
+
+### 📋 TODO: שיפור ניתוח והתאמה — 3 תחומים (2026-10-20)
+**עדיפות: גבוהה**
+
+**1. ניתוח חיצוני + התאמה חיצונית**
+- הניתוח החיצוני (AI look traits) והציון החיצוני בהתאמה לא מספיק טובים
+- צריך לבחון: האם הprompt מספיק מדויק? האם ההשוואה (Gaussian) מתאימה? האם המשקלים נכונים?
+
+**2. ניתוח סגנון + התאמת סגנון**
+- Style traits עדיין לא מספיק מבדילים
+- הprompt שופר (2026-10-18) אבל צריך מוניטור ושיפור נוסף
+
+**3. Deal breakers + מאפיינים ספציפיים**
+- יש traits כמו deal_breakers (text), has_children, smoker, religion
+- אלה לא באים לידי ביטוי בציון ההתאמה — צריך שיבואו
+- התחלנו לבנות ניתוח של זה (general-info prompt) אבל חסרה אינטגרציה עם Matching
+
+**4. Traits חדשים מ-taste test WW (תלות בסוכן Conversation)**
+- נשיות-גבריות (fem_personal, fem_desired כבר קיימים אבל רק כ-look traits)
+- פתיחות לארון (closeted_openness)
+- ניסיון עם נשים (ww_experience)
+- צריך להגדיר trait_definitions חדשים ולשלב ב-analysis prompts
+
+**קבצים רלוונטיים:**
+- `agents/analysis/prompts/*.txt` — כל הprompts
+- `agents/analysis/agent.ts` — ריצת הניתוח
+- `schema.pg.ts` — trait_definitions, deal_breaker_definitions
+- `matchStage2.ts` — הציון שמשתמש ב-traits (סוכן Matching)

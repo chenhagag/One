@@ -51,7 +51,7 @@ Promotion
 ### Personal Filters (applied when effective_weight > 80)
 | Filter | Tolerance |
 |--------|-----------|
-| **Age** | not_flexible: ±1yr, slightly: ±3yr, very: ±5yr |
+| **Age** | Base: not_flexible=±1, slightly=±2, very=±3, scaled by decade: 20s ×1, 30s ×1.5, 40s ×2, 50s ×2.5 |
 | **Height** | not_flexible: ±2cm, slightly: ±5cm, very: ±10cm |
 | **Location** | my_city / my_area / bit_further / whole_country |
 | **Approval rate** | ±30 on 0-100 scale |
@@ -85,15 +85,23 @@ Per trait:
   diff = |score_A - score_B|
   rawMatch = 100 × e^(-(diff²)/(2×12²))        ← Gaussian, σ=12
   sharedConf = √(confidence_A × confidence_B)
-  confFactor = min(1, sharedConf / 0.3)          ← blend toward 50 at very low confidence
-  match = rawMatch × confFactor + 50 × (1 - confFactor)
+
+  if sharedConf < 0.15 → SKIP trait entirely
+
+  if sharedConf < 0.4:
+    match = 50 + sharedConf × (rawMatch - 50)   ← shrink-to-neutral
+  else:
+    match = rawMatch                              ← full score preserved
+
   avgWeight = (weight_A + weight_B) / 2           ← falls back to trait_definition.weight
-  weightedWeight = avgWeight × sharedConf
+  weightedWeight = avgWeight × sharedConf         ← confidence as weight
 
 Internal Score = Σ(weightedWeight × match) / Σ(weightedWeight)    → 0-100
 ```
 
 **Gaussian reference**: diff=5→92, diff=15→46, diff=30→5
+
+**Shrink-to-neutral examples**: Two users with score=60, conf=0.1 → sharedConf=0.1 → SKIP. Score=60, conf=0.4 → sharedConf=0.4 → match=rawMatch (no shrink). Score=60, conf=0.3 → sharedConf=0.3 → match = 50 + 0.3×(rawMatch-50).
 
 **Excluded from scoring**: traits with `calc_type = 'internal_use'` or `'special'`, or `weight = 0`
 
@@ -155,7 +163,7 @@ If external = null:   final = internal (100%)
 | **Popularity** | ×0.25 | oriental, mainstreamness, broad_appeal |
 | **Vibe** | ×0.25 | mainstreamness, conformity, openness_to_experience, gender_conformity |
 
-Category weight scaled by average confidence of its traits (confFactor = min(1, avgConf/0.3))
+Category weight scaled by average confidence of its traits (same shrink-to-neutral + skip<0.15 logic as internal score)
 
 ### Promotion Threshold
 Candidate promoted to match if:
@@ -188,20 +196,24 @@ Thinking score gets +10 before comparing with Feeling (conversation bias correct
 
 ---
 
-## Style Prompt Refinement — In Progress
+## Style Prompt Refinement — Mostly Done (2026-10-18)
 
 Prompt file: `backend/src/agents/analysis/prompts/personal-style-system.txt`
 
 **Done (2026-07-27):**
-- **geekiness**: academic/scientific interests ≠ geek culture, max 35 without explicit gaming/SF/fantasy
+- **geekiness**: academic/scientific interests ≠ geek culture, max 35 without explicit gaming/SF/fantasy; combination signals (3+) → 75+
 - **mainstreamness**: counter-mainstream signals weigh more, generic hobbies don't indicate mainstream
 
-**Pending: 17 traits still need review:**
-oriental, broad_appeal, family_of_origin_closeness, childishness, humor, party_orientation, hipsterishness, hippie_style, theatricality, soviet_style, gender_conformity, metropolitan_orientation, achievement_status_orientation, cultural_currency, style_polish, high_culture_orientation, rural_communal_style
+**Done (2026-10-18) — Major overhaul:**
+- All 17 pending traits addressed via prompt clarity improvements
+- **Key distinctions**: yoga/meditation = mainstream urban (NOT hippie/rural); theater attendance ≠ urban scene ≠ high culture; life constraints (baby, workload) ≠ personality
+- **Absent evidence rule**: no mention = score 20-35 (not default 50); negative evidence counts
+- **Salience**: AI identifies 2-3 defining traits per user with higher confidence
+- **DB weight rebalance**: background traits w=5→2, lifestyle traits w=1→2
+- Tested on real users (עדי, נוי, טלי) — see `style-comparison.md`
+- **Scoring formula updated** to shrink-to-neutral + confidence-as-weight (see Stage 2 section above)
 
-**Process**: Go trait by trait, test on real users, compare before/after. Run style reanalysis after each prompt change.
-
-**Why**: Chen found AI was giving inflated geekiness scores for programmers/scientists.
+**Remaining**: monitor results over time, may need per-trait fine-tuning as more users enter pool.
 
 ---
 

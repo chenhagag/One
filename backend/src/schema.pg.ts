@@ -1504,4 +1504,18 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       END $$;
     `);
   } catch (e) { /* column may already exist */ }
+
+  // Stalled match support: stalled_at on matches, stalled_notification_dismissed on users
+  await pool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='matches' AND column_name='stalled_at') THEN
+        ALTER TABLE matches ADD COLUMN stalled_at TIMESTAMPTZ;
+      END IF;
+    END $$;
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='stalled_notification_dismissed') THEN
+        ALTER TABLE users ADD COLUMN stalled_notification_dismissed BOOLEAN DEFAULT FALSE;
+      END IF;
+    END $$;
+  `);
 }

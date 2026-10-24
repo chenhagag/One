@@ -53,7 +53,7 @@ safeOutputLayer.ts — compute MBTI, Enneagram, Attachment, filter safe traits f
 | `backend/src/agents/analysis/test-run.ts` | — | Test runner with sample transcript |
 | `backend/src/agents/analysis/test-incremental.ts` | — | Incremental analysis test |
 | `backend/src/agents/analysis/README.md` | 105 | Integration guide, confidence logic, null handling |
-| `backend/src/cognitiveScore.ts` | 62 | Cognitive score computation (single source of truth) |
+| `backend/src/cognitiveScore.ts` | ~65 | Cognitive score computation: analytical_reasoning ×3 + self_awareness ×1 + other cognitive traits (single source of truth) |
 | `backend/src/safeOutputLayer.ts` | 660 | MBTI/Enneagram/Attachment/BigFive/Values for user display |
 
 ---

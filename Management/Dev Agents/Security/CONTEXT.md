@@ -70,11 +70,12 @@
 | # | Item | Priority | Notes |
 |---|------|----------|-------|
 | 1 | **Signed URLs for /uploads** | Medium | Only real security gap. Photos accessible without auth if URL known. Filenames are 10^19 combinations (not guessable). Needs planning: Android app, cache, open tabs |
-| 2 | **NaN param validation** | Low | app.param() ready locally, not pushed |
-| 3 | **Per-user rate limit on messaging** | Low | IP-based exists |
-| 4 | **Separate APP_JWT_SECRET for OTP** | Low | From July audit |
-| 5 | **Shorten OTP token expiry** | Low | From July audit |
-| 6 | **CLAUDE.md rate limit docs** | Low | Says 300, code says 1000 |
+| 2 | **Supabase service_role key rotation** | Medium | צריך בדיקת קוד — האם תומך בפורמט sb_secret_ החדש. אין השפעה על משתמשות. מ-Railway incident 22/10 |
+| 3 | **NaN param validation** | Low | app.param() ready locally, not pushed |
+| 4 | **Per-user rate limit on messaging** | Low | IP-based exists |
+| 5 | **Separate APP_JWT_SECRET for OTP** | Low | From July audit |
+| 6 | **Shorten OTP token expiry** | Low | From July audit |
+| 7 | **CLAUDE.md rate limit docs** | Low | Says 300, code says 1000 |
 
 ---
 

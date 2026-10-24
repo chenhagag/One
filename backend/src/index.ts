@@ -46,7 +46,7 @@ import { generateInsights as generateInsightsFn } from "./pipeline/generateInsig
 import { startJobRunner, createJob as createPipelineJob, requeueOrCreateJob as requeueOrCreateJobFn, processPendingJobs as processPendingJobsFn } from "./pipeline/jobRunner";
 import { setReconcileFn } from "./pipeline/dailyMatching";
 import { promoteUserWaitingMatches } from "./pipeline/photoMatchPromotion";
-import { notifyUser, sendPushOnly, registerToken, unregisterToken, syncPermissionStatus, hasPushTokens, notifyMatchCardSent, notifyNewMessage, notifySentForRating, notifyAdminMessage, notifySystemQuestion, verifyUnsubToken, buildEmailFooter, getUnsubUrl } from "./notifications";
+import { notifyUser, sendPushOnly, registerToken, unregisterToken, syncPermissionStatus, hasPushTokens, notifyMatchCardSent, notifyNewMessage, notifySentForRating, notifyAdminMessage, notifySystemQuestion, notifyMatchStalled, notifyStalledMatchMessage, verifyUnsubToken, buildEmailFooter, getUnsubUrl } from "./notifications";
 import { logActivity } from "./pipeline/activityLog";
 import { upsertUserInsights, deactivateUserInsightChunks } from "./rag";
 
@@ -1436,14 +1436,32 @@ async function findActiveMatch(userId: number) {
   );
 }
 
+// Helper: find match for chat — supports both active and stalled matches
+async function findMatchForChat(userId: number, matchId?: number) {
+  if (matchId) {
+    // Explicit match_id: must be stalled + user is participant + has match_card
+    return pgQueryOne<any>(
+      `SELECT m.id AS match_id, m.user1_id, m.user2_id, m.blocked_by, m.status
+       FROM matches m
+       WHERE m.id = $1
+         AND (m.user1_id = $2 OR m.user2_id = $2)
+         AND m.status = 'stalled'
+         AND m.match_card_sent_at IS NOT NULL`,
+      [matchId, userId]
+    );
+  }
+  return findActiveMatch(userId);
+}
+
 // GET /users/:id/direct-messages — Fetch messages for active match
 app.get("/users/:id/direct-messages", requireUserAuth, async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.json({ messages: [], partner_typing: false, match_id: null, unread_count: 0 });
     const since = req.query.since as string | undefined;
+    const requestedMatchId = req.query.match_id ? parseInt(req.query.match_id as string, 10) : undefined;
 
-    const match = await findActiveMatch(userId);
+    const match = await findMatchForChat(userId, requestedMatchId);
     if (!match) return res.json({ messages: [], partner_typing: false, match_id: null, unread_count: 0 });
 
     const partnerId = match.user1_id === userId ? match.user2_id : match.user1_id;
@@ -1486,6 +1504,7 @@ app.get("/users/:id/direct-messages", requireUserAuth, async (req, res) => {
       messages,
       partner_typing: !!typing,
       match_id: match.match_id,
+      match_status: match.status || "in_match",
       unread_count: parseInt(unreadRow?.cnt || "0", 10),
       blocked_by: match.blocked_by || null,
     });
@@ -1500,7 +1519,7 @@ app.post("/users/:id/direct-messages", requireUserAuth, async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.status(400).json({ error: "Invalid user ID" });
-    const { content } = req.body;
+    const { content, match_id: bodyMatchId } = req.body;
     if (!content || typeof content !== "string" || content.trim().length === 0) {
       return res.status(400).json({ error: "content required" });
     }
@@ -1508,7 +1527,8 @@ app.post("/users/:id/direct-messages", requireUserAuth, async (req, res) => {
       return res.status(400).json({ error: "Message too long (max 2000 chars)" });
     }
 
-    const match = await findActiveMatch(userId);
+    const requestedMatchId = bodyMatchId ? parseInt(bodyMatchId, 10) : undefined;
+    const match = await findMatchForChat(userId, requestedMatchId);
     if (!match) return res.status(404).json({ error: "No active match found" });
 
     // Verify user is part of this match
@@ -1539,7 +1559,11 @@ app.post("/users/:id/direct-messages", requireUserAuth, async (req, res) => {
     // Notify the recipient (non-blocking, throttled)
     const recipientId = match.user1_id === userId ? match.user2_id : match.user1_id;
     const sender = await pgQueryOne<{ first_name: string }>("SELECT first_name FROM users WHERE id = $1", [userId]);
-    notifyNewMessage(recipientId, sender?.first_name || "ההתאמה שלך").catch(() => {});
+    if (match.status === "stalled") {
+      notifyStalledMatchMessage(recipientId, sender?.first_name || "התאמה קודמת").catch(() => {});
+    } else {
+      notifyNewMessage(recipientId, sender?.first_name || "ההתאמה שלך").catch(() => {});
+    }
 
     return res.json(msg);
   } catch (err) {
@@ -1553,9 +1577,10 @@ app.post("/users/:id/typing-status", requireUserAuth, async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.json({ ok: true });
-    const { is_typing } = req.body;
+    const { is_typing, match_id: bodyMatchId } = req.body;
+    const requestedMatchId = bodyMatchId ? parseInt(bodyMatchId, 10) : undefined;
 
-    const match = await findActiveMatch(userId);
+    const match = await findMatchForChat(userId, requestedMatchId);
     if (!match) return res.json({ ok: true }); // Don't 404 — typing is non-critical
 
     await pgQueryOne<any>(
@@ -1578,7 +1603,10 @@ app.post("/users/:id/mark-messages-read", requireUserAuth, async (req, res) => {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.json({ ok: true });
 
-    const match = await findActiveMatch(userId);
+    const { match_id: bodyMatchId } = req.body || {};
+    const requestedMatchId = bodyMatchId ? parseInt(bodyMatchId, 10) : undefined;
+
+    const match = await findMatchForChat(userId, requestedMatchId);
     if (!match) return res.json({ ok: true }); // Don't 404 — mark-read is non-critical
 
     const partnerId = match.user1_id === userId ? match.user2_id : match.user1_id;
@@ -1602,7 +1630,8 @@ app.get("/users/:id/unread-count", requireUserAuth, async (req, res) => {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.json({ unread_count: 0, chat_started: false });
 
-    const match = await findActiveMatch(userId);
+    const requestedMatchId = req.query.match_id ? parseInt(req.query.match_id as string, 10) : undefined;
+    const match = await findMatchForChat(userId, requestedMatchId);
     if (!match) return res.json({ unread_count: 0, chat_started: false });
 
     const partnerId = match.user1_id === userId ? match.user2_id : match.user1_id;
@@ -1634,14 +1663,23 @@ app.post("/users/:id/unblock-match", requireUserAuth, async (req, res) => {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.status(400).json({ error: "Invalid user ID" });
 
-    const match = await pgQueryOne<any>(
-      `SELECT id, blocked_by FROM matches
-       WHERE (user1_id = $1 OR user2_id = $1)
-         AND status = 'in_match'
-         AND blocked_by = $1
-       ORDER BY updated_at DESC LIMIT 1`,
-      [userId]
-    );
+    const { match_id: bodyMatchId } = req.body || {};
+    const match = bodyMatchId
+      ? await pgQueryOne<any>(
+          `SELECT id, blocked_by FROM matches
+           WHERE id = $1 AND (user1_id = $2 OR user2_id = $2)
+             AND status IN ('in_match', 'stalled')
+             AND blocked_by = $2`,
+          [parseInt(bodyMatchId, 10), userId]
+        )
+      : await pgQueryOne<any>(
+          `SELECT id, blocked_by FROM matches
+           WHERE (user1_id = $1 OR user2_id = $1)
+             AND status IN ('in_match', 'stalled')
+             AND blocked_by = $1
+           ORDER BY updated_at DESC LIMIT 1`,
+          [userId]
+        );
     if (!match) return res.status(404).json({ error: "No blocked match found" });
 
     await pgQueryOne<any>(
@@ -1661,9 +1699,10 @@ app.post("/users/:id/report-match", requireUserAuth, async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.status(400).json({ error: "Invalid user ID" });
-    const { report_text, block } = req.body;
+    const { report_text, block, match_id: bodyMatchId } = req.body;
+    const requestedMatchId = bodyMatchId ? parseInt(bodyMatchId, 10) : undefined;
 
-    const match = await findActiveMatch(userId);
+    const match = await findMatchForChat(userId, requestedMatchId);
     if (!match) return res.status(404).json({ error: "No active match" });
 
     const partnerId = match.user1_id === userId ? match.user2_id : match.user1_id;
@@ -1733,20 +1772,21 @@ app.post("/users/:id/cancel-match", requireUserAuth, async (req, res) => {
   }
 });
 
-// GET /users/:id/match-history — Past cancelled matches for a user
+// GET /users/:id/match-history — Past cancelled/stalled matches for a user
 app.get("/users/:id/match-history", requireUserAuth, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   try {
     const matches = await pgQueryAll<any>(
       `SELECT m.id, m.match_card_data, m.user1_id, m.user2_id, m.cancelled_by,
               m.cancellation_feedback_user1, m.cancellation_feedback_user2, m.updated_at,
+              m.status, m.stalled_at, m.blocked_by,
               u1.first_name AS user1_name, u2.first_name AS user2_name,
               u1.age AS user1_age, u2.age AS user2_age,
               u1.city AS user1_city, u2.city AS user2_city
        FROM matches m
        JOIN users u1 ON u1.id = m.user1_id
        JOIN users u2 ON u2.id = m.user2_id
-       WHERE (m.user1_id = $1 OR m.user2_id = $1) AND m.status = 'cancelled'
+       WHERE (m.user1_id = $1 OR m.user2_id = $1) AND m.status IN ('cancelled', 'stalled')
          AND m.match_card_sent_at IS NOT NULL
        ORDER BY m.updated_at DESC`,
       [userId]
@@ -1771,6 +1811,9 @@ app.get("/users/:id/match-history", requireUserAuth, async (req, res) => {
         my_feedback: isUser1 ? m.cancellation_feedback_user1 : m.cancellation_feedback_user2,
         match_card_data: m.match_card_data,
         updated_at: m.updated_at,
+        status: m.status,
+        stalled_at: m.stalled_at,
+        blocked_by: m.blocked_by,
       });
     }
 
@@ -1779,6 +1822,36 @@ app.get("/users/:id/match-history", requireUserAuth, async (req, res) => {
     console.error("[match-history] Error:", err);
     return res.status(500).json({ error: "Failed to load match history" });
   }
+});
+
+// GET /users/:id/stalled-unread-counts — Unread message counts for stalled matches
+app.get("/users/:id/stalled-unread-counts", requireUserAuth, async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  try {
+    const rows = await pgQueryAll<any>(
+      `SELECT dm.match_id, COUNT(*)::int AS unread
+       FROM direct_messages dm
+       JOIN matches m ON m.id = dm.match_id
+       WHERE m.status = 'stalled'
+         AND (m.user1_id = $1 OR m.user2_id = $1)
+         AND dm.sender_id != $1
+         AND dm.read_at IS NULL
+       GROUP BY dm.match_id`,
+      [userId]
+    );
+    const total = rows.reduce((sum: number, r: any) => sum + r.unread, 0);
+    return res.json({ total_unread: total, per_match: rows });
+  } catch (err) {
+    console.error("[stalled-unread-counts] Error:", err);
+    return res.json({ total_unread: 0, per_match: [] });
+  }
+});
+
+// POST /users/:id/dismiss-stalled-notification — User dismisses stalled match banner
+app.post("/users/:id/dismiss-stalled-notification", requireUserAuth, async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  await pgQueryOne("UPDATE users SET stalled_notification_dismissed = TRUE WHERE id = $1", [userId]);
+  return res.json({ ok: true });
 });
 
 // GET /users/:id/match-partner-profile — Partner's public info for a specific match
@@ -1827,26 +1900,27 @@ app.post("/users/:id/match-feedback", requireUserAuth, async (req, res) => {
 
   try {
     const match = await pgQueryOne<any>(
-      "SELECT * FROM matches WHERE id = $1 AND (user1_id = $2 OR user2_id = $2) AND status = 'cancelled'",
+      "SELECT * FROM matches WHERE id = $1 AND (user1_id = $2 OR user2_id = $2) AND status IN ('cancelled', 'stalled')",
       [match_id, userId]
     );
     if (!match) return res.status(404).json({ error: "Cancelled match not found" });
 
     const isUser1 = match.user1_id === userId;
     const feedbackCol = isUser1 ? "cancellation_feedback_user1" : "cancellation_feedback_user2";
+    const existingFeedback = isUser1 ? match.cancellation_feedback_user1 : match.cancellation_feedback_user2;
 
-    // Update feedback on match record
+    // Append new feedback with timestamp, preserving history
+    const now = new Date().toLocaleString("he-IL", { timeZone: "Asia/Jerusalem", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    const newEntry = `[${now}] ${feedback.trim()}`;
+    const combined = existingFeedback ? `${existingFeedback}\n---\n${newEntry}` : newEntry;
+
+    // Update feedback on match record (append, not overwrite)
     await pgQueryOne(
       `UPDATE matches SET ${feedbackCol} = $1, updated_at = NOW() WHERE id = $2`,
-      [feedback.trim(), match.id]
+      [combined, match.id]
     );
 
-    // Upsert conversation_messages: delete old match_feedback for this user+match, insert new
-    await pgQueryOne(
-      `DELETE FROM conversation_messages WHERE user_id = $1 AND guide = 'match_feedback'
-       AND content LIKE $2`,
-      [userId, `[match:${match.id}]%`]
-    );
+    // Append to conversation_messages (don't delete old ones — keep history for AI analysis)
     await pgQueryOne(
       "INSERT INTO conversation_messages (user_id, role, content, guide) VALUES ($1, $2, $3, $4)",
       [userId, "user", `[match:${match.id}] ${feedback.trim()}`, "match_feedback"]
@@ -4141,7 +4215,7 @@ app.patch("/admin/matches/:id/status", async (req, res) => {
     "blind_match_candidate",
     "waiting_first_rating", "pending_second_rating", "waiting_second_rating", "approved_by_both",
     "pre_match", "in_match", "cancelled", "rejected_by_users",
-    "approved_acquaintance"
+    "approved_acquaintance", "stalled"
   ];
   if (!status || !validStatuses.includes(status)) {
     return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` });
@@ -4163,6 +4237,29 @@ app.patch("/admin/matches/:id/status", async (req, res) => {
       console.log(`[admin] Match ${matchId} demoted to scored (deleted match, reverted candidate_matches)`);
 
       return res.json({ success: true, match: { id: matchId, status: "scored" } });
+    }
+
+    // Special case: stalling an active match — users return to pool, chat stays open
+    if (status === "stalled") {
+      if (oldMatch.status !== "in_match") {
+        return res.status(400).json({ error: `Can only stall matches in 'in_match', current is '${oldMatch.status}'` });
+      }
+      await withTransaction(async (client) => {
+        await client.query(
+          "UPDATE matches SET status = 'stalled', stalled_at = NOW(), updated_at = NOW() WHERE id = $1",
+          [matchId]
+        );
+        await client.query(
+          `UPDATE users SET user_status = 'waiting_match', waiting_since = NOW(),
+           stalled_notification_dismissed = FALSE, updated_at = NOW()
+           WHERE id IN ($1, $2)`,
+          [oldMatch.user1_id, oldMatch.user2_id]
+        );
+      });
+      notifyMatchStalled(oldMatch.user1_id).catch(() => {});
+      notifyMatchStalled(oldMatch.user2_id).catch(() => {});
+      console.log(`[admin] Match ${matchId} stalled, users ${oldMatch.user1_id} + ${oldMatch.user2_id} returned to pool`);
+      return res.json({ success: true, match: { id: matchId, status: "stalled" } });
     }
 
     // When manually setting to expanded_potential_match, also mark location_expanded
@@ -5703,16 +5800,17 @@ app.get("/admin/outreach-log", async (_req, res) => {
       ORDER BY sq.created_at DESC
     `);
     const cancellations = await pgQueryAll(`
-      SELECT m.id, m.user1_id, m.user2_id, m.cancelled_by, m.updated_at,
+      SELECT m.id, m.user1_id, m.user2_id, m.cancelled_by, m.updated_at, m.status,
         m.cancellation_feedback_user1, m.cancellation_feedback_user2,
-        m.match_card_sent_at,
+        m.match_card_sent_at, m.stalled_at,
         u1.first_name as user1_name, u2.first_name as user2_name,
         cb.first_name as cancelled_by_name
       FROM matches m
       JOIN users u1 ON u1.id = m.user1_id
       JOIN users u2 ON u2.id = m.user2_id
       LEFT JOIN users cb ON cb.id = m.cancelled_by
-      WHERE m.status = 'cancelled'
+      WHERE m.status IN ('cancelled', 'stalled')
+        AND m.match_card_sent_at IS NOT NULL
       ORDER BY m.updated_at DESC
     `);
     const adminMessages = await pgQueryAll(`
@@ -6562,6 +6660,7 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       self_frozen: boolean | null;
       push_notifications: boolean | null;
       devices_seen: any[] | null;
+      stalled_notification_dismissed: boolean | null;
     }>(
       `SELECT age, city, height, looking_for_gender,
               desired_age_min, desired_age_max, desired_height_min, desired_height_max,
@@ -6572,7 +6671,8 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
               COALESCE(admin_message_type, 'info') as admin_message_type,
               COALESCE(self_frozen, FALSE) as self_frozen,
               COALESCE(push_notifications, FALSE) as push_notifications,
-              devices_seen
+              devices_seen,
+              COALESCE(stalled_notification_dismissed, FALSE) as stalled_notification_dismissed
        FROM users WHERE id = $1`, [userId]
     );
     const isWWUser2 = profileRow?.gender === "woman" && profileRow?.looking_for_gender && profileRow?.looking_for_gender !== "man";
@@ -6676,12 +6776,30 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       [userId]
     );
 
-    // Check for past cancelled matches
+    // Check for past cancelled/stalled matches
     const pastMatchRow = await pgQueryOne<{ c: number }>(
-      `SELECT COUNT(*)::int AS c FROM matches WHERE (user1_id = $1 OR user2_id = $1) AND status = 'cancelled' AND match_card_sent_at IS NOT NULL`,
+      `SELECT COUNT(*)::int AS c FROM matches WHERE (user1_id = $1 OR user2_id = $1) AND status IN ('cancelled', 'stalled') AND match_card_sent_at IS NOT NULL`,
       [userId]
     );
     const hasPastMatches = (pastMatchRow?.c ?? 0) > 0;
+    const stalledMatchRow = await pgQueryOne<{ c: number }>(
+      `SELECT COUNT(*)::int AS c FROM matches WHERE (user1_id = $1 OR user2_id = $1) AND status = 'stalled' AND match_card_sent_at IS NOT NULL`,
+      [userId]
+    );
+    const hasStalledMatch = (stalledMatchRow?.c ?? 0) > 0;
+    let stalledPartnerName: string | null = null;
+    if (hasStalledMatch) {
+      const stalledMatch = await pgQueryOne<any>(
+        `SELECT m.user1_id, m.user2_id, u1.first_name AS u1_name, u2.first_name AS u2_name
+         FROM matches m JOIN users u1 ON u1.id = m.user1_id JOIN users u2 ON u2.id = m.user2_id
+         WHERE (m.user1_id = $1 OR m.user2_id = $1) AND m.status = 'stalled' AND m.match_card_sent_at IS NOT NULL
+         ORDER BY m.stalled_at DESC LIMIT 1`,
+        [userId]
+      );
+      if (stalledMatch) {
+        stalledPartnerName = stalledMatch.user1_id === userId ? stalledMatch.u2_name : stalledMatch.u1_name;
+      }
+    }
 
     // Survey status — old survey disabled (removed from home screen)
     const showSurveyBanner = false;
@@ -6725,6 +6843,9 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       in_matching_pool: profileRow?.in_matching_pool ?? false,
       match_card_consent: profileRow?.match_card_consent ?? null,
       has_past_matches: hasPastMatches,
+      has_stalled_match: hasStalledMatch,
+      stalled_partner_name: stalledPartnerName,
+      stalled_notification_dismissed: !!profileRow?.stalled_notification_dismissed,
       show_survey_banner: showSurveyBanner,
       survey_partial: false,
       show_survey2_banner: showSurvey2Banner,

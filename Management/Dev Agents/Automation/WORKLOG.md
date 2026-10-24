@@ -57,3 +57,24 @@
 - photoAnalysis (GPT-4o Vision → 11 traits)
 - Pipeline jobs table with retry + backoff
 - Deployed to staging, then production
+
+### 📋 TODO: שיפור אוטומציה ותהליכי Pipeline (2026-10-20)
+**עדיפות: גבוהה**
+
+**בעיות נוכחיות:**
+- צווארי בקבוק: תמונות (משתמשות לא מעלות), תובנות (נכתבות ידנית ע"י Claude), כניסה למאגר (תנאים חוסמים)
+- התאמה עיוורת (blind match) יוצרת יותר בעיות מפתרונות — שאלות שלא נענות, תהליך מסורבל
+- אין תהליך סגור end-to-end למשתמשת חדשה
+
+**מה צריך:**
+1. **להפסיק blind match** — במקום זה, nudges חזקים על העלאת תמונה. אין תמונה = לא ממשיכים
+2. **Nudge תמונה** — nudge ייעודי (push/email) אחרי שהשיחה נסגרה: "כדי שנוכל להתחיל לחפש התאמות, צריך תמונה"
+3. **תובנות אוטומטיות** — לבחון אם GPT יכול לכתוב תובנות בצורה סבירה (לפחות כדראפט) במקום Claude ידנית
+4. **Pipeline סגור** — תרשים ברור: הרשמה → שיחה → סגירה → ניתוח → תמונה → מאגר → התאמה → דירוג → כרטיס
+5. **מוניטור** — dashboard ברור שמראה איפה כל משתמשת תקועה (קשור למסך "דורשות טיפול" החדש)
+
+**קבצים רלוונטיים:**
+- `pipeline/completionPipeline.ts` — pipeline אחרי ניתוח
+- `pipeline/userNudges.ts` — nudge system
+- `pipeline/dailyMatching.ts` — matching cron
+- `pipeline/photoMatchPromotion.ts` — photo ↔ match status

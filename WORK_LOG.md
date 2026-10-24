@@ -22,7 +22,27 @@
 
 ---
 
-## Latest Session: 2026-10-21 (Bug Fixes + WhatsApp Alerts + Deploy Investigation)
+## Latest Session: 2026-10-22/23 (Railway Security Incident + Credential Rotation + UX Fixes)
+
+### ✅ Railway Security Incident — Credential Rotation
+- Railway הודיעו על גישה לא מורשית למשתני סביבה. מייל ממוקד אישר שה-workspace ברשימת המטרות.
+- בדיקת לוגים (OpenAI, Resend, Supabase) — נקי, אין פעילות חשודה
+- הוחלפו: OPENAI_API_KEY, RESEND_API_KEY, FIREBASE_SERVICE_ACCOUNT, DATABASE_URL (בשתי סביבות)
+- נדחו: SUPABASE_SERVICE_ROLE_KEY (צריך בדיקת קוד), SUPABASE_JWT_SECRET (סיכון נמוך)
+- בעיה: Railway image push נכשל 5 פעמים → production למטה ~1.5 שעות. פתרון: שינוי variable ידני
+- נוצרו: תכנית פעולה, incident response playbook עם לקחים
+
+### ✅ ריכוך ניסוח הודעות דירוג
+- "מצאנו לך התאמה פוטנציאלית" → "יש לנו כיוון ראשוני להתאמה עבורך"
+- Push, email ותזכורות — הכל עודכן
+
+### ✅ שמירת הודעות admin conversation בהיסטוריית צ'אט
+- Endpoint חדש `/new-chat/save-message`
+- כשמשתמשת לוחצת "דברי איתי על זה" — ההודעה נשמרת ל-DB ומופיעה ב-admin transcript
+
+---
+
+## 2026-10-21 (Bug Fixes + WhatsApp Alerts + Deploy Investigation)
 
 ### ✅ באג העלאת תמונות — "Request aborted" (נועה #367)
 - דחיסת תמונות client-side ב-ProfileEdit (canvas 2048px, JPEG 85%)
