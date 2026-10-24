@@ -7580,7 +7580,7 @@ function OutreachLogTab() {
 
       {/* Cancellations */}
       <div style={{ marginTop: 32 }}>
-        <h3 style={{ margin: "0 0 12px" }}>ביטולי התאמות ({cancellations.length})</h3>
+        <h3 style={{ margin: "0 0 12px" }}>ביטולים והקפאות ({cancellations.length})</h3>
         <div style={s.scrollWrap}>
           <table style={s.table}>
             <thead>
@@ -7601,7 +7601,7 @@ function OutreachLogTab() {
                   <td style={s.td}>{c.id}</td>
                   <td style={s.td}>{c.user1_name} ({c.user1_id})</td>
                   <td style={s.td}>{c.user2_name} ({c.user2_id})</td>
-                  <td style={s.td}>{c.cancelled_by_name ? <span style={{ fontWeight: 600 }}>{c.cancelled_by_name} ({c.cancelled_by})</span> : <span style={{ color: "#9ca3af" }}>אדמין</span>}</td>
+                  <td style={s.td}>{c.status === "stalled" ? <span style={{ color: "#d97706", fontWeight: 600 }}>הוקפאה</span> : c.cancelled_by_name ? <span style={{ fontWeight: 600 }}>{c.cancelled_by_name} ({c.cancelled_by})</span> : <span style={{ color: "#9ca3af" }}>אדמין</span>}</td>
                   <td style={{ ...s.td, whiteSpace: "nowrap" }}>{fmtDate(c.updated_at)}</td>
                   <td style={s.td}>{c.match_card_sent_at ? <span style={{ color: "#16a34a", fontWeight: 600 }}>כן</span> : <span style={{ color: "#9ca3af" }}>לא</span>}</td>
                   <td style={{ ...s.td, maxWidth: 200, whiteSpace: "normal", wordBreak: "break-word" }}>{c.cancellation_feedback_user1 || <span style={{ color: "#d1d5db" }}>—</span>}</td>

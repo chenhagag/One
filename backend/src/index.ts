@@ -1900,7 +1900,7 @@ app.post("/users/:id/match-feedback", requireUserAuth, async (req, res) => {
 
   try {
     const match = await pgQueryOne<any>(
-      "SELECT * FROM matches WHERE id = $1 AND (user1_id = $2 OR user2_id = $2) AND status = 'cancelled'",
+      "SELECT * FROM matches WHERE id = $1 AND (user1_id = $2 OR user2_id = $2) AND status IN ('cancelled', 'stalled')",
       [match_id, userId]
     );
     if (!match) return res.status(404).json({ error: "Cancelled match not found" });
@@ -5799,16 +5799,17 @@ app.get("/admin/outreach-log", async (_req, res) => {
       ORDER BY sq.created_at DESC
     `);
     const cancellations = await pgQueryAll(`
-      SELECT m.id, m.user1_id, m.user2_id, m.cancelled_by, m.updated_at,
+      SELECT m.id, m.user1_id, m.user2_id, m.cancelled_by, m.updated_at, m.status,
         m.cancellation_feedback_user1, m.cancellation_feedback_user2,
-        m.match_card_sent_at,
+        m.match_card_sent_at, m.stalled_at,
         u1.first_name as user1_name, u2.first_name as user2_name,
         cb.first_name as cancelled_by_name
       FROM matches m
       JOIN users u1 ON u1.id = m.user1_id
       JOIN users u2 ON u2.id = m.user2_id
       LEFT JOIN users cb ON cb.id = m.cancelled_by
-      WHERE m.status = 'cancelled'
+      WHERE m.status IN ('cancelled', 'stalled')
+        AND m.match_card_sent_at IS NOT NULL
       ORDER BY m.updated_at DESC
     `);
     const adminMessages = await pgQueryAll(`
