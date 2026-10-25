@@ -555,7 +555,7 @@ function AttentionTab({ onSelectUser }: { onSelectUser?: (userId: number) => voi
           style={{ fontWeight: 700, color: "#1e1b4b", cursor: "pointer", textDecoration: "underline", minWidth: 80 }}
           onClick={() => onSelectUser?.(u.id)}
         >
-          {u.first_name}
+          {u.first_name} <span style={{ fontWeight: 400, color: "#9ca3af", fontSize: 11 }}>#{u.id}</span>
         </span>
         <span style={{ color: "#6b7280" }}>{u.age ?? "?"}, {u.city ?? "?"}</span>
         <span style={{ color: "#94a3b8", fontSize: 11 }}>{daysSinceCreated} ימים במערכת</span>
@@ -629,7 +629,7 @@ function AttentionTab({ onSelectUser }: { onSelectUser?: (userId: number) => voi
             return (
               <div key={u.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 12px", borderBottom: "1px solid #ede9fe", flexWrap: "wrap", fontSize: 13 }}>
                 <span style={{ fontWeight: 700, color: "#1e1b4b", cursor: "pointer", textDecoration: "underline", minWidth: 80 }} onClick={() => onSelectUser?.(u.id)}>
-                  {u.first_name}
+                  {u.first_name} <span style={{ fontWeight: 400, color: "#9ca3af", fontSize: 11 }}>#{u.id}</span>
                 </span>
                 <span style={{ color: "#6b7280" }}>{u.age ?? "?"}, {u.city ?? "?"}</span>
                 <span style={{ color: "#94a3b8", fontSize: 11 }}>{daysSinceCreated} ימים במערכת</span>
