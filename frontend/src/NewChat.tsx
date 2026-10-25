@@ -292,12 +292,22 @@ function PotentialMatchScreen({ userId, userGender, onBack, isWW = true }: { use
             />
             {photos.length > 1 && (
               <>
+                {/* Photo indicator bar */}
+                <div style={{ position: "absolute", top: 10, left: 14, right: 14, display: "flex", gap: 4, zIndex: 2 }}>
+                  {photos.map((_: any, i: number) => (
+                    <div key={i} onClick={() => setPhotoIndex(i)} style={{ flex: 1, height: 3, borderRadius: 2, background: i === photoIndex ? "#fff" : "rgba(255,255,255,0.4)", cursor: "pointer", transition: "background 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
+                  ))}
+                </div>
+                {/* Photo counter */}
+                <div style={{ position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.45)", color: "#fff", fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 10, zIndex: 2 }}>
+                  {photoIndex + 1} / {photos.length}
+                </div>
                 {/* Tap zones for navigation */}
                 {photoIndex > 0 && (
-                  <div onClick={() => setPhotoIndex(i => i - 1)} style={{ position: "absolute", top: 0, right: 0, width: "40%", height: "100%", cursor: "pointer" }} />
+                  <div onClick={() => setPhotoIndex(i => i - 1)} style={{ position: "absolute", top: 0, right: 0, width: "40%", height: "100%", cursor: "pointer", zIndex: 1 }} />
                 )}
                 {photoIndex < photos.length - 1 && (
-                  <div onClick={() => setPhotoIndex(i => i + 1)} style={{ position: "absolute", top: 0, left: 0, width: "40%", height: "100%", cursor: "pointer" }} />
+                  <div onClick={() => setPhotoIndex(i => i + 1)} style={{ position: "absolute", top: 0, left: 0, width: "40%", height: "100%", cursor: "pointer", zIndex: 1 }} />
                 )}
               </>
             )}
