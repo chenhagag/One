@@ -4910,7 +4910,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
   const [cardSending, setCardSending] = useState(false);
   const [cardEditing, setCardEditing] = useState(false);
   const [editData, setEditData] = useState<any>(null);
-  const [cmView, setCmView] = useState<"actionable" | "priority" | "all">("actionable");
+  const [cmView, setCmView] = useState<"actionable" | "special" | "priority" | "approved" | "all">("actionable");
   const [attentionUserIds, setAttentionUserIds] = useState<Set<number>>(new Set());
   const [filterCmPool, setFilterCmPool] = useState<"all" | "straight" | "ww" | "mm">("all");
   const [filterCmStatus, setFilterCmStatus] = useState<string>("all");
@@ -5212,6 +5212,12 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
             if (cm.user1_is_special || cm.user2_is_special) return false;
             return attentionUserIds.has(cm.user_id) || attentionUserIds.has(cm.candidate_user_id);
           }).length;
+          const specialCount = displayData.filter((cm: any) => {
+            if (cm.match_status !== "potential_match") return false;
+            if (cm.user1_locked || cm.user2_locked) return false;
+            return cm.user1_is_special || cm.user2_is_special;
+          }).length;
+          const approvedCount = displayData.filter((cm: any) => cm.match_status === "approved_by_both" || cm.match_status === "pre_match").length;
           return (
             <>
               <button
@@ -5219,6 +5225,18 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                 style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, border: "none", borderRadius: "6px 6px 0 0", cursor: "pointer", background: cmView === "actionable" ? "#6366f1" : "#f3f4f6", color: cmView === "actionable" ? "#fff" : "#6b7280" }}
               >
                 התאמות על הפרק ({actionableCount})
+              </button>
+              {specialCount > 0 && <button
+                onClick={() => setCmView("special")}
+                style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, border: "none", borderRadius: "6px 6px 0 0", cursor: "pointer", background: cmView === "special" ? "#dc2626" : "#f3f4f6", color: cmView === "special" ? "#fff" : "#6b7280" }}
+              >
+                ⚠ מיוחדות ({specialCount})
+              </button>}
+              <button
+                onClick={() => setCmView("approved")}
+                style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, border: "none", borderRadius: "6px 6px 0 0", cursor: "pointer", background: cmView === "approved" ? "#16a34a" : "#f3f4f6", color: cmView === "approved" ? "#fff" : "#6b7280" }}
+              >
+                אושרו ({approvedCount})
               </button>
               <button
                 onClick={() => setCmView("priority")}
@@ -5353,6 +5371,12 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                   if (cm.match_status !== "potential_match") return false;
                   if (cm.user1_locked || cm.user2_locked) return false;
                   if (cm.user1_is_special || cm.user2_is_special) return false;
+                } else if (cmView === "special") {
+                  if (cm.match_status !== "potential_match") return false;
+                  if (cm.user1_locked || cm.user2_locked) return false;
+                  if (!cm.user1_is_special && !cm.user2_is_special) return false;
+                } else if (cmView === "approved") {
+                  if (cm.match_status !== "approved_by_both" && cm.match_status !== "pre_match") return false;
                 } else if (cmView === "priority") {
                   if (cm.match_status !== "potential_match") return false;
                   if (cm.user1_locked || cm.user2_locked) return false;
