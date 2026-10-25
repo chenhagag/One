@@ -4910,7 +4910,8 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
   const [cardSending, setCardSending] = useState(false);
   const [cardEditing, setCardEditing] = useState(false);
   const [editData, setEditData] = useState<any>(null);
-  const [cmView, setCmView] = useState<"actionable" | "all">("actionable");
+  const [cmView, setCmView] = useState<"actionable" | "priority" | "all">("actionable");
+  const [attentionUserIds, setAttentionUserIds] = useState<Set<number>>(new Set());
   const [filterCmPool, setFilterCmPool] = useState<"all" | "straight" | "ww" | "mm">("all");
   const [filterCmStatus, setFilterCmStatus] = useState<string>("all");
   const [filterCmUser, setFilterCmUser] = useState<string>("");
@@ -4938,6 +4939,19 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
   }
 
   useEffect(() => { load(); }, []);
+
+  // Load needs-attention user IDs for priority tab
+  useEffect(() => {
+    apiFetch("/admin/users/needs-attention")
+      .then(r => r.json())
+      .then(d => {
+        const ids = new Set<number>();
+        (d.never_experienced || []).forEach((u: any) => ids.add(u.id));
+        (d.stale || []).forEach((u: any) => ids.add(u.id));
+        setAttentionUserIds(ids);
+      })
+      .catch(() => {});
+  }, []);
 
   // Run Algorithm = filter + score + promote to rating flow.
   // Does NOT select pre_match or freeze.
@@ -5192,6 +5206,12 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
             if (cm.user1_is_special || cm.user2_is_special) return false;
             return true;
           }).length;
+          const priorityCount = displayData.filter((cm: any) => {
+            if (cm.match_status !== "potential_match") return false;
+            if (cm.user1_locked || cm.user2_locked) return false;
+            if (cm.user1_is_special || cm.user2_is_special) return false;
+            return attentionUserIds.has(cm.user_id) || attentionUserIds.has(cm.candidate_user_id);
+          }).length;
           return (
             <>
               <button
@@ -5199,6 +5219,12 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                 style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, border: "none", borderRadius: "6px 6px 0 0", cursor: "pointer", background: cmView === "actionable" ? "#6366f1" : "#f3f4f6", color: cmView === "actionable" ? "#fff" : "#6b7280" }}
               >
                 התאמות על הפרק ({actionableCount})
+              </button>
+              <button
+                onClick={() => setCmView("priority")}
+                style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, border: "none", borderRadius: "6px 6px 0 0", cursor: "pointer", background: cmView === "priority" ? "#dc2626" : "#f3f4f6", color: cmView === "priority" ? "#fff" : "#6b7280" }}
+              >
+                בתעדוף ({priorityCount})
               </button>
               <button
                 onClick={() => setCmView("all")}
@@ -5327,6 +5353,11 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                   if (cm.match_status !== "potential_match") return false;
                   if (cm.user1_locked || cm.user2_locked) return false;
                   if (cm.user1_is_special || cm.user2_is_special) return false;
+                } else if (cmView === "priority") {
+                  if (cm.match_status !== "potential_match") return false;
+                  if (cm.user1_locked || cm.user2_locked) return false;
+                  if (cm.user1_is_special || cm.user2_is_special) return false;
+                  if (!attentionUserIds.has(cm.user_id) && !attentionUserIds.has(cm.candidate_user_id)) return false;
                 } else {
                   if (filterSpecial && !cm.user1_is_special && !cm.user2_is_special) return false;
                   if (filterCmPool === "straight") { if (!((cm.user1_gender === "man" && cm.user1_looking_for === "woman") || (cm.user1_gender === "woman" && cm.user1_looking_for === "man"))) return false; }
@@ -5367,6 +5398,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                         <button style={s.expandBtn} onClick={() => setSelectedUserId(cm.user_id)}>{cm.user1_name}</button> ({cm.user1_age}, {cm.user1_city})
                         {cm.user1_is_special && <span title="דורשת התייחסות מיוחדת" style={{ padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 700, marginRight: 4, background: "#fef2f2", color: "#dc2626" }}>⚠ מיוחדת</span>}
                         {cm.user1_locked && <span style={{ padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 700, marginRight: 4, background: cm.user1_lock_reason === "in_match" ? "#dbeafe" : "#fef3c7", color: cm.user1_lock_reason === "in_match" ? "#1e40af" : "#92400e" }}>{cm.user1_lock_reason === "in_match" ? "בהתאמה" : "ממתינה לדירוג"}</span>}
+                        {attentionUserIds.has(cm.user_id) && <span style={{ padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 700, marginRight: 4, background: "#fef2f2", color: "#dc2626" }}>דורשת תשומת לב</span>}
                         {(cm.user1_cog_count < 5 || cm.user1_taste_count < 5 || cm.user1_photo_count < 1) && (
                           <span title={[cm.user1_cog_count < 5 && "חסר קוגניטיבי", cm.user1_taste_count < 5 && "חסר טעם", cm.user1_photo_count < 1 && "ללא תמונה"].filter(Boolean).join(", ")} style={{ marginRight: 4, color: "#d97706", fontSize: 11, fontWeight: 700 }}>⚠</span>
                         )}
@@ -5381,6 +5413,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                         <button style={s.expandBtn} onClick={() => setSelectedUserId(cm.candidate_user_id)}>{cm.user2_name}</button> ({cm.user2_age}, {cm.user2_city})
                         {cm.user2_is_special && <span title="דורשת התייחסות מיוחדת" style={{ padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 700, marginRight: 4, background: "#fef2f2", color: "#dc2626" }}>⚠ מיוחדת</span>}
                         {cm.user2_locked && <span style={{ padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 700, marginRight: 4, background: cm.user2_lock_reason === "in_match" ? "#dbeafe" : "#fef3c7", color: cm.user2_lock_reason === "in_match" ? "#1e40af" : "#92400e" }}>{cm.user2_lock_reason === "in_match" ? "בהתאמה" : "ממתינה לדירוג"}</span>}
+                        {attentionUserIds.has(cm.candidate_user_id) && <span style={{ padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 700, marginRight: 4, background: "#fef2f2", color: "#dc2626" }}>דורשת תשומת לב</span>}
                         {(cm.user2_cog_count < 5 || cm.user2_taste_count < 5 || cm.user2_photo_count < 1) && (
                           <span title={[cm.user2_cog_count < 5 && "חסר קוגניטיבי", cm.user2_taste_count < 5 && "חסר טעם", cm.user2_photo_count < 1 && "ללא תמונה"].filter(Boolean).join(", ")} style={{ marginRight: 4, color: "#d97706", fontSize: 11, fontWeight: 700 }}>⚠</span>
                         )}
