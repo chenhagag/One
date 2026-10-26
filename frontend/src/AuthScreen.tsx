@@ -352,7 +352,20 @@ export default function AuthScreen({ onOtpSuccess, notice, entryPoint, onEntryPo
               >כנסי לכאן</span>
             </p>
           )}
-          <p style={{ fontSize: 13, color: "#999", textAlign: "center", margin: "16px 0 0", letterSpacing: 0.5 }}>
+          <a
+            href="https://www.instagram.com/joinone.oneapp"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#8b7ba8", textDecoration: "none", fontSize: 13, fontWeight: 600, margin: "16px 0 0" }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+              <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+              <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+            </svg>
+            עקבו אחרינו
+          </a>
+          <p style={{ fontSize: 13, color: "#999", textAlign: "center", margin: "12px 0 0", letterSpacing: 0.5 }}>
             One - Meet, as you are.
           </p>
         </div>
