@@ -46,7 +46,7 @@ import { generateInsights as generateInsightsFn } from "./pipeline/generateInsig
 import { startJobRunner, createJob as createPipelineJob, requeueOrCreateJob as requeueOrCreateJobFn, processPendingJobs as processPendingJobsFn } from "./pipeline/jobRunner";
 import { setReconcileFn } from "./pipeline/dailyMatching";
 import { promoteUserWaitingMatches } from "./pipeline/photoMatchPromotion";
-import { notifyUser, sendPushOnly, registerToken, unregisterToken, syncPermissionStatus, hasPushTokens, notifyMatchCardSent, notifyNewMessage, notifySentForRating, notifyAdminMessage, notifySystemQuestion, notifyMatchStalled, notifyStalledMatchMessage, verifyUnsubToken, buildEmailFooter, getUnsubUrl } from "./notifications";
+import { notifyUser, sendPushOnly, registerToken, unregisterToken, syncPermissionStatus, hasPushTokens, notifyMatchCardSent, notifyNewMessage, notifySentForRating, notifyAdminMessage, notifySystemQuestion, notifyMatchStalled, notifyStalledMatchMessage, verifyUnsubToken, buildEmailFooter, getUnsubUrl, buildRichEmail } from "./notifications";
 import { logActivity } from "./pipeline/activityLog";
 import { upsertUserInsights, deactivateUserInsightChunks } from "./rag";
 
@@ -4797,6 +4797,56 @@ app.post("/admin/users/:id/send-notification", requireAdmin, async (req, res) =>
   } catch (err: any) {
     console.error(`[push] Admin send error for user ${userId}:`, err.message);
     return res.status(500).json({ error: err.message || "Failed to send notification" });
+  }
+});
+
+// POST /admin/users/:id/photo-reminder — Send photo upload reminder via all channels
+// type=ready (default): user completed everything, just needs photo
+// type=partial: user still needs to complete chats + upload photo
+app.post("/admin/users/:id/photo-reminder", requireAdmin, async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const reminderType = req.body?.type || "ready";
+  try {
+    const user = await pgQueryOne<any>("SELECT id, first_name, gender, email FROM users WHERE id = $1", [userId]);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    const isFemale = user.gender === "woman";
+    const g = (m: string, f: string) => isFemale ? f : m;
+
+    let title: string, pushBody: string, emailSubject: string, emailBody: string;
+
+    if (reminderType === "partial") {
+      title = "נשאר רק להעלות תמונה 📸";
+      pushBody = "נשאר רק להעלות תמונה. את השיחות אפשר להשלים אחר כך";
+      emailSubject = "נשאר רק להעלות תמונה";
+      emailBody = `<p>היי ${user.first_name},</p>
+        <p>נשאר רק דבר אחד כדי להתקדם — להעלות תמונה.</p>
+        <p>את השיחות אפשר וכדאי להשלים אחר כך כדי לדייק את ההתאמות, אבל כבר עכשיו אפשר להתחיל לחפש ${g("עבורך", "עבורך")} התאמה.</p>`;
+    } else {
+      title = "נשאר רק להעלות תמונה ואת במאגר 📸";
+      pushBody = "נשאר רק להעלות תמונה ואת במאגר";
+      emailSubject = "נשאר רק שלב אחד לפני ההתאמה שלך";
+      emailBody = `<p>היי ${user.first_name},</p>
+        <p>סיימנו לבנות את הניתוח שלך ואנחנו כבר מחפשות ${g("עבורך", "עבורך")} התאמה מדויקת.</p>
+        <p>נשאר רק דבר אחד — להעלות תמונה. התמונה נדרשת כדי שנוכל להתקדם בתהליך, כולל שלב בדיקת המשיכה ההדדית.</p>`;
+    }
+
+    const result = await notifyUser(userId, {
+      title,
+      body: pushBody,
+      event_type: "photo_reminder",
+      emailHtml: buildRichEmail(
+        emailSubject,
+        emailBody,
+        g("כנס", "כנסי") + " להעלות תמונה",
+        userId
+      ),
+    });
+
+    console.log(`[admin] Photo reminder (${reminderType}) sent to user #${userId} (${user.first_name}):`, result.channel);
+    return res.json({ success: true, ...result });
+  } catch (err: any) {
+    console.error(`[photo-reminder] Error for user ${userId}:`, err.message);
+    return res.status(500).json({ error: err.message });
   }
 });
 

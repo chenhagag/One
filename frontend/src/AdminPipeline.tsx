@@ -1120,6 +1120,19 @@ function PipelineUserCard({
             <button style={outlineBtnStyle("#8b5cf6")} onClick={handleGenerateInsights} disabled={generating}>
               {generating ? "מפיק..." : "✨ הפק תובנות"}
             </button>
+            {u.photo_count < 1 && (
+              <button
+                style={outlineBtnStyle("#d97706")}
+                onClick={async () => {
+                  if (!confirm(`לשלוח תזכורת תמונה ל${u.first_name}?`)) return;
+                  try {
+                    const r = await apiFetch(`/admin/users/${u.id}/photo-reminder`, { method: "POST", body: JSON.stringify({ type: "partial" }) });
+                    const d = await r.json();
+                    alert(d.success ? `נשלח ל${u.first_name} דרך ${d.channel || "המערכת"}` : `שגיאה: ${d.error}`);
+                  } catch { alert("שגיאה בשליחה"); }
+                }}
+              >📸 תזכורת תמונה</button>
+            )}
             {u.email_updates ? (
               <button style={outlineBtnStyle("#0ea5e9")} onClick={() => { setShowEmail(true); loadTemplate(); }}>📧 שלח מייל תזכורת</button>
             ) : (
@@ -1134,6 +1147,19 @@ function PipelineUserCard({
         {(stage === "ready_pool" || stage === "ready_pool_no_photo") && (
           <>
             <button style={btnStyle("#059669")} onClick={() => onPipelineAction(u.id, "enter_pool")}>🏊 כניסה למאגר</button>
+            {stage === "ready_pool_no_photo" && (
+              <button
+                style={outlineBtnStyle("#d97706")}
+                onClick={async () => {
+                  if (!confirm(`לשלוח תזכורת תמונה ל${u.first_name}?`)) return;
+                  try {
+                    const r = await apiFetch(`/admin/users/${u.id}/photo-reminder`, { method: "POST" });
+                    const d = await r.json();
+                    alert(d.success ? `נשלח ל${u.first_name} דרך ${d.channel || "המערכת"}` : `שגיאה: ${d.error}`);
+                  } catch { alert("שגיאה בשליחה"); }
+                }}
+              >📸 תזכורת תמונה</button>
+            )}
             {u.email_updates ? (
               <button style={outlineBtnStyle("#0ea5e9")} onClick={() => { setShowEmail(true); loadTemplate(); }}>📧 שלח מייל</button>
             ) : (

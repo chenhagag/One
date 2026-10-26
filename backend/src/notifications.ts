@@ -701,7 +701,7 @@ async function sendWhatsAppAdminAlert(
 }
 
 // ── Rich email builder (with CTA button) ─────────────────────────
-function buildRichEmail(title: string, bodyHtml: string, ctaText: string, userId?: number): string {
+export function buildRichEmail(title: string, bodyHtml: string, ctaText: string, userId?: number): string {
   return `<div dir="rtl" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 500px; margin: 0 auto; padding: 32px 24px; color: #1a1a2e; line-height: 1.8;">
   <img src="https://joinone.io/appLogo.png" alt="One" style="height: 44px; margin-bottom: 24px; display: block; margin-left: auto; margin-right: auto;" />
   <h2 style="font-size: 20px; margin: 0 0 16px;">${title}</h2>
