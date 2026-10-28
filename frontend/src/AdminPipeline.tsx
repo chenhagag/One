@@ -526,7 +526,7 @@ interface AttentionUser {
 }
 
 function AttentionTab({ onSelectUser }: { onSelectUser?: (userId: number) => void }) {
-  const [data, setData] = useState<{ never_experienced: AttentionUser[]; stale: AttentionUser[] } | null>(null);
+  const [data, setData] = useState<{ never_experienced: AttentionUser[]; questions_only: AttentionUser[]; stale: AttentionUser[] } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -608,6 +608,19 @@ function AttentionTab({ onSelectUser }: { onSelectUser?: (userId: number) => voi
         </div>
       )}
 
+      {/* Questions only — got questions but never a real match */}
+      {(data.questions_only || []).length > 0 && (
+        <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "#c2410c", marginBottom: 8 }}>
+            קיבלו רק שאלות, ללא התאמה ({data.questions_only.length})
+          </div>
+          <div style={{ fontSize: 12, color: "#9a3412", marginBottom: 10 }}>
+            קיבלו שאלות או הודעות אבל אף פעם לא קיבלו דירוג, כרטיס, או התאמה — מעל שבוע מהאינטראקציה האחרונה
+          </div>
+          {data.questions_only.map(renderUserCard)}
+        </div>
+      )}
+
       {/* Stale — experienced but no recent contact */}
       {data.stale.length > 0 && (
         <div style={{ background: "#f5f3ff", border: "1px solid #c4b5fd", borderRadius: 12, padding: 16, marginBottom: 16 }}>
@@ -656,7 +669,7 @@ function AttentionTab({ onSelectUser }: { onSelectUser?: (userId: number) => voi
         </div>
       )}
 
-      {neverOver14.length === 0 && never7to14.length === 0 && data.stale.length === 0 && (
+      {neverOver14.length === 0 && never7to14.length === 0 && (data.questions_only || []).length === 0 && data.stale.length === 0 && (
         <div style={{ padding: 40, textAlign: "center", color: "#16a34a", fontSize: 15, fontWeight: 600 }}>
           אין משתמשות שדורשות תשומת לב כרגע
         </div>
