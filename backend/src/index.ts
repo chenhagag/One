@@ -5289,8 +5289,10 @@ app.get("/admin/users/needs-attention", async (_req, res) => {
     `);
 
     const never_experienced: any[] = [];
+    const questions_only: any[] = [];
     const stale: any[] = [];
     const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
     for (const r of rows) {
@@ -5327,13 +5329,19 @@ app.get("/admin/users/needs-attention", async (_req, res) => {
       // "Never experienced" = never got rating request, card, in_match AND no system questions AND no admin message
       const neverExp = !r.ever_rated && !r.ever_got_card && !r.ever_received_rating_request && !r.ever_in_match;
       const noContact = r.system_questions_count === 0 && !hasAdminMsg;
+      // "Questions only" = got questions/messages but never a real match experience (rating/card/in_match)
+      const questionsOnly = neverExp && !noContact;
 
       if (neverExp && noContact && r.photo_count >= 1) {
         never_experienced.push(base);
+      } else if (questionsOnly) {
+        // Got questions but no match activity — use 7-day threshold
+        const lastInt = r.last_interaction ? new Date(r.last_interaction) : null;
+        if (!lastInt || lastInt < sevenDaysAgo) {
+          questions_only.push(base);
+        }
       } else if (!neverExp) {
         // Stale: experienced a match but no system interaction in 14+ days
-        // last_interaction includes user responses (answered_at, rated_at) so if they
-        // responded recently, the clock resets from their response time
         const lastInt = r.last_interaction ? new Date(r.last_interaction) : null;
         if (!lastInt || lastInt < fourteenDaysAgo) {
           stale.push(base);
@@ -5341,7 +5349,7 @@ app.get("/admin/users/needs-attention", async (_req, res) => {
       }
     }
 
-    return res.json({ never_experienced, stale });
+    return res.json({ never_experienced, questions_only, stale });
   } catch (err: any) {
     console.error("[needs-attention]", err.message);
     return res.status(500).json({ error: err.message });

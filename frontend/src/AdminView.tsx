@@ -4947,6 +4947,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
       .then(d => {
         const ids = new Set<number>();
         (d.never_experienced || []).forEach((u: any) => ids.add(u.id));
+        (d.questions_only || []).forEach((u: any) => ids.add(u.id));
         (d.stale || []).forEach((u: any) => ids.add(u.id));
         setAttentionUserIds(ids);
       })
