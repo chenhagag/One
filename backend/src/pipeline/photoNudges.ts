@@ -1,29 +1,26 @@
 /**
- * Photo request nudge system — reminds users to upload photos for waiting_for_photo matches.
+ * Photo upload nudge system — reminds users without photos to upload one.
  *
- * Per-user flow (not per-match):
- * Step 1 (day 0):  admin_message + push/email — "you have a match, upload a photo"
- * Step 2 (day 2):  reminder push/email
- * Step 3a (day 7): reminder push/email — if only one side missing photo
- * Step 3b (day 5): system_question "blind match?" — if BOTH sides missing photos
- * Step 4 (day 14): last reminder push/email — only for 3a path
+ * Target: users with 0 photos, registered 3+ days ago, WW only, not frozen/test/couple.
  *
- * Stops if: user uploads a photo.
- * Restarts after: 14 days from last nudge if still no photo and has qualifying match.
+ * 3-step flow:
+ * Step 1 (3+ days after registration):  push + email
+ * Step 2 (5+ days after step 1):        push + email reminder
+ * Step 3 (10+ days after step 2):       push + email last reminder
  *
- * Blind match: if both answer positively → match moves to blind_match_candidate.
+ * After step 3: restart cycle after 14 days if still no photo.
  *
- * Tracking: notification_log event_types: photo_request_1..4, photo_blind_question
+ * Tracking: notification_log event_types: photo_request_1..3
  * Also logs to system_activity_log.
  *
- * Only runs in production.
+ * Only runs in production (unless force=true).
  */
 
 import {
   queryOne as pgQueryOne,
   queryAll as pgQueryAll,
 } from "../db.pg";
-import { notifyUser, NotifyPayload, wasAnyNudgeSentToday } from "../notifications";
+import { notifyUser, NotifyPayload, wasAnyNudgeSentToday, buildRichEmail } from "../notifications";
 import { logActivity } from "./activityLog";
 
 // ── Types ────────────────────────────────────────────────────────
@@ -34,16 +31,14 @@ interface PhotoNudgeCandidate {
   gender: string | null;
   looking_for_gender: string | null;
   email: string | null;
+  created_at: string;
 }
 
-interface PhotoNudgeResult {
+export interface PhotoNudgeResult {
   candidates: number;
   step1: number;
   step2: number;
-  step3_reminder: number;
-  step3_blind: number;
-  step4: number;
-  blind_promoted: number;
+  step3: number;
   errors: number;
   errorDetails: string[];
 }
@@ -54,46 +49,10 @@ function gn(gender: string | null, m: string, f: string): string {
   return gender === "woman" ? f : m;
 }
 
-// ── Check what step user is on ───────────────────────────────────
+// ── Days since a date ───────────────────────────────────────────
 
-async function getPhotoNudgeStep(userId: number): Promise<{
-  step: number;         // 0 = not started, 1-4 = completed step
-  lastSentAt: Date | null;
-  blindQuestionSent: boolean;
-}> {
-  // Check all photo_request nudges sent to this user
-  const nudges = await pgQueryAll<{ event_type: string; sent_at: string }>(
-    `SELECT event_type, sent_at FROM notification_log
-     WHERE user_id = $1 AND success = TRUE
-       AND (event_type LIKE 'photo_request_%' OR event_type = 'photo_blind_question')
-     ORDER BY sent_at DESC`,
-    [userId]
-  );
-
-  if (nudges.length === 0) {
-    return { step: 0, lastSentAt: null, blindQuestionSent: false };
-  }
-
-  let maxStep = 0;
-  let lastSentAt: Date | null = null;
-  let blindQuestionSent = false;
-
-  for (const n of nudges) {
-    if (!lastSentAt || new Date(n.sent_at) > lastSentAt) {
-      lastSentAt = new Date(n.sent_at);
-    }
-    if (n.event_type === "photo_blind_question") {
-      blindQuestionSent = true;
-      if (maxStep < 3) maxStep = 3;
-    }
-    const match = n.event_type.match(/^photo_request_(\d+)$/);
-    if (match) {
-      const step = parseInt(match[1], 10);
-      if (step > maxStep) maxStep = step;
-    }
-  }
-
-  return { step: maxStep, lastSentAt, blindQuestionSent };
+function daysSince(date: Date): number {
+  return (Date.now() - date.getTime()) / (1000 * 60 * 60 * 24);
 }
 
 // ── Check if user has photos ────────────────────────────────────
@@ -106,169 +65,89 @@ async function userHasPhotos(userId: number): Promise<boolean> {
   return row ? parseInt(row.count, 10) > 0 : false;
 }
 
-// ── Check if user has a qualifying match ─────────────────────────
+// ── Check what step user is on ───────────────────────────────────
 
-/** Returns true if user has at least one waiting_for_photo match with internal_profile_score >= 72 */
-async function hasQualifyingMatch(userId: number): Promise<boolean> {
-  const row = await pgQueryOne<{ id: number }>(`
-    SELECT m.id FROM matches m
-    JOIN candidate_matches cm ON
-      (cm.user_id = m.user1_id AND cm.candidate_user_id = m.user2_id)
-      OR (cm.user_id = m.user2_id AND cm.candidate_user_id = m.user1_id)
-    WHERE m.status = 'waiting_for_photo'
-      AND (m.user1_id = $1 OR m.user2_id = $1)
-      AND COALESCE(cm.internal_profile_score, 0) >= 72
-    LIMIT 1
-  `, [userId]);
-  return !!row;
-}
-
-/** Returns true if user has a waiting_for_photo match where BOTH sides have no photos */
-async function hasBothSidesNoPhotoMatch(userId: number): Promise<boolean> {
-  const row = await pgQueryOne<{ id: number }>(`
-    SELECT m.id FROM matches m
-    JOIN candidate_matches cm ON
-      (cm.user_id = m.user1_id AND cm.candidate_user_id = m.user2_id)
-      OR (cm.user_id = m.user2_id AND cm.candidate_user_id = m.user1_id)
-    WHERE m.status = 'waiting_for_photo'
-      AND (m.user1_id = $1 OR m.user2_id = $1)
-      AND COALESCE(cm.internal_profile_score, 0) >= 72
-      AND (SELECT COUNT(*) FROM user_photos WHERE user_id = m.user1_id) = 0
-      AND (SELECT COUNT(*) FROM user_photos WHERE user_id = m.user2_id) = 0
-    LIMIT 1
-  `, [userId]);
-  return !!row;
-}
-
-/** Check if the other side of a qualifying match has photos */
-async function otherSideHasPhoto(userId: number): Promise<boolean> {
-  const row = await pgQueryOne<{ other_id: number }>(`
-    SELECT CASE WHEN m.user1_id = $1 THEN m.user2_id ELSE m.user1_id END AS other_id
-    FROM matches m
-    JOIN candidate_matches cm ON
-      (cm.user_id = m.user1_id AND cm.candidate_user_id = m.user2_id)
-      OR (cm.user_id = m.user2_id AND cm.candidate_user_id = m.user1_id)
-    WHERE m.status = 'waiting_for_photo'
-      AND (m.user1_id = $1 OR m.user2_id = $1)
-      AND COALESCE(cm.internal_profile_score, 0) >= 72
-    ORDER BY cm.internal_profile_score DESC
-    LIMIT 1
-  `, [userId]);
-  if (!row) return false;
-  return userHasPhotos(row.other_id);
-}
-
-// ── Days since a date ───────────────────────────────────────────
-
-function daysSince(date: Date): number {
-  return (Date.now() - date.getTime()) / (1000 * 60 * 60 * 24);
-}
-
-// ── Message content ─────────────────────────────────────────────
-
-function buildPhotoRequestMessage(
-  gender: string | null,
-  lookingFor: string | null,
-  otherHasPhoto: boolean
-): string {
-  const g = (m: string, f: string) => gn(gender, m, f);
-  const lookingForFemale = lookingFor === "woman";
-  const otherGenderLabel = lookingForFemale ? "המשתמשת" : lookingFor === "man" ? "המשתמש" : "המשתמש/ת";
-  const toYouAndThem = lookingForFemale ? "לך ולה" : lookingFor === "man" ? "לך ולו" : "לשניכם";
-
-  if (otherHasPhoto) {
-    return `הודעה ממערכת One: מצאנו ${g("עבורך", "עבורך")} כיוון להתאמה 😊\n\n${otherGenderLabel} שמצאנו כבר ${lookingForFemale ? "העלתה" : "העלה"} תמונה, ונשמח לאפשר ${toYouAndThem} לבדוק גם התאמה ראשונית מבחינת משיכה. כדי לשמור על הוגנות והדדיות, נוכל לשתף את התמונה ${lookingForFemale ? "שלה" : "שלו"} רק לאחר שתעל${g("ה", "י")} גם תמונה ${g("משלך", "משלך")}.\n\nבהצלחה מצוות One!`;
-  }
-
-  return `הודעה ממערכת One: מצאנו ${g("עבורך", "עבורך")} כיוון להתאמה 😊\n\nכדי לבדוק התאמה ראשונית מבחינת משיכה, חשוב שגם ${g("אתה וגם הצד השני תעלו", "את וגם הצד השני תעלו")} תמונות. כדי לשמור על הוגנות והדדיות — נשמח ${g("שתעלה", "שתעלי")} תמונה ${g("משלך", "משלך")}.\n\nבהצלחה מצוות One!`;
-}
-
-function buildPhotoRequestEmail(
-  name: string,
-  gender: string | null,
-  lookingFor: string | null
-): string {
-  const g = (m: string, f: string) => gn(gender, m, f);
-  const toYouAndThem = lookingFor === "woman" ? "לך ולה" : lookingFor === "man" ? "לך ולו" : "לשניכם";
-
-  return `<div dir="rtl" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 500px; margin: 0 auto; padding: 32px 24px; color: #1a1a2e; line-height: 1.8;">
-  <img src="https://joinone.io/appLogo.png" alt="One" style="height: 44px; margin-bottom: 24px; display: block; margin-left: auto; margin-right: auto;" />
-  <h2 style="font-size: 20px; margin: 0 0 16px; color: #1B1464;">היי ${name},</h2>
-  <p>מצאנו ${g("עבורך", "עבורך")} כיוון להתאמה 😊</p>
-  <p>נשמח לאפשר ${toYouAndThem} לבדוק גם התאמה ראשונית מבחינת משיכה. כדי לשמור על הוגנות והדדיות, ${g("נוכל", "נוכל")} להתקדם רק לאחר שתעל${g("ה", "י")} גם תמונה ${g("משלך", "משלך")}.</p>
-  <div style="text-align: center; margin: 28px 0;">
-    <a href="https://joinone.io" style="display:inline-block;background-color:#7b5fa3;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:15px">להעלאת תמונה</a>
-  </div>
-  <p>בהצלחה,<br>צוות One</p>
-</div><div dir="rtl" style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#999;text-align:center;line-height:1.8">
-<p style="margin:0">לא ניתן להשיב למייל זה.</p>
-<p style="margin:4px 0 0">מוזמנים לפנות אלינו ב<a href="https://wa.me/972549037400" style="color:#25D366">וואטסאפ</a> או ב<a href="mailto:one-support@googlegroups.com" style="color:#7b5fa3">מייל התמיכה</a></p>
-</div>`;
-}
-
-function buildBlindMatchQuestion(name: string, gender: string | null): string {
-  const g = (m: string, f: string) => gn(gender, m, f);
-  return `היי ${name}, אנחנו רואים ${g("לך", "לך")} התאמה מעניינת ולא היינו ${g("רוצים שתפספס", "רוצים שתפספסי")} אותה. ${g("האם אתה מעדיף", "האם את מעדיפה")}, במידה ותהיה הסכמה גם מהצד השני, לדלג על שלב התמונות ולהתקדם להתאמה עיוורת — כלומר לקבל כרטיס התאמה בלי תמונות? אם ${g("תרצו", "תרצו")}, ${g("תוכלו", "תוכלו")} לשתף תמונות אחד עם השנייה בהמשך. מה ${g("אתה אומר", "את אומרת")}?`;
-}
-
-// ── Step 1: Set admin_message + send notification ────────────────
-
-async function sendStep1(user: PhotoNudgeCandidate): Promise<true | string> {
-  const otherHas = await otherSideHasPhoto(user.user_id);
-  const message = buildPhotoRequestMessage(user.gender, user.looking_for_gender, otherHas);
-
-  // Set admin_message on user (only if no active one)
-  const existing = await pgQueryOne<{ admin_message: string | null }>(
-    "SELECT admin_message FROM users WHERE id = $1",
-    [user.user_id]
+async function getPhotoNudgeStep(userId: number): Promise<{
+  step: number;          // 0 = not started, 1-3 = completed step
+  lastSentAt: Date | null;
+}> {
+  const nudges = await pgQueryAll<{ event_type: string; sent_at: string }>(
+    `SELECT event_type, sent_at FROM notification_log
+     WHERE user_id = $1 AND success = TRUE
+       AND event_type LIKE 'photo_request_%'
+     ORDER BY sent_at DESC`,
+    [userId]
   );
-  if (!existing?.admin_message || existing.admin_message === "") {
-    await pgQueryAll(
-      `UPDATE users SET
-        admin_message = $1,
-        admin_message_type = 'info',
-        admin_message_sent_at = NOW(),
-        admin_message_dismissed = FALSE,
-        photo_request_sent_at = NOW()
-      WHERE id = $2`,
-      [message, user.user_id]
-    );
+
+  if (nudges.length === 0) {
+    return { step: 0, lastSentAt: null };
   }
 
-  // Send push/email notification
-  const name = user.first_name || "";
-  const g = (m: string, f: string) => gn(user.gender, m, f);
+  let maxStep = 0;
+  let lastSentAt: Date | null = null;
 
-  const payload: NotifyPayload = {
-    title: `יש ${g("לך", "לך")} כיוון להתאמה ב-One 😊`,
-    body: `מצאנו ${g("עבורך", "עבורך")} כיוון להתאמה. ${g("כנס", "כנסי")} להעלות תמונה כדי להתקדם.`,
-    event_type: "photo_request_1",
-    emailHtml: buildPhotoRequestEmail(name, user.gender, user.looking_for_gender),
-  };
-
-  try {
-    const res = await notifyUser(user.user_id, payload);
-    if (res.success) {
-      logActivity("nudge", user.user_id, name, "photo_request_1", `${res.channel}`).catch(() => {});
-      return true;
+  for (const n of nudges) {
+    if (!lastSentAt || new Date(n.sent_at) > lastSentAt) {
+      lastSentAt = new Date(n.sent_at);
     }
-    return `step1 notify failed: ${res.error || res.channel}`;
-  } catch (err: any) {
-    return `step1 exception: ${err.message}`;
+    const match = n.event_type.match(/^photo_request_(\d+)$/);
+    if (match) {
+      const step = parseInt(match[1], 10);
+      if (step > maxStep) maxStep = step;
+    }
+  }
+
+  return { step: maxStep, lastSentAt };
+}
+
+// ── Message content per step ────────────────────────────────────
+
+function getStepContent(stepNumber: number, name: string, gender: string | null) {
+  const g = (m: string, f: string) => gn(gender, m, f);
+
+  switch (stepNumber) {
+    case 1:
+      return {
+        title: "נשאר רק להעלות תמונה ואת במאגר \u{1F4F8}",
+        body: `${g("כנס", "כנסי")} להעלות תמונה`,
+        emailBody: `<p>היי ${name},</p>
+<p>אנחנו כבר עובדות על הניתוח שלך. נשאר רק להעלות תמונה ונוכל להתחיל לחפש ${g("עבורך", "עבורך")} התאמה מדויקת.</p>`,
+      };
+    case 2:
+      return {
+        title: "רק תמונה ואת במאגר \u{1F4F8}",
+        body: `נשאר רק להעלות תמונה — ${g("כנס", "כנסי")} להעלות`,
+        emailBody: `<p>היי ${name},</p>
+<p>תזכורת קטנה — נשאר רק להעלות תמונה ונוכל להתחיל לחפש ${g("עבורך", "עבורך")} את ההתאמה המדויקת.</p>`,
+      };
+    case 3:
+      return {
+        title: "עדיין מחכים לתמונה שלך \u{1F4F8}",
+        body: "נשמח לראות אותך ולהתחיל לחפש",
+        emailBody: `<p>היי ${name},</p>
+<p>עדיין מחכים לתמונה שלך. ברגע שתעל${g("ה", "י")} תמונה נוכל להתחיל לחפש ${g("עבורך", "עבורך")} התאמה.</p>`,
+      };
+    default:
+      throw new Error(`Invalid step number: ${stepNumber}`);
   }
 }
 
-// ── Steps 2-4: Send reminder notification ────────────────────────
+// ── Send a nudge step ───────────────────────────────────────────
 
-async function sendReminder(user: PhotoNudgeCandidate, stepNumber: number): Promise<true | string> {
+async function sendNudge(user: PhotoNudgeCandidate, stepNumber: number): Promise<true | string> {
   const name = user.first_name || "";
-  const g = (m: string, f: string) => gn(user.gender, m, f);
+  const content = getStepContent(stepNumber, name, user.gender);
 
   const payload: NotifyPayload = {
-    title: `יש ${g("לך", "לך")} כיוון להתאמה ב-One 😊`,
-    body: `מצאנו ${g("עבורך", "עבורך")} כיוון להתאמה. ${g("כנס", "כנסי")} להעלות תמונה כדי להתקדם.`,
+    title: content.title,
+    body: content.body,
     event_type: `photo_request_${stepNumber}`,
-    emailHtml: buildPhotoRequestEmail(name, user.gender, user.looking_for_gender),
+    emailHtml: buildRichEmail(
+      content.title,
+      content.emailBody,
+      "להעלאת תמונה",
+      user.user_id
+    ),
   };
 
   try {
@@ -283,116 +162,12 @@ async function sendReminder(user: PhotoNudgeCandidate, stepNumber: number): Prom
   }
 }
 
-// ── Step 3b: Send blind match question ──────────────────────────
-
-async function sendBlindMatchQuestion(user: PhotoNudgeCandidate): Promise<true | string> {
-  const name = user.first_name || "";
-  const questionText = buildBlindMatchQuestion(name, user.gender);
-
-  // Check if user already has blind_match_consent
-  const u = await pgQueryOne<{ blind_match_consent: boolean }>(
-    "SELECT blind_match_consent FROM users WHERE id = $1",
-    [user.user_id]
-  );
-  if (u?.blind_match_consent) {
-    // Already consented, no need to ask
-    logActivity("nudge", user.user_id, name, "photo_blind_question", "skipped — already consented").catch(() => {});
-    return true;
-  }
-
-  // Create system question with context
-  await pgQueryAll(
-    `INSERT INTO system_questions (user_id, question_text, context) VALUES ($1, $2, 'blind_match')`,
-    [user.user_id, questionText]
-  );
-
-  // Send notification about the question
-  const g = (m: string, f: string) => gn(user.gender, m, f);
-  const payload: NotifyPayload = {
-    title: "שאלה מ-One",
-    body: `יש לנו שאלה קצרה — ${g("כנס", "כנסי")} לענות`,
-    event_type: "photo_blind_question",
-    emailHtml: buildBlindQuestionEmail(name, user.gender, questionText),
-  };
-
-  try {
-    const res = await notifyUser(user.user_id, payload);
-    if (res.success) {
-      logActivity("nudge", user.user_id, name, "photo_blind_question", `${res.channel}`).catch(() => {});
-      return true;
-    }
-    return `blind_question notify failed: ${res.error || res.channel}`;
-  } catch (err: any) {
-    return `blind_question exception: ${err.message}`;
-  }
-}
-
-function buildBlindQuestionEmail(name: string, gender: string | null, questionText: string): string {
-  const g = (m: string, f: string) => gn(gender, m, f);
-  return `<div dir="rtl" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 500px; margin: 0 auto; padding: 32px 24px; color: #1a1a2e; line-height: 1.8;">
-  <img src="https://joinone.io/appLogo.png" alt="One" style="height: 44px; margin-bottom: 24px; display: block; margin-left: auto; margin-right: auto;" />
-  <h2 style="font-size: 20px; margin: 0 0 16px;">שאלה מ-One</h2>
-  <p>${questionText}</p>
-  <div style="text-align: center; margin: 28px 0;">
-    <a href="https://joinone.io" style="display:inline-block;background-color:#7b5fa3;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:15px">${g("כנס", "כנסי")} לענות</a>
-  </div>
-  <p style="font-size: 12px; color: #999; text-align: center;">One</p>
-</div><div dir="rtl" style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#999;text-align:center;line-height:1.8">
-<p style="margin:0">לא ניתן להשיב למייל זה.</p>
-<p style="margin:4px 0 0">מוזמנים לפנות אלינו ב<a href="https://wa.me/972549037400" style="color:#25D366">וואטסאפ</a> או ב<a href="mailto:one-support@googlegroups.com" style="color:#7b5fa3">מייל התמיכה</a></p>
-</div>`;
-}
-
-// ── Blind match promotion: check pairs and promote ──────────────
-
-async function promoteBlindMatchPairs(): Promise<number> {
-  // Find waiting_for_photo matches where BOTH users have blind_match_consent
-  // and at least one has no photos (otherwise it should have been promoted already)
-  const matches = await pgQueryAll<{
-    match_id: number;
-    user1_id: number;
-    user2_id: number;
-    u1_name: string;
-    u2_name: string;
-  }>(`
-    SELECT m.id AS match_id, m.user1_id, m.user2_id,
-           u1.first_name AS u1_name, u2.first_name AS u2_name
-    FROM matches m
-    JOIN users u1 ON u1.id = m.user1_id
-    JOIN users u2 ON u2.id = m.user2_id
-    JOIN candidate_matches cm ON
-      (cm.user_id = m.user1_id AND cm.candidate_user_id = m.user2_id)
-      OR (cm.user_id = m.user2_id AND cm.candidate_user_id = m.user1_id)
-    WHERE m.status = 'waiting_for_photo'
-      AND u1.blind_match_consent = TRUE
-      AND u2.blind_match_consent = TRUE
-      AND COALESCE(cm.internal_profile_score, 0) >= 72
-  `);
-
-  let promoted = 0;
-  for (const match of matches) {
-    await pgQueryAll(
-      "UPDATE matches SET status = 'blind_match_candidate', previous_status = 'waiting_for_photo', updated_at = NOW() WHERE id = $1",
-      [match.match_id]
-    );
-    logActivity(
-      "photo_promotion", null,
-      `${match.u1_name || "?"} + ${match.u2_name || "?"}`,
-      "blind_match_candidate",
-      `match #${match.match_id} — both consented to blind match`
-    ).catch(() => {});
-    promoted++;
-  }
-
-  return promoted;
-}
-
 // ── Main: run photo nudges ──────────────────────────────────────
 
 export async function runPhotoNudges(force = false): Promise<PhotoNudgeResult> {
   const result: PhotoNudgeResult = {
-    candidates: 0, step1: 0, step2: 0, step3_reminder: 0, step3_blind: 0, step4: 0,
-    blind_promoted: 0, errors: 0, errorDetails: [],
+    candidates: 0, step1: 0, step2: 0, step3: 0,
+    errors: 0, errorDetails: [],
   };
 
   // Only run in production (unless forced by admin)
@@ -403,23 +178,20 @@ export async function runPhotoNudges(force = false): Promise<PhotoNudgeResult> {
 
   console.log("[photoNudges] Starting photo nudge run...");
 
-  // Find users without photos who have qualifying matches
-  // Filter: not test, not frozen, not couple
+  // Find users without photos who registered 3+ days ago
+  // WW only, not frozen/test/couple, has at least one page_view
   const candidates = await pgQueryAll<PhotoNudgeCandidate>(`
-    SELECT DISTINCT u.id AS user_id, u.first_name, u.gender, u.looking_for_gender, u.email
+    SELECT u.id AS user_id, u.first_name, u.gender, u.looking_for_gender, u.email, u.created_at
     FROM users u
-    JOIN matches m ON (m.user1_id = u.id OR m.user2_id = u.id)
-    JOIN candidate_matches cm ON
-      (cm.user_id = m.user1_id AND cm.candidate_user_id = m.user2_id)
-      OR (cm.user_id = m.user2_id AND cm.candidate_user_id = m.user1_id)
-    WHERE m.status = 'waiting_for_photo'
-      AND COALESCE(cm.internal_profile_score, 0) >= 72
-      AND (SELECT COUNT(*) FROM user_photos WHERE user_id = u.id) = 0
+    WHERE (SELECT COUNT(*) FROM user_photos WHERE user_id = u.id) = 0
+      AND u.created_at < NOW() - INTERVAL '3 days'
       AND u.partner_name IS NULL
       AND COALESCE(u.test_user_type, '') != 'Couple Tester'
       AND COALESCE(u.self_frozen, FALSE) = FALSE
       AND COALESCE(u.email, '') NOT LIKE '%@test.com'
-      AND COALESCE(u.gender, '') != 'man' AND COALESCE(u.looking_for_gender, '') != 'man'
+      AND COALESCE(u.gender, '') != 'man'
+      AND COALESCE(u.looking_for_gender, '') != 'man'
+      AND EXISTS (SELECT 1 FROM page_views WHERE user_id = u.id LIMIT 1)
   `);
 
   result.candidates = candidates.length;
@@ -432,15 +204,8 @@ export async function runPhotoNudges(force = false): Promise<PhotoNudgeResult> {
       // Global cooldown: skip if any nudge was sent today
       if (await wasAnyNudgeSentToday(user.user_id)) continue;
 
-      // Skip if admin already sent a photo request manually (treat as step 1 already done)
-      const manualRequest = await pgQueryOne<{ photo_request_sent_at: string | null }>(
-        "SELECT photo_request_sent_at FROM users WHERE id = $1",
-        [user.user_id]
-      );
+      const { step, lastSentAt } = await getPhotoNudgeStep(user.user_id);
 
-      const { step, lastSentAt, blindQuestionSent } = await getPhotoNudgeStep(user.user_id);
-
-      // Flow completed + 14 days passed → can restart
       // Helper: track send result
       const track = (res: true | string, successKey: keyof PhotoNudgeResult) => {
         if (res === true) { (result as any)[successKey]++; }
@@ -450,33 +215,33 @@ export async function runPhotoNudges(force = false): Promise<PhotoNudgeResult> {
         }
       };
 
-      if (step >= 4 || (blindQuestionSent && step >= 3)) {
+      // Skip if admin already sent a photo request manually (treat as step 1 done)
+      const manualRequest = await pgQueryOne<{ photo_request_sent_at: string | null }>(
+        "SELECT photo_request_sent_at FROM users WHERE id = $1",
+        [user.user_id]
+      );
+
+      // After step 3, restart cycle after 14 days
+      if (step >= 3) {
         if (lastSentAt && daysSince(lastSentAt) >= 14) {
-          if (await hasQualifyingMatch(user.user_id)) {
-            track(await sendStep1(user), "step1");
-          }
+          track(await sendNudge(user, 1), "step1");
         }
         continue;
       }
 
       if (step === 0 && manualRequest?.photo_request_sent_at) {
+        // Admin sent manually — treat as step 1 done, check if ready for step 2
         const manualDate = new Date(manualRequest.photo_request_sent_at);
-        if (daysSince(manualDate) >= 2) {
-          track(await sendReminder(user, 2), "step2");
+        if (daysSince(manualDate) >= 5) {
+          track(await sendNudge(user, 2), "step2");
         }
       } else if (step === 0) {
-        track(await sendStep1(user), "step1");
-      } else if (step === 1 && lastSentAt && daysSince(lastSentAt) >= 2) {
-        track(await sendReminder(user, 2), "step2");
-      } else if (step === 2 && lastSentAt && daysSince(lastSentAt) >= 3) {
-        const bothNoPhoto = await hasBothSidesNoPhotoMatch(user.user_id);
-        if (bothNoPhoto && daysSince(lastSentAt) >= 3) {
-          track(await sendBlindMatchQuestion(user), "step3_blind");
-        } else if (daysSince(lastSentAt) >= 5) {
-          track(await sendReminder(user, 3), "step3_reminder");
-        }
-      } else if (step === 3 && !blindQuestionSent && lastSentAt && daysSince(lastSentAt) >= 7) {
-        track(await sendReminder(user, 4), "step4");
+        // Step 1: 3+ days after registration (already filtered in query)
+        track(await sendNudge(user, 1), "step1");
+      } else if (step === 1 && lastSentAt && daysSince(lastSentAt) >= 5) {
+        track(await sendNudge(user, 2), "step2");
+      } else if (step === 2 && lastSentAt && daysSince(lastSentAt) >= 10) {
+        track(await sendNudge(user, 3), "step3");
       }
     } catch (err: any) {
       const detail = `user ${user.user_id} (${user.first_name || "?"}): ${err.message}`;
@@ -486,21 +251,13 @@ export async function runPhotoNudges(force = false): Promise<PhotoNudgeResult> {
     }
   }
 
-  // Check for blind match pairs to promote
-  try {
-    result.blind_promoted = await promoteBlindMatchPairs();
-  } catch (err: any) {
-    console.error("[photoNudges] Error promoting blind matches:", err.message);
-  }
-
-  const total = result.step1 + result.step2 + result.step3_reminder + result.step3_blind + result.step4;
+  const total = result.step1 + result.step2 + result.step3;
   const errorSummary = result.errorDetails.length > 0 ? ` | errors: ${result.errorDetails.join("; ")}` : "";
-  const summary = `candidates: ${result.candidates}, sent: ${total}, blind_promoted: ${result.blind_promoted}, errors: ${result.errors}${errorSummary}`;
+  const summary = `candidates: ${result.candidates}, sent: ${total}, errors: ${result.errors}${errorSummary}`;
 
   console.log(
     `[photoNudges] Done. Step1: ${result.step1}, Step2: ${result.step2}, ` +
-    `Reminder: ${result.step3_reminder}, Blind: ${result.step3_blind}, ` +
-    `Step4: ${result.step4}, BlindPromoted: ${result.blind_promoted}, Errors: ${result.errors}`
+    `Step3: ${result.step3}, Errors: ${result.errors}`
   );
 
   // Always log run to system_activity_log (even if nothing sent)
