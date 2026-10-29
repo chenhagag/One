@@ -1852,7 +1852,7 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   <textarea
                     value={pastMatchFeedback}
                     onChange={(e) => setPastMatchFeedback(e.target.value)}
-                    placeholder="כל מה שתשתפו יעזור לנו לדייק את ההתאמה הבאה שלכם"
+                    placeholder="כל מה שתשתפי יעזור לנו לדייק את ההתאמה הבאה שלך"
                     style={{
                       width: "100%", minHeight: 80, padding: "10px 12px",
                       borderRadius: 8, border: "1px solid #d4d0e8",
