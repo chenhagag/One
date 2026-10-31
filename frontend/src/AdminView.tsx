@@ -5258,6 +5258,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
           const actionableCount = displayData.filter((cm: any) => {
             if (cm.user1_gender !== "woman" || cm.user1_looking_for === "man") return false;
             if (cm.match_status !== "potential_match") return false;
+            if (cm.final_score != null && cm.final_score < 70) return false; // optional — not actionable
             if (cm.user1_locked || cm.user2_locked) return false;
             if (cm.user1_is_special || cm.user2_is_special) return false;
             return true;
@@ -5274,7 +5275,13 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
             return cm.user1_is_special || cm.user2_is_special;
           }).length;
           const approvedCount = displayData.filter((cm: any) => cm.match_status === "approved_by_both" || cm.match_status === "pre_match").length;
-          const optionalCount = displayData.filter((cm: any) => cm.match_status === "optional").length;
+          const optionalCount = displayData.filter((cm: any) => {
+            // Optional = internal criteria pass but final_score < 70 (external dragged it down)
+            // Includes both 'optional' status from new promotions AND existing potential_matches with low final
+            if (cm.match_status === "optional") return true;
+            if (cm.match_status === "potential_match" && cm.final_score != null && cm.final_score < 70) return true;
+            return false;
+          }).length;
           return (
             <>
               <button
@@ -5433,6 +5440,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                 if (cmView === "actionable") {
                   if (cm.user1_gender !== "woman" || cm.user1_looking_for === "man") return false;
                   if (cm.match_status !== "potential_match") return false;
+                  if (cm.final_score != null && cm.final_score < 70) return false; // optional
                   if (cm.user1_locked || cm.user2_locked) return false;
                   if (cm.user1_is_special || cm.user2_is_special) return false;
                 } else if (cmView === "special") {
@@ -5442,7 +5450,10 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                 } else if (cmView === "approved") {
                   if (cm.match_status !== "approved_by_both" && cm.match_status !== "pre_match") return false;
                 } else if (cmView === "optional") {
-                  if (cm.match_status !== "optional") return false;
+                  // Optional: status 'optional' OR potential_match with final < 70
+                  if (cm.match_status === "optional") return true;
+                  if (cm.match_status === "potential_match" && cm.final_score != null && cm.final_score < 70) return true;
+                  return false;
                 } else if (cmView === "priority") {
                   if (cm.match_status !== "potential_match") return false;
                   if (cm.user1_locked || cm.user2_locked) return false;
