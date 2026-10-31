@@ -5307,7 +5307,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                 onClick={() => setCmView("optional")}
                 style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, border: "none", borderRadius: "6px 6px 0 0", cursor: "pointer", background: cmView === "optional" ? "#d97706" : "#f3f4f6", color: cmView === "optional" ? "#fff" : "#6b7280" }}
               >
-                אופציונלי ({optionalCount})
+                מבוסס ציון פנימי ({optionalCount})
               </button>}
               <button
                 onClick={() => setCmView("priority")}
@@ -7357,7 +7357,7 @@ function OutreachLogTab() {
       rejected_acquaintance: { label: "מכירים", bg: "#ffedd5", color: "#9a3412" },
       pre_match: { label: "לפני התאמה", bg: "#ede9fe", color: "#5b21b6" },
       in_match: { label: "בהתאמה", bg: "#d1fae5", color: "#065f46" },
-      optional: { label: "אופציונלית (חיצוני נמוך)", bg: "#fef9c3", color: "#854d0e" },
+      optional: { label: "מבוסס ציון פנימי", bg: "#fef9c3", color: "#854d0e" },
     };
     const info = map[status] || { label: status, bg: "#f3f4f6", color: "#374151" };
     return <span style={{ background: info.bg, color: info.color, padding: "2px 8px", borderRadius: 4, fontSize: 12, fontWeight: 600 }}>{info.label}</span>;
