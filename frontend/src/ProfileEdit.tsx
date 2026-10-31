@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { User } from "./App";
 import { apiFetch } from "./lib/api";
 
@@ -39,6 +39,9 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [initialLoaded, setInitialLoaded] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestValuesRef = useRef<any>(null);
 
   // Photos state
   const [photos, setPhotos] = useState<{ id: number; url: string }[]>([]);
@@ -83,7 +86,8 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
         if (u.partner_email) setPartnerEmail(u.partner_email);
         if (u.test_user_type) setIsCouple(u.test_user_type === "Couple Tester");
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setInitialLoaded(true));
   }, [user.id]);
 
   useEffect(() => {
@@ -196,43 +200,76 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
     loadPhotos();
   }
 
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    setError(""); setSaved(false); setLoading(true);
+  function buildPayload() {
+    // WW system: auto-default looking_for_gender to 'woman' for women
+    const effectiveLookingFor = gender === "woman" ? "woman" : (lookingForGender || null);
+    return {
+      first_name: firstName.trim(),
+      birth_year: birthYear ? parseInt(birthYear) : null,
+      birth_month: birthMonth ? parseInt(birthMonth) : null,
+      gender: gender || null,
+      looking_for_gender: effectiveLookingFor,
+      city: city.trim() || null,
+      height: height ? parseInt(height) : null,
+      desired_age_min: desiredAgeMin ? parseInt(desiredAgeMin) : null,
+      desired_age_max: desiredAgeMax ? parseInt(desiredAgeMax) : null,
+      age_flexibility: ageFlex,
+      desired_height_min: desiredHeightMin ? parseInt(desiredHeightMin) : null,
+      desired_height_max: desiredHeightMax ? parseInt(desiredHeightMax) : null,
+      height_flexibility: heightFlex,
+      desired_location_range: locationRange,
+      marital_status: maritalStatus,
+      has_children: hasChildren,
+      religion: religion || null,
+      smoker,
+      partner_name: isCouple ? (partnerName.trim() || null) : undefined,
+      partner_email: isCouple ? (partnerEmail.trim().toLowerCase() || null) : undefined,
+    };
+  }
+
+  const doSave = useCallback(async (payload?: any) => {
+    const data = payload || buildPayload();
+    setError("");
     try {
       const res = await apiFetch(`/users/${user.id}`, {
         method: "PATCH",
-        body: JSON.stringify({
-          first_name: firstName.trim(),
-          birth_year: birthYear ? parseInt(birthYear) : null,
-          birth_month: birthMonth ? parseInt(birthMonth) : null,
-          gender: gender || null,
-          looking_for_gender: lookingForGender || null,
-          city: city.trim() || null,
-          height: height ? parseInt(height) : null,
-          desired_age_min: desiredAgeMin ? parseInt(desiredAgeMin) : null,
-          desired_age_max: desiredAgeMax ? parseInt(desiredAgeMax) : null,
-          age_flexibility: ageFlex,
-          desired_height_min: desiredHeightMin ? parseInt(desiredHeightMin) : null,
-          desired_height_max: desiredHeightMax ? parseInt(desiredHeightMax) : null,
-          height_flexibility: heightFlex,
-          desired_location_range: locationRange,
-          marital_status: maritalStatus,
-          has_children: hasChildren,
-          religion: religion || null,
-          smoker,
-          partner_name: isCouple ? (partnerName.trim() || null) : undefined,
-          partner_email: isCouple ? (partnerEmail.trim().toLowerCase() || null) : undefined,
-        }),
+        body: JSON.stringify(data),
       });
-      if (!res.ok) { const data = await res.json(); setError(data.error || "שגיאה בשמירה"); return; }
+      if (!res.ok) { const d = await res.json(); setError(d.error || "שגיאה בשמירה"); return; }
       const updatedUser = await res.json();
       if (onUserUpdate && updatedUser) onUserUpdate(updatedUser);
       setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } catch { setError("לא ניתן להתחבר לשרת"); }
-    finally { setLoading(false); }
-  }
+      setTimeout(() => setSaved(false), 1500);
+    } catch { /* silent on auto-save */ }
+  }, [user.id]);
+
+  // Keep latest values in ref for unmount save
+  useEffect(() => {
+    latestValuesRef.current = buildPayload();
+  });
+
+  // Auto-save with 1.5s debounce when any form value changes
+  useEffect(() => {
+    if (!initialLoaded) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => doSave(), 1500);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [initialLoaded, firstName, birthYear, birthMonth, gender, city, height, lookingForGender,
+      desiredAgeMin, desiredAgeMax, ageFlex, desiredHeightMin, desiredHeightMax, heightFlex,
+      locationRange, maritalStatus, hasChildren, religion, smoker, partnerName, partnerEmail, isCouple, doSave]);
+
+  // Save on unmount (fire-and-forget) in case debounce timer hasn't fired
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (latestValuesRef.current) {
+        apiFetch(`/users/${user.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(latestValuesRef.current),
+        }).catch(() => {});
+      }
+    };
+  }, [user.id]);
 
   const opts = (cat: string): EnumOption[] => enums[cat] || [];
   const genderOptions = opts("gender").length > 0 ? opts("gender") : [
@@ -262,10 +299,8 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
       <style>{`
         .pe-photo-tile { transition: transform 0.15s, box-shadow 0.15s; }
         .pe-photo-tile:hover { transform: scale(1.03); }
-        .pe-save-btn { transition: background 0.2s, transform 0.1s; }
-        .pe-save-btn:active { transform: scale(0.98); }
       `}</style>
-      <form onSubmit={handleSave} dir="rtl">
+      <div dir="rtl">
 
         {/* ── Photos ── */}
         <div style={s.card}>
@@ -507,14 +542,10 @@ export default function ProfileEdit({ user, onBack, onUserUpdate }: { user: User
           </div>
         </div>
 
-        <button type="submit" className="pe-save-btn" style={{
-          ...s.btn,
-          background: saved ? "#22c55e" : "#6366f1",
-        }} disabled={loading}>
-          {loading ? "שומר..." : saved ? "נשמר בהצלחה" : "שמירת שינויים"}
-        </button>
+        {/* Auto-save indicator */}
+        {saved && <p style={{ textAlign: "center", fontSize: 13, color: "#22c55e", fontWeight: 500, margin: "12px 0 0" }}>נשמר</p>}
         {error && <p style={s.error}>{error}</p>}
-      </form>
+      </div>
 
       {/* Photo consent modal */}
       {showPhotoConsent && (
@@ -622,10 +653,5 @@ const s: Record<string, React.CSSProperties> = {
   },
   row: { display: "flex", gap: 12, marginBottom: 0 },
   rowItem: { flex: 1 },
-  btn: {
-    width: "100%", padding: "14px", fontSize: 15, fontWeight: 600,
-    color: "#fff", border: "none", borderRadius: 12, cursor: "pointer",
-    marginTop: 4, fontFamily: "inherit",
-  },
   error: { color: "#ef4444", fontSize: 13, marginTop: 10, textAlign: "center" },
 };

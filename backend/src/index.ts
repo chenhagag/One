@@ -968,9 +968,24 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
     if (!["man", "woman"].includes(gender))
       return res.status(400).json({ error: "gender must be 'man' or 'woman'" });
   }
+  // Auto-default looking_for_gender for women (WW system)
+  let effectiveLookingForGender = looking_for_gender;
   if (looking_for_gender !== undefined && looking_for_gender !== null) {
-    if (!["man", "woman"].includes(looking_for_gender))
-      return res.status(400).json({ error: "looking_for_gender must be 'man' or 'woman'" });
+    if (!["man", "woman"].includes(looking_for_gender)) {
+      // If gender is woman (or being set to woman), default to 'woman' instead of erroring
+      const currentGender = gender || (await pgQueryOne<{ gender: string | null }>("SELECT gender FROM users WHERE id = $1", [userId]))?.gender;
+      if (currentGender === "woman") {
+        effectiveLookingForGender = "woman";
+      } else {
+        return res.status(400).json({ error: "looking_for_gender must be 'man' or 'woman'" });
+      }
+    }
+  } else if (looking_for_gender === null) {
+    // If clearing looking_for_gender and user is a woman, default to 'woman'
+    const currentGender = gender || (await pgQueryOne<{ gender: string | null }>("SELECT gender FROM users WHERE id = $1", [userId]))?.gender;
+    if (currentGender === "woman") {
+      effectiveLookingForGender = "woman";
+    }
   }
   if (whatsapp_phone !== undefined && whatsapp_phone !== null && whatsapp_phone !== "") {
     if (typeof whatsapp_phone !== "string" || !/^\+?\d{7,15}$/.test(whatsapp_phone.trim()))
@@ -1006,7 +1021,7 @@ app.patch("/users/:id", requireUserAuth, async (req, res) => {
     push("age", age);
   }
   if (gender !== undefined)                 push("gender", gender);
-  if (looking_for_gender !== undefined)     push("looking_for_gender", looking_for_gender);
+  if (looking_for_gender !== undefined)     push("looking_for_gender", effectiveLookingForGender);
   if (city !== undefined)                   push("city", city);
   if (height !== undefined)                 push("height", height);
   if (self_style !== undefined) {
