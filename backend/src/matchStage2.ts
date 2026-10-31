@@ -200,7 +200,8 @@ function calculateFemininityMatchScore(
   }
   if (scoreAtoB != null) return scoreAtoB;
   if (scoreBtoA != null) return scoreBtoA;
-  return null;
+  // No desired data from either side → neutral score (don't block the match)
+  return 50;
 }
 
 // ── Internal score calculation (pure / sync) ─────────────────────
