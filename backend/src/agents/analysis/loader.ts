@@ -39,22 +39,16 @@ export async function loadInternalTraitDefs(
  * Load external (look) trait definitions from pg.
  * @param _db Deprecated — ignored.
  */
+/**
+ * External trait definitions — DISABLED.
+ * All visual/look traits are now assessed by photo analysis (photoAnalysis.ts) or manually.
+ * Text-based external analysis has been retired — it couldn't reliably assess visual traits from conversation.
+ * Returns empty array so the external call in runAnalysisAgent is skipped entirely.
+ */
 export async function loadExternalTraitDefs(
   _db?: Database.Database
 ): Promise<LookTraitDefinitionInput[]> {
-  const rows = await queryAll<any>(
-    `SELECT id, internal_name, display_name_en, display_name_he, source, weight,
-            sensitivity, possible_values, ai_description, required_confidence, trait_group
-     FROM look_trait_definitions
-     WHERE is_active = TRUE
-     ORDER BY sort_order`
-  );
-
-  // pg already returns JSONB as a parsed JS value; no JSON.parse needed.
-  return rows.map((r) => ({
-    ...r,
-    possible_values: r.possible_values ?? null,
-  }));
+  return [];
 }
 
 /**
@@ -127,14 +121,15 @@ export async function saveAnalysisToDb(
        desired_value, desired_value_confidence, weight_for_match, weight_confidence, source)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ai')
     ON CONFLICT (user_id, look_trait_definition_id) DO UPDATE SET
-      personal_value            = EXCLUDED.personal_value,
-      personal_value_confidence = EXCLUDED.personal_value_confidence,
+      personal_value            = COALESCE(EXCLUDED.personal_value,            user_look_traits.personal_value),
+      personal_value_confidence = COALESCE(EXCLUDED.personal_value_confidence, user_look_traits.personal_value_confidence),
       desired_value             = COALESCE(EXCLUDED.desired_value,            user_look_traits.desired_value),
       desired_value_confidence  = COALESCE(EXCLUDED.desired_value_confidence, user_look_traits.desired_value_confidence),
       weight_for_match          = COALESCE(EXCLUDED.weight_for_match,         user_look_traits.weight_for_match),
       weight_confidence         = COALESCE(EXCLUDED.weight_confidence,        user_look_traits.weight_confidence),
-      source                    = 'ai',
+      source                    = CASE WHEN user_look_traits.source = 'manual' THEN 'manual' ELSE 'ai' END,
       updated_at                = NOW()
+    WHERE user_look_traits.source != 'manual'
   `;
 
   let internal_saved = 0;
@@ -155,6 +150,9 @@ export async function saveAnalysisToDb(
   }
 
   for (const t of output.external_traits) {
+    // Skip if text analysis returned no personal_value AND no desired_value — nothing useful to save
+    if (t.personal_value == null && t.desired_value == null) continue;
+
     try {
       const res = await queryRun(INSERT_EXTERNAL, [
         uid, t.trait_id,

@@ -37,15 +37,15 @@ export interface PhotoAnalysisResult {
 const NUMERIC_TRAITS = [
   {
     name: "appeal",
-    description: "Overall physical attractiveness. Use the FULL 0-100 range honestly. 50 = average-looking, and most people ARE average — do not cluster scores around 60-70. A truly stunning person = 85-95. Above average but not remarkable = 55-65. Below average = 30-45. Very unattractive = 5-20. These scores are never shown to users — accuracy matters more than kindness.",
+    description: "Overall physical attractiveness. 50 = average-looking (not ugly, not pretty — just plain). An average score means unremarkable. A good-looking/pretty woman = 60-70. Clearly attractive, would get compliments = 70-80. Very attractive, striking = 80-90. Exceptionally beautiful = 90+. Below average = 35-50. Well below average = under 35. These scores are never shown to users — be honest.",
   },
   {
     name: "fitness_aesthetic",
-    description: "How physically fit the person LOOKS in the photo. Judge by visible body composition: muscle tone, low body fat, athletic build. Being slim alone is not fitness — look for signs of actual physical activity/strength. Visibly athletic/toned = 75-95. Average build, not particularly fit or unfit = 40-55. Overweight or visibly out of shape = 10-35. If body is not visible (face-only photo), estimate conservatively around 45-55.",
+    description: "How physically fit the person LOOKS in the photo. Judge by body shape visible in the photo. Slim body = 60-70. Slim AND toned/fit-looking = 70-80. Visibly athletic/muscular = 80-95. Average build, not slim but not overweight = 45-55. Slightly overweight = 30-45. Clearly overweight = 15-30. If body is not visible (face-only photo), estimate around 50.",
   },
   {
     name: "femininity_masculinity",
-    description: "Feminine vs. masculine/butch appearance — calibrated for a lesbian/WW (women-seeking-women) community. This measures how traditionally feminine vs. butch/tomboyish someone LOOKS, not their identity. A woman with a standard feminine appearance (long or styled hair, makeup, feminine clothing) = 60-75. Very glamorous/hyperfeminine = 80-95. Somewhat androgynous or soft-butch (short hair but still feminine features/clothing) = 40-55. Distinctly butch/tomboyish (short hair, masculine clothing, no makeup, masculine presentation) = 15-35. 0 = very masculine/butch, 100 = very feminine/glamorous.",
+    description: "Feminine vs. masculine/butch appearance — calibrated for a lesbian/WW (women-seeking-women) community. IMPORTANT: an average woman has a feminine appearance — the baseline is around 70, NOT 50. 50 means she looks somewhat 'lesbian'/androgynous — on the border between feminine and masculine. Ranges: Very glamorous/hyperfeminine (very done-up, glamorous styling) = 85-95. Clearly feminine (styled hair, makeup, feminine clothing) = 75-85. Standard/regular feminine appearance = 65-75. Slightly less feminine, hint of androgyny = 55-65. Looks somewhat 'lesbian'/androgynous — not clearly feminine = 45-55. Soft-butch (short hair but some feminine elements) = 30-45. Clearly butch (short hair, masculine clothing, no makeup) = 15-30. Distinctly masculine presentation = max 15. 0 = very masculine/butch, 100 = very feminine/glamorous.",
   },
 ];
 
@@ -114,10 +114,11 @@ export async function analyzeUserPhotos(
 These scores are used internally for compatibility matching — they are NEVER shown to users. Accuracy is critical. Do NOT be generous or flattering.
 
 ## Scoring principles:
-- Use the FULL 0-100 range. Most people should score near 50 (average). Do not cluster scores in the 55-75 "safe zone".
-- A score of 50 is not an insult — it means average, which is where most people fall.
+- Use the FULL 0-100 range. Be accurate — not generous, but not deflated either.
+- Do NOT compress scores into a narrow band. Differentiate between people.
+- Each trait has its own baseline: femininity baseline for a regular woman is ~70 (not 50). Appeal 50 = truly average/plain. Fitness depends on visible body.
 - Look at ALL provided photos together to form your assessment.
-- If body is not visible (face-only photos), note this in your estimate for fitness.
+- If body is not visible (face-only photos), estimate fitness around 50.
 
 ## Traits to assess (integer 0-100):
 ${numericDesc}

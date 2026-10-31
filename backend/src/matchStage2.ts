@@ -26,6 +26,7 @@ import { queryAll, queryOne, withTransaction } from "./db.pg";
 
 // Resolved dynamically in runStage2 from trait_definitions
 let APPEARANCE_SENSITIVITY_TRAIT_ID = -1;
+let GENDER_CONFORMITY_TRAIT_ID = -1;
 const APPEARANCE_SENSITIVITY_THRESHOLD = 0.7;
 
 const DEFAULT_INTERNAL_RATIO = 0.70;
@@ -178,6 +179,61 @@ function calculateExternalScoreWW(
   return null;
 }
 
+// ── Femininity match category score ─────────────────────────────
+// Combines text signal (gender_conformity from chat) and photo signal
+// (femininity_masculinity from photo) vs what the OTHER user wants (femininity_preference).
+// Both signals use desired-vs-personal logic, not similarity.
+
+function calculateFemininityMatchScore(
+  user1GenderConformity: number | null, user1GenderConformityConf: number,
+  user2GenderConformity: number | null, user2GenderConformityConf: number,
+  user1FemPhoto: number | null,
+  user2FemPhoto: number | null,
+  user1FemDesired: number | null,
+  user2FemDesired: number | null,
+): number | null {
+  // For each direction: how well does user X match what user Y wants?
+  // matchScore = 100 - |desired_Y - personal_X|
+
+  function directionScore(
+    textVal: number | null, textConf: number,
+    photoVal: number | null,
+    desired: number | null,
+  ): number | null {
+    if (desired == null) return null;
+
+    const hasText = textVal != null && textConf >= 0.2;
+    const hasPhoto = photoVal != null;
+
+    if (!hasText && !hasPhoto) return null;
+
+    if (hasText && hasPhoto) {
+      // Blend: 40% text + 60% photo (photo is more reliable for appearance)
+      const textMatch = 100 - Math.abs(desired - textVal!);
+      const photoMatch = 100 - Math.abs(desired - photoVal!);
+      return textMatch * 0.4 + photoMatch * 0.6;
+    }
+    if (hasPhoto) {
+      return 100 - Math.abs(desired - photoVal!);
+    }
+    // Text only
+    return 100 - Math.abs(desired - textVal!);
+  }
+
+  // Direction A→B: does user1 match what user2 wants?
+  const scoreAtoB = directionScore(user1GenderConformity, user1GenderConformityConf, user1FemPhoto, user2FemDesired);
+  // Direction B→A: does user2 match what user1 wants?
+  const scoreBtoA = directionScore(user2GenderConformity, user2GenderConformityConf, user2FemPhoto, user1FemDesired);
+
+  if (scoreAtoB != null && scoreBtoA != null) {
+    // Weakest link — if one side doesn't match, the pair doesn't work
+    return Math.min(scoreAtoB, scoreBtoA);
+  }
+  if (scoreAtoB != null) return scoreAtoB;
+  if (scoreBtoA != null) return scoreBtoA;
+  return null;
+}
+
 // ── Internal score calculation (pure / sync) ─────────────────────
 
 function calculateInternalScore(
@@ -280,10 +336,9 @@ const MATCH_CATEGORIES: CategoryDef[] = [
   ]},
 
   // סחיות — Vibe
-  // Traits: mainstreamness, conformity, openness_to_experience + gender_conformity (affects matching, not individual profile score)
+  // Traits: mainstreamness, conformity, openness_to_experience
   { key: "vibe", traitNames: [
     "mainstreamness", "conformity", "openness_to_experience",
-    "gender_conformity",
   ]},
 
   // עממיות — Popularity
@@ -306,12 +361,11 @@ const MATCH_CATEGORIES: CategoryDef[] = [
     "security", "conformity", "tradition", "benevolence", "universalism", "spirituality",
   ]},
 
-  // סגנון אישי — Personal Style (19 traits)
+  // סגנון אישי — Personal Style (18 traits, gender_conformity moved to femininity_match category)
   { key: "style", traitNames: [
     "mainstreamness", "oriental", "broad_appeal", "family_of_origin_closeness",
     "childishness", "humor", "party_orientation",
     "hipsterishness", "geekiness", "hippie_style", "theatricality", "soviet_style",
-    "gender_conformity",
     "metropolitan_orientation", "achievement_status_orientation", "cultural_currency",
     "style_polish", "high_culture_orientation", "rural_communal_style",
   ]},
@@ -441,6 +495,7 @@ interface CategoryScores {
   score_general: number | null;
   score_mbti: number | null;
   score_enneagram: number | null;
+  score_femininity_match: number | null;
 }
 
 // Per-category average confidence (used to weight categories in profile score)
@@ -551,6 +606,7 @@ function calculateProfileScore(
     ["score_vibe", "vibe", 0.25],
     ["score_mbti", "mbti", 0.5],
     ["score_enneagram", "enneagram", 0.5],
+    ["score_femininity_match", "femininity_match", 2],
   ];
 
   let sumW = 0, sumC = 0;
@@ -584,6 +640,11 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
     "SELECT id FROM trait_definitions WHERE internal_name = 'appearance_sensitivity'"
   );
   APPEARANCE_SENSITIVITY_TRAIT_ID = asTrait?.id ?? -1;
+
+  const gcTrait = await queryOne<{ id: number }>(
+    "SELECT id FROM trait_definitions WHERE internal_name = 'gender_conformity'"
+  );
+  GENDER_CONFORMITY_TRAIT_ID = gcTrait?.id ?? -1;
 
   // Load trait definitions
   const traitDefRows = await queryAll<TraitDef>(
@@ -689,6 +750,7 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
     score_cognitive: null, score_emotional_social: null, score_emotionality: null,
     score_communication: null, score_vibe: null, score_popularity: null,
     score_big_five: null, score_schwartz: null, score_style: null, score_attitudes: null, score_general: null, score_mbti: null, score_enneagram: null,
+    score_femininity_match: null,
   };
 
   for (const row of pending) {
@@ -738,6 +800,21 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
       genderCache.get(row.candidate_user_id) ?? null,
     );
 
+    // Femininity match category — desired vs personal, combining text + photo
+    const u1gc = GENDER_CONFORMITY_TRAIT_ID > 0 ? u1Traits.get(GENDER_CONFORMITY_TRAIT_ID) : undefined;
+    const u2gc = GENDER_CONFORMITY_TRAIT_ID > 0 ? u2Traits.get(GENDER_CONFORMITY_TRAIT_ID) : undefined;
+    categories.score_femininity_match = calculateFemininityMatchScore(
+      u1gc?.score ?? null, u1gc?.confidence ?? 0,
+      u2gc?.score ?? null, u2gc?.confidence ?? 0,
+      getUserLookTraits(row.user_id).get("femininity_masculinity") ?? null,
+      getUserLookTraits(row.candidate_user_id).get("femininity_masculinity") ?? null,
+      femDesiredCache.get(row.user_id) ?? null,
+      femDesiredCache.get(row.candidate_user_id) ?? null,
+    );
+    if (categories.score_femininity_match != null) {
+      categories.score_femininity_match = Math.round(categories.score_femininity_match * 100) / 100;
+    }
+
     const profileScore = calculateProfileScore(categories, externalScore ?? null, confidences);
     const internalProfileScore = calculateProfileScore(categories, null, confidences);
 
@@ -763,6 +840,7 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
              score_communication = $8, score_vibe = $9, score_popularity = $10,
              score_big_five = $11, score_schwartz = $12, score_style = $13,
              score_attitudes = $14, score_general = $15, score_mbti = $16, score_enneagram = $17,
+             score_femininity_match = $20,
              profile_score = $18, internal_profile_score = $19,
              status = 'scored', last_evaluated_at = NOW(), updated_at = NOW()
          WHERE id = $4`,
@@ -773,7 +851,8 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
          u.categories.score_big_five, u.categories.score_schwartz,
          u.categories.score_style, u.categories.score_attitudes, u.categories.score_general,
          u.categories.score_mbti, u.categories.score_enneagram,
-         u.profile_score, u.internal_profile_score]
+         u.profile_score, u.internal_profile_score,
+         u.categories.score_femininity_match]
       );
     }
   });
@@ -794,6 +873,11 @@ export async function rescoreExistingCandidates(forUserId?: number): Promise<{ r
     "SELECT id FROM trait_definitions WHERE internal_name = 'appearance_sensitivity'"
   );
   APPEARANCE_SENSITIVITY_TRAIT_ID = asTrait?.id ?? -1;
+
+  const gcTrait = await queryOne<{ id: number }>(
+    "SELECT id FROM trait_definitions WHERE internal_name = 'gender_conformity'"
+  );
+  GENDER_CONFORMITY_TRAIT_ID = gcTrait?.id ?? -1;
 
   // Load trait definitions
   const traitDefRows = await queryAll<TraitDef>(
@@ -930,6 +1014,21 @@ export async function rescoreExistingCandidates(forUserId?: number): Promise<{ r
       genderCache.get(row.candidate_user_id) ?? null,
     );
 
+    // Femininity match category — desired vs personal, combining text + photo
+    const u1gc = GENDER_CONFORMITY_TRAIT_ID > 0 ? u1Traits.get(GENDER_CONFORMITY_TRAIT_ID) : undefined;
+    const u2gc = GENDER_CONFORMITY_TRAIT_ID > 0 ? u2Traits.get(GENDER_CONFORMITY_TRAIT_ID) : undefined;
+    categories.score_femininity_match = calculateFemininityMatchScore(
+      u1gc?.score ?? null, u1gc?.confidence ?? 0,
+      u2gc?.score ?? null, u2gc?.confidence ?? 0,
+      getUserLookTraits(row.user_id).get("femininity_masculinity") ?? null,
+      getUserLookTraits(row.candidate_user_id).get("femininity_masculinity") ?? null,
+      femDesiredCache.get(row.user_id) ?? null,
+      femDesiredCache.get(row.candidate_user_id) ?? null,
+    );
+    if (categories.score_femininity_match != null) {
+      categories.score_femininity_match = Math.round(categories.score_femininity_match * 100) / 100;
+    }
+
     const profileScore = calculateProfileScore(categories, externalScore ?? null, confidences);
     const internalProfileScore = calculateProfileScore(categories, null, confidences);
 
@@ -955,6 +1054,7 @@ export async function rescoreExistingCandidates(forUserId?: number): Promise<{ r
              score_communication = $8, score_vibe = $9, score_popularity = $10,
              score_big_five = $11, score_schwartz = $12, score_style = $13,
              score_attitudes = $14, score_general = $15, score_mbti = $16, score_enneagram = $17,
+             score_femininity_match = $20,
              profile_score = $18, internal_profile_score = $19,
              updated_at = NOW()
          WHERE id = $4`,
@@ -965,7 +1065,8 @@ export async function rescoreExistingCandidates(forUserId?: number): Promise<{ r
          u.categories.score_big_five, u.categories.score_schwartz,
          u.categories.score_style, u.categories.score_attitudes, u.categories.score_general,
          u.categories.score_mbti, u.categories.score_enneagram,
-         u.profile_score, u.internal_profile_score]
+         u.profile_score, u.internal_profile_score,
+         u.categories.score_femininity_match]
       );
     }
   });

@@ -240,6 +240,7 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       score_general             DOUBLE PRECISION,
       score_mbti                DOUBLE PRECISION,
       score_enneagram           DOUBLE PRECISION,
+      score_femininity_match    DOUBLE PRECISION,
       profile_score             DOUBLE PRECISION,
       internal_profile_score    DOUBLE PRECISION,
       created_at                TIMESTAMPTZ DEFAULT NOW(),
@@ -471,6 +472,13 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
         WHERE table_name = 'candidate_matches' AND column_name = 'internal_profile_score'
       ) THEN
         ALTER TABLE candidate_matches ADD COLUMN internal_profile_score DOUBLE PRECISION;
+      END IF;
+
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'candidate_matches' AND column_name = 'score_femininity_match'
+      ) THEN
+        ALTER TABLE candidate_matches ADD COLUMN score_femininity_match DOUBLE PRECISION;
       END IF;
 
       -- Auto-analysis flag: prevents running automatic analysis more than once

@@ -2876,7 +2876,6 @@ ${footer}`)
               { key: "emotional", label: "Emotional", color: "#ec4899" },
               { key: "general", label: "General Info", color: "#6b7280" },
               { key: "mbti", label: "MBTI", color: "#0ea5e9" },
-              { key: "external", label: "External", color: "#8b5cf6" },
             ].map(g => (
               <button key={g.key}
                 style={{ padding: "3px 10px", fontSize: 11, fontWeight: 500, cursor: "pointer", background: runningGroup === g.key ? g.color : "#fff", color: runningGroup === g.key ? "#fff" : g.color, border: `1px solid ${g.color}`, borderRadius: 4, opacity: runningGroup && runningGroup !== g.key ? 0.5 : 1 }}
