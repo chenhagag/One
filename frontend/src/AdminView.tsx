@@ -847,6 +847,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   const [showEvidenceScores, setShowEvidenceScores] = useState(false);
   const [runningGroup, setRunningGroup] = useState<string | null>(null);
   const [lookTraitEdits, setLookTraitEdits] = useState<Record<number, string>>({});
+  const [femDesiredEdit, setFemDesiredEdit] = useState<string | null>(null);
   const [analysisStatus, setAnalysisStatus] = useState<{ run_count: number; runs: { id: number; label: string; date: string }[]; messages_since_last: number; messages_since_scan?: number; messages_by_channel?: { guide: string; count: number }[]; last_analysis_at?: string } | null>(null);
   const [savingLookTraits, setSavingLookTraits] = useState(false);
   const [lookTraitsSaved, setLookTraitsSaved] = useState(false);
@@ -1131,9 +1132,12 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
       const val = lookTraitEdits[lt.look_trait_definition_id] !== undefined
         ? lookTraitEdits[lt.look_trait_definition_id]
         : (lt.personal_value ?? "");
+      const isFem = lt.internal_name === "femininity_masculinity";
       return {
         look_trait_definition_id: lt.look_trait_definition_id,
         personal_value: val === "" ? null : val,
+        // Include desired_value for femininity if edited
+        ...(isFem && femDesiredEdit !== null ? { desired_value: femDesiredEdit === "" ? null : femDesiredEdit } : {}),
       };
     });
     try {
@@ -1143,6 +1147,7 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
         body: JSON.stringify({ traits: traitsToSave }),
       });
       setLookTraitsSaved(true);
+      setFemDesiredEdit(null);
       loadUserData();
     } catch { alert("Save failed"); }
     finally { setSavingLookTraits(false); }
@@ -3068,9 +3073,19 @@ ${footer}`)
                     style={{ ...s.configInput, width: 70 }}
                   />
                   {isFem && (
-                    <span style={{ fontSize: 10, color: desiredVal != null ? (desiredVal > 65 ? "#ec4899" : desiredVal < 35 ? "#6366f1" : "#888") : "#ccc", fontWeight: 600 }}>
-                      מעדיפה: {desiredVal != null ? (desiredVal > 65 ? "נשית" : desiredVal < 35 ? "גברית" : "ללא העדפה") : "אין מידע"}{desiredVal != null ? ` (${desiredVal})` : ""}
-                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                      <span style={{ fontSize: 10, color: "#888", fontWeight: 600 }}>מעדיפה:</span>
+                      <input
+                        type="number" min={0} max={100}
+                        value={femDesiredEdit !== null ? femDesiredEdit : (lt.desired_value ?? "")}
+                        onChange={e => { setFemDesiredEdit(e.target.value); setLookTraitsSaved(false); }}
+                        placeholder="0-100"
+                        style={{ ...s.configInput, width: 50, fontSize: 11 }}
+                      />
+                      <span style={{ fontSize: 9, color: desiredVal != null ? (desiredVal > 65 ? "#ec4899" : desiredVal < 35 ? "#6366f1" : "#888") : "#ccc" }}>
+                        {desiredVal != null ? (desiredVal > 65 ? "נשית" : desiredVal < 35 ? "גברית" : "גמישה") : ""}
+                      </span>
+                    </div>
                   )}
                 </div>
               );

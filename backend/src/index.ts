@@ -3023,19 +3023,34 @@ app.put("/admin/look-trait-definitions/:id", async (req, res) => {
 // PUT /admin/users/:id/look-traits — Save manual look trait values for a user
 app.put("/admin/users/:id/look-traits", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
-  const traits = req.body.traits as { look_trait_definition_id: number; personal_value: string | null }[];
+  const traits = req.body.traits as { look_trait_definition_id: number; personal_value: string | null; desired_value?: string | null }[];
   if (!Array.isArray(traits)) return res.status(400).json({ error: "traits array required" });
 
   let saved = 0;
   for (const t of traits) {
     if (!t.look_trait_definition_id) continue;
-    await pgQueryAll(
-      `INSERT INTO user_look_traits (user_id, look_trait_definition_id, personal_value, personal_value_confidence, source)
-       VALUES ($1, $2, $3, 1.0, 'manual')
-       ON CONFLICT (user_id, look_trait_definition_id) DO UPDATE SET
-         personal_value = $3, personal_value_confidence = 1.0, source = 'manual', updated_at = NOW()`,
-      [userId, t.look_trait_definition_id, t.personal_value]
-    );
+
+    if (t.desired_value !== undefined) {
+      // Save both personal_value and desired_value
+      await pgQueryAll(
+        `INSERT INTO user_look_traits (user_id, look_trait_definition_id, personal_value, personal_value_confidence, desired_value, desired_value_confidence, source)
+         VALUES ($1, $2, $3, 1.0, $4, 1.0, 'manual')
+         ON CONFLICT (user_id, look_trait_definition_id) DO UPDATE SET
+           personal_value = $3, personal_value_confidence = 1.0,
+           desired_value = $4, desired_value_confidence = 1.0,
+           source = 'manual', updated_at = NOW()`,
+        [userId, t.look_trait_definition_id, t.personal_value, t.desired_value]
+      );
+    } else {
+      // Save only personal_value, preserve existing desired_value
+      await pgQueryAll(
+        `INSERT INTO user_look_traits (user_id, look_trait_definition_id, personal_value, personal_value_confidence, source)
+         VALUES ($1, $2, $3, 1.0, 'manual')
+         ON CONFLICT (user_id, look_trait_definition_id) DO UPDATE SET
+           personal_value = $3, personal_value_confidence = 1.0, source = 'manual', updated_at = NOW()`,
+        [userId, t.look_trait_definition_id, t.personal_value]
+      );
+    }
     saved++;
   }
   return res.json({ saved });

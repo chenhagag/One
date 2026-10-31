@@ -164,13 +164,15 @@ function calculateFemininityMatchScore(
   // For each direction: how well does user X match what user Y wants?
   // matchScore = 100 - |desired_Y - personal_X|
 
+  // No desired = treat as 50 (flexible / doesn't care)
+  const desired1 = user1FemDesired ?? 50;
+  const desired2 = user2FemDesired ?? 50;
+
   function directionScore(
     textVal: number | null, textConf: number,
     photoVal: number | null,
-    desired: number | null,
+    desired: number,
   ): number | null {
-    if (desired == null) return null;
-
     const hasText = textVal != null && textConf >= 0.2;
     const hasPhoto = photoVal != null;
 
@@ -190,9 +192,9 @@ function calculateFemininityMatchScore(
   }
 
   // Direction A→B: does user1 match what user2 wants?
-  const scoreAtoB = directionScore(user1GenderConformity, user1GenderConformityConf, user1FemPhoto, user2FemDesired);
+  const scoreAtoB = directionScore(user1GenderConformity, user1GenderConformityConf, user1FemPhoto, desired2);
   // Direction B→A: does user2 match what user1 wants?
-  const scoreBtoA = directionScore(user2GenderConformity, user2GenderConformityConf, user2FemPhoto, user1FemDesired);
+  const scoreBtoA = directionScore(user2GenderConformity, user2GenderConformityConf, user2FemPhoto, desired1);
 
   if (scoreAtoB != null && scoreBtoA != null) {
     // Weakest link — if one side doesn't match, the pair doesn't work
@@ -200,7 +202,7 @@ function calculateFemininityMatchScore(
   }
   if (scoreAtoB != null) return scoreAtoB;
   if (scoreBtoA != null) return scoreBtoA;
-  // No desired data from either side → neutral score (don't block the match)
+  // No personal data from either side → neutral
   return 50;
 }
 
