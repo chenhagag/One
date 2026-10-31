@@ -487,6 +487,12 @@ export async function buildChatPrompt(
   const ragContextBlock = formatRetrievedContext(filteredRagResult);
   const liveStateBlock = liveState ? "\n\n" + formatLiveStateForPrompt(liveState) : "";
 
+  // Audience context — WW vs non-WW users
+  const isWW = gender === "woman" && !!lookingForGender && lookingForGender !== "man";
+  const audienceContext = isWW
+    ? `\n\n## קהל היעד\nOne היא אפליקציה לנשים בלבד. זו אפליקציית שידוכים שנבנתה עבור נשים שמחפשות נשים — לסביות, דו-מיניות, א-בינאריות, פאנסקסואליות, וכל מי שמזדהה כאישה ומחפשת קשר רומנטי עם נשים. כשמשתמשת שואלת על האפליקציה, דברי עליה כאפליקציה לנשים. נקודה.`
+    : `\n\n## קהל היעד\nOne כרגע מתמקדת בנשים בלבד — האפליקציה פועלת כעת כאפליקציית שידוכים לנשים שמחפשות נשים. אם המשתמש/ת שואל/ת על זה — הסבירי שכרגע האפליקציה מתמקדת בקהילת הנשים, ובהמשך אנחנו שוקלות לפתוח גם לקהל הרחב. הם מוזמנים להישאר — כשנפתח לכולם הם יעודכנו. אל תתנצלי, פשוט הסבירי בצורה חמה ועניינית.`;
+
   // Cognitive channel uses a completely separate prompt
   if (channel === "new_chat_cognitive") {
     let cognitiveExtra = "";
@@ -787,7 +793,7 @@ export async function buildChatPrompt(
           && history[0]?.role === "assistant") {
         adminConversationNote = `\n- השיחה הזו התחילה בהודעה שנשלחה מהמערכת. ההודעה הראשונה היא מידע או שאלה שנשלחו למשתמש. המשך את השיחה בצורה טבעית, ענה על שאלות, וחקור את הנושא בהתאם לתגובת המשתמש. אל תחזור על ההודעה הראשונה.`;
       }
-      contextBlock = SYSTEM_CONTEXT + `\n\n## הנחיות נוספות
+      contextBlock = SYSTEM_CONTEXT + audienceContext + `\n\n## הנחיות נוספות
 המשתמש/ת שואלת שאלה על התהליך או המערכת.
 
 כללי תקשורת — חובה:
@@ -1073,7 +1079,7 @@ export async function buildChatPrompt(
       }
     }
   } else if (intent === "system") {
-    contextBlock = "\n\n" + SYSTEM_CONTEXT;
+    contextBlock = "\n\n" + SYSTEM_CONTEXT + audienceContext;
   }
 
   // ── Build prompt based on conversation state ──────────────
@@ -1120,7 +1126,7 @@ export async function buildChatPrompt(
     } else if (convState.turn_in_topic === 0 && isClarificationQuestion(message)) {
       // User asked a clarification question instead of answering the previous topic's follow-up
       // Don't advance — answer their question and ask to continue
-      const ctx = SYSTEM_CONTEXT;
+      const ctx = SYSTEM_CONTEXT + audienceContext;
       systemPrompt = buildPromptC(ctx, genderInstruction);
       // Roll back: stay on the same topic, turn_in_topic stays 0
       // so next turn will ask the opening question of this topic
