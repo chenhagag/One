@@ -22,7 +22,83 @@
 
 ---
 
-## Latest Session: 2026-10-22/23 (Railway Security Incident + Credential Rotation + UX Fixes)
+## Latest Session: 2026-10-24/29 (Stalled Match + Admin Pipeline + Photo Nudges Rewrite)
+
+### ✅ כפתור תזכורת תמונה באדמין
+- Endpoint `POST /admin/users/:id/photo-reminder` עם שני סוגים: ready (מוכנה למאגר) ו-partial (כמעט השלימה)
+- כפתור "📸 תזכורת תמונה" ב-"מוכנות למאגר ללא תמונה" וב-"כמעט השלימו"
+- שולח push + email fallback עם ניסוח מותאם
+
+### ✅ שכתוב Photo Nudges — מבוסס משתמשות במקום התאמות
+- **לפני**: nudges רק למי שיש לה match ב-waiting_for_photo
+- **אחרי**: nudges לכל משתמשת WW בלי תמונה, 3+ ימים אחרי הרשמה
+- הוסרו: blind match logic, waiting_for_photo dependency, שלב 4
+- Flow חדש: 3 שלבים (יום 3, +5, +10) עם restart אחרי 14 יום
+- ניסוחים רכים: "נשאר רק להעלות תמונה ואת במאגר"
+
+### ✅ קטגוריה חדשה ב"דורשות תשומת לב" — שאלות בלבד
+- "קיבלו רק שאלות, ללא התאמה" — משתמשות שקיבלו שאלות/הודעות אבל אף פעם לא דירוג/כרטיס/in_match
+- סף 7 ימים (vs 14 ל-stale)
+- נכללות בטאב "בתעדוף" של candidate matches
+
+### ✅ טאבים חדשים ב-candidate matches
+- "אושרו" (ירוק) — approved_by_both + pre_match
+- "מיוחדות" (אדום) — potential_match עם משתמשת מיוחדת
+- "בתעדוף" (אדום) — התאמות של משתמשות שדורשות תשומת לב
+- Badge "דורשת תשומת לב" ליד שמות
+
+### ✅ שיפורים קטנים
+- #ID ב"דורשות תשומת לב"
+- אינסטגרם בדף הנחיתה
+- Photo indicator bar + counter במסך דירוג
+- הבהרה "אישור תמונה הוא שלב בדרך להתאמה" במסך דירוג
+- תיקון placeholder לנקבה יחיד ("כל מה שתשתפי")
+
+---
+
+## 2026-10-24/25 (Stalled Match Status + Past Matches Overhaul + Admin Improvements)
+
+### ✅ סטטוס "התאמה מוקפאת" (stalled) — פיצ'ר חדש
+- סטטוס חדש `stalled` להתאמות שתקועות — אדמין מעביר מ-in_match
+- שתי המשתמשות חוזרות למאגר, מקבלות notification + באנר בבית עם שם הפרטנרית
+- צ'אט נשאר פתוח בין הזוג דרך "התאמות קודמות"
+- באנר חסימה בולט בצ'אט stalled ("לא מתאים לך לקבל הודעות מ...?")
+- Notifications ייחודיים: "הודעה מהתאמה קודמת — {שם}"
+- Unread badges בסיידבר וברשימת ההתאמות
+
+### ✅ שיפורי "התאמות קודמות"
+- כפתור "התאמות קודמות" מוצג תמיד (גם כשיש התאמה פעילה)
+- ניסוח מותאם: "בוטלה על ידי המערכת" כש-cancelled_by=null (אדמין ביטל)
+- ניסוח stalled: "הוקפאה על ידי המערכת" + "חזרת כעת למאגר והחיפוש שלך נמשך"
+- פידבק נשמר כהיסטוריה (append עם timestamp, לא overwrite)
+- יומן פניות באדמין מציג גם התאמות מוקפאות
+
+### ✅ שיפורי אדמין — Candidate Matches
+- טאב "אושרו" (ירוק) — approved_by_both + pre_match
+- טאב "מיוחדות" (אדום) — potential_match עם לפחות משתמשת מיוחדת אחת
+- טאב "בתעדוף" (אדום) — התאמות של משתמשות שדורשות תשומת לב (7+ ימים ללא פעילות)
+- Badge "דורשת תשומת לב" ליד שמות משתמשות בכל הטאבים
+- סטטוס "התאמה מוקפאת" בדרופדאון סטטוסים
+
+### ✅ שיפורי אדמין — כללי
+- מספר משתמשת (#ID) מוצג ב"דורשות תשומת לב"
+
+### ✅ מסך דירוג תמונה
+- הבהרה: "אישור תמונה הוא שלב בדרך להתאמה" + הסבר על זמינות
+- "מכירה אותה..." הועבר ישירות מתחת לכפתורי הדירוג
+
+### קבצים שנערכו
+- `backend/src/schema.pg.ts` — stalled_at, stalled_notification_dismissed
+- `backend/src/index.ts` — findMatchForChat, stalled admin logic, 7 messaging endpoints, new endpoints
+- `backend/src/notifications.ts` — notifyMatchStalled, notifyStalledMatchMessage
+- `frontend/src/MatchChat.tsx` — isStalled prop, match_id routing, block banner
+- `frontend/src/NewChat.tsx` — sidebar, past matches UI, stalled chat, home banner, rating screen
+- `frontend/src/AdminView.tsx` — tabs, stalled dropdown, outreach log, attention badges
+- `frontend/src/AdminPipeline.tsx` — user ID display
+
+---
+
+## 2026-10-22/23 (Railway Security Incident + Credential Rotation + UX Fixes)
 
 ### ✅ Railway Security Incident — Credential Rotation
 - Railway הודיעו על גישה לא מורשית למשתני סביבה. מייל ממוקד אישר שה-workspace ברשימת המטרות.

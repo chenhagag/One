@@ -20,6 +20,7 @@ Railway הודיעו (22/10/2026) שתוקף חיצוני השיג גישה אפ
 | 1 | **DATABASE_URL** | db.pg.ts, index.ts, scripts שונים | **קריטי** — גישה ישירה לכל הנתונים | נמוך |
 | 2 | **SUPABASE_JWT_SECRET** | auth.ts (3 מקומות), index.ts, notifications.ts | **קריטי** — זיוף טוקנים, התחזות לכל משתמשת | נמוך |
 | 3 | **SUPABASE_SERVICE_ROLE_KEY** | index.ts (2 מקומות) | **קריטי** — עוקף RLS, גישה מלאה ל-Supabase | נמוך |
+
 | 4 | **OPENAI_API_KEY** | agent.ts, openai.ts, rag.ts, summarizer.ts, index.ts, generateInsights.ts, photoAnalysis.ts | בינוני | בינוני |
 | 5 | **RESEND_API_KEY** | index.ts (2), notifications.ts, welcomeEmail.ts | בינוני — מיילים בשם joinone.io | נמוך |
 | 6 | **FIREBASE_SERVICE_ACCOUNT** | notifications.ts | נמוך-בינוני | נמוך |
@@ -44,8 +45,8 @@ Railway הודיעו (22/10/2026) שתוקף חיצוני השיג גישה אפ
   - OpenAI usage — ✅ נקי
   - Supabase Auth logs — ✅ נקי (רק logins רגילים + token refreshes)
   - Resend logs — ✅ נקי
-- [x] הודעה למשתמשות — באנרים הופעלו והוסרו לאחר סיום
-- [x] דיפלויים — staging עבד, production נתקע ב-image push (נפתר עם שינוי variable ידני)
+- [ ] הודעה למשתמשות (באנר + מסך login) — דורש deploy, ייכנס עם השינוי הראשון
+- [ ] אישור שדיפלויים עובדים — staging הצליח לפני שעה, כרגע queued שוב. production queued.
 
 ---
 
@@ -73,37 +74,25 @@ Railway הודיעו (22/10/2026) שתוקף חיצוני השיג גישה אפ
 - [ ] Android: התחברות חדשה
 - [ ] Admin: טעינת דאשבורד + רשימת משתמשות
 
-**סטטוס**: ✅ הושלם
-**בוצע בשעה**: ~21:00-22:30 23/10/2026
-**תוצאה**: Staging — עבר חלק. Production — image push נכשל 5 פעמים, נפתר ע"י שינוי DATABASE_URL מ-reference לערך ידני שגרם ל-restart בלי build חדש. המערכת הייתה למטה כשעה-שעה וחצי.
-
-**לקח חשוב**: כש-Railway image push תקוע, שינוי variable ידני עוקף את הבעיה ע"י trigger של restart ללא build.
+**סטטוס**: ⬜ טרם בוצע
+**בוצע בשעה**: ___
+**תוצאה**: ___
 
 ---
 
-### שלב 2: Supabase — JWT_SECRET + SERVICE_ROLE_KEY ⏸️ נדחה — מוניטור בלבד
+### שלב 2: Supabase — JWT_SECRET + SERVICE_ROLE_KEY ⚡ קריטי + מנתק משתמשות
 **⚠️ חייבים לטפל ביחד** — ה-service_role key הוא JWT חתום עם ה-JWT secret. שינוי ה-JWT secret מבטל גם את ה-service_role וה-anon keys. (תיקון מ-GPT review)
 
 **הסיכון**: זיוף טוקנים + גישה מלאה ל-Supabase Auth בעקיפת RLS
 
-**הערכת סיכון מעודכנת (22/10 12:00)**:
-- סיכון ריאלי **נמוך מאוד**: תוקף צריך JWT_SECRET + supabase_uid של משתמשת ספציפית + מוטיבציה לתקוף אפליקציית היכרויות קטנה בעברית
-- Railway ציינו שהמוטיבציה של התוקפים היא גניבת AI API keys, לא נתוני משתמשים
-- הלוגים ב-Supabase Auth נקיים — אין פעילות חשודה
-- **עלות ההחלפה גבוהה**: מנתקת כל המשתמשות + deploys תקועים (~20 דקות queue)
-
-**החלטה**: ממשיכים לעקוב על Supabase Auth logs. מחליפים רק אם:
-- מתגלית פעילות חשודה בלוגים
-- Railway מודיעים שהחשבון שלנו נפגע
-- יש חלון שקט עם deploys מהירים
-
-**כשמחליטים לבצע:**
+**מה עושים:**
 1. Supabase Dashboard → Settings → API
 2. **שלב 2א**: Generate new JWT secret — **⚠️ מנתק את כל המשתמשות המחוברות**
 3. **שלב 2ב**: Copy new service_role key (נוצר אוטומטית עם ה-JWT החדש)
 4. **שלב 2ג**: Copy new anon key (נוצר אוטומטית) — צריך לעדכן גם ב-frontend env
 5. מעדכנים ב-Railway env vars: `SUPABASE_JWT_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, `VITE_SUPABASE_ANON_KEY`
 6. Deploy
+7. **ההחלטה**: לעשות עכשיו או בשעת שפל? הלוגים נקיים אז אין סימן לניצול פעיל, אבל כל שעה שעוברת היא חלון סיכון.
 
 **מה עלול להישבר:**
 - **כל משתמשת מחוברת מנותקת** — redirect ל-login
@@ -141,14 +130,12 @@ Railway הודיעו (22/10/2026) שתוקף חיצוני השיג גישה אפ
 - צ'אט, ניתוח, summarizer, RAG, insights, photo analysis — הכל עוצר עד deploy
 
 **בדיקות:**
-- [x] שליחת הודעה בצ'אט ← תגובת AI תקינה
-- [x] Staging — מפתח חדש עובד
-- [x] Production — מפתח חדש עובד
-- [x] Old key revoked ב-OpenAI — הכל תקין
+- [ ] שליחת הודעה בצ'אט ← תגובת AI תקינה
+- [ ] Admin: reanalyze על משתמשת בדיקה
 
-**סטטוס**: ✅ הושלם
-**בוצע בשעה**: ~13:30 22/10/2026
-**תוצאה**: מפתח חדש פעיל ב-staging + production. מפתח ישן בוטל ב-OpenAI. אין השפעה על משתמשות.
+**סטטוס**: ⬜ טרם בוצע
+**בוצע בשעה**: ___
+**תוצאה**: ___
 
 ---
 
