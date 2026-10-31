@@ -4464,8 +4464,10 @@ function MatchDetailModal({ matchDetail, setMatchDetail, onReload, onCardPreview
             {[
               { label: "פנימי", val: matchDetail.internal_score },
               { label: "פרופיל פנימי", val: matchDetail.internal_profile_score },
+              { label: "חיצוני", val: matchDetail.external_score },
               { label: "סופי", val: matchDetail.final_score },
               { label: "פרופיל", val: matchDetail.profile_score },
+              { label: "נשיות/גבריות", val: matchDetail.score_femininity_match },
               { label: "קוגניטיבי", val: matchDetail.score_cognitive },
               { label: "רגשי-חברתי", val: matchDetail.score_emotional_social },
               { label: "רגשנות", val: matchDetail.score_emotionality },
@@ -5218,6 +5220,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
             return cm.user1_is_special || cm.user2_is_special;
           }).length;
           const approvedCount = displayData.filter((cm: any) => cm.match_status === "approved_by_both" || cm.match_status === "pre_match").length;
+          const optionalCount = displayData.filter((cm: any) => cm.match_status === "optional").length;
           return (
             <>
               <button
@@ -5238,6 +5241,12 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
               >
                 אושרו ({approvedCount})
               </button>
+              {optionalCount > 0 && <button
+                onClick={() => setCmView("optional")}
+                style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, border: "none", borderRadius: "6px 6px 0 0", cursor: "pointer", background: cmView === "optional" ? "#d97706" : "#f3f4f6", color: cmView === "optional" ? "#fff" : "#6b7280" }}
+              >
+                אופציונלי ({optionalCount})
+              </button>}
               <button
                 onClick={() => setCmView("priority")}
                 style={{ padding: "6px 16px", fontSize: 13, fontWeight: 700, border: "none", borderRadius: "6px 6px 0 0", cursor: "pointer", background: cmView === "priority" ? "#dc2626" : "#f3f4f6", color: cmView === "priority" ? "#fff" : "#6b7280" }}
@@ -5348,6 +5357,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                 <th style={s.th}>Match Priority</th>
                 <th style={s.th}>Internal</th>
                 <th style={s.th}>External</th>
+                <th style={s.th}>נשיות/גבריות</th>
                 <th style={s.th}>קוגניטיבי</th>
                 <th style={s.th}>רגשית-חברתית</th>
                 <th style={s.th}>רגשנות</th>
@@ -5377,6 +5387,8 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                   if (!cm.user1_is_special && !cm.user2_is_special) return false;
                 } else if (cmView === "approved") {
                   if (cm.match_status !== "approved_by_both" && cm.match_status !== "pre_match") return false;
+                } else if (cmView === "optional") {
+                  if (cm.match_status !== "optional") return false;
                 } else if (cmView === "priority") {
                   if (cm.match_status !== "potential_match") return false;
                   if (cm.user1_locked || cm.user2_locked) return false;
@@ -5611,7 +5623,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                   </td>
                   <td style={s.td}>{cm.pair_priority != null ? cm.pair_priority : "-"}</td>
                   <td style={s.td}>{cm.final_match_priority != null ? <strong>{cm.final_match_priority}</strong> : "-"}</td>
-                  {[cm.internal_score, cm.external_score, cm.score_cognitive, cm.score_emotional_social,
+                  {[cm.internal_score, cm.external_score, cm.score_femininity_match, cm.score_cognitive, cm.score_emotional_social,
                     cm.score_emotionality, cm.score_communication, cm.score_vibe, cm.score_popularity,
                     cm.score_big_five, cm.score_schwartz, cm.score_style, cm.score_attitudes, cm.score_general,
                     cm.score_mbti, cm.score_enneagram].map((v: any, i: number) => (
@@ -7276,6 +7288,7 @@ function OutreachLogTab() {
       rejected_acquaintance: { label: "מכירים", bg: "#ffedd5", color: "#9a3412" },
       pre_match: { label: "לפני התאמה", bg: "#ede9fe", color: "#5b21b6" },
       in_match: { label: "בהתאמה", bg: "#d1fae5", color: "#065f46" },
+      optional: { label: "אופציונלית (חיצוני נמוך)", bg: "#fef9c3", color: "#854d0e" },
     };
     const info = map[status] || { label: status, bg: "#f3f4f6", color: "#374151" };
     return <span style={{ background: info.bg, color: info.color, padding: "2px 8px", borderRadius: 4, fontSize: 12, fontWeight: 600 }}>{info.label}</span>;

@@ -96,42 +96,24 @@ function calculateExternalScore(
 }
 
 /**
- * WW External Score — 60% femininity match + 40% appeal/fitness
+ * WW External Score — uses femininity_match (text+photo combined) + appeal/fitness
  *
- * Femininity match is asymmetric: for each side, compare what she WANTS
- * (desired_value) vs what the OTHER side IS (personal_value).
- * fem_match_A = 100 - |desired_A - personal_B|
- * fem_match_B = 100 - |desired_B - personal_A|
- * femininity_score = minimum of both sides (weakest link)
- *
- * Appeal/fitness portion (40%): appeal similarity (weight 2) + fitness similarity (weight 1)
- *
- * If desired_value is missing for a side, that side is skipped.
- * If both sides are missing, falls back to standard external score (appeal+fitness only).
+ * 60% femininity_match (pre-calculated, combining text gender_conformity + photo) + 40% appeal/fitness.
+ * If femininity_match is very low (<40), applies a penalty multiplier to the entire score.
+ * If femininity_match is null, falls back to appeal+fitness only.
  */
 function calculateExternalScoreWW(
   user1LookTraits: Map<string, number>,
   user2LookTraits: Map<string, number>,
-  user1FemDesired: number | null,
-  user2FemDesired: number | null,
+  femininityMatchScore: number | null,
 ): number | null {
-  const personal1 = user1LookTraits.get("femininity_masculinity");
-  const personal2 = user2LookTraits.get("femininity_masculinity");
   const appeal1 = user1LookTraits.get("appeal");
   const appeal2 = user2LookTraits.get("appeal");
   const fitness1 = user1LookTraits.get("fitness_aesthetic");
   const fitness2 = user2LookTraits.get("fitness_aesthetic");
 
-  const hasFemData = (user1FemDesired != null || user2FemDesired != null)
-    && (personal1 != null || personal2 != null);
-
-  // No femininity data at all → fall back to standard external scoring (appeal+fitness)
-  if (!hasFemData) {
-    return calculateExternalScore(user1LookTraits, user2LookTraits);
-  }
-
   // Helper: appeal+fitness combined score (appeal weight 2, fitness weight 1)
-  function appealFitnessScore(): number {
+  function appealFitnessScore(): number | null {
     let sum = 0;
     let w = 0;
     if (appeal1 != null && appeal2 != null) {
@@ -142,41 +124,28 @@ function calculateExternalScoreWW(
       sum += (100 - Math.abs(fitness1 - fitness2)) * 1;
       w += 1;
     }
-    return w > 0 ? sum / w : 50; // neutral if no data
+    return w > 0 ? sum / w : null;
   }
 
-  // Both sides have photos (both have personal values) → full scoring
-  const bothHavePhotos = personal1 != null && personal2 != null;
+  const afScore = appealFitnessScore();
 
-  if (bothHavePhotos) {
-    // Femininity match: minimum of both directions (weakest link determines score)
-    const femSides: number[] = [];
-    if (user1FemDesired != null) {
-      femSides.push(100 - Math.abs(user1FemDesired - personal2!));
-    }
-    if (user2FemDesired != null) {
-      femSides.push(100 - Math.abs(user2FemDesired - personal1!));
-    }
-    const femScore = femSides.length > 0
-      ? Math.min(...femSides)
-      : 50; // no desired data → neutral
-
-    return femScore * 0.6 + appealFitnessScore() * 0.4;
+  // No femininity data → fall back to appeal+fitness only
+  if (femininityMatchScore == null) {
+    return afScore;
   }
 
-  // One side missing photo → partial score
-  // Only compute: desired of no-photo side vs personal of photo side
-  // This is worth 30% of the full score (one direction = half of 60%)
-  const photoSidePersonal = personal1 != null ? personal1 : personal2;
-  const noPhotoSideDesired = personal1 == null ? user1FemDesired : user2FemDesired;
+  // Combine: 60% femininity + 40% appeal/fitness
+  const af = afScore ?? 50; // neutral if no appeal/fitness data
+  let score = femininityMatchScore * 0.6 + af * 0.4;
 
-  if (noPhotoSideDesired != null && photoSidePersonal != null) {
-    const oneDirectionMatch = 100 - Math.abs(noPhotoSideDesired - photoSidePersonal);
-    return oneDirectionMatch * 0.30;
+  // Penalty: if femininity match is very bad (<40), penalize the entire external score
+  // femMatch=40 → no penalty, femMatch=20 → ×0.5, femMatch=0 → ×0
+  if (femininityMatchScore < 40) {
+    const penalty = femininityMatchScore / 40;
+    score = score * penalty;
   }
 
-  // No usable combination → null
-  return null;
+  return score;
 }
 
 // ── Femininity match category score ─────────────────────────────
@@ -770,12 +739,23 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
       && genderCache.get(row.candidate_user_id) === "woman"
       && lookingForCache.get(row.candidate_user_id) === "woman";
 
+    // Calculate femininity match FIRST — used both as category score and in WW external score
+    const u1gc = GENDER_CONFORMITY_TRAIT_ID > 0 ? u1Traits.get(GENDER_CONFORMITY_TRAIT_ID) : undefined;
+    const u2gc = GENDER_CONFORMITY_TRAIT_ID > 0 ? u2Traits.get(GENDER_CONFORMITY_TRAIT_ID) : undefined;
+    const femininityMatch = calculateFemininityMatchScore(
+      u1gc?.score ?? null, u1gc?.confidence ?? 0,
+      u2gc?.score ?? null, u2gc?.confidence ?? 0,
+      getUserLookTraits(row.user_id).get("femininity_masculinity") ?? null,
+      getUserLookTraits(row.candidate_user_id).get("femininity_masculinity") ?? null,
+      femDesiredCache.get(row.user_id) ?? null,
+      femDesiredCache.get(row.candidate_user_id) ?? null,
+    );
+
     const externalScore = (isWW
       ? calculateExternalScoreWW(
           getUserLookTraits(row.user_id),
           getUserLookTraits(row.candidate_user_id),
-          femDesiredCache.get(row.user_id) ?? null,
-          femDesiredCache.get(row.candidate_user_id) ?? null,
+          femininityMatch,
         )
       : calculateExternalScore(
           getUserLookTraits(row.user_id),
@@ -790,7 +770,6 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
       const eRatio = sensitive ? SENSITIVE_EXTERNAL_RATIO : DEFAULT_EXTERNAL_RATIO;
       finalScore = internalScore * iRatio + externalScore * eRatio;
     } else {
-      // No external data (missing photos/look traits) — use internal only
       finalScore = internalScore;
     }
 
@@ -800,20 +779,10 @@ export async function runStage2(_db: Database.Database): Promise<{ scored: numbe
       genderCache.get(row.candidate_user_id) ?? null,
     );
 
-    // Femininity match category — desired vs personal, combining text + photo
-    const u1gc = GENDER_CONFORMITY_TRAIT_ID > 0 ? u1Traits.get(GENDER_CONFORMITY_TRAIT_ID) : undefined;
-    const u2gc = GENDER_CONFORMITY_TRAIT_ID > 0 ? u2Traits.get(GENDER_CONFORMITY_TRAIT_ID) : undefined;
-    categories.score_femininity_match = calculateFemininityMatchScore(
-      u1gc?.score ?? null, u1gc?.confidence ?? 0,
-      u2gc?.score ?? null, u2gc?.confidence ?? 0,
-      getUserLookTraits(row.user_id).get("femininity_masculinity") ?? null,
-      getUserLookTraits(row.candidate_user_id).get("femininity_masculinity") ?? null,
-      femDesiredCache.get(row.user_id) ?? null,
-      femDesiredCache.get(row.candidate_user_id) ?? null,
-    );
-    if (categories.score_femininity_match != null) {
-      categories.score_femininity_match = Math.round(categories.score_femininity_match * 100) / 100;
-    }
+    // Store femininity match as category score
+    categories.score_femininity_match = femininityMatch != null
+      ? Math.round(femininityMatch * 100) / 100
+      : null;
 
     const profileScore = calculateProfileScore(categories, externalScore ?? null, confidences);
     const internalProfileScore = calculateProfileScore(categories, null, confidences);
@@ -985,12 +954,23 @@ export async function rescoreExistingCandidates(forUserId?: number): Promise<{ r
       && genderCache.get(row.candidate_user_id) === "woman"
       && lookingForCache.get(row.candidate_user_id) === "woman";
 
+    // Calculate femininity match FIRST — used both as category score and in WW external score
+    const u1gc = GENDER_CONFORMITY_TRAIT_ID > 0 ? u1Traits.get(GENDER_CONFORMITY_TRAIT_ID) : undefined;
+    const u2gc = GENDER_CONFORMITY_TRAIT_ID > 0 ? u2Traits.get(GENDER_CONFORMITY_TRAIT_ID) : undefined;
+    const femininityMatch = calculateFemininityMatchScore(
+      u1gc?.score ?? null, u1gc?.confidence ?? 0,
+      u2gc?.score ?? null, u2gc?.confidence ?? 0,
+      getUserLookTraits(row.user_id).get("femininity_masculinity") ?? null,
+      getUserLookTraits(row.candidate_user_id).get("femininity_masculinity") ?? null,
+      femDesiredCache.get(row.user_id) ?? null,
+      femDesiredCache.get(row.candidate_user_id) ?? null,
+    );
+
     const externalScore = (isWW
       ? calculateExternalScoreWW(
           getUserLookTraits(row.user_id),
           getUserLookTraits(row.candidate_user_id),
-          femDesiredCache.get(row.user_id) ?? null,
-          femDesiredCache.get(row.candidate_user_id) ?? null,
+          femininityMatch,
         )
       : calculateExternalScore(
           getUserLookTraits(row.user_id),
@@ -1014,20 +994,10 @@ export async function rescoreExistingCandidates(forUserId?: number): Promise<{ r
       genderCache.get(row.candidate_user_id) ?? null,
     );
 
-    // Femininity match category — desired vs personal, combining text + photo
-    const u1gc = GENDER_CONFORMITY_TRAIT_ID > 0 ? u1Traits.get(GENDER_CONFORMITY_TRAIT_ID) : undefined;
-    const u2gc = GENDER_CONFORMITY_TRAIT_ID > 0 ? u2Traits.get(GENDER_CONFORMITY_TRAIT_ID) : undefined;
-    categories.score_femininity_match = calculateFemininityMatchScore(
-      u1gc?.score ?? null, u1gc?.confidence ?? 0,
-      u2gc?.score ?? null, u2gc?.confidence ?? 0,
-      getUserLookTraits(row.user_id).get("femininity_masculinity") ?? null,
-      getUserLookTraits(row.candidate_user_id).get("femininity_masculinity") ?? null,
-      femDesiredCache.get(row.user_id) ?? null,
-      femDesiredCache.get(row.candidate_user_id) ?? null,
-    );
-    if (categories.score_femininity_match != null) {
-      categories.score_femininity_match = Math.round(categories.score_femininity_match * 100) / 100;
-    }
+    // Store femininity match as category score
+    categories.score_femininity_match = femininityMatch != null
+      ? Math.round(femininityMatch * 100) / 100
+      : null;
 
     const profileScore = calculateProfileScore(categories, externalScore ?? null, confidences);
     const internalProfileScore = calculateProfileScore(categories, null, confidences);
@@ -1097,8 +1067,10 @@ async function updateMatchCounts(): Promise<void> {
 // ── Promote scored candidates to matches table ──────────────────
 
 async function promoteToMatches(): Promise<number> {
-  // Promotion criteria: internal_score > 70 AND internal_profile_score > 70,
-  // OR average of both > 72
+  // Internal criteria: internal_score > 70 AND internal_profile_score > 70, OR average > 70
+  // Candidates that pass internal criteria are either:
+  //   - potential_match: also final_score > 70 (includes external)
+  //   - optional: internal passes but final_score <= 70 (failed due to external/femininity)
   const candidates = await queryAll<{ id: number; user_id: number; candidate_user_id: number; final_score: number; internal_score: number; internal_profile_score: number; location_expanded: boolean; age_expanded: boolean }>(
     `SELECT id, user_id, candidate_user_id, final_score, internal_score, internal_profile_score,
             COALESCE(location_expanded, FALSE) as location_expanded, COALESCE(age_expanded, FALSE) as age_expanded
@@ -1130,17 +1102,30 @@ async function promoteToMatches(): Promise<number> {
         );
         continue;
       }
-      const matchStatus = (c.location_expanded || c.age_expanded) ? 'expanded_potential_match' : 'potential_match';
-      await client.query(
-        `INSERT INTO matches (user1_id, user2_id, match_score, status, location_expanded, age_expanded)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [c.user_id, c.candidate_user_id, Math.round(c.final_score * 100) / 100, matchStatus, c.location_expanded, c.age_expanded]
-      );
-      await client.query(
-        "UPDATE candidate_matches SET status = 'matched', updated_at = NOW() WHERE id = $1",
-        [c.id]
-      );
-      created++;
+
+      // Check if final score (including external) passes threshold
+      const passesExternal = c.final_score > 70;
+
+      if (passesExternal) {
+        // Full match — both internal and external criteria met
+        const matchStatus = (c.location_expanded || c.age_expanded) ? 'expanded_potential_match' : 'potential_match';
+        await client.query(
+          `INSERT INTO matches (user1_id, user2_id, match_score, status, location_expanded, age_expanded)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [c.user_id, c.candidate_user_id, Math.round(c.final_score * 100) / 100, matchStatus, c.location_expanded, c.age_expanded]
+        );
+        await client.query(
+          "UPDATE candidate_matches SET status = 'matched', updated_at = NOW() WHERE id = $1",
+          [c.id]
+        );
+        created++;
+      } else {
+        // Internal criteria pass but external drags final below 70 → optional
+        await client.query(
+          "UPDATE candidate_matches SET status = 'optional', updated_at = NOW() WHERE id = $1",
+          [c.id]
+        );
+      }
     }
   });
 
