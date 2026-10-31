@@ -1455,6 +1455,42 @@ export async function createSchemaPg(pool: Pool): Promise<void> {
       END $$;
     `);
 
+  // Migration: survey3_responses table (match experience survey)
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS survey3_responses (
+        id              SERIAL PRIMARY KEY,
+        user_id         INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        responses       JSONB NOT NULL DEFAULT '{}',
+        completed       BOOLEAN DEFAULT FALSE,
+        created_at      TIMESTAMPTZ DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+  } catch (e) { /* table may already exist */ }
+
+  // Migration: add survey3_email_sent_at to users
+  try {
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='survey3_email_sent_at') THEN
+          ALTER TABLE users ADD COLUMN survey3_email_sent_at TIMESTAMPTZ;
+        END IF;
+      END $$;
+    `);
+  } catch (e) { /* column may already exist */ }
+
+  // Migration: add survey3_banner_dismissed to users
+  try {
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='survey3_banner_dismissed') THEN
+          ALTER TABLE users ADD COLUMN survey3_banner_dismissed BOOLEAN DEFAULT FALSE;
+        END IF;
+      END $$;
+    `);
+  } catch (e) { /* column may already exist */ }
+
     // special_attention — NULL=auto (system decides), TRUE=manually flagged, FALSE=manually cleared
     await pool.query(`
       DO $$ BEGIN

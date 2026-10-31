@@ -15,6 +15,7 @@ import MemeDashboard from "./MemeDashboard";
 import MarketerDashboard from "./MarketerDashboard";
 import SurveyPage from "./SurveyPage";
 import SurveyPage2 from "./SurveyPage2";
+import SurveyPage3 from "./SurveyPage3";
 import { supabase } from "./lib/supabase";
 import { saveSupabaseTokens, clearSupabaseTokens, initErrorReporting } from "./lib/api";
 import { isNativeApp, getApiBaseUrl, getPlatform } from "./lib/platform";
@@ -41,7 +42,8 @@ type View =
   | "meme_dashboard"
   | "adi_dashboard"
   | "survey"
-  | "survey2";
+  | "survey2"
+  | "survey3";
 
 // Full user type matching the expanded DB schema
 export interface User {
@@ -277,6 +279,7 @@ export default function App() {
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [pendingSurvey] = useState(() => window.location.pathname === "/survey");
   const [pendingSurvey2] = useState(() => window.location.pathname === "/survey2");
+  const [pendingSurvey3] = useState(() => window.location.pathname === "/survey3");
   const [pendingMemeDash] = useState(() => window.location.pathname.toLowerCase().startsWith("/meme-dash-7x9k"));
   const [pendingAdiDash] = useState(() => window.location.pathname.toLowerCase().startsWith("/adi-dash-3k7q"));
 
@@ -359,6 +362,7 @@ export default function App() {
         couple_welcome: "ברוכות הבאות — זוגות",
         survey: "סקר",
         survey2: "סקר משתמשות",
+        survey3: "סקר התאמות",
       };
       trackPage(viewNames[view] || view, user?.id);
     }
@@ -425,6 +429,8 @@ export default function App() {
                   setView("survey");
                 } else if (pendingSurvey2) {
                   setView("survey2");
+                } else if (pendingSurvey3) {
+                  setView("survey3");
                 } else {
                   setView("new_chat");
                 }
@@ -460,6 +466,8 @@ export default function App() {
               setView("survey");
             } else if (pendingSurvey2) {
               setView("survey2");
+            } else if (pendingSurvey3) {
+              setView("survey3");
             } else {
               setView("new_chat");
             }
@@ -572,7 +580,7 @@ export default function App() {
   // ── OAuth callback handlers ───────────────────────────────────
   const handleAuthSuccess = useCallback((u: User, profileComplete: boolean) => {
     // Clean URL so refresh doesn't re-trigger auth callback
-    window.history.replaceState({}, "", pendingSurvey ? "/survey" : pendingSurvey2 ? "/survey2" : pendingMemeDash ? "/meme-dash-7x9k" : pendingAdiDash ? "/adi-dash-3k7q" : "/");
+    window.history.replaceState({}, "", pendingSurvey ? "/survey" : pendingSurvey2 ? "/survey2" : pendingSurvey3 ? "/survey3" : pendingMemeDash ? "/meme-dash-7x9k" : pendingAdiDash ? "/adi-dash-3k7q" : "/");
     saveSession(u);
     setUser(u);
     // Register for push notifications (native app only, non-blocking)
@@ -589,10 +597,12 @@ export default function App() {
       setView("survey");
     } else if (pendingSurvey2) {
       setView("survey2");
+    } else if (pendingSurvey3) {
+      setView("survey3");
     } else {
       setView("new_chat");
     }
-  }, [pendingSurvey, pendingSurvey2]);
+  }, [pendingSurvey, pendingSurvey2, pendingSurvey3]);
 
   const handleAuthError = useCallback((message: string) => {
     console.error("[auth callback]", message);
@@ -616,7 +626,7 @@ export default function App() {
   function handleConsentComplete(u: User) {
     saveSession(u);
     setUser(u);
-    setView(pendingSurvey ? "survey" : pendingSurvey2 ? "survey2" : "new_chat");
+    setView(pendingSurvey ? "survey" : pendingSurvey2 ? "survey2" : pendingSurvey3 ? "survey3" : "new_chat");
   }
 
   // ── Don't render until auto-login check completes ──────────────
@@ -629,7 +639,7 @@ export default function App() {
   }
 
   // Hide header in full-screen views
-  const showHeader = view !== "landing" && view !== "admin" && view !== "welcome" && view !== "new_chat" && view !== "insights" && view !== "auth" && view !== "auth_callback" && view !== "profile_setup" && view !== "couple_welcome" && view !== "meme_dashboard" && view !== "adi_dashboard" && view !== "survey" && view !== "survey2";
+  const showHeader = view !== "landing" && view !== "admin" && view !== "welcome" && view !== "new_chat" && view !== "insights" && view !== "auth" && view !== "auth_callback" && view !== "profile_setup" && view !== "couple_welcome" && view !== "meme_dashboard" && view !== "adi_dashboard" && view !== "survey" && view !== "survey2" && view !== "survey3";
 
   return (
     <ErrorBoundary>
@@ -767,6 +777,13 @@ export default function App() {
 
       {view === "survey2" && user && (
         <SurveyPage2
+          userId={user.id}
+          onBack={() => { window.history.replaceState({}, "", "/"); setView("new_chat"); }}
+        />
+      )}
+
+      {view === "survey3" && user && (
+        <SurveyPage3
           userId={user.id}
           onBack={() => { window.history.replaceState({}, "", "/"); setView("new_chat"); }}
         />

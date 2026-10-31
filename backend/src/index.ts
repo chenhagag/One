@@ -6895,6 +6895,15 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
     // Survey2 status — disabled (survey period ended, results kept in survey2_responses)
     const showSurvey2Banner = false;
 
+    // Survey3 status — match experience survey (staging only for now)
+    const showSurvey3Banner = false; // flip to true when ready to launch
+
+    // Check survey3 partial
+    const survey3Row = await pgQueryOne<{ completed: boolean }>(
+      "SELECT completed FROM survey3_responses WHERE user_id = $1", [userId]
+    ).catch(() => null);
+    const survey3Partial = survey3Row ? !survey3Row.completed : false;
+
     // Check if user has ever viewed the insights screen
     const insightsViewed = await pgQueryOne<{ id: number }>(
       "SELECT id FROM page_views WHERE user_id = $1 AND page = 'תובנות' LIMIT 1",
@@ -6938,6 +6947,8 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       survey_partial: false,
       show_survey2_banner: showSurvey2Banner,
       survey2_partial: false,
+      show_survey3_banner: showSurvey3Banner,
+      survey3_partial: survey3Partial,
       self_frozen: !!profileRow?.self_frozen,
       push_notifications: !!profileRow?.push_notifications,
       email_updates: profileRow?.email_updates !== false,
@@ -7595,6 +7606,169 @@ app.post("/admin/survey2/send-emails", requireAdmin, async (req, res) => {
         sent++;
       } catch (emailErr: any) {
         console.error(`[survey2-email] Failed to send to ${u.email}:`, emailErr.message);
+        failed++;
+      }
+    }
+
+    return res.json({ sent, failed, total_eligible: users.length });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Survey 3 — Match experience survey ──────────────────────────
+
+// GET /survey3/my-response
+app.get("/survey3/my-response", requireUserAuth, async (req, res) => {
+  const userId = (req as any).userId;
+  const row = await pgQueryOne<{ responses: any; completed: boolean }>(
+    "SELECT responses, completed FROM survey3_responses WHERE user_id = $1", [userId]
+  );
+  return res.json({ responses: row?.responses || {}, completed: row?.completed || false });
+});
+
+// POST /survey3/response
+app.post("/survey3/response", requireUserAuth, async (req, res) => {
+  const userId = (req as any).userId;
+  const { responses, completed } = req.body;
+  const existing = await pgQueryOne<{ completed: boolean }>(
+    "SELECT completed FROM survey3_responses WHERE user_id = $1", [userId]
+  );
+  if (existing?.completed) return res.json({ ok: true, already_completed: true });
+  await pgQueryOne(
+    `INSERT INTO survey3_responses (user_id, responses, completed, updated_at)
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (user_id) DO UPDATE SET responses = $2, completed = $3, updated_at = NOW()`,
+    [userId, JSON.stringify(responses), !!completed]
+  );
+  return res.json({ ok: true });
+});
+
+// POST /survey3/dismiss-banner
+app.post("/survey3/dismiss-banner", requireUserAuth, async (req, res) => {
+  const userId = (req as any).userId;
+  await pgQueryAll("UPDATE users SET survey3_banner_dismissed = TRUE WHERE id = $1", [userId]);
+  return res.json({ ok: true });
+});
+
+// GET /admin/survey3/stats
+app.get("/admin/survey3/stats", requireAdmin, async (_req, res) => {
+  try {
+    const total = await pgQueryOne<{ c: number }>(
+      `SELECT COUNT(*)::int AS c FROM users
+       WHERE (test_user_type IS NULL OR test_user_type != 'Couple Tester')
+         AND email IS NOT NULL AND email != ''
+         AND gender != 'man' AND looking_for_gender IS DISTINCT FROM 'man'
+         AND EXISTS (SELECT 1 FROM matches WHERE (user1_id = users.id OR user2_id = users.id) AND match_card_sent_at IS NOT NULL)`, []
+    );
+    const emailed = await pgQueryOne<{ c: number }>(
+      "SELECT COUNT(*)::int AS c FROM users WHERE survey3_email_sent_at IS NOT NULL", []
+    );
+    const completed = await pgQueryOne<{ c: number }>(
+      "SELECT COUNT(*)::int AS c FROM survey3_responses WHERE completed = TRUE", []
+    );
+    const partial = await pgQueryOne<{ c: number }>(
+      "SELECT COUNT(*)::int AS c FROM survey3_responses WHERE completed = FALSE", []
+    );
+    const dismissed = await pgQueryOne<{ c: number }>(
+      "SELECT COUNT(*)::int AS c FROM users WHERE survey3_banner_dismissed = TRUE", []
+    );
+    return res.json({
+      total_eligible: total?.c ?? 0,
+      emails_sent: emailed?.c ?? 0,
+      completed: completed?.c ?? 0,
+      partial: partial?.c ?? 0,
+      dismissed: dismissed?.c ?? 0,
+    });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
+});
+
+// GET /admin/survey3/responses
+app.get("/admin/survey3/responses", requireAdmin, async (_req, res) => {
+  const rows = await pgQueryAll(
+    `SELECT sr.user_id, sr.responses, sr.completed, sr.created_at, sr.updated_at,
+            u.first_name, u.email, u.gender, u.survey3_email_sent_at
+     FROM survey3_responses sr
+     JOIN users u ON u.id = sr.user_id
+     ORDER BY sr.updated_at DESC`
+  );
+  return res.json(rows);
+});
+
+// GET /admin/survey3/users
+app.get("/admin/survey3/users", requireAdmin, async (_req, res) => {
+  const rows = await pgQueryAll(
+    `SELECT u.id, u.first_name, u.email, u.gender, u.survey3_email_sent_at, u.survey3_banner_dismissed,
+            sr.completed as survey3_completed, sr.updated_at as survey3_updated_at
+     FROM users u
+     LEFT JOIN survey3_responses sr ON sr.user_id = u.id
+     WHERE (u.test_user_type IS NULL OR u.test_user_type != 'Couple Tester')
+       AND u.email IS NOT NULL AND u.email != ''
+       AND u.gender != 'man' AND u.looking_for_gender IS DISTINCT FROM 'man'
+       AND EXISTS (SELECT 1 FROM matches WHERE (user1_id = u.id OR user2_id = u.id) AND match_card_sent_at IS NOT NULL)
+     ORDER BY u.id`
+  );
+  return res.json(rows);
+});
+
+// POST /admin/survey3/send-emails
+app.post("/admin/survey3/send-emails", requireAdmin, async (req, res) => {
+  try {
+    const { test_only_email } = req.body;
+    let query = `SELECT u.id, u.email, u.first_name FROM users u
+                 WHERE (u.test_user_type IS NULL OR u.test_user_type != 'Couple Tester')
+                   AND u.email IS NOT NULL AND u.email != ''
+                   AND u.survey3_email_sent_at IS NULL
+                   AND u.gender != 'man' AND u.looking_for_gender IS DISTINCT FROM 'man'
+                   AND EXISTS (SELECT 1 FROM matches WHERE (user1_id = u.id OR user2_id = u.id) AND match_card_sent_at IS NOT NULL)`;
+    const params: any[] = [];
+
+    if (test_only_email) {
+      query += ` AND u.email = $1`;
+      params.push(test_only_email);
+    }
+
+    const users = await pgQueryAll<{ id: number; email: string; first_name: string }>(query, params);
+    let sent = 0, failed = 0;
+
+    for (const u of users) {
+      const html = `
+<div style="direction:rtl;text-align:right;font-family:'Segoe UI',Arial,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px">
+  <div style="text-align:center;margin-bottom:24px">
+    <img src="https://joinone.io/iconOnly.png" alt="One" width="48" height="48" style="display:inline-block" />
+  </div>
+  <p style="font-size:18px;font-weight:700;color:#1B1464;margin:0 0 16px">היי,</p>
+  <p style="font-size:15px;color:#333;line-height:1.8;margin:0 0 12px">
+    יש לנו כמה שאלות קצרות על חוויית ההתאמה שלך ב-One — כרטיס ההתאמה, השיחה, והתהליך בכלל.
+  </p>
+  <p style="font-size:15px;color:#333;line-height:1.8;margin:0 0 24px">
+    החוויה שלך עוזרת לנו להבין מה עובד ומה כדאי לשנות. מוזמנת לענות על מה שבא לך 🩶
+  </p>
+  <div style="text-align:center;margin:28px 0">
+    <a href="https://joinone.io/survey3" style="background:#7b5fa3;color:#fff;padding:14px 36px;border-radius:999px;text-decoration:none;font-size:16px;font-weight:bold;display:inline-block">כניסה לסקר</a>
+  </div>
+  <p style="font-size:14px;color:#888;line-height:1.7;margin:24px 0 0;text-align:center">
+    תודה שאת עוזרת לנו לעצב את One 🩶
+  </p>
+</div>`;
+
+      try {
+        await resend.emails.send({
+          from: "One <noreply@joinone.io>",
+          to: u.email,
+          subject: "One — כמה שאלות קצרות על חוויית ההתאמה",
+          html: wrapEmailFooter(html, u.id),
+          headers: {
+            "List-Unsubscribe": `<${getUnsubUrl(u.id)}>`,
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          },
+        });
+        await pgQueryAll("UPDATE users SET survey3_email_sent_at = NOW() WHERE id = $1", [u.id]);
+        await pgQueryAll("INSERT INTO email_log (user_id, subject, email_type) VALUES ($1, $2, $3)",
+          [u.id, "One — כמה שאלות קצרות על חוויית ההתאמה", "survey3"]);
+        sent++;
+      } catch (emailErr: any) {
+        console.error(`[survey3-email] Failed to send to ${u.email}:`, emailErr.message);
         failed++;
       }
     }

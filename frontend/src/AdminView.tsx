@@ -15,7 +15,7 @@ import AdminPipeline from "./AdminPipeline";
 
 type Tab = "overview" | "users" | "traits" | "look_traits" | "matches" | "candidates" | "bugs" | "card_requests" | "errors" | "email" | "analytics" | "user_mgmt" | "outreach" | "deleted_users" | "system_log";
 
-type AnalyticsSubTab = "page_views" | "landings" | "age_dist" | "meme_dash" | "adi_dash" | "survey" | "survey2" | "health";
+type AnalyticsSubTab = "page_views" | "landings" | "age_dist" | "meme_dash" | "adi_dash" | "survey" | "survey2" | "survey3" | "health";
 
 const s: Record<string, React.CSSProperties> = {
   heading: { marginTop: 0, marginBottom: 8, fontSize: 22 },
@@ -6117,6 +6117,7 @@ function AnalyticsContainerTab() {
     ["adi_dash", "דשבורד עדי"],
     ["survey", "סקר"],
     ["survey2", "סקר WW"],
+    ["survey3", "סקר התאמות"],
     ["health", "בריאות מערכת"],
   ];
 
@@ -6149,6 +6150,7 @@ function AnalyticsContainerTab() {
       {subTab === "adi_dash" && <AdiDashTab />}
       {subTab === "survey" && <SurveyAdminTab />}
       {subTab === "survey2" && <Survey2AdminTab />}
+      {subTab === "survey3" && <Survey3AdminTab />}
       {subTab === "health" && <SystemHealthTab />}
     </div>
   );
@@ -8657,6 +8659,290 @@ function Survey2AdminTab() {
                       {Object.entries(r.responses).map(([qId, resp]: [string, any]) => {
                         const label = SURVEY2_Q_LABELS[qId] || `שאלה ${qId}`;
                         const options = SURVEY2_Q_OPTIONS[qId];
+                        return (
+                          <div key={qId} style={{ marginBottom: 10 }}>
+                            <div style={{ fontSize: 12, color: "#999", fontWeight: 600 }}>{label}</div>
+                            {resp.selected && resp.selected.length > 0 && options && (
+                              <div style={{ fontSize: 13, color: "#333", margin: "2px 0" }}>
+                                {resp.selected.map((idx: number) => options[idx] || `אחר`).join(", ")}
+                              </div>
+                            )}
+                            {resp.text && <div style={{ fontSize: 13, color: "#555", fontStyle: "italic" }}>"{resp.text}"</div>}
+                            {resp.otherText && <div style={{ fontSize: 12, color: "#777" }}>אחר: "{resp.otherText}"</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Survey 3 Admin Tab ─────────────────────────────────────────
+
+const SURVEY3_Q_LABELS: Record<string, string> = {
+  "1": "כרטיס ההתאמה",
+  "2": "מודל ההתאמה",
+  "3": "תחילת השיחה אחרי התאמה",
+  "4": "כלים קיימים",
+  "5": "ביטול התאמה",
+};
+
+const SURVEY3_Q_OPTIONS: Record<string, string[]> = {
+  "1": ["עזר לי להבין למה הוצענו זו לזו", "עורר בי סקרנות ורצון להכיר", "עזר לי להתחיל שיחה", "הרגיש אישי או חושפני מדי", "יצר ציפייה לחיבור עוד לפני שהכרנו", "לא השפיע במיוחד על התחושה שלי"],
+  "2": ["הצעה אחת בכל פעם", "לראות אפשרויות ולבחור", "אפשרות לבחור בין שתי הדרכים", "קשה לדעת בלי להתנסות"],
+  "5": ["לא ביטלתי התאמה", "לא הרגשתי עניין/משיכה", "הבנתי שלא מתאימות", "השיחה לא התקדמה", "לא מספיק עניין מהצד השני", "אי-נוחות", "לא פנויה להיכרות", "רציתי לאפשר הצעות אחרות"],
+};
+
+function Survey3AdminTab() {
+  const [stats, setStats] = useState<any>(null);
+  const [responses, setResponses] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<string | null>(null);
+  const [selectedResponse, setSelectedResponse] = useState<any | null>(null);
+  const [viewMode, setViewMode] = useState<"stats" | "users" | "responses">("stats");
+
+  useEffect(() => {
+    Promise.all([
+      apiFetch("/admin/survey3/stats").then(r => r.json()),
+      apiFetch("/admin/survey3/responses").then(r => r.json()),
+      apiFetch("/admin/survey3/users").then(r => r.json()),
+    ]).then(([st, resp, usr]) => {
+      setStats(st);
+      setResponses(resp);
+      setUsers(usr);
+    }).catch(() => {})
+    .finally(() => setLoading(false));
+  }, []);
+
+  const handleSendEmails = async (testOnly?: string) => {
+    setSending(true);
+    setSendResult(null);
+    try {
+      const res = await apiFetch("/admin/survey3/send-emails", {
+        method: "POST",
+        body: JSON.stringify(testOnly ? { test_only_email: testOnly } : {}),
+      });
+      const data = await res.json();
+      setSendResult(`נשלחו ${data.sent} מיילים${data.failed ? `, נכשלו ${data.failed}` : ""}`);
+      const st = await apiFetch("/admin/survey3/stats").then(r => r.json());
+      setStats(st);
+    } catch {
+      setSendResult("שגיאה בשליחה");
+    }
+    setSending(false);
+  };
+
+  if (loading) return <div style={{ padding: 24 }}><p style={{ color: "#999" }}>טוען...</p></div>;
+
+  return (
+    <div dir="rtl" style={{ padding: "16px 24px", maxWidth: 1000 }}>
+      <h2 style={{ fontSize: 18, margin: "0 0 16px", color: "#1a1a2e" }}>סקר חוויית התאמה (משתמשות שקיבלו התאמה)</h2>
+
+      {stats && (
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+          {[
+            { label: "זכאיות", value: stats.total_eligible, color: "#6366f1" },
+            { label: "נשלח מייל", value: stats.emails_sent, color: "#3b82f6" },
+            { label: "השלימו", value: stats.completed, color: "#22c55e" },
+            { label: "חלקי", value: stats.partial, color: "#f59e0b" },
+            { label: "דחו באנר", value: stats.dismissed, color: "#ef4444" },
+          ].map((card) => (
+            <div key={card.label} style={{ background: "#fff", borderRadius: 10, padding: "12px 20px", border: "1px solid #eee", minWidth: 100, textAlign: "center" }}>
+              <div style={{ fontSize: 28, fontWeight: 700, color: card.color }}>{card.value}</div>
+              <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{card.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ background: "#fff", borderRadius: 10, padding: 16, border: "1px solid #eee", marginBottom: 20 }}>
+        <h3 style={{ fontSize: 14, margin: "0 0 10px", color: "#333" }}>שליחת מיילים</h3>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <button
+            onClick={() => handleSendEmails("chen.hagag@gmail.com")}
+            disabled={sending}
+            style={{ padding: "8px 16px", fontSize: 13, background: "#f59e0b", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600 }}
+          >
+            שלח טסט (chen.hagag@gmail.com)
+          </button>
+          <button
+            onClick={() => { if (confirm("לשלוח מייל סקר לכל המשתמשות הזכאיות?")) handleSendEmails(); }}
+            disabled={sending}
+            style={{ padding: "8px 16px", fontSize: 13, background: "#7b5fa3", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600 }}
+          >
+            שלח לכולן
+          </button>
+          {sending && <span style={{ fontSize: 13, color: "#999" }}>שולח...</span>}
+          {sendResult && <span style={{ fontSize: 13, color: "#22c55e", fontWeight: 600 }}>{sendResult}</span>}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        {(["stats", "users", "responses"] as const).map(mode => (
+          <button
+            key={mode}
+            onClick={() => setViewMode(mode)}
+            style={{
+              padding: "6px 16px", fontSize: 13, borderRadius: 8, cursor: "pointer",
+              background: viewMode === mode ? "#7b5fa3" : "#fff",
+              color: viewMode === mode ? "#fff" : "#555",
+              border: viewMode === mode ? "none" : "1px solid #ddd",
+              fontWeight: viewMode === mode ? 600 : 400,
+            }}
+          >
+            {mode === "stats" ? "תוצאות מרוכזות" : mode === "users" ? "משתמשות" : "תשובות מלאות"}
+          </button>
+        ))}
+      </div>
+
+      {viewMode === "stats" && responses.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {Object.entries(SURVEY3_Q_LABELS).map(([qId, label]) => {
+            const options = SURVEY3_Q_OPTIONS[qId];
+            if (!options) {
+              const texts = responses.filter(r => r.responses[qId]?.text).map(r => ({ name: r.first_name, text: r.responses[qId].text, extra: r.responses[qId].otherText }));
+              if (texts.length === 0) return null;
+              return (
+                <div key={qId} style={{ background: "#fff", borderRadius: 10, padding: 16, border: "1px solid #eee" }}>
+                  <h4 style={{ fontSize: 14, margin: "0 0 10px", color: "#333" }}>שאלה {qId}: {label}</h4>
+                  {texts.map((t, i) => (
+                    <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid #f5f5f5" }}>
+                      <span style={{ fontSize: 12, color: "#999", fontWeight: 600 }}>{t.name}: </span>
+                      <span style={{ fontSize: 13, color: "#333" }}>{t.text}</span>
+                      {t.extra && <div style={{ fontSize: 12, color: "#777", marginTop: 4 }}>{t.extra}</div>}
+                    </div>
+                  ))}
+                </div>
+              );
+            }
+            const counts = options.map((_, idx) => {
+              return responses.filter(r => r.responses[qId]?.selected?.includes(idx)).length;
+            });
+            const totalAnswered = responses.filter(r => r.responses[qId]?.selected?.length > 0).length;
+            const texts = responses.filter(r => r.responses[qId]?.text).map(r => ({ name: r.first_name, text: r.responses[qId].text }));
+            const otherTexts = responses.filter(r => r.responses[qId]?.otherText).map(r => ({ name: r.first_name, text: r.responses[qId].otherText }));
+
+            return (
+              <div key={qId} style={{ background: "#fff", borderRadius: 10, padding: 16, border: "1px solid #eee" }}>
+                <h4 style={{ fontSize: 14, margin: "0 0 10px", color: "#333" }}>שאלה {qId}: {label} <span style={{ color: "#aaa", fontWeight: 400 }}>({totalAnswered} ענו)</span></h4>
+                {options.map((opt, idx) => {
+                  const pct = totalAnswered > 0 ? Math.round((counts[idx] / totalAnswered) * 100) : 0;
+                  return (
+                    <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                      <div style={{ flex: 1, fontSize: 13, color: "#555" }}>{opt}</div>
+                      <div style={{ width: 120, height: 8, background: "#f0f0f0", borderRadius: 4, overflow: "hidden" }}>
+                        <div style={{ width: `${pct}%`, height: "100%", background: "#7b5fa3", borderRadius: 4 }} />
+                      </div>
+                      <span style={{ fontSize: 12, color: "#888", minWidth: 40, textAlign: "left" }}>{counts[idx]} ({pct}%)</span>
+                    </div>
+                  );
+                })}
+                {texts.length > 0 && (
+                  <div style={{ marginTop: 10, borderTop: "1px solid #f0f0f0", paddingTop: 8 }}>
+                    <span style={{ fontSize: 12, color: "#aaa", fontWeight: 600 }}>תשובות חופשיות:</span>
+                    {texts.map((t, i) => (
+                      <div key={i} style={{ fontSize: 12, color: "#555", margin: "4px 0" }}>
+                        <strong>{t.name}:</strong> {t.text}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {otherTexts.length > 0 && (
+                  <div style={{ marginTop: 6 }}>
+                    <span style={{ fontSize: 12, color: "#aaa", fontWeight: 600 }}>אחר:</span>
+                    {otherTexts.map((t, i) => (
+                      <div key={i} style={{ fontSize: 12, color: "#555", margin: "4px 0" }}>
+                        <strong>{t.name}:</strong> {t.text}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {viewMode === "stats" && responses.length === 0 && (
+        <p style={{ color: "#999", fontSize: 14 }}>אין תשובות עדיין.</p>
+      )}
+
+      {viewMode === "users" && (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: "#f9f9f9" }}>
+                <th style={s.th}>ID</th>
+                <th style={s.th}>שם</th>
+                <th style={s.th}>מייל</th>
+                <th style={s.th}>נשלח מייל</th>
+                <th style={s.th}>דחתה באנר</th>
+                <th style={s.th}>סטטוס סקר</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map(u => (
+                <tr key={u.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                  <td style={s.td}>{u.id}</td>
+                  <td style={s.td}>{u.first_name}</td>
+                  <td style={s.td}>{u.email}</td>
+                  <td style={s.td}>{u.survey3_email_sent_at ? new Date(u.survey3_email_sent_at).toLocaleDateString("he-IL") : "—"}</td>
+                  <td style={s.td}>{u.survey3_banner_dismissed ? "כן" : "—"}</td>
+                  <td style={s.td}>
+                    <span style={{
+                      padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600,
+                      background: u.survey3_completed ? "#dcfce7" : u.survey3_updated_at ? "#fef3c7" : "#f3f4f6",
+                      color: u.survey3_completed ? "#166534" : u.survey3_updated_at ? "#92400e" : "#888",
+                    }}>
+                      {u.survey3_completed ? "השלימה" : u.survey3_updated_at ? "חלקי" : "לא התחילה"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {viewMode === "responses" && (
+        <div>
+          {responses.length === 0 ? (
+            <p style={{ color: "#999", fontSize: 14 }}>אין תשובות עדיין.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {responses.map(r => (
+                <div
+                  key={r.user_id}
+                  onClick={() => setSelectedResponse(selectedResponse?.user_id === r.user_id ? null : r)}
+                  style={{ background: "#fff", borderRadius: 10, padding: "12px 16px", border: "1px solid #eee", cursor: "pointer" }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <strong style={{ fontSize: 14 }}>{r.first_name}</strong>
+                      <span style={{ fontSize: 12, color: "#999", marginRight: 8 }}>{r.email}</span>
+                    </div>
+                    <span style={{
+                      padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600,
+                      background: r.completed ? "#dcfce7" : "#fef3c7",
+                      color: r.completed ? "#166534" : "#92400e",
+                    }}>
+                      {r.completed ? "הושלם" : "חלקי"}
+                    </span>
+                  </div>
+
+                  {selectedResponse?.user_id === r.user_id && (
+                    <div style={{ marginTop: 12, borderTop: "1px solid #f0f0f0", paddingTop: 12 }}>
+                      {Object.entries(r.responses).map(([qId, resp]: [string, any]) => {
+                        const label = SURVEY3_Q_LABELS[qId] || `שאלה ${qId}`;
+                        const options = SURVEY3_Q_OPTIONS[qId];
                         return (
                           <div key={qId} style={{ marginBottom: 10 }}>
                             <div style={{ fontSize: 12, color: "#999", fontWeight: 600 }}>{label}</div>
