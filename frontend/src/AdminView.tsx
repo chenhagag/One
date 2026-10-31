@@ -1434,6 +1434,45 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
   // Gender conformity
   const genderConformity = traitData("gender_conformity");
 
+  // Femininity summary — combines text (gender_conformity), photo (femininity_masculinity), and preference
+  const femininitySummary = (() => {
+    const gcScore = genderConformity?.score ?? null;
+    const femLook = lookTraits.find((lt: any) => lt.internal_name === "femininity_masculinity");
+    const photoScore = femLook?.personal_value != null ? parseFloat(femLook.personal_value) : null;
+    const desiredRaw = femLook?.desired_value;
+    const desiredScore = desiredRaw != null ? parseFloat(desiredRaw) : null;
+
+    const hasAny = gcScore != null || (photoScore != null && !isNaN(photoScore));
+    if (!hasAny) return null;
+
+    // Label for "how she is"
+    function presentationLabel(score: number | null): string {
+      if (score == null) return "—";
+      if (score >= 60) return "נשית";
+      if (score >= 50) return "בתפר";
+      return "גברית";
+    }
+
+    // Label for "what she wants"
+    function preferenceLabel(score: number | null): string {
+      if (score == null || isNaN(score)) return "לא ידוע";
+      if (score >= 70) return "נמשכת לנשיות";
+      if (score >= 40) return "גמישה";
+      return "נמשכת לגבריות";
+    }
+
+    // Best available presentation score: photo preferred, text fallback
+    const bestScore = (photoScore != null && !isNaN(photoScore)) ? photoScore : gcScore;
+
+    return {
+      textScore: gcScore,
+      photoScore: (photoScore != null && !isNaN(photoScore)) ? photoScore : null,
+      desiredScore: (desiredScore != null && !isNaN(desiredScore)) ? desiredScore : null,
+      presentationText: presentationLabel(bestScore),
+      preferenceText: preferenceLabel(desiredScore != null && !isNaN(desiredScore) ? desiredScore : null),
+    };
+  })();
+
   // Personal Style highlights (score >= 65)
   const styleHighlights = (() => {
     const styleTraits: { name: string; he: string }[] = [
@@ -2083,15 +2122,30 @@ function UserDetail({ userId, onBack, onStartChat, onViewDashboard, onViewNewCha
                     </div>
                   </div>
                 )}
-                {genderConformity && (
+                {femininitySummary && (
                   <div style={{
-                    flex: "1 1 140px", padding: "14px 16px", borderRadius: 12,
+                    flex: "1 1 200px", padding: "14px 16px", borderRadius: 12,
                     background: "#f8fafc", border: "2px solid #f4364740",
-                    textAlign: "center", minWidth: 140,
+                    minWidth: 200,
                   }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#333", marginBottom: 6 }}>התאמה מגדרית</div>
-                    <div style={{ fontSize: 28, fontWeight: 700, color: "#f43647" }}>{genderConformity.score}</div>
-                    <div style={{ fontSize: 11, color: "#555" }}>{genderConformity.score >= 65 ? "קלאסי" : genderConformity.score <= 35 ? "חורג" : "מאוזן"}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#333", marginBottom: 8, textAlign: "center" }}>נשיות / גבריות</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: "#f43647", textAlign: "center", marginBottom: 8 }}>
+                      {femininitySummary.presentationText}, {femininitySummary.preferenceText}
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-around", fontSize: 11, color: "#555" }}>
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ color: "#888" }}>תמונה</div>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{femininitySummary.photoScore ?? "—"}</div>
+                      </div>
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ color: "#888" }}>טקסט</div>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{femininitySummary.textScore ?? "—"}</div>
+                      </div>
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ color: "#888" }}>רוצה</div>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{femininitySummary.desiredScore ?? "—"}</div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
