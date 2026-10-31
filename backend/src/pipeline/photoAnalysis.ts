@@ -1,10 +1,8 @@
 /**
  * Photo Analysis — GPT-4o Vision analysis of user photos for look traits.
  *
- * Extracts 11 visual traits:
- *   Numeric (0-100): appeal, fitness_aesthetic, femininity_masculinity,
- *     warmth_visual, glamour, naturalness, style_polish, skin_tone_range
- *   Categorical: hair_color, eye_color, hair_type
+ * Extracts 3 visual traits (numeric 0-100):
+ *   appeal, fitness_aesthetic, femininity_masculinity
  *
  * Guards:
  * - Only runs with photo_ai_consent = true
@@ -35,22 +33,20 @@ export interface PhotoAnalysisResult {
   skipped_reason?: string;
 }
 
-// Trait definitions for the Vision prompt
+// Trait definitions for the Vision prompt — only the 3 traits used in matching
 const NUMERIC_TRAITS = [
-  { name: "appeal", description: "Overall physical attractiveness / visual appeal. 0 = very low, 100 = very high." },
-  { name: "fitness_aesthetic", description: "Apparent fitness level and body composition. 0 = no visible fitness, 100 = very athletic/fit." },
-  { name: "femininity_masculinity", description: "Gender expression on a spectrum, calibrated for WW (women-seeking-women) context. In this community, 'masculine' means a distinctly butch/tomboyish look (short hair, masculine clothing, no makeup, androgynous or male-presenting). A woman with a standard/conventional feminine appearance should score 60-70 (not 30-40). Very glamorous/hyperfeminine = 80-95. Truly androgynous = 45-55. Distinctly butch/masculine = 10-30. 0 = very masculine/butch, 100 = very feminine/glamorous." },
-  { name: "warmth_visual", description: "How warm, friendly, and approachable the person appears. 0 = cold/distant, 100 = very warm/inviting." },
-  { name: "glamour", description: "Level of polished, glamorous appearance. 0 = casual/plain, 100 = very glamorous." },
-  { name: "naturalness", description: "How natural vs. made-up the person appears. 0 = heavily styled/made-up, 100 = very natural." },
-  { name: "style_polish", description: "Quality of clothing, grooming, and overall style. 0 = unkempt, 100 = impeccably styled." },
-  { name: "skin_tone_range", description: "Skin tone on a light-to-dark spectrum. 0 = very light, 100 = very dark." },
-];
-
-const CATEGORICAL_TRAITS = [
-  { name: "hair_color", values: ["black", "dark_brown", "brown", "light_brown", "blonde", "red", "gray", "white", "other"] },
-  { name: "eye_color", values: ["brown", "dark_brown", "blue", "green", "hazel", "gray", "other"] },
-  { name: "hair_type", values: ["straight", "wavy", "curly", "coily", "bald", "shaved", "other"] },
+  {
+    name: "appeal",
+    description: "Overall physical attractiveness. Use the FULL 0-100 range honestly. 50 = average-looking, and most people ARE average — do not cluster scores around 60-70. A truly stunning person = 85-95. Above average but not remarkable = 55-65. Below average = 30-45. Very unattractive = 5-20. These scores are never shown to users — accuracy matters more than kindness.",
+  },
+  {
+    name: "fitness_aesthetic",
+    description: "How physically fit the person LOOKS in the photo. Judge by visible body composition: muscle tone, low body fat, athletic build. Being slim alone is not fitness — look for signs of actual physical activity/strength. Visibly athletic/toned = 75-95. Average build, not particularly fit or unfit = 40-55. Overweight or visibly out of shape = 10-35. If body is not visible (face-only photo), estimate conservatively around 45-55.",
+  },
+  {
+    name: "femininity_masculinity",
+    description: "Feminine vs. masculine/butch appearance — calibrated for a lesbian/WW (women-seeking-women) community. This measures how traditionally feminine vs. butch/tomboyish someone LOOKS, not their identity. A woman with a standard feminine appearance (long or styled hair, makeup, feminine clothing) = 60-75. Very glamorous/hyperfeminine = 80-95. Somewhat androgynous or soft-butch (short hair but still feminine features/clothing) = 40-55. Distinctly butch/tomboyish (short hair, masculine clothing, no makeup, masculine presentation) = 15-35. 0 = very masculine/butch, 100 = very feminine/glamorous.",
+  },
 ];
 
 export async function analyzeUserPhotos(
@@ -98,7 +94,7 @@ export async function analyzeUserPhotos(
       type: "image_url",
       image_url: {
         url: `data:${mime};base64,${base64}`,
-        detail: "low", // Cost-efficient: ~85 tokens per image
+        detail: "auto", // Let GPT choose resolution for better accuracy
       },
     });
     analyzedPhotos.push(photo.filename);
@@ -111,35 +107,29 @@ export async function analyzeUserPhotos(
   // ── Build GPT-4o Vision prompt ─────────────────────────────────
   const numericDesc = NUMERIC_TRAITS.map(t =>
     `"${t.name}": integer 0-100. ${t.description}`
-  ).join("\n");
+  ).join("\n\n");
 
-  const categoricalDesc = CATEGORICAL_TRAITS.map(t =>
-    `"${t.name}": one of [${t.values.map(v => `"${v}"`).join(", ")}]`
-  ).join("\n");
+  const systemPrompt = `You are a visual trait assessor for a matchmaking system. Analyze the provided photos of ONE person and return a JSON object.
 
-  const systemPrompt = `You are a visual trait assessor for a matchmaking system. Analyze the provided photos of ONE person and return a JSON object with the following fields.
+These scores are used internally for compatibility matching — they are NEVER shown to users. Accuracy is critical. Do NOT be generous or flattering.
 
-Be consistent and calibrated. Use the full range of each scale. These scores are used internally for compatibility matching — they are never shown to users.
+## Scoring principles:
+- Use the FULL 0-100 range. Most people should score near 50 (average). Do not cluster scores in the 55-75 "safe zone".
+- A score of 50 is not an insult — it means average, which is where most people fall.
+- Look at ALL provided photos together to form your assessment.
+- If body is not visible (face-only photos), note this in your estimate for fitness.
 
-## Numeric traits (integer 0-100):
+## Traits to assess (integer 0-100):
 ${numericDesc}
 
-## Categorical traits (string):
-${categoricalDesc}
-
 ## Verification fields (CRITICAL — answer honestly):
-"is_real_photo": boolean — true if these appear to be real photos of a real person (not stock photos, memes, objects, landscapes, or other non-personal content).
-"is_adult": boolean — true if the person appears to be 18+ years old. false if they appear to be a child or young teenager.
-"apparent_gender": "male" | "female" | "unclear" — the apparent gender of the person in the photos.
-"is_ai_generated": boolean — true if the photos appear to be AI-generated (look for telltale signs: uncanny smoothness, weird hands/fingers, asymmetric earrings, distorted backgrounds, unnatural skin texture).
-"verification_notes": string — brief note if anything seems off (e.g. "photos show different people", "stock photo watermark visible", "cartoon/avatar"). Empty string if everything looks normal.
+"is_real_photo": boolean — true if real photos of a real person (not stock, memes, objects, landscapes).
+"is_adult": boolean — true if person appears 18+.
+"apparent_gender": "male" | "female" | "unclear"
+"is_ai_generated": boolean — true if photos appear AI-generated.
+"verification_notes": string — brief note if anything seems off. Empty string if normal.
 
-Important:
-- Assess based on ALL provided photos together (they show the same person).
-- If a trait cannot be determined from the photos, use your best estimate.
-- For femininity_masculinity, calibrate for WW (lesbian/queer) context: a "regular-looking" woman is feminine (60-70), not neutral. Reserve low scores (below 40) for distinctly butch/masculine presentation.
-- The verification fields are critical for safety — be strict and honest.
-- Return ONLY valid JSON. No markdown, no explanation, no wrapping.`;
+Return ONLY valid JSON. No markdown, no explanation.`;
 
   // ── Call GPT-4o Vision ─────────────────────────────────────────
   console.log(`[photoAnalysis] User ${userId}: analyzing ${imageContents.length} photos...`);
@@ -234,7 +224,7 @@ Important:
   let saved = 0;
   let skippedManual = 0;
 
-  const allTraitNames = [...NUMERIC_TRAITS.map(t => t.name), ...CATEGORICAL_TRAITS.map(t => t.name)];
+  const allTraitNames = NUMERIC_TRAITS.map(t => t.name);
 
   for (const traitName of allTraitNames) {
     const defId = defMap.get(traitName);
@@ -253,8 +243,7 @@ Important:
     if (value === undefined || value === null) continue;
 
     const personalValue = String(value);
-    const isNumeric = NUMERIC_TRAITS.some(t => t.name === traitName);
-    const confidence = isNumeric ? 0.7 : 0.8;
+    const confidence = 0.75;
 
     // Upsert with manual-source guard (belt + suspenders with the Set check above)
     await pgQueryAll(

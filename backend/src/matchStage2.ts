@@ -67,17 +67,10 @@ interface LookTraitRow {
   personal_value: string | null;
 }
 
-// Traits included in external scoring and their weights
-// Appeal and Fitness aesthetic get double weight
+// Traits included in external scoring (non-WW) — only appeal + fitness
 const EXTERNAL_SCORE_WEIGHTS: Record<string, number> = {
-  appeal: 3,
-  fitness_aesthetic: 3,
-  warmth_visual: 1,
-  femininity_masculinity: 2,
-  glamour: 1,
-  naturalness: 1,
-  style_polish: 1,
-  skin_tone_range: 1,
+  appeal: 2,
+  fitness_aesthetic: 1,
 };
 
 function calculateExternalScore(
@@ -102,16 +95,18 @@ function calculateExternalScore(
 }
 
 /**
- * WW External Score — 70% femininity match + 30% appeal similarity
+ * WW External Score — 60% femininity match + 40% appeal/fitness
  *
  * Femininity match is asymmetric: for each side, compare what she WANTS
  * (desired_value) vs what the OTHER side IS (personal_value).
  * fem_match_A = 100 - |desired_A - personal_B|
  * fem_match_B = 100 - |desired_B - personal_A|
- * femininity_score = average of both sides
+ * femininity_score = minimum of both sides (weakest link)
+ *
+ * Appeal/fitness portion (40%): appeal similarity (weight 2) + fitness similarity (weight 1)
  *
  * If desired_value is missing for a side, that side is skipped.
- * If both sides are missing, falls back to standard external score.
+ * If both sides are missing, falls back to standard external score (appeal+fitness only).
  */
 function calculateExternalScoreWW(
   user1LookTraits: Map<string, number>,
@@ -123,13 +118,30 @@ function calculateExternalScoreWW(
   const personal2 = user2LookTraits.get("femininity_masculinity");
   const appeal1 = user1LookTraits.get("appeal");
   const appeal2 = user2LookTraits.get("appeal");
+  const fitness1 = user1LookTraits.get("fitness_aesthetic");
+  const fitness2 = user2LookTraits.get("fitness_aesthetic");
 
   const hasFemData = (user1FemDesired != null || user2FemDesired != null)
     && (personal1 != null || personal2 != null);
 
-  // No femininity data at all → fall back to standard external scoring
+  // No femininity data at all → fall back to standard external scoring (appeal+fitness)
   if (!hasFemData) {
     return calculateExternalScore(user1LookTraits, user2LookTraits);
+  }
+
+  // Helper: appeal+fitness combined score (appeal weight 2, fitness weight 1)
+  function appealFitnessScore(): number {
+    let sum = 0;
+    let w = 0;
+    if (appeal1 != null && appeal2 != null) {
+      sum += (100 - Math.abs(appeal1 - appeal2)) * 2;
+      w += 2;
+    }
+    if (fitness1 != null && fitness2 != null) {
+      sum += (100 - Math.abs(fitness1 - fitness2)) * 1;
+      w += 1;
+    }
+    return w > 0 ? sum / w : 50; // neutral if no data
   }
 
   // Both sides have photos (both have personal values) → full scoring
@@ -148,25 +160,18 @@ function calculateExternalScoreWW(
       ? Math.min(...femSides)
       : 50; // no desired data → neutral
 
-    // Appeal similarity (30%)
-    const appealScore = (appeal1 != null && appeal2 != null)
-      ? 100 - Math.abs(appeal1 - appeal2)
-      : 50; // no appeal data → neutral
-
-    return femScore * 0.7 + appealScore * 0.3;
+    return femScore * 0.6 + appealFitnessScore() * 0.4;
   }
 
   // One side missing photo → partial score
   // Only compute: desired of no-photo side vs personal of photo side
-  // This is worth 35% of the full score (one direction of femininity match)
-  // Appeal = 0 (can't compare), other direction = 0 (no personal for no-photo side)
+  // This is worth 30% of the full score (one direction = half of 60%)
   const photoSidePersonal = personal1 != null ? personal1 : personal2;
   const noPhotoSideDesired = personal1 == null ? user1FemDesired : user2FemDesired;
 
   if (noPhotoSideDesired != null && photoSidePersonal != null) {
     const oneDirectionMatch = 100 - Math.abs(noPhotoSideDesired - photoSidePersonal);
-    // Scale to 35% of full score (one direction = half of 70%)
-    return oneDirectionMatch * 0.35;
+    return oneDirectionMatch * 0.30;
   }
 
   // No usable combination → null
