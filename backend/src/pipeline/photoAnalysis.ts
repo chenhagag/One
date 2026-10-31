@@ -37,15 +37,42 @@ export interface PhotoAnalysisResult {
 const NUMERIC_TRAITS = [
   {
     name: "appeal",
-    description: "Overall physical attractiveness. 50 = average-looking (not ugly, not pretty — just plain). An average score means unremarkable. A good-looking/pretty woman = 60-70. Clearly attractive, would get compliments = 70-80. Very attractive, striking = 80-90. Exceptionally beautiful = 90+. Below average = 35-50. Well below average = under 35. These scores are never shown to users — be honest.",
+    description: `Overall physical attractiveness. These scores are never shown to users — be honest and differentiate.
+Scale:
+  85-95: Very attractive, striking, would stand out in a crowd
+  70-84: Attractive, good-looking, pretty
+  55-69: Decent-looking, above plain but not notably pretty
+  40-54: Average/plain — unremarkable appearance
+  25-39: Below average
+  under 25: Well below average
+IMPORTANT: If someone is clearly good-looking/pretty, score 70+. Do not give 60-65 to someone who is obviously attractive.`,
   },
   {
     name: "fitness_aesthetic",
-    description: "How physically fit the person LOOKS in the photo. Judge by body shape visible in the photo. Slim body = 60-70. Slim AND toned/fit-looking = 70-80. Visibly athletic/muscular = 80-95. Average build, not slim but not overweight = 45-55. Slightly overweight = 30-45. Clearly overweight = 15-30. If body is not visible (face-only photo), estimate around 50.",
+    description: `How physically fit the person LOOKS based on visible body shape.
+Scale:
+  85-95: Very athletic, visibly muscular or extremely toned
+  75-84: Clearly fit and toned, athletic build
+  65-74: Slim and appears in good shape
+  50-64: Slim but not particularly toned, or average build
+  40-49: Average, neither fit nor unfit
+  25-39: Somewhat overweight or out of shape
+  under 25: Clearly overweight
+IMPORTANT: A visibly slim woman with a good figure should score at least 65. If she also looks toned/fit, score 75+. If body is not visible (face-only), score 50.`,
   },
   {
     name: "femininity_masculinity",
-    description: "Feminine vs. masculine/butch appearance — calibrated for a lesbian/WW (women-seeking-women) community. IMPORTANT: an average woman has a feminine appearance — the baseline is around 70, NOT 50. 50 means she looks somewhat 'lesbian'/androgynous — on the border between feminine and masculine. Ranges: Very glamorous/hyperfeminine (very done-up, glamorous styling) = 85-95. Clearly feminine (styled hair, makeup, feminine clothing) = 75-85. Standard/regular feminine appearance = 65-75. Slightly less feminine, hint of androgyny = 55-65. Looks somewhat 'lesbian'/androgynous — not clearly feminine = 45-55. Soft-butch (short hair but some feminine elements) = 30-45. Clearly butch (short hair, masculine clothing, no makeup) = 15-30. Distinctly masculine presentation = max 15. 0 = very masculine/butch, 100 = very feminine/glamorous.",
+    description: `Feminine vs. butch appearance — for a lesbian/WW community. The baseline for a typical woman is 75 (clearly feminine), NOT 50.
+Scale:
+  85-95: Very glamorous, hyperfeminine (heavy makeup, very styled, glamorous clothing)
+  75-84: Clearly feminine — long/styled hair, makeup, feminine clothing, no ambiguity
+  65-74: Feminine but understated — feminine features but casual/minimal styling
+  55-64: Slightly androgynous — still reads as feminine but with some non-traditional elements
+  45-54: On the border — could go either way, noticeable androgyny or 'soft lesbian' look
+  35-44: Soft-butch — short hair but retains some feminine elements
+  20-34: Clearly butch — masculine clothing, short hair, no makeup
+  under 20: Distinctly masculine presentation
+CRITICAL: A woman who looks completely, unambiguously feminine must score 75+. A woman 'on the border' who looks slightly lesbian/androgynous should score 50-60. These two MUST get different scores. Do not give both 70.`,
   },
 ];
 
@@ -114,11 +141,10 @@ export async function analyzeUserPhotos(
 These scores are used internally for compatibility matching — they are NEVER shown to users. Accuracy is critical. Do NOT be generous or flattering.
 
 ## Scoring principles:
-- Use the FULL 0-100 range. Be accurate — not generous, but not deflated either.
-- Do NOT compress scores into a narrow band. Differentiate between people.
-- Each trait has its own baseline: femininity baseline for a regular woman is ~70 (not 50). Appeal 50 = truly average/plain. Fitness depends on visible body.
+- DIFFERENTIATE. Two people who look different MUST get different scores. If you give similar scores to clearly different people, the system fails.
+- Each trait has its own baseline — read the scale carefully. Femininity baseline for a regular woman is 75. Appeal 50 = plain average. Fitness depends on body.
+- Use the full range described in each trait. Do NOT cluster all scores in a 10-point band.
 - Look at ALL provided photos together to form your assessment.
-- If body is not visible (face-only photos), estimate fitness around 50.
 
 ## Traits to assess (integer 0-100):
 ${numericDesc}
@@ -147,7 +173,7 @@ Return ONLY valid JSON. No markdown, no explanation.`;
         ],
       },
     ],
-    temperature: 0.3,
+    temperature: 0.1,
     max_tokens: 500,
     response_format: { type: "json_object" },
   });
