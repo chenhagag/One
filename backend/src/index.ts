@@ -6749,6 +6749,7 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
       push_notifications: boolean | null;
       devices_seen: any[] | null;
       stalled_notification_dismissed: boolean | null;
+      survey3_banner_dismissed: boolean | null;
     }>(
       `SELECT age, city, height, looking_for_gender,
               desired_age_min, desired_age_max, desired_height_min, desired_height_max,
@@ -6760,7 +6761,8 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
               COALESCE(self_frozen, FALSE) as self_frozen,
               COALESCE(push_notifications, FALSE) as push_notifications,
               devices_seen,
-              COALESCE(stalled_notification_dismissed, FALSE) as stalled_notification_dismissed
+              COALESCE(stalled_notification_dismissed, FALSE) as stalled_notification_dismissed,
+              COALESCE(survey3_banner_dismissed, FALSE) as survey3_banner_dismissed
        FROM users WHERE id = $1`, [userId]
     );
     const isWWUser2 = profileRow?.gender === "woman" && profileRow?.looking_for_gender && profileRow?.looking_for_gender !== "man";
@@ -6895,14 +6897,21 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
     // Survey2 status — disabled (survey period ended, results kept in survey2_responses)
     const showSurvey2Banner = false;
 
-    // Survey3 status — match experience survey (staging only for now)
-    const showSurvey3Banner = false; // flip to true when ready to launch
-
-    // Check survey3 partial
+    // Survey3 status — match experience survey
     const survey3Row = await pgQueryOne<{ completed: boolean }>(
       "SELECT completed FROM survey3_responses WHERE user_id = $1", [userId]
     ).catch(() => null);
     const survey3Partial = survey3Row ? !survey3Row.completed : false;
+    const survey3Completed = survey3Row?.completed === true;
+
+    // Show banner if: user has a match, hasn't dismissed, hasn't completed
+    let showSurvey3Banner = false;
+    if (!survey3Completed && !profileRow?.survey3_banner_dismissed) {
+      const hasMatch = await pgQueryOne<{ id: number }>(
+        "SELECT id FROM matches WHERE (user1_id = $1 OR user2_id = $1) AND match_card_sent_at IS NOT NULL LIMIT 1", [userId]
+      );
+      showSurvey3Banner = !!hasMatch;
+    }
 
     // Check if user has ever viewed the insights screen
     const insightsViewed = await pgQueryOne<{ id: number }>(
