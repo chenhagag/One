@@ -5279,7 +5279,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
             return true;
           }).length;
           const priorityCount = displayData.filter((cm: any) => {
-            if (cm.match_status !== "potential_match") return false;
+            if (cm.match_status !== "potential_match" && cm.match_status !== "expanded_potential_match") return false;
             if (cm.user1_locked || cm.user2_locked) return false;
             if (cm.user1_is_special || cm.user2_is_special) return false;
             return attentionUserIds.has(cm.user_id) || attentionUserIds.has(cm.candidate_user_id);
@@ -5474,7 +5474,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                   if (cm.final_score == null || cm.final_score >= 70) return false;
                   return true;
                 } else if (cmView === "priority") {
-                  if (cm.match_status !== "potential_match") return false;
+                  if (cm.match_status !== "potential_match" && cm.match_status !== "expanded_potential_match") return false;
                   if (cm.user1_locked || cm.user2_locked) return false;
                   if (cm.user1_is_special || cm.user2_is_special) return false;
                   if (!attentionUserIds.has(cm.user_id) && !attentionUserIds.has(cm.candidate_user_id)) return false;
