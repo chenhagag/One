@@ -2760,9 +2760,6 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     <p style={{ fontSize: 14, color: "#3a3660", lineHeight: 1.7, margin: "0 0 6px", fontWeight: 600 }}>
                       🩶 רצינו לשמוע את דעתך כמישהי שכבר קיבלה התאמה ב-One
                     </p>
-                    <p style={{ fontSize: 13, color: "#555", lineHeight: 1.7, margin: "0 0 12px" }}>
-                      נשמח מאוד לשמוע מה עבד ומה כדאי לשנות.
-                    </p>
                     <button
                       onClick={() => { window.history.replaceState({}, "", "/survey3"); onNavigate?.("survey3"); }}
                       style={{
@@ -3240,9 +3237,6 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                     </button>
                     <p style={{ fontSize: 14, color: "#3a3660", lineHeight: 1.7, margin: "0 0 6px", fontWeight: 600 }}>
                       🩶 רצינו לשמוע את דעתך כמישהי שכבר קיבלה התאמה ב-One
-                    </p>
-                    <p style={{ fontSize: 13, color: "#555", lineHeight: 1.7, margin: "0 0 12px" }}>
-                      נשמח מאוד לשמוע מה עבד ומה כדאי לשנות.
                     </p>
                     <button
                       onClick={() => { window.history.replaceState({}, "", "/survey3"); onNavigate?.("survey3"); }}
