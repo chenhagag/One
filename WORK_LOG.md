@@ -12,7 +12,7 @@
 | 2 | **חוויית המתנה חיה** | ✅ V1 הושלם | כרטיס סטטוס חי, באבלים חכמים, AI חכם יותר |
 | 3 | **אוטומציה של pipeline** | ❌ טרם התחיל | סקיילינג — מייל pool אוטומטי, matching אוטומטי, אישור אנליזה |
 | 4 | **בדיקת אפליקציית Android** | ❌ טרם התחיל | לוודא שהכל עובד לפני פרסום |
-| 5 | **דיוק ציוני התאמה** | ✅ V1 הושלם | Option C scoring + style prompt overhaul + cognitive improvements. נשאר: מוניטור תוצאות |
+| 5 | **דיוק ציוני התאמה** | ✅ V2 הושלם | V1: Option C scoring + style. V2: external overhaul, femininity matching, photo analysis. נשאר: כיול תמונות, deal breakers |
 | 6 | **באגי מחיקת חשבון** | ✅ הושלם | מודאל 3 אפשרויות + מסך פרידה + שמירת דיווחים |
 
 ### עקרונות לספרינט
@@ -22,7 +22,62 @@
 
 ---
 
-## Latest Session: 2026-10-24/29 (Stalled Match + Admin Pipeline + Photo Nudges Rewrite)
+## Latest Session: 2026-10-31/11-02 (External Analysis Overhaul + Femininity Matching)
+
+### ✅ ניתוח תמונה חדש (photoAnalysis.ts)
+- צומצם ל-3 traits בלבד: appeal, fitness_aesthetic, femininity_masculinity
+- רזולוציה auto, temperature 0.1, פרומפט מכויל עם סקאלות מפורשות
+- femininity baseline 75 לנשית רגילה, 50=אנדרוגינית
+- ⚠️ עדיין לא מבדיל מספיק בנשיות — דורש כיול נוסף
+
+### ✅ ביטול ניתוח טקסט חיצוני
+- external-system.txt לא רץ יותר — היה דורס ערכים ידניים עם null
+- הגנה על source=manual מפני דריסה (COALESCE + WHERE guard)
+- תוקנו 30 רשומות עם desired_value טקסטואלי → מספרי
+
+### ✅ התאמה חיצונית חדשה (matchStage2.ts)
+- WW: 60% femininity_match (desired vs personal, text+photo) + 40% appeal/fitness
+- Penalty כש-femininity_match < 40 (מכפיל femMatch/40)
+- Non-WW: appeal×2 + fitness×1 בלבד
+- משקלות: 35% external / 65% internal (40/60 לרגישות מראה)
+- desired=null → 50 (גמישה), שני כיוונים תמיד מחושבים
+
+### ✅ קטגוריית score_femininity_match חדשה
+- משלבת 40% טקסט (gender_conformity) + 60% תמונה vs desired
+- DB column חדש, נכנסת ל-profile_score (×2) ול-external score
+
+### ✅ שיפורי אדמין
+- ריבוע נשיות/גבריות במסך משתמשת (תמונה + טקסט + העדפה + תיוג מסכם)
+- שדה עריכת desired ("מעדיפה") ב-External Traits
+- ציון femininity_match + external בפירוט התאמות ובטבלה
+- טאב "מבוסס ציון פנימי" (internal עובר, final<70)
+- expanded matches בטאב בתעדוף
+- הסרת כפתור External מ-group reanalyze
+
+### ✅ שיפור פרומפטים
+- gender_conformity: עדכון להקשר WW, baseline 70 לנשית
+- femininity_preference: null כשאין מידע, לא לנחש, "קצת טום בוי"=40-50
+
+### קבצים שנערכו
+- `backend/src/pipeline/photoAnalysis.ts` — 3 traits, כיול, רזולוציה
+- `backend/src/matchStage2.ts` — external score חדש, femininity_match, optional status, penalty
+- `backend/src/schema.pg.ts` — migration score_femininity_match
+- `backend/src/agents/analysis/loader.ts` — ביטול external text, הגנת manual, validation
+- `backend/src/agents/analysis/prompts/personal-style-system.txt` — gender_conformity WW
+- `backend/src/agents/analysis/prompts/general-info-system.txt` — femininity_preference דיוק
+- `backend/src/index.ts` — save desired_value in look-traits endpoint
+- `frontend/src/AdminView.tsx` — ריבוע נשיות, שדה desired, טאב optional, expanded בתעדוף
+- `Management/Docs/external-analysis-summary.md` — מסמך מסכם
+
+### ⚠️ פתוח
+- כיול ניתוח תמונה (נשיות לא מדויק מספיק)
+- Deal breakers לא משולבים בהתאמה
+- העדפות ספציפיות (עישון, ילדים, דת) לא משפיעות על ציון
+- femininity_match כפולה ב-profile_score (גם כקטגוריה וגם דרך external)
+
+---
+
+## 2026-10-24/29 (Stalled Match + Admin Pipeline + Photo Nudges Rewrite)
 
 ### ✅ כפתור תזכורת תמונה באדמין
 - Endpoint `POST /admin/users/:id/photo-reminder` עם שני סוגים: ready (מוכנה למאגר) ו-partial (כמעט השלימה)

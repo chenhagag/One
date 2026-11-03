@@ -1,6 +1,36 @@
 # Analysis Dev Agent — Work Log
 
-## Latest: 2026-10-18 — Cognitive + Style Prompt Improvements
+## Latest: 2026-10-31 — External Analysis Overhaul + Femininity Prompts
+
+### ביטול ניתוח טקסט חיצוני
+- `loadExternalTraitDefs()` מחזיר מערך ריק — external text analysis לא רץ יותר
+- היה דורס manual look traits עם null, בוזבז tokens על traits ויזואליים שלא ניתן לחלץ מטקסט
+- תיקון ב-loader.ts: COALESCE על personal_value, `WHERE source != 'manual'`, skip כשאין data
+
+### ניתוח תמונה (photoAnalysis.ts) — שכתוב
+- צומצם ל-3 traits: appeal, fitness_aesthetic, femininity_masculinity (הוסרו 5 numeric + 3 categorical)
+- detail: "auto" (היה "low"), temperature 0.1 (היה 0.3)
+- פרומפט מכויל עם סקאלות מפורשות ולא חופפות לכל trait
+- femininity baseline 75 (לא 50), appeal 50=ממוצעת, fitness רזה=65+
+- ⚠️ עדיין לא מבדיל מספיק בנשיות — דורש כיול נוסף
+
+### שיפור פרומפט gender_conformity (personal-style-system.txt)
+- שם חדש: "נשיות/גבריות בהבעה"
+- הוספת הקשר WW/לסבי
+- כיול: נשי קלאסי=70-100, על התפר=40-60, בוצ'י=10-35
+
+### שיפור פרומפט femininity_preference (general-info-system.txt)
+- null כשאין מידע (לא לנחש 100/0)
+- "קצת טום בוי" = 40-50, לא 25. "נשית" בלי "רק" = 65-75, לא 100
+- 50-65 = גמישה או נמשכת לשילוב נשיות-גבריות
+- Validation: מספרי 0-100 בלבד, אחרת נדחה
+
+### תיקוני נתונים
+- 30 רשומות עם desired_value טקסטואלי הומרו למספרי בפרודקשן
+
+---
+
+## 2026-10-18 — Cognitive + Style Prompt Improvements
 
 ### Cognitive Scoring Accuracy
 - Academic careers (medicine, engineering, law) set floor of 60 for analytical/verbal/depth traits

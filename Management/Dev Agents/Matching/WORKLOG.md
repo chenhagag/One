@@ -1,6 +1,48 @@
 # Matching Algorithm Agent — Work Log
 
-## Latest: 2026-10-18 — Scoring Overhaul + Age Tolerance
+## Latest: 2026-10-31 — External Score Overhaul + Femininity Matching
+
+### External Score — WW
+- נוסחה חדשה: 60% femininity_match + 40% appeal/fitness (appeal ×2, fitness ×1)
+- femininity_match = `calculateFemininityMatchScore()` — משלב text (40%) + photo (60%) vs desired
+- Penalty: כש-femininity_match < 40, מכפיל penalty (femMatch/40) על כל ה-external
+- desired=null → 50 (גמישה), שני כיוונים תמיד מחושבים, minimum (weakest link)
+
+### External Score — Non-WW
+- צומצם ל-appeal (×2) + fitness (×1) בלבד
+- הוסרו: warmth, glamour, naturalness, style_polish, skin_tone
+
+### משקלות
+- 35% external / 65% internal (היה 30/70)
+- 40% / 60% למשתמשות רגישות למראה (היה 35/65)
+
+### קטגוריית score_femininity_match חדשה
+- עמודת DB חדשה ב-candidate_matches
+- נכנסת ל-profile_score (×2) ול-external score (60% ב-WW)
+- מוצגת באדמין: פירוט התאמה + טבלת candidate matches
+
+### Promotion + Optional Status
+- potential_match דורש final_score >= 70 (לא רק internal)
+- סטטוס `optional` למי שעובר internal אבל final < 70
+- טאב "מבוסס ציון פנימי" באדמין (אותם פילטרים כמו "על הפרק", final<70)
+
+### שיפורי אדמין
+- ריבוע נשיות/גבריות: תמונה + טקסט + העדפה + תיוג מסכם
+- שדה עריכת desired ("מעדיפה") ב-External Traits
+- expanded matches בטאב בתעדוף
+
+### gender_conformity
+- הוסר מקטגוריות style ו-vibe
+- משמש רק ב-femininity_match (40% text signal)
+
+### ⚠️ פתוח
+- femininity_match מופיעה כפולה ב-profile_score (כקטגוריה + דרך external) — לשקול
+- Deal breakers לא משולבים בסינון/ציון
+- כיול ניתוח תמונה (נשיות) לא מדויק מספיק
+
+---
+
+## 2026-10-18 — Scoring Overhaul + Age Tolerance
 
 ### Scoring: Option C — Shrink-to-Neutral + Confidence-as-Weight
 Changed how confidence affects matching scores (matchStage2.ts):
