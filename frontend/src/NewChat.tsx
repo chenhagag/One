@@ -2744,8 +2744,8 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                 </div>
               )}
 
-              {/* Survey3 banner — match experience survey (pool users) */}
-              {screen === "home" && recommendations.show_survey3_banner && recommendations.in_matching_pool && (
+              {/* Survey3 banner — match experience survey */}
+              {screen === "home" && recommendations.show_survey3_banner && (
                 <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
                   <div style={{ background: "#f8f5ff", borderRadius: 14, padding: "16px 20px", border: "1px solid #e0ddf5", position: "relative" }}>
                     <button
@@ -3219,36 +3219,6 @@ export default function NewChat({ user, onBack, onNavigate, onUserUpdate, onLogo
                   >
                     המשיכו למלא את הסקר →
                   </button>
-                </div>
-              )}
-
-              {/* Survey3 banner for non-pool users — match experience survey */}
-              {screen === "home" && recommendations.show_survey3_banner && !recommendations.in_matching_pool && (
-                <div style={{ padding: "0 24px 12px", maxWidth: 500, margin: "0 auto" }}>
-                  <div style={{ background: "#f8f5ff", borderRadius: 14, padding: "16px 20px", border: "1px solid #e0ddf5", position: "relative" }}>
-                    <button
-                      onClick={() => {
-                        apiFetch("/survey3/dismiss-banner", { method: "POST" })
-                          .then(() => setRecommendations(prev => ({ ...prev, show_survey3_banner: false })));
-                      }}
-                      style={{ position: "absolute", top: 8, left: 8, background: "none", border: "none", fontSize: 18, color: "#bbb", cursor: "pointer", padding: 4, lineHeight: 1 }}
-                    >
-                      ✕
-                    </button>
-                    <p style={{ fontSize: 14, color: "#3a3660", lineHeight: 1.7, margin: "0 0 6px", fontWeight: 600 }}>
-                      🩶 רצינו לשמוע את דעתך כמישהי שכבר קיבלה התאמה ב-One
-                    </p>
-                    <button
-                      onClick={() => { window.history.replaceState({}, "", "/survey3"); onNavigate?.("survey3"); }}
-                      style={{
-                        width: "100%", padding: "10px 20px", fontSize: 14, fontWeight: 600,
-                        background: "#7b5fa3", color: "#fff", border: "none", borderRadius: 10,
-                        cursor: "pointer", fontFamily: "inherit",
-                      }}
-                    >
-                      כניסה לסקר
-                    </button>
-                  </div>
                 </div>
               )}
 
