@@ -8729,12 +8729,12 @@ function Survey3AdminTab() {
     setSending(true);
     setSendResult(null);
     try {
-      const res = await apiFetch("/admin/survey3/send-emails", {
+      const res = await apiFetch("/admin/survey3/send-notifications", {
         method: "POST",
         body: JSON.stringify(testOnly ? { test_only_email: testOnly } : {}),
       });
       const data = await res.json();
-      setSendResult(`נשלחו ${data.sent} מיילים${data.failed ? `, נכשלו ${data.failed}` : ""}`);
+      setSendResult(`מיילים: ${data.emails_sent}, פוש: ${data.push_sent}${data.failed ? `, נכשלו: ${data.failed}` : ""}`);
       const st = await apiFetch("/admin/survey3/stats").then(r => r.json());
       setStats(st);
     } catch {
@@ -8767,7 +8767,7 @@ function Survey3AdminTab() {
       )}
 
       <div style={{ background: "#fff", borderRadius: 10, padding: 16, border: "1px solid #eee", marginBottom: 20 }}>
-        <h3 style={{ fontSize: 14, margin: "0 0 10px", color: "#333" }}>שליחת מיילים</h3>
+        <h3 style={{ fontSize: 14, margin: "0 0 10px", color: "#333" }}>שליחת התראות (מייל + פוש)</h3>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <button
             onClick={() => handleSendEmails("chen.hagag@gmail.com")}
@@ -8777,7 +8777,7 @@ function Survey3AdminTab() {
             שלח טסט (chen.hagag@gmail.com)
           </button>
           <button
-            onClick={() => { if (confirm("לשלוח מייל סקר לכל המשתמשות הזכאיות?")) handleSendEmails(); }}
+            onClick={() => { if (confirm("לשלוח מייל + פוש לכל המשתמשות שקיבלו התאמה?")) handleSendEmails(); }}
             disabled={sending}
             style={{ padding: "8px 16px", fontSize: 13, background: "#7b5fa3", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600 }}
           >

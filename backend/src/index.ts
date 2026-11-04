@@ -7728,27 +7728,46 @@ app.post("/admin/survey3/reset/:userId", requireAdmin, async (req, res) => {
   return res.json({ ok: true });
 });
 
-// POST /admin/survey3/send-emails
-app.post("/admin/survey3/send-emails", requireAdmin, async (req, res) => {
+// POST /admin/survey3/send-notifications — Send email + push to eligible users
+app.post("/admin/survey3/send-notifications", requireAdmin, async (req, res) => {
   try {
     const { test_only_email } = req.body;
-    let query = `SELECT u.id, u.email, u.first_name FROM users u
-                 WHERE (u.test_user_type IS NULL OR u.test_user_type != 'Couple Tester')
-                   AND u.email IS NOT NULL AND u.email != ''
-                   AND u.survey3_email_sent_at IS NULL
-                   AND u.gender != 'man' AND u.looking_for_gender IS DISTINCT FROM 'man'
-                   AND EXISTS (SELECT 1 FROM matches WHERE (user1_id = u.id OR user2_id = u.id) AND match_card_sent_at IS NOT NULL)`;
-    const params: any[] = [];
+    let query: string;
+    let params: any[] = [];
 
     if (test_only_email) {
-      query += ` AND u.email = $1`;
-      params.push(test_only_email);
+      // For test: skip match requirement so admin can preview
+      query = `SELECT u.id, u.email, u.first_name FROM users u WHERE u.email = $1`;
+      params = [test_only_email];
+    } else {
+      query = `SELECT u.id, u.email, u.first_name FROM users u
+               WHERE (u.test_user_type IS NULL OR u.test_user_type != 'Couple Tester')
+                 AND u.email IS NOT NULL AND u.email != ''
+                 AND u.survey3_email_sent_at IS NULL
+                 AND u.gender != 'man' AND u.looking_for_gender IS DISTINCT FROM 'man'
+                 AND EXISTS (SELECT 1 FROM matches WHERE (user1_id = u.id OR user2_id = u.id) AND match_card_sent_at IS NOT NULL)`;
     }
 
     const users = await pgQueryAll<{ id: number; email: string; first_name: string }>(query, params);
-    let sent = 0, failed = 0;
+    let emailsSent = 0, pushSent = 0, failed = 0;
+
+    const pushText = "יש לנו כמה שאלות קצרות על חוויית ההתאמה שלך ב-One, נשמח מאוד לשמוע 🩶";
 
     for (const u of users) {
+      // 1. Send push notification (respects user preferences via notifyUser)
+      try {
+        await notifyUser(u.id, {
+          event_type: "admin_message",
+          title: "One",
+          body: pushText,
+          data: { path: "/survey3" },
+        });
+        pushSent++;
+      } catch (pushErr: any) {
+        console.log(`[survey3-notify] Push failed for ${u.email}: ${pushErr.message}`);
+      }
+
+      // 2. Send email
       const html = `
 <div style="direction:rtl;text-align:right;font-family:'Segoe UI',Arial,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px">
   <div style="text-align:center;margin-bottom:24px">
@@ -7783,14 +7802,14 @@ app.post("/admin/survey3/send-emails", requireAdmin, async (req, res) => {
         await pgQueryAll("UPDATE users SET survey3_email_sent_at = NOW() WHERE id = $1", [u.id]);
         await pgQueryAll("INSERT INTO email_log (user_id, subject, email_type) VALUES ($1, $2, $3)",
           [u.id, "רצינו לשמוע מה חשבת על ההתאמה ב-One", "survey3"]);
-        sent++;
+        emailsSent++;
       } catch (emailErr: any) {
         console.error(`[survey3-email] Failed to send to ${u.email}:`, emailErr.message);
         failed++;
       }
     }
 
-    return res.json({ sent, failed, total_eligible: users.length });
+    return res.json({ emails_sent: emailsSent, push_sent: pushSent, failed, total_eligible: users.length });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
