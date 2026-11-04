@@ -422,7 +422,7 @@ export default function SurveyPage3({ userId, onBack }: SurveyPage3Props) {
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <img src="/iconOnly.png" alt="One" style={{ width: 48, height: 48, marginBottom: 12 }} />
           <h1 style={{ color: "#1B1464", fontSize: 22, margin: "0 0 16px", fontWeight: 700 }}>
-            סקר חוויית התאמה
+            בדיקת חוויית ההתאמה
           </h1>
           <p style={{ color: "#555", fontSize: 14, lineHeight: 1.8, margin: "0 0 8px" }}>
             היי,
