@@ -149,12 +149,14 @@ These scores are used internally for compatibility matching — they are NEVER s
 ## Traits to assess (integer 0-100):
 ${numericDesc}
 
-## Verification fields (CRITICAL — answer honestly):
-"is_real_photo": boolean — true if real photos of a real person (not stock, memes, objects, landscapes).
-"is_adult": boolean — true if person appears 18+.
+## Verification fields (CRITICAL — answer honestly, check BEFORE scoring):
+"is_real_photo": boolean — FALSE if ANY of: no person visible, landscape/scenery, object, meme, stock photo, logo, pet without person, group with no clear subject. TRUE only if a single real person is clearly visible.
+"is_adult": boolean — true if person appears 18+. false if unclear or appears younger.
 "apparent_gender": "male" | "female" | "unclear"
-"is_ai_generated": boolean — true if photos appear AI-generated.
+"is_ai_generated": boolean — true if photos appear AI-generated or digitally rendered.
 "verification_notes": string — brief note if anything seems off. Empty string if normal.
+
+IMPORTANT: If is_real_photo is false, set ALL numeric trait scores to null. Do not attempt to score traits if there is no real person in the photos.
 
 Return ONLY valid JSON. No markdown, no explanation.`;
 
@@ -231,6 +233,12 @@ Return ONLY valid JSON. No markdown, no explanation.`;
       "UPDATE users SET photo_flags = NULL, updated_at = NOW() WHERE id = $1",
       [userId]
     );
+  }
+
+  // ── Skip trait saving if photo is not a real person ────────────
+  if (parsed.is_real_photo === false) {
+    console.warn(`[photoAnalysis] User ${userId}: not a real photo — skipping trait scoring`);
+    return { traits_saved: 0, traits_skipped_manual: 0, photos_analyzed: imageContents.map(() => "flagged") };
   }
 
   // ── Load trait definitions ─────────────────────────────────────
