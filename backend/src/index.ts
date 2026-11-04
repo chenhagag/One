@@ -7756,16 +7756,16 @@ app.post("/admin/survey3/send-emails", requireAdmin, async (req, res) => {
   </div>
   <p style="font-size:18px;font-weight:700;color:#1B1464;margin:0 0 16px">היי,</p>
   <p style="font-size:15px;color:#333;line-height:1.8;margin:0 0 12px">
-    יש לנו כמה שאלות קצרות על חוויית ההתאמה שלך ב-One — כרטיס ההתאמה, השיחה, והתהליך בכלל.
+    אנחנו עוד בבנייה של One ורוצות להגיע לאפליקציה שתהיה כמה שיותר טובה ומותאמת לקהילה שלנו, אז הכנו כמה שאלות קצרות על חוויית ההתאמה שלך.
   </p>
   <p style="font-size:15px;color:#333;line-height:1.8;margin:0 0 24px">
-    החוויה שלך עוזרת לנו להבין מה עובד ומה כדאי לשנות. מוזמנת לענות על מה שבא לך 🩶
+    כל דעה ורעיון שיעלו אנחנו לוקחות ברצינות, אז מוזמנת לשתף מה שבא לך :)
   </p>
   <div style="text-align:center;margin:28px 0">
-    <a href="https://joinone.io/survey3" style="background:#7b5fa3;color:#fff;padding:14px 36px;border-radius:999px;text-decoration:none;font-size:16px;font-weight:bold;display:inline-block">כניסה לסקר</a>
+    <a href="https://joinone.io/survey3" style="background:#7b5fa3;color:#fff;padding:14px 36px;border-radius:999px;text-decoration:none;font-size:16px;font-weight:bold;display:inline-block">בואו נתחיל</a>
   </div>
   <p style="font-size:14px;color:#888;line-height:1.7;margin:24px 0 0;text-align:center">
-    תודה שאת עוזרת לנו לעצב את One 🩶
+    תודה שאת חלק מהקהילה שלנו 🩶
   </p>
 </div>`;
 
@@ -7773,7 +7773,7 @@ app.post("/admin/survey3/send-emails", requireAdmin, async (req, res) => {
         await resend.emails.send({
           from: "One <noreply@joinone.io>",
           to: u.email,
-          subject: "One — כמה שאלות קצרות על חוויית ההתאמה",
+          subject: "רצינו לשמוע מה חשבת על ההתאמה ב-One",
           html: wrapEmailFooter(html, u.id),
           headers: {
             "List-Unsubscribe": `<${getUnsubUrl(u.id)}>`,
@@ -7782,7 +7782,7 @@ app.post("/admin/survey3/send-emails", requireAdmin, async (req, res) => {
         });
         await pgQueryAll("UPDATE users SET survey3_email_sent_at = NOW() WHERE id = $1", [u.id]);
         await pgQueryAll("INSERT INTO email_log (user_id, subject, email_type) VALUES ($1, $2, $3)",
-          [u.id, "One — כמה שאלות קצרות על חוויית ההתאמה", "survey3"]);
+          [u.id, "רצינו לשמוע מה חשבת על ההתאמה ב-One", "survey3"]);
         sent++;
       } catch (emailErr: any) {
         console.error(`[survey3-email] Failed to send to ${u.email}:`, emailErr.message);
