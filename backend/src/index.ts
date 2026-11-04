@@ -7749,67 +7749,28 @@ app.post("/admin/survey3/send-notifications", requireAdmin, async (req, res) => 
     }
 
     const users = await pgQueryAll<{ id: number; email: string; first_name: string }>(query, params);
-    let emailsSent = 0, pushSent = 0, failed = 0;
+    let sent = 0, failed = 0;
 
-    const pushText = "יש לנו כמה שאלות קצרות על חוויית ההתאמה שלך ב-One, נשמח מאוד לשמוע 🩶";
+    const notifyText = "יש לנו כמה שאלות קצרות על חוויית ההתאמה שלך ב-One, נשמח מאוד לשמוע 🩶";
 
     for (const u of users) {
-      // 1. Send push notification (respects user preferences via notifyUser)
       try {
+        // notifyUser: push if available, email fallback if not
         await notifyUser(u.id, {
           event_type: "admin_message",
           title: "One",
-          body: pushText,
+          body: notifyText,
           data: { path: "/survey3" },
         });
-        pushSent++;
-      } catch (pushErr: any) {
-        console.log(`[survey3-notify] Push failed for ${u.email}: ${pushErr.message}`);
-      }
-
-      // 2. Send email
-      const html = `
-<div style="direction:rtl;text-align:right;font-family:'Segoe UI',Arial,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px">
-  <div style="text-align:center;margin-bottom:24px">
-    <img src="https://joinone.io/iconOnly.png" alt="One" width="48" height="48" style="display:inline-block" />
-  </div>
-  <p style="font-size:18px;font-weight:700;color:#1B1464;margin:0 0 16px">היי,</p>
-  <p style="font-size:15px;color:#333;line-height:1.8;margin:0 0 12px">
-    אנחנו עוד בבנייה של One ורוצות להגיע לאפליקציה שתהיה כמה שיותר טובה ומותאמת לקהילה שלנו, אז הכנו כמה שאלות קצרות על חוויית ההתאמה שלך.
-  </p>
-  <p style="font-size:15px;color:#333;line-height:1.8;margin:0 0 24px">
-    כל דעה ורעיון שיעלו אנחנו לוקחות ברצינות, אז מוזמנת לשתף מה שבא לך :)
-  </p>
-  <div style="text-align:center;margin:28px 0">
-    <a href="https://joinone.io/survey3" style="background:#7b5fa3;color:#fff;padding:14px 36px;border-radius:999px;text-decoration:none;font-size:16px;font-weight:bold;display:inline-block">בואו נתחיל</a>
-  </div>
-  <p style="font-size:14px;color:#888;line-height:1.7;margin:24px 0 0;text-align:center">
-    תודה שאת חלק מהקהילה שלנו 🩶
-  </p>
-</div>`;
-
-      try {
-        await resend.emails.send({
-          from: "One <noreply@joinone.io>",
-          to: u.email,
-          subject: "רצינו לשמוע מה חשבת על ההתאמה ב-One",
-          html: wrapEmailFooter(html, u.id),
-          headers: {
-            "List-Unsubscribe": `<${getUnsubUrl(u.id)}>`,
-            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-          },
-        });
         await pgQueryAll("UPDATE users SET survey3_email_sent_at = NOW() WHERE id = $1", [u.id]);
-        await pgQueryAll("INSERT INTO email_log (user_id, subject, email_type) VALUES ($1, $2, $3)",
-          [u.id, "רצינו לשמוע מה חשבת על ההתאמה ב-One", "survey3"]);
-        emailsSent++;
-      } catch (emailErr: any) {
-        console.error(`[survey3-email] Failed to send to ${u.email}:`, emailErr.message);
+        sent++;
+      } catch (err: any) {
+        console.error(`[survey3-notify] Failed for ${u.email}:`, err.message);
         failed++;
       }
     }
 
-    return res.json({ emails_sent: emailsSent, push_sent: pushSent, failed, total_eligible: users.length });
+    return res.json({ sent, failed, total_eligible: users.length });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

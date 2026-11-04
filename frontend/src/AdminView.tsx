@@ -8734,7 +8734,7 @@ function Survey3AdminTab() {
         body: JSON.stringify(testOnly ? { test_only_email: testOnly } : {}),
       });
       const data = await res.json();
-      setSendResult(`מיילים: ${data.emails_sent}, פוש: ${data.push_sent}${data.failed ? `, נכשלו: ${data.failed}` : ""}`);
+      setSendResult(`נשלחו ${data.sent} התראות${data.failed ? `, נכשלו ${data.failed}` : ""}`);
       const st = await apiFetch("/admin/survey3/stats").then(r => r.json());
       setStats(st);
     } catch {
