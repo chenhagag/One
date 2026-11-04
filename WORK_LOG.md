@@ -22,7 +22,41 @@
 
 ---
 
-## Latest Session: 2026-10-31/11-02 (External Analysis Overhaul + Femininity Matching)
+## Latest Session: 2026-10-31/11-04 (Survey 3 + UX Fixes + Photo Validation)
+
+### ✅ סקר 3 — סקר חוויית התאמה
+- סקר חדש ל-25 משתמשות שכבר קיבלו התאמה (7 שאלות)
+- DB: טבלת survey3_responses + עמודות על users
+- Backend: 7 API routes (user + admin), כולל reset endpoint
+- Frontend: SurveyPage3.tsx, routing ב-App.tsx, באנר במסך הבית
+- Admin: טאב "סקר התאמות" עם סטטיסטיקות, תשובות, משתמשות, כפתור מחיקה, שליחת התראות
+- שליחת התראות: notifyUser (פוש למי שיש, מייל fallback למי שאין, בלי כפולים)
+- באנר: "יש לנו כמה שאלות על חוויית ההתאמה ב-One" + "נשמח לדעת מה חשבת 🩶"
+- נשלח לפרודקשן, באנר פעיל אוטומטית למי שיש match
+
+### ✅ Auto-save בפרטים אישיים (ProfileEdit)
+- הסרת כפתור "שמירת שינויים"
+- שמירה אוטומטית עם debounce 1.5 שניות + שמירה ביציאה מהמסך
+- הודעת "נשמר" קטנה מופיעה לרגע
+
+### ✅ Fix looking_for_gender למשתמשות WW
+- אם gender=woman, looking_for_gender מוגדר אוטומטית ל-woman
+- במקום שגיאת validation שהקפיצה "looking_for_gender must be 'man' or 'woman'"
+
+### ✅ הקשר קהל יעד ב-RAG (chatManager)
+- WW: "One היא אפליקציה לנשים בלבד. נקודה."
+- משתמשים לא-WW: "כרגע מתמקדת בנשים, בהמשך אולי נפתח לקהל הרחב"
+- מוזרק ב-3 מקומות שבהם SYSTEM_CONTEXT משמש
+
+### ✅ שיפור זיהוי תמונות בעייתיות (photoAnalysis)
+- פרומפט חזק יותר: רשימה מפורשת של מה נחשב not_real_photo (נוף, חיות, אובייקטים, לוגו)
+- GPT מונחה להחזיר null על כל ה-traits אם אין אדם בתמונה
+- קוד חדש: דילוג על שמירת traits אם is_real_photo=false
+- תיקון למקרה של יעלי (386) שהעלתה תמונת נוף ללא דגל
+
+---
+
+## Previous Session: 2026-10-31/11-02 (External Analysis Overhaul + Femininity Matching)
 
 ### ✅ ניתוח תמונה חדש (photoAnalysis.ts)
 - צומצם ל-3 traits בלבד: appeal, fitness_aesthetic, femininity_masculinity
