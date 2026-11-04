@@ -7718,6 +7718,14 @@ app.get("/admin/survey3/users", requireAdmin, async (_req, res) => {
   return res.json(rows);
 });
 
+// POST /admin/survey3/reset/:userId — Reset survey3 response + banner for a user
+app.post("/admin/survey3/reset/:userId", requireAdmin, async (req, res) => {
+  const userId = parseInt(req.params.userId, 10);
+  await pgQueryAll("DELETE FROM survey3_responses WHERE user_id = $1", [userId]);
+  await pgQueryAll("UPDATE users SET survey3_banner_dismissed = FALSE WHERE id = $1", [userId]);
+  return res.json({ ok: true });
+});
+
 // POST /admin/survey3/send-emails
 app.post("/admin/survey3/send-emails", requireAdmin, async (req, res) => {
   try {
