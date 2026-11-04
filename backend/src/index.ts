@@ -5862,6 +5862,25 @@ app.get("/admin/system-activity-log", async (req, res) => {
   }
 });
 
+// GET /admin/notification-log — Push/email/whatsapp notification history
+app.get("/admin/notification-log", async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit as string) || 200, 500);
+    const rows = await pgQueryAll(
+      `SELECT nl.id, nl.user_id, nl.channel, nl.event_type, nl.title, nl.body, nl.sent_at, nl.success, nl.error,
+              u.first_name
+       FROM notification_log nl
+       LEFT JOIN users u ON u.id = nl.user_id
+       ORDER BY nl.sent_at DESC
+       LIMIT $1`,
+      [limit]
+    );
+    return res.json(rows);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /admin/outreach-log — All ratings sent + all system questions (historical)
 app.get("/admin/outreach-log", async (_req, res) => {
   try {

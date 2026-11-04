@@ -9012,6 +9012,116 @@ function Survey3AdminTab() {
 // ── System Activity Log Tab ─────────────────────────────────────
 
 function SystemActivityLogTab() {
+  const [logView, setLogView] = useState<"activity" | "notifications">("activity");
+  return (
+    <div style={{ padding: 16 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+        {([["activity", "לוג פעילות"], ["notifications", "לוג התראות"]] as const).map(([key, label]) => (
+          <button key={key} onClick={() => setLogView(key)} style={{
+            padding: "6px 16px", fontSize: 13, borderRadius: 8, cursor: "pointer",
+            background: logView === key ? "#7c3aed" : "#fff", color: logView === key ? "#fff" : "#555",
+            border: logView === key ? "none" : "1px solid #ddd", fontWeight: logView === key ? 600 : 400,
+          }}>{label}</button>
+        ))}
+      </div>
+      {logView === "activity" && <ActivityLogView />}
+      {logView === "notifications" && <NotificationLogView />}
+    </div>
+  );
+}
+
+function NotificationLogView() {
+  const [entries, setEntries] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<string>("all");
+
+  useEffect(() => { loadLog(); }, []);
+
+  async function loadLog() {
+    setLoading(true);
+    try {
+      const res = await apiFetch("/admin/notification-log?limit=300");
+      const data = await res.json();
+      setEntries(Array.isArray(data) ? data : []);
+    } catch { }
+    setLoading(false);
+  }
+
+  const channels = [...new Set(entries.map(e => e.channel))];
+  const eventTypes = [...new Set(entries.map(e => e.event_type))];
+  const filtered = entries.filter(e => {
+    if (filter === "all") return true;
+    if (filter === "success") return e.success;
+    if (filter === "failed") return !e.success;
+    return e.channel === filter || e.event_type === filter;
+  });
+
+  const channelIcon: Record<string, string> = { push: "📲", email: "📧", none: "⛔" };
+
+  const grouped: Record<string, any[]> = {};
+  for (const entry of filtered) {
+    const day = new Date(entry.sent_at).toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" });
+    if (!grouped[day]) grouped[day] = [];
+    grouped[day].push(entry);
+  }
+
+  const formatTime = (d: string) => new Date(d).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <h3 style={{ margin: 0 }}>לוג התראות</h3>
+        <button onClick={loadLog} style={{ fontSize: 12, padding: "4px 10px", cursor: "pointer" }}>↻ רענן</button>
+        <span style={{ fontSize: 12, color: "#888" }}>{entries.length} רשומות</span>
+      </div>
+
+      <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
+        {[["all", "הכל"], ["success", "✅ הצליחו"], ["failed", "❌ נכשלו"]].map(([key, label]) => (
+          <button key={key} onClick={() => setFilter(key)} style={{
+            padding: "4px 12px", fontSize: 12, cursor: "pointer", borderRadius: 6,
+            border: "1px solid #ccc", background: filter === key ? "#7c3aed" : "#fff",
+            color: filter === key ? "#fff" : "#333",
+          }}>{label}</button>
+        ))}
+        {channels.map(ch => (
+          <button key={ch} onClick={() => setFilter(ch)} style={{
+            padding: "4px 12px", fontSize: 12, cursor: "pointer", borderRadius: 6,
+            border: "1px solid #ccc", background: filter === ch ? "#7c3aed" : "#fff",
+            color: filter === ch ? "#fff" : "#333",
+          }}>{channelIcon[ch] || "📨"} {ch}</button>
+        ))}
+        {eventTypes.map(et => (
+          <button key={et} onClick={() => setFilter(et)} style={{
+            padding: "4px 12px", fontSize: 12, cursor: "pointer", borderRadius: 6,
+            border: "1px solid #ccc", background: filter === et ? "#7c3aed" : "#fff",
+            color: filter === et ? "#fff" : "#333",
+          }}>{et}</button>
+        ))}
+      </div>
+
+      {loading ? <div>טוען...</div> : filtered.length === 0 ? <div style={{ color: "#888" }}>אין רשומות</div> : (
+        Object.entries(grouped).map(([day, items]) => (
+          <div key={day} style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#555", marginBottom: 6, borderBottom: "1px solid #eee", paddingBottom: 4 }}>{day}</div>
+            {items.map((e: any) => (
+              <div key={e.id} style={{ display: "flex", gap: 10, alignItems: "baseline", fontSize: 13, padding: "4px 0", borderBottom: "1px solid #f5f5f5" }}>
+                <span style={{ color: "#888", minWidth: 42, fontSize: 12 }}>{formatTime(e.sent_at)}</span>
+                <span style={{ fontSize: 14 }}>{channelIcon[e.channel] || "📨"}</span>
+                <span style={{ color: e.success ? "#16a34a" : "#dc2626", fontWeight: 600, fontSize: 12 }}>{e.success ? "OK" : "FAIL"}</span>
+                <span style={{ color: "#7c3aed", fontWeight: 500, minWidth: 70, fontSize: 12 }}>{e.event_type}</span>
+                {e.first_name && <span style={{ color: "#666" }}>#{e.user_id} {e.first_name}</span>}
+                <span style={{ color: "#333", flex: 1 }}>{e.body?.slice(0, 80)}{e.body?.length > 80 ? "..." : ""}</span>
+                {e.error && <span style={{ color: "#dc2626", fontSize: 11 }}>{e.error.slice(0, 50)}</span>}
+              </div>
+            ))}
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+function ActivityLogView() {
   const [entries, setEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
@@ -9062,9 +9172,9 @@ function SystemActivityLogTab() {
   }
 
   return (
-    <div style={{ padding: 16 }}>
+    <div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-        <h3 style={{ margin: 0 }}>לוג מערכת</h3>
+        <h3 style={{ margin: 0 }}>לוג פעילות</h3>
         <button onClick={loadLog} style={{ fontSize: 12, padding: "4px 10px", cursor: "pointer" }}>↻ רענן</button>
         <button
           onClick={async () => {
