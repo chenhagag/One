@@ -8951,13 +8951,32 @@ function Survey3AdminTab() {
                       <strong style={{ fontSize: 14 }}>{r.first_name}</strong>
                       <span style={{ fontSize: 12, color: "#999", marginRight: 8 }}>{r.email}</span>
                     </div>
-                    <span style={{
-                      padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600,
-                      background: r.completed ? "#dcfce7" : "#fef3c7",
-                      color: r.completed ? "#166534" : "#92400e",
-                    }}>
-                      {r.completed ? "הושלם" : "חלקי"}
-                    </span>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (!confirm(`למחוק תשובת סקר של ${r.first_name}?`)) return;
+                          await apiFetch(`/admin/survey3/reset/${r.user_id}`, { method: "POST" });
+                          const [newResp, newUsr] = await Promise.all([
+                            apiFetch("/admin/survey3/responses").then(x => x.json()),
+                            apiFetch("/admin/survey3/users").then(x => x.json()),
+                          ]);
+                          setResponses(newResp);
+                          setUsers(newUsr);
+                          setSelectedResponse(null);
+                        }}
+                        style={{ padding: "3px 10px", fontSize: 11, background: "#fee2e2", color: "#b91c1c", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}
+                      >
+                        מחיקה
+                      </button>
+                      <span style={{
+                        padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600,
+                        background: r.completed ? "#dcfce7" : "#fef3c7",
+                        color: r.completed ? "#166534" : "#92400e",
+                      }}>
+                        {r.completed ? "הושלם" : "חלקי"}
+                      </span>
+                    </div>
                   </div>
 
                   {selectedResponse?.user_id === r.user_id && (
