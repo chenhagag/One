@@ -6905,10 +6905,12 @@ app.get("/new-chat/status/:user_id", requireUserAuth, async (req, res) => {
     const survey3Completed = survey3Row?.completed === true;
 
     // Show banner if: user has a match, hasn't dismissed, hasn't completed
-    // TEMP: removed match check so Chen can preview the banner on staging
     let showSurvey3Banner = false;
     if (!survey3Completed && !profileRow?.survey3_banner_dismissed) {
-      showSurvey3Banner = true;
+      const hasMatch = await pgQueryOne<{ id: number }>(
+        "SELECT id FROM matches WHERE (user1_id = $1 OR user2_id = $1) AND match_card_sent_at IS NOT NULL LIMIT 1", [userId]
+      );
+      showSurvey3Banner = !!hasMatch;
     }
 
     // Check if user has ever viewed the insights screen
