@@ -748,10 +748,10 @@ export default function App() {
             user ? setView("new_chat") : setView("landing");
           }}
           onStartChat={(u) => {
-            setUser({ id: u.id, first_name: u.first_name, email: u.email } as User);
-            saveSession({ id: u.id, first_name: u.first_name, email: u.email } as User);
-            setChatSessionKey(k => k + 1);
-            setView("chat");
+            setAdminViewingUser(true);
+            setUser(u as User);
+            saveSession(u as User);
+            setView("new_chat");
           }}
           onViewDashboard={(u) => {
             setAdminViewingUser(true);
