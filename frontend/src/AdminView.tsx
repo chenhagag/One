@@ -5470,7 +5470,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                   {suggestions.map(u => (
                     <div
                       key={u.id}
-                      onClick={() => setFilterCmUser(String(u.id))}
+                      onClick={() => setFilterCmUser(`#${u.id} ${u.name}`)}
                       style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13, display: "flex", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9" }}
                       onMouseEnter={e => (e.currentTarget.style.background = "#f0f9ff")}
                       onMouseLeave={e => (e.currentTarget.style.background = "")}
@@ -5569,10 +5569,16 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                   }
                 }
                 if (filterCmUser.trim()) {
-                  const q = filterCmUser.trim().toLowerCase();
-                  const idMatch = q === String(cm.user_id) || q === String(cm.candidate_user_id);
-                  const nameMatch = (cm.user1_name || "").toLowerCase().includes(q) || (cm.user2_name || "").toLowerCase().includes(q);
-                  if (!idMatch && !nameMatch) return false;
+                  const raw = filterCmUser.trim();
+                  const selectedId = raw.startsWith("#") ? parseInt(raw.slice(1)) : NaN;
+                  if (!isNaN(selectedId)) {
+                    if (cm.user_id !== selectedId && cm.candidate_user_id !== selectedId) return false;
+                  } else {
+                    const q = raw.toLowerCase();
+                    const idMatch = q === String(cm.user_id) || q === String(cm.candidate_user_id);
+                    const nameMatch = (cm.user1_name || "").toLowerCase().includes(q) || (cm.user2_name || "").toLowerCase().includes(q);
+                    if (!idMatch && !nameMatch) return false;
+                  }
                 }
                 return true;
               }).sort((a: any, b: any) => (b[sortBy] ?? -1) - (a[sortBy] ?? -1)).map((cm: any) => (
