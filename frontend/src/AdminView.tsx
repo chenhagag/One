@@ -4123,9 +4123,20 @@ function MatchesTab() {
     } catch { }
   }
 
+  const ratingLabel = (r: string | null) => {
+    if (!r) return "—";
+    if (r === "bullseye") return "🎯";
+    if (r === "possible") return "👍";
+    if (r === "miss") return "❌";
+    if (r === "known_person") return "👤";
+    return r;
+  };
+
   function renderMatchRow(m: any) {
     const hasCard = !!m.match_card_data;
     const hasCandidateMatch = !!m.candidate_match_id;
+    const isCancelled = m.status === "cancelled" || m.status === "rejected_by_users" || m.status === "rejected_acquaintance";
+    const cancellerName = m.cancelled_by === m.user1_id ? m.user1_name : m.cancelled_by === m.user2_id ? m.user2_name : null;
     return (
       <tr key={m.id}>
         <td style={s.td}>{m.id}</td>
@@ -4138,6 +4149,11 @@ function MatchesTab() {
             const scoreColor = (v: number | null) => v == null ? "#888" : v >= 70 ? "#16a34a" : v >= 50 ? "#d97706" : "#dc3545";
             return <span style={{ fontSize: 12 }}><strong style={{ color: scoreColor(ps) }}>{ps ?? "-"}</strong>{" / "}<strong style={{ color: scoreColor(fs) }}>{fs ?? "-"}</strong></span>;
           })()}
+        </td>
+        <td style={s.td}>
+          <span title={`${m.user1_name}: ${ratingLabel(m.user1_rating)}  |  ${m.user2_name}: ${ratingLabel(m.user2_rating)}`} style={{ fontSize: 12 }}>
+            {ratingLabel(m.user1_rating)} / {ratingLabel(m.user2_rating)}
+          </span>
         </td>
         <td style={s.td}><span style={statusColor(m.status)}>{m.status}</span></td>
         <td style={s.td}>{m.match_card_sent_at ? new Date(m.match_card_sent_at).toLocaleDateString("he-IL") : m.created_at?.slice(0, 10)}</td>
@@ -4168,6 +4184,19 @@ function MatchesTab() {
     );
   }
 
+  function renderCancellationInfo(m: any) {
+    const cancellerName = m.cancelled_by === m.user1_id ? m.user1_name : m.cancelled_by === m.user2_id ? m.user2_name : null;
+    const hasInfo = cancellerName || m.cancellation_feedback_user1 || m.cancellation_feedback_user2;
+    if (!hasInfo) return null;
+    return (
+      <div style={{ fontSize: 12, color: "#64748b", padding: "4px 12px 8px", background: "#fef2f2", borderRadius: 6, margin: "2px 0 6px" }}>
+        {cancellerName && <span><strong>בוטל ע״י:</strong> {cancellerName}{m.updated_at ? ` (${new Date(m.updated_at).toLocaleDateString("he-IL")})` : ""}</span>}
+        {m.cancellation_feedback_user1 && <div style={{ marginTop: 2 }}><strong>{m.user1_name}:</strong> {m.cancellation_feedback_user1}</div>}
+        {m.cancellation_feedback_user2 && <div style={{ marginTop: 2 }}><strong>{m.user2_name}:</strong> {m.cancellation_feedback_user2}</div>}
+      </div>
+    );
+  }
+
   if (loading) return <p style={s.loading}>Loading...</p>;
 
   if (selectedUserId !== null) {
@@ -4188,6 +4217,7 @@ function MatchesTab() {
               <th style={s.th}>User 1</th>
               <th style={s.th}>User 2</th>
               <th style={s.th}>Profile / Final</th>
+              <th style={s.th}>דירוג</th>
               <th style={s.th}>Status</th>
               <th style={s.th}>נשלח</th>
               <th style={s.th}>הודעות</th>
@@ -4213,6 +4243,7 @@ function MatchesTab() {
                   <th style={s.th}>User 1</th>
                   <th style={s.th}>User 2</th>
                   <th style={s.th}>Profile / Final</th>
+                  <th style={s.th}>דירוג</th>
                   <th style={s.th}>Status</th>
                   <th style={s.th}>נשלח</th>
                   <th style={s.th}>הודעות</th>
@@ -4220,7 +4251,14 @@ function MatchesTab() {
                   <th style={s.th}>Actions</th>
                 </tr>
               </thead>
-              <tbody>{past.map(renderMatchRow)}</tbody>
+              <tbody>{past.map(m => (
+                <Fragment key={m.id}>
+                  {renderMatchRow(m)}
+                  {(m.status === "cancelled" || m.status === "rejected_by_users" || m.status === "rejected_acquaintance") && renderCancellationInfo(m) && (
+                    <tr><td colSpan={10} style={{ padding: 0 }}>{renderCancellationInfo(m)}</td></tr>
+                  )}
+                </Fragment>
+              ))}</tbody>
             </table>
           )}
         </div>
@@ -7106,6 +7144,7 @@ function UserManagementTab() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [selectedSearchUser, setSelectedSearchUser] = useState<{ id: number; first_name: string; email: string } | null>(null);
   const [filter, setFilter] = useState<"all" | "incomplete" | "no_analysis" | "no_login_7d">("all");
   const [sort, setSort] = useState<"created" | "activity">("created");
   // Admin last-viewed timestamps per user — stored in localStorage
@@ -7180,10 +7219,20 @@ function UserManagementTab() {
     return "#1e293b";
   }
 
+  const searchSuggestions = search.length >= 2 && !selectedSearchUser
+    ? users.filter(u =>
+        u.first_name?.toLowerCase().includes(search.toLowerCase()) ||
+        u.email?.toLowerCase().includes(search.toLowerCase()) ||
+        String(u.id).includes(search)
+      ).slice(0, 15)
+    : [];
+
   const filtered = users.filter(u => {
-    if (search) {
+    if (selectedSearchUser) {
+      if (u.id !== selectedSearchUser.id) return false;
+    } else if (search) {
       const q = search.toLowerCase();
-      if (!u.first_name?.toLowerCase().includes(q) && !u.email?.toLowerCase().includes(q)) return false;
+      if (!u.first_name?.toLowerCase().includes(q) && !u.email?.toLowerCase().includes(q) && !String(u.id).includes(search)) return false;
     }
     if (filter === "incomplete") return !u.chat_closed || !u.cog_closed || !u.taste_closed;
     if (filter === "no_analysis") return (u.analysis_run_count || 0) === 0;
@@ -7224,12 +7273,37 @@ function UserManagementTab() {
   return (
     <div style={{ padding: "0 0 20px" }}>
       <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
-        <input
-          placeholder="חיפוש שם / אימייל..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{ padding: "6px 14px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, width: 220, direction: "rtl" }}
-        />
+        <div style={{ position: "relative", width: 260 }}>
+          <input
+            placeholder="חיפוש שם, ID או אימייל..."
+            value={selectedSearchUser ? `${selectedSearchUser.first_name} (#${selectedSearchUser.id})` : search}
+            onChange={e => { setSearch(e.target.value); setSelectedSearchUser(null); }}
+            style={{ padding: "6px 14px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, width: "100%", direction: "rtl", boxSizing: "border-box" }}
+          />
+          {selectedSearchUser && (
+            <span
+              onClick={() => { setSelectedSearchUser(null); setSearch(""); }}
+              style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", cursor: "pointer", color: "#94a3b8", fontSize: 16, lineHeight: 1 }}
+              title="נקה חיפוש"
+            >✕</span>
+          )}
+          {searchSuggestions.length > 0 && (
+            <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, marginTop: 2, maxHeight: 220, overflow: "auto", zIndex: 10, boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
+              {searchSuggestions.map(u => (
+                <div
+                  key={u.id}
+                  onClick={() => { setSelectedSearchUser({ id: u.id, first_name: u.first_name, email: u.email }); setSearch(""); }}
+                  style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13, display: "flex", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9" }}
+                  onMouseEnter={e => (e.currentTarget.style.background = "#f0f9ff")}
+                  onMouseLeave={e => (e.currentTarget.style.background = "")}
+                >
+                  <span style={{ fontWeight: 500 }}>{u.first_name || "—"}</span>
+                  <span style={{ color: "#94a3b8" }}>#{u.id} · {u.email}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <button style={st.filterBtn(filter === "all")} onClick={() => setFilter("all")}>הכל ({users.length})</button>
         <button style={st.filterBtn(filter === "incomplete")} onClick={() => setFilter("incomplete")}>לא השלימו צ'אט</button>
         <button style={st.filterBtn(filter === "no_analysis")} onClick={() => setFilter("no_analysis")}>ללא ניתוח</button>
