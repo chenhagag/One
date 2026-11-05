@@ -5442,20 +5442,52 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
       </div>
       </>}
 
-      {/* User filter */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
-        <span style={{ fontSize: 12, color: "#6b7280" }}>משתמש/ת:</span>
-        <input
-          type="text"
-          value={filterCmUser}
-          onChange={e => setFilterCmUser(e.target.value)}
-          placeholder="שם או מספר ID..."
-          style={{ padding: "5px 10px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6, width: 200 }}
-        />
-        {filterCmUser && (
-          <button onClick={() => setFilterCmUser("")} style={{ padding: "4px 10px", fontSize: 11, border: "1px solid #d1d5db", borderRadius: 4, cursor: "pointer", background: "#fff", color: "#6b7280" }}>נקה</button>
-        )}
-      </div>
+      {/* User filter with autocomplete */}
+      {(() => {
+        const uniqueUsers = new Map<number, { id: number; name: string }>();
+        for (const cm of displayData) {
+          if (cm.user_id && !uniqueUsers.has(cm.user_id)) uniqueUsers.set(cm.user_id, { id: cm.user_id, name: cm.user1_name || "" });
+          if (cm.candidate_user_id && !uniqueUsers.has(cm.candidate_user_id)) uniqueUsers.set(cm.candidate_user_id, { id: cm.candidate_user_id, name: cm.user2_name || "" });
+        }
+        const suggestions = filterCmUser.length >= 2 && !filterCmUser.startsWith("#")
+          ? Array.from(uniqueUsers.values()).filter(u =>
+              u.name.toLowerCase().includes(filterCmUser.toLowerCase()) || String(u.id).includes(filterCmUser)
+            ).slice(0, 15)
+          : [];
+        return (
+          <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
+            <span style={{ fontSize: 12, color: "#6b7280" }}>משתמש/ת:</span>
+            <div style={{ position: "relative", width: 260 }}>
+              <input
+                type="text"
+                value={filterCmUser}
+                onChange={e => setFilterCmUser(e.target.value)}
+                placeholder="שם או מספר ID..."
+                style={{ padding: "5px 10px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6, width: "100%", boxSizing: "border-box" }}
+              />
+              {suggestions.length > 0 && (
+                <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, marginTop: 2, maxHeight: 220, overflow: "auto", zIndex: 10, boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
+                  {suggestions.map(u => (
+                    <div
+                      key={u.id}
+                      onClick={() => setFilterCmUser(String(u.id))}
+                      style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13, display: "flex", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9" }}
+                      onMouseEnter={e => (e.currentTarget.style.background = "#f0f9ff")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "")}
+                    >
+                      <span style={{ fontWeight: 500 }}>{u.name || "—"}</span>
+                      <span style={{ color: "#94a3b8" }}>#{u.id}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {filterCmUser && (
+              <button onClick={() => setFilterCmUser("")} style={{ padding: "4px 10px", fontSize: 11, border: "1px solid #d1d5db", borderRadius: 4, cursor: "pointer", background: "#fff", color: "#6b7280" }}>נקה</button>
+            )}
+          </div>
+        );
+      })()}
 
       {loading ? (
         <p style={s.loading}>Loading...</p>
@@ -7144,310 +7176,6 @@ function ErrorLogsTab() {
           </table>
         </div>
       )}
-    </div>
-  );
-}
-
-function UserManagementTab() {
-  const [users, setUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [selectedSearchUser, setSelectedSearchUser] = useState<{ id: number; first_name: string; email: string } | null>(null);
-  const [filter, setFilter] = useState<"all" | "incomplete" | "no_analysis" | "no_login_7d">("all");
-  const [sort, setSort] = useState<"created" | "activity">("created");
-  // Admin last-viewed timestamps per user — stored in localStorage
-  const [viewed, setViewed] = useState<Record<number, string>>(() => {
-    try { return JSON.parse(localStorage.getItem("admin_user_viewed") || "{}"); } catch { return {}; }
-  });
-
-  useEffect(() => { loadData(); }, []);
-
-  function loadData() {
-    setLoading(true);
-    apiFetch("/admin/user-management")
-      .then(r => r.json())
-      .then(data => { setUsers(Array.isArray(data) ? data : []); })
-      .finally(() => setLoading(false));
-  }
-
-  function markViewed(userId: number) {
-    const now = new Date().toISOString();
-    const next = { ...viewed, [userId]: now };
-    setViewed(next);
-    localStorage.setItem("admin_user_viewed", JSON.stringify(next));
-  }
-
-  function fmtDate(d: string | null) {
-    if (!d) return "—";
-    return new Date(d).toLocaleDateString("he-IL", { day: "2-digit", month: "2-digit", year: "2-digit" });
-  }
-
-  function fmtDateTime(d: string | null) {
-    if (!d) return "—";
-    const dt = new Date(d);
-    return dt.toLocaleDateString("he-IL", { day: "2-digit", month: "2-digit" }) + " " + dt.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
-  }
-
-  function timeAgo(d: string | null) {
-    if (!d) return "אף פעם";
-    const diff = Date.now() - new Date(d).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `לפני ${mins} דק'`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `לפני ${hours} שעות`;
-    const days = Math.floor(hours / 24);
-    if (days < 30) return `לפני ${days} ימים`;
-    return fmtDate(d);
-  }
-
-  function chatStatusLabel(u: any) {
-    if (u.chat_closed) return { text: "הושלם", color: "#16a34a" };
-    if (u.chat_count > 0) return { text: `${u.chat_count} הודעות (${u.summary_fields}/8)`, color: "#d97706" };
-    return { text: "לא התחיל", color: "#dc2626" };
-  }
-
-  function channelBadge(closed: boolean, count: number) {
-    if (closed) return { text: "✓", color: "#16a34a", bg: "#f0fdf4" };
-    if (count > 0) return { text: `${count}`, color: "#d97706", bg: "#fffbeb" };
-    return { text: "✗", color: "#dc2626", bg: "#fef2f2" };
-  }
-
-  // Highlight: purple = new user (joined after last view), blue = updated after last view
-  function nameColor(u: any): string {
-    const lastViewed = viewed[u.id];
-    if (!lastViewed) {
-      // Never viewed — new user = purple
-      return "#7c3aed";
-    }
-    const viewedAt = new Date(lastViewed).getTime();
-    // User joined after last view
-    if (u.created_at && new Date(u.created_at).getTime() > viewedAt) return "#7c3aed";
-    // User had activity after last view
-    if (u.last_activity && new Date(u.last_activity).getTime() > viewedAt) return "#2563eb";
-    return "#1e293b";
-  }
-
-  const searchSuggestions = search.length >= 2 && !selectedSearchUser
-    ? users.filter(u =>
-        u.first_name?.toLowerCase().includes(search.toLowerCase()) ||
-        u.email?.toLowerCase().includes(search.toLowerCase()) ||
-        String(u.id).includes(search)
-      ).slice(0, 15)
-    : [];
-
-  const filtered = users.filter(u => {
-    if (selectedSearchUser) {
-      if (u.id !== selectedSearchUser.id) return false;
-    } else if (search) {
-      const q = search.toLowerCase();
-      if (!u.first_name?.toLowerCase().includes(q) && !u.email?.toLowerCase().includes(q) && !String(u.id).includes(search)) return false;
-    }
-    if (filter === "incomplete") return !u.chat_closed || !u.cog_closed || !u.taste_closed;
-    if (filter === "no_analysis") return (u.analysis_run_count || 0) === 0;
-    if (filter === "no_login_7d") {
-      if (!u.last_visit) return true;
-      return Date.now() - new Date(u.last_visit).getTime() > 7 * 24 * 60 * 60 * 1000;
-    }
-    return true;
-  });
-
-  const sorted = [...filtered].sort((a, b) => {
-    if (sort === "activity") {
-      const aTime = a.last_activity ? new Date(a.last_activity).getTime() : 0;
-      const bTime = b.last_activity ? new Date(b.last_activity).getTime() : 0;
-      return bTime - aTime;
-    }
-    // default: created
-    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
-    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
-    return bTime - aTime;
-  });
-
-  if (loading) return <p style={{ padding: 20, color: "#888" }}>טוען...</p>;
-
-  const st = {
-    card: { background: "#fff", borderRadius: 10, padding: "16px 20px", marginBottom: 10, border: "1px solid #e5e7eb", fontSize: 13 } as React.CSSProperties,
-    row: { display: "flex", gap: 16, flexWrap: "wrap" as const, alignItems: "center", marginBottom: 6 } as React.CSSProperties,
-    email: { fontSize: 12, color: "#94a3b8" } as React.CSSProperties,
-    label: { fontSize: 11, color: "#64748b", fontWeight: 600, marginBottom: 2 } as React.CSSProperties,
-    value: { fontSize: 13, color: "#334155" } as React.CSSProperties,
-    badge: (color: string, bg: string): React.CSSProperties => ({ display: "inline-block", padding: "2px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600, color, background: bg, border: `1px solid ${color}20` }),
-    section: { display: "flex", gap: 20, flexWrap: "wrap" as const, marginTop: 8 } as React.CSSProperties,
-    col: { minWidth: 100 } as React.CSSProperties,
-    filterBtn: (active: boolean): React.CSSProperties => ({ padding: "4px 14px", fontSize: 12, border: "1px solid #d1d5db", borderRadius: 20, background: active ? "#6366f1" : "#fff", color: active ? "#fff" : "#475569", cursor: "pointer", fontWeight: active ? 600 : 400 }),
-    sortBtn: (active: boolean): React.CSSProperties => ({ padding: "4px 14px", fontSize: 12, border: "1px solid #d1d5db", borderRadius: 20, background: active ? "#334155" : "#fff", color: active ? "#fff" : "#475569", cursor: "pointer", fontWeight: active ? 600 : 400 }),
-  };
-
-  return (
-    <div style={{ padding: "0 0 20px" }}>
-      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
-        <div style={{ position: "relative", width: 260 }}>
-          <input
-            placeholder="חיפוש שם, ID או אימייל..."
-            value={selectedSearchUser ? `${selectedSearchUser.first_name} (#${selectedSearchUser.id})` : search}
-            onChange={e => { setSearch(e.target.value); setSelectedSearchUser(null); }}
-            style={{ padding: "6px 14px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, width: "100%", direction: "rtl", boxSizing: "border-box" }}
-          />
-          {selectedSearchUser && (
-            <span
-              onClick={() => { setSelectedSearchUser(null); setSearch(""); }}
-              style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", cursor: "pointer", color: "#94a3b8", fontSize: 16, lineHeight: 1 }}
-              title="נקה חיפוש"
-            >✕</span>
-          )}
-          {searchSuggestions.length > 0 && (
-            <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, marginTop: 2, maxHeight: 220, overflow: "auto", zIndex: 10, boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
-              {searchSuggestions.map(u => (
-                <div
-                  key={u.id}
-                  onClick={() => { setSelectedSearchUser({ id: u.id, first_name: u.first_name, email: u.email }); setSearch(""); }}
-                  style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13, display: "flex", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9" }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "#f0f9ff")}
-                  onMouseLeave={e => (e.currentTarget.style.background = "")}
-                >
-                  <span style={{ fontWeight: 500 }}>{u.first_name || "—"}</span>
-                  <span style={{ color: "#94a3b8" }}>#{u.id} · {u.email}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <button style={st.filterBtn(filter === "all")} onClick={() => setFilter("all")}>הכל ({users.length})</button>
-        <button style={st.filterBtn(filter === "incomplete")} onClick={() => setFilter("incomplete")}>לא השלימו צ'אט</button>
-        <button style={st.filterBtn(filter === "no_analysis")} onClick={() => setFilter("no_analysis")}>ללא ניתוח</button>
-        <button style={st.filterBtn(filter === "no_login_7d")} onClick={() => setFilter("no_login_7d")}>לא נכנסו 7+ ימים</button>
-        <span style={{ fontSize: 12, color: "#94a3b8" }}>{filtered.length} תוצאות</span>
-      </div>
-      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 11, color: "#64748b" }}>מיון:</span>
-        <button style={st.sortBtn(sort === "created")} onClick={() => setSort("created")}>תאריך הצטרפות</button>
-        <button style={st.sortBtn(sort === "activity")} onClick={() => setSort("activity")}>עדכון אחרון</button>
-        <span style={{ fontSize: 11, color: "#c4b5fd", marginRight: 12 }}>● סגול = חדש</span>
-        <span style={{ fontSize: 11, color: "#93c5fd" }}>● כחול = עדכון</span>
-      </div>
-
-      {/* Photo flags alert section */}
-      {(() => {
-        const flaggedUsers = users.filter(u => {
-          if (!u.photo_flags) return false;
-          const f = typeof u.photo_flags === "string" ? JSON.parse(u.photo_flags) : u.photo_flags;
-          return f.not_real_photo || f.ai_generated || f.gender_mismatch;
-        });
-        if (flaggedUsers.length === 0) return null;
-        return (
-          <div style={{ marginBottom: 16, padding: "14px 18px", background: "#fef2f2", borderRadius: 12, border: "1px solid #fecaca" }}>
-            <div style={{ fontWeight: 700, fontSize: 14, color: "#991b1b", marginBottom: 10 }}>🚨 תמונות בעייתיות ({flaggedUsers.length})</div>
-            {flaggedUsers.map(u => {
-              const f = typeof u.photo_flags === "string" ? JSON.parse(u.photo_flags) : u.photo_flags;
-              const issues: string[] = [];
-              if (f.not_real_photo) issues.push("לא תמונה אמיתית של אדם");
-              if (f.ai_generated) issues.push("חשד ל-AI");
-              if (f.gender_mismatch) issues.push("אי-התאמה מגדרית");
-              return (
-                <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", borderBottom: "1px solid #fee2e2", flexWrap: "wrap" }}>
-                  <span style={{ fontWeight: 600, minWidth: 80 }}>{u.first_name || "—"}</span>
-                  <span style={{ fontSize: 11, color: "#94a3b8" }}>#{u.id}</span>
-                  <span style={{ fontSize: 12, color: "#dc2626" }}>{issues.join(" · ")}</span>
-                  {f.notes && <span style={{ fontSize: 11, color: "#6b7280", fontStyle: "italic" }}>({f.notes})</span>}
-                  <button
-                    style={{ marginRight: "auto", padding: "4px 14px", fontSize: 12, border: "1px solid #fca5a5", borderRadius: 8, background: "#fff", color: "#dc2626", cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}
-                    onClick={async () => {
-                      const msg = u.gender === "woman"
-                        ? "היי, שמנו לב שהתמונה שהעלית לא מתאימה — נראה שזו לא תמונה שלך. כדי שנוכל להתקדם בתהליך ולמצוא לך התאמה, נשמח שתעלי תמונה ברורה של עצמך 📸"
-                        : "היי, שמנו לב שהתמונה שהעלית לא מתאימה — נראה שזו לא תמונה שלך. כדי שנוכל להתקדם בתהליך ולמצוא לך התאמה, נשמח שתעלה תמונה ברורה של עצמך 📸";
-                      if (!confirm(`לשלוח התראת תמונה ל-${u.first_name} (#${u.id})?\n\nהודעה:\n${msg}`)) return;
-                      try {
-                        const r = await apiFetch(`/admin/users/${u.id}`, {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ admin_message: msg, admin_message_type: "info" }),
-                        });
-                        if (!r.ok) { alert("שגיאה בשליחה"); return; }
-                        alert("ההתראה נשלחה!");
-                      } catch { alert("שגיאת רשת"); }
-                    }}
-                  >שלח התראה</button>
-                </div>
-              );
-            })}
-          </div>
-        );
-      })()}
-
-      {sorted.map(u => {
-        const chat = chatStatusLabel(u);
-        const cog = channelBadge(u.cog_closed, u.cog_count);
-        const taste = channelBadge(u.taste_closed, u.taste_count);
-        const nc = nameColor(u);
-
-        return (
-          <div key={u.id} style={st.card} onClick={() => markViewed(u.id)}>
-            <div style={st.row}>
-              <span style={{ fontWeight: 700, fontSize: 15, color: nc, minWidth: 120, cursor: "pointer" }}>{u.first_name}</span>
-              <span style={st.email}>{u.email}</span>
-              <span style={{ fontSize: 11, color: "#94a3b8" }}>#{u.id}</span>
-              {u.test_user_type && <span style={st.badge("#6366f1", "#eef2ff")}>{u.test_user_type}</span>}
-              {u.in_matching_pool && <span style={st.badge("#16a34a", "#f0fdf4")}>במאגר</span>}
-            </div>
-
-            <div style={st.section}>
-              <div style={st.col}>
-                <div style={st.label}>צ'אט כללי</div>
-                <span style={{ ...st.value, color: chat.color, fontWeight: 600 }}>{chat.text}</span>
-              </div>
-              <div style={st.col}>
-                <div style={st.label}>סגנון חשיבה</div>
-                <span style={st.badge(cog.color, cog.bg)}>{cog.text}</span>
-              </div>
-              <div style={st.col}>
-                <div style={st.label}>ניתוח טעם</div>
-                <span style={st.badge(taste.color, taste.bg)}>{taste.text}</span>
-              </div>
-
-              <div style={st.col}>
-                <div style={st.label}>ניתוחים</div>
-                <span style={st.value}>{u.analysis_run_count || 0} {u.analysis_completed ? "✓" : ""}</span>
-              </div>
-              <div style={st.col}>
-                <div style={st.label}>תובנות ידניות</div>
-                <span style={st.badge(u.has_manual_insights ? "#16a34a" : "#94a3b8", u.has_manual_insights ? "#f0fdf4" : "#f8fafc")}>{u.has_manual_insights ? "יש" : "אין"}</span>
-              </div>
-
-              <div style={st.col}>
-                <div style={st.label}>הצטרפות</div>
-                <span style={st.value}>{fmtDate(u.created_at)}</span>
-              </div>
-              <div style={st.col}>
-                <div style={st.label}>כניסה אחרונה</div>
-                <span style={st.value}>{timeAgo(u.last_visit)}</span>
-              </div>
-              <div style={st.col}>
-                <div style={st.label}>סה"כ כניסות</div>
-                <span style={st.value}>{u.total_visits || 0}</span>
-              </div>
-
-              <div style={st.col}>
-                <div style={st.label}>עדכון אחרון</div>
-                <span style={st.value}>{timeAgo(u.last_activity)}</span>
-              </div>
-
-              <div style={st.col}>
-                <div style={st.label}>מייל אחרון</div>
-                <span style={{ fontSize: 12, color: u.last_email_sent ? "#334155" : "#d1d5db" }}>
-                  {u.last_email_sent ? fmtDateTime(u.last_email_sent) : "לא נשלח"}
-                </span>
-              </div>
-
-              {u.nudge_count > 0 && <div style={st.col}>
-                <div style={st.label}>תזכורות אוטומטיות</div>
-                <span style={{ fontSize: 12, color: "#7b5fa3" }}>
-                  {u.nudge_count}× | {u.last_nudge_event?.replace("nudge_", "").replace(/_/g, " ")} | {u.last_nudge_at ? timeAgo(u.last_nudge_at) : ""}
-                </span>
-              </div>}
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }
