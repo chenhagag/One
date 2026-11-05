@@ -4179,6 +4179,14 @@ function MatchesTab() {
         <td style={s.td}>
           {hasCard && <button style={{ ...s.badge, background: "#e0d4f5", color: "#5b21b6", cursor: "pointer", border: "none", marginLeft: 4 }} onClick={() => setViewingCard(m)}>כרטיס</button>}
           {hasCandidateMatch && <button style={{ ...s.badge, background: "#dbeafe", color: "#1e40af", cursor: "pointer", border: "none", marginLeft: 4 }} onClick={() => loadDetail(m.candidate_match_id)}>השוואה</button>}
+          {m.status === "in_match" && <button style={{ ...s.badge, background: "#fef3c7", color: "#92400e", cursor: "pointer", border: "none", marginLeft: 4 }} onClick={async () => {
+            if (!confirm(`הקפאת התאמה #${m.id} (${m.user1_name} + ${m.user2_name})? שתיהן יחזרו למאגר.`)) return;
+            try {
+              const r = await apiFetch(`/admin/matches/${m.id}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "stalled" }) });
+              if (!r.ok) { const j = await r.json(); alert(j.error || "שגיאה"); return; }
+              load();
+            } catch { alert("שגיאת רשת"); }
+          }}>הקפא</button>}
         </td>
       </tr>
     );
@@ -7317,6 +7325,54 @@ function UserManagementTab() {
         <span style={{ fontSize: 11, color: "#c4b5fd", marginRight: 12 }}>● סגול = חדש</span>
         <span style={{ fontSize: 11, color: "#93c5fd" }}>● כחול = עדכון</span>
       </div>
+
+      {/* Photo flags alert section */}
+      {(() => {
+        const flaggedUsers = users.filter(u => {
+          if (!u.photo_flags) return false;
+          const f = typeof u.photo_flags === "string" ? JSON.parse(u.photo_flags) : u.photo_flags;
+          return f.not_real_photo || f.ai_generated || f.gender_mismatch;
+        });
+        if (flaggedUsers.length === 0) return null;
+        return (
+          <div style={{ marginBottom: 16, padding: "14px 18px", background: "#fef2f2", borderRadius: 12, border: "1px solid #fecaca" }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "#991b1b", marginBottom: 10 }}>🚨 תמונות בעייתיות ({flaggedUsers.length})</div>
+            {flaggedUsers.map(u => {
+              const f = typeof u.photo_flags === "string" ? JSON.parse(u.photo_flags) : u.photo_flags;
+              const issues: string[] = [];
+              if (f.not_real_photo) issues.push("לא תמונה אמיתית של אדם");
+              if (f.ai_generated) issues.push("חשד ל-AI");
+              if (f.gender_mismatch) issues.push("אי-התאמה מגדרית");
+              return (
+                <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", borderBottom: "1px solid #fee2e2", flexWrap: "wrap" }}>
+                  <span style={{ fontWeight: 600, minWidth: 80 }}>{u.first_name || "—"}</span>
+                  <span style={{ fontSize: 11, color: "#94a3b8" }}>#{u.id}</span>
+                  <span style={{ fontSize: 12, color: "#dc2626" }}>{issues.join(" · ")}</span>
+                  {f.notes && <span style={{ fontSize: 11, color: "#6b7280", fontStyle: "italic" }}>({f.notes})</span>}
+                  <button
+                    style={{ marginRight: "auto", padding: "4px 14px", fontSize: 12, border: "1px solid #fca5a5", borderRadius: 8, background: "#fff", color: "#dc2626", cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}
+                    onClick={async () => {
+                      const msg = u.gender === "woman"
+                        ? "היי, שמנו לב שהתמונה שהעלית לא מתאימה — נראה שזו לא תמונה שלך. כדי שנוכל להתקדם בתהליך ולמצוא לך התאמה, נשמח שתעלי תמונה ברורה של עצמך 📸"
+                        : "היי, שמנו לב שהתמונה שהעלית לא מתאימה — נראה שזו לא תמונה שלך. כדי שנוכל להתקדם בתהליך ולמצוא לך התאמה, נשמח שתעלה תמונה ברורה של עצמך 📸";
+                      if (!confirm(`לשלוח התראת תמונה ל-${u.first_name} (#${u.id})?\n\nהודעה:\n${msg}`)) return;
+                      try {
+                        const r = await apiFetch(`/admin/users/${u.id}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ admin_message: msg, admin_message_type: "info" }),
+                        });
+                        if (!r.ok) { alert("שגיאה בשליחה"); return; }
+                        alert("ההתראה נשלחה!");
+                      } catch { alert("שגיאת רשת"); }
+                    }}
+                  >שלח התראה</button>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {sorted.map(u => {
         const chat = chatStatusLabel(u);
