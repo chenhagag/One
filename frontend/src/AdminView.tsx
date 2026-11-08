@@ -5867,7 +5867,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                     ))}
 
                     <div style={{ background: "#fefce8", borderRadius: 10, padding: 16, marginBottom: 10, border: "1px solid #fde68a" }}>
-                      <strong style={{ color: "#854d0e" }}>נקודת תורפה:</strong>
+                      <strong style={{ color: "#854d0e" }}>משהו שכדאי לשים לב אליו:</strong>
                       <p style={{ fontSize: 13, color: "#713f12", lineHeight: 1.7, whiteSpace: "pre-wrap", margin: "6px 0 0" }}>{d.caveat}</p>
                     </div>
 
@@ -5929,7 +5929,7 @@ function CandidateMatchesTab({ onViewDashboard, onStartChat, onViewNewChat }: { 
                   </div>
 
                   <div>
-                    <label style={{ fontSize: 13, fontWeight: 600, color: "#333", display: "block", marginBottom: 4 }}>נקודת תורפה</label>
+                    <label style={{ fontSize: 13, fontWeight: 600, color: "#333", display: "block", marginBottom: 4 }}>משהו שכדאי לשים לב אליו</label>
                     <textarea value={editData.caveat || ""} onChange={(e) => setEditData({ ...editData, caveat: e.target.value })} style={{ width: "100%", minHeight: 80, padding: 10, fontSize: 13, borderRadius: 8, border: "1px solid #ddd", fontFamily: "inherit", direction: "rtl", resize: "vertical", boxSizing: "border-box" }} />
                   </div>
 
