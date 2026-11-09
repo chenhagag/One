@@ -616,9 +616,11 @@ function passesSexualIdentityFilter(
   const aSpecial = hasSpecialSexualIdentity(a.id, getTrait);
   const bSpecial = hasSpecialSexualIdentity(b.id, getTrait);
 
+  // TODO: restore doesnt_matter filtering when preference UI is added
+  // For now, allow all matches through — special identity users will appear
+  // as "special attention" in admin via isAutoSpecial() flagging
   if (aSpecial && bSpecial) return true;
-  if (aSpecial && !bSpecial) return b.looking_for_gender === "doesnt_matter";
-  if (!aSpecial && bSpecial) return a.looking_for_gender === "doesnt_matter";
+  if (aSpecial || bSpecial) return true; // was: return other.looking_for_gender === "doesnt_matter"
   return true;
 }
 

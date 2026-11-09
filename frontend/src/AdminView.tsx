@@ -590,7 +590,7 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
   const [filterPool, setFilterPool] = useState<"all" | "in" | "out">("all");
   const [filterGender, setFilterGender] = useState<"all" | "man" | "woman">("all");
   const [filterOrientation, setFilterOrientation] = useState<"all" | "straight" | "ww" | "mm">("all");
-  const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("all");
+  const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive" | "special">("all");
   const [wwOnly, setWwOnly] = useState(true);
 
   useEffect(() => {
@@ -626,6 +626,11 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
     const isInactive = u.self_frozen || u.suspected_inactive || u.user_status === "frozen";
     if (filterActive === "active" && isInactive) return false;
     if (filterActive === "inactive" && !isInactive) return false;
+    if (filterActive === "special") {
+      const pf = u.photo_flags ? (typeof u.photo_flags === "string" ? JSON.parse(u.photo_flags) : u.photo_flags) : null;
+      const hasPhotoFlag = pf && (pf.not_real_photo || pf.ai_generated || pf.gender_mismatch);
+      if (!u.flag_toxic && !u.flag_troll && !u.flag_identity && !u.special_attention_override && !hasPhotoFlag) return false;
+    }
     return true;
   });
 
@@ -795,6 +800,7 @@ function UsersTab({ onStartChat, onViewDashboard, onViewNewChat }: { onStartChat
         <button style={filterBtnStyle(filterActive === "all")} onClick={() => setFilterActive("all")}>הכל</button>
         <button style={filterBtnStyle(filterActive === "active")} onClick={() => setFilterActive("active")}>פעילים</button>
         <button style={filterBtnStyle(filterActive === "inactive")} onClick={() => setFilterActive("inactive")}>לא פעילים</button>
+        <button style={filterBtnStyle(filterActive === "special")} onClick={() => setFilterActive("special")}>🚨 מיוחדים</button>
       </div>
 
       {/* Flagged sections at top */}
