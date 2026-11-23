@@ -122,13 +122,21 @@ export async function notifyUser(
     first_name: string | null;
     whatsapp_updates: boolean;
     whatsapp_phone: string | null;
+    self_frozen: boolean | null;
+    user_status: string | null;
   }>(
-    "SELECT email, push_notifications, email_updates, first_name, whatsapp_updates, whatsapp_phone FROM users WHERE id = $1",
+    "SELECT email, push_notifications, email_updates, first_name, whatsapp_updates, whatsapp_phone, self_frozen, user_status FROM users WHERE id = $1",
     [userId]
   );
 
   if (!user) {
     return logAndReturn(userId, payload, "none", false, "user_not_found");
+  }
+
+  // Block all notifications for frozen users (self-frozen or admin-frozen)
+  if (user.self_frozen || user.user_status === "frozen") {
+    console.log(`[notifications] BLOCKED (frozen) user=${userId} event=${payload.event_type}`);
+    return { channel: "none", success: false, error: "user_frozen" };
   }
 
   // 2. Try push if enabled
@@ -179,6 +187,15 @@ export async function sendPushOnly(
   if (process.env.NODE_ENV !== "production" || process.env.STAGING_URL) {
     console.log(`[notifications] BLOCKED (non-prod or staging) user=${userId} event=${payload.event_type}`);
     return { channel: "none", success: false, error: "blocked_non_production" };
+  }
+
+  // Block all notifications for frozen users
+  const frozenCheck = await pgQueryOne<{ self_frozen: boolean | null; user_status: string | null }>(
+    "SELECT self_frozen, user_status FROM users WHERE id = $1", [userId]
+  );
+  if (frozenCheck?.self_frozen || frozenCheck?.user_status === "frozen") {
+    console.log(`[notifications] BLOCKED (frozen) user=${userId} event=${payload.event_type}`);
+    return { channel: "none", success: false, error: "user_frozen" };
   }
 
   const tokens = await pgQueryAll<{ id: number; token: string }>(

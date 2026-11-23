@@ -22,7 +22,49 @@
 
 ---
 
-## Latest Session: 2026-10-31/11-04 (Survey 3 + UX Fixes + Photo Validation)
+## Latest Session: 2026-11-05/09 (Admin UX + Chat Safety + Matching Fix + Code Cleanup)
+
+### ✅ שיפור פרומפט צ'אט — מניעת חשיפת דחיית תמונה
+- שכתוב סעיף "התאמה שלא יצאה לפועל" ב-context-system-info.txt
+- כלל: לעולם לא להציע מיוזמה שהצד השני דחתה תמונה
+- ברירת מחדל: סיבות ניטרליות (לא פעילה, התאמה אחרת, בירורים)
+- רק בתשובה לשאלה ישירה אפשר להזכיר שזו אפשרות אחת מרבות
+
+### ✅ Admin — Candidate Matches autocomplete
+- שדה חיפוש משתמש/ת עם dropdown: שם + #ID
+- בחירה מהרשימה מסננת לפי ID, dropdown נסגר
+
+### ✅ Admin — מסך Matched: דירוג תמונות + פרטי ביטול + כפתור הקפאה
+- עמודת דירוג חדשה: bullseye 🎯 / possible 👍 / miss ❌ / known_person 👤
+- התאמות שבוטלו: מציג מי ביטלה, מתי, הערות משתי הצדדים
+- כפתור "הקפא" על התאמות פעילות (in_match → stalled) עם confirm
+
+### ✅ Admin — התראת תמונות בעייתיות (Users tab)
+- סקשן אדום בולט בראש מסך Users: משתמשות עם photo_flags
+- מציג סוג הבעיה (לא אדם / AI / אי-התאמה מגדרית)
+- כפתור "שלח התראה" — admin_message מותאם מגדר, רק בלחיצה ידנית
+- Backend: הוספת photo_flags ל-user-management endpoint
+
+### ✅ ניקוי קוד מת
+- הסרת UserManagementTab (304 שורות dead code בfrontend)
+- הסרת 4 endpoints מתים בbackend: /admin/user-profiles, /analyze-profile, /admin/android-tester-status, /admin/auth-alerts (~270 שורות)
+- תיקון באג קריטי ב-App.tsx: onStartChat קרא ל-setChatSessionKey שלא קיים
+
+### ✅ תיקון סינון זהות מינית מיוחדת (matchStage1)
+- לפני: משתמשים עם trans score גבוה יכלו להתאים רק למי שבחר doesnt_matter (שלא קיים ב-UI)
+- אחרי: עוברים סינון רגיל, מסומנים כ-special attention באדמין
+- הלוגיקה הישנה שמורה כ-TODO להחזרה כשיתווסף UI להגדרת doesnt_matter
+
+### ✅ Admin Users — כפתור סינון "מיוחדים"
+- כפתור חדש 🚨 מיוחדים בפילטרים של מסך Users
+- מציג: identity flags, toxic, troll, special_attention_override, photo flags
+
+### ✅ דף Support
+- support.html נוסף ל-frontend/public (נוצר בסשן אחר)
+
+---
+
+## Previous Session: 2026-10-31/11-04 (Survey 3 + UX Fixes + Photo Validation)
 
 ### ✅ סקר 3 — סקר חוויית התאמה
 - סקר חדש ל-25 משתמשות שכבר קיבלו התאמה (7 שאלות)
