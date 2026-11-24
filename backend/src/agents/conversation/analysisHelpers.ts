@@ -120,6 +120,12 @@ export async function buildAnalysisTranscript(
   _db: Database.Database,
   userId: number
 ): Promise<string> {
+  // Load basic user demographics for context
+  const userInfo = await pgQueryOne<{ age: number | null; gender: string | null }>(
+    "SELECT age, gender FROM users WHERE id = $1",
+    [userId]
+  );
+
   const interviewerMsgs = await pgQueryAll<{ role: string; content: string }>(
     `SELECT role, content FROM conversation_messages
      WHERE user_id = $1 AND (guide IS NULL OR (guide != 'psychologist' AND guide NOT LIKE 'new_chat%'))
@@ -142,6 +148,17 @@ export async function buildAnalysisTranscript(
   );
 
   const parts: string[] = [];
+
+  // Inject demographic context so analysis prompts can factor in age
+  if (userInfo) {
+    const infoParts: string[] = [];
+    if (userInfo.age) infoParts.push(`גיל: ${userInfo.age}`);
+    if (userInfo.gender) infoParts.push(`מגדר: ${userInfo.gender === "woman" ? "אישה" : userInfo.gender === "man" ? "גבר" : userInfo.gender}`);
+    if (infoParts.length > 0) {
+      parts.push(`### מידע רקע על המשתמש/ת\n${infoParts.join(" | ")}\n`);
+    }
+  }
+
   const availableParts = [interviewerMsgs.length > 0, psychMsgs.length > 0, newChatMsgs.length > 0].filter(Boolean).length;
 
   if (availableParts > 1) {
