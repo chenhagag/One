@@ -196,10 +196,29 @@ class ErrorBoundary extends React.Component<
   }
 
   static getDerivedStateFromError(error: Error) {
+    // DOM reconciliation errors (caused by browser translate/extensions modifying React-managed DOM)
+    // are not real app errors — recover silently instead of showing crash screen
+    const msg = error.message || "";
+    const isDomError = msg.includes("not be found here") || // Safari
+      msg.includes("not a child") || // Chrome
+      msg.includes("removeChild") ||
+      msg.includes("insertBefore");
+    if (isDomError) {
+      return { hasError: false };
+    }
     return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
+    // Skip logging for DOM reconciliation errors (browser translate/extensions)
+    const msg = error.message || "";
+    const isDomError = msg.includes("not be found here") || msg.includes("not a child") ||
+      msg.includes("removeChild") || msg.includes("insertBefore");
+    if (isDomError) {
+      console.warn("[ErrorBoundary] DOM reconciliation error (translate/extension) — recovering silently");
+      return;
+    }
+
     // Report to our error logging endpoint
     try {
       const token = localStorage.getItem("one_access_token");
@@ -643,7 +662,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-    <div style={view === "admin" ? { ...styles.app, maxWidth: "100%" } : view === "new_chat" ? { ...styles.app, maxWidth: "100%", padding: 0 } : styles.app}>
+    <div translate="no" className="notranslate" style={view === "admin" ? { ...styles.app, maxWidth: "100%" } : view === "new_chat" ? { ...styles.app, maxWidth: "100%", padding: 0 } : styles.app}>
       {showHeader && (
         <div style={styles.header}>
           <h1
